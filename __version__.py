@@ -2,8 +2,8 @@
 Version information for TabletTracker
 """
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 __title__ = "TabletTracker"
-__description__ = "Production tracking system for tablet manufacturing with Zoho integration"
+__description__ = "Production tracking system for tablet manufacturing with Zoho integration and comprehensive PDF reporting"
 __author__ = "Haute"
 __license__ = "MIT"
