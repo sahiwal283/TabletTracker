@@ -5,9 +5,30 @@ Run every 15 minutes.
 import sqlite3
 from tracking_service import refresh_shipment_row
 
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    # Add tracking columns if missing (safe no-ops if already exist)
+    cur.execute("PRAGMA table_info(shipments)")
+    existing = {row[1] for row in cur.fetchall()}
+    needed = {
+        "carrier_code": "TEXT",
+        "tracking_status": "TEXT",
+        "last_checkpoint": "TEXT",
+        "delivered_at": "DATE",
+        "last_checked_at": "TIMESTAMP",
+    }
+    for col, coltype in needed.items():
+        if col not in existing:
+            try:
+                cur.execute(f"ALTER TABLE shipments ADD COLUMN {col} {coltype}")
+            except Exception:
+                pass
+    conn.commit()
+
 def main():
     conn = sqlite3.connect('tablet_counter.db')
     conn.row_factory = sqlite3.Row
+    ensure_schema(conn)
 
     # Select shipments that likely need updates
     rows = conn.execute(
