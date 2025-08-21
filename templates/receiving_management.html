@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Receiving Management{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="text-center mb-8">
+        <div class="mb-4 flex justify-center">
+            <svg class="w-12 h-12 text-primary" aria-hidden="true"><use href="#icon-truck" /></svg>
+        </div>
+        <h2 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent mb-2">
+            {{ gettext('Receiving Management') }}
+        </h2>
+        <p class="text-gray-600">{{ gettext('Process shipment arrivals with photos and box/bag tracking') }}</p>
+    </div>
+
+    <!-- Active Shipments Awaiting Receiving -->
+    <div class="card mb-8">
+        <div class="flex items-center mb-6">
+            <svg class="w-6 h-6 mr-3 text-orange-500" aria-hidden="true"><use href="#icon-truck" /></svg>
+            <h3 class="text-xl font-semibold">{{ gettext('Pending Shipments') }}</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('PO Number') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Tracking') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Carrier') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Status') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for shipment in pending_shipments %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-4 font-medium text-gray-900">{{ shipment.po_number }}</td>
+                        <td class="px-4 py-4 text-gray-600 font-mono">{{ shipment.tracking_number }}</td>
+                        <td class="px-4 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                {% if shipment.carrier == 'UPS' %}bg-brown-100 text-brown-800{% elif shipment.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ shipment.carrier }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                {% if shipment.tracking_status == 'Delivered' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ shipment.tracking_status or 'In Transit' }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4">
+                            {% if shipment.tracking_status == 'Delivered' %}
+                            <button onclick="startReceiving({{ shipment.id }}, '{{ shipment.po_number }}')" 
+                                    class="btn-primary text-sm px-3 py-1">
+                                <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-box" /></svg>
+                                {{ gettext('Start Receiving') }}
+                            </button>
+                            {% else %}
+                            <span class="text-gray-400 text-sm">{{ gettext('Awaiting Delivery') }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Receiving Modal -->
+    <div id="receiving-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-lg bg-white">
+            <div class="mb-6">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-semibold flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-blue-500" aria-hidden="true"><use href="#icon-box" /></svg>
+                        {{ gettext('Receive Shipment') }}: <span id="modal-po-number" class="ml-2 text-blue-600"></span>
+                    </h3>
+                    <button onclick="closeReceivingModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <form id="receiving-form" class="space-y-6">
+                <input type="hidden" id="shipment-id" name="shipment_id">
+                
+                <!-- Step 1: Delivery Photo -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 class="text-lg font-semibold mb-3 flex items-center">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-2">1</span>
+                        {{ gettext('Delivery Photo') }}
+                    </h4>
+                    <div class="space-y-3">
+                        <label class="block text-sm font-medium text-gray-700">
+                            {{ gettext('Take photo of delivery box before opening') }} *
+                        </label>
+                        <input type="file" id="delivery-photo" name="delivery_photo" 
+                               accept="image/*" capture="camera" required
+                               class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <div id="photo-preview" class="hidden mt-3">
+                            <img id="photo-preview-img" class="max-w-full h-48 object-contain rounded-lg border" alt="Delivery photo preview">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Box Breakdown -->
+                <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 class="text-lg font-semibold mb-3 flex items-center">
+                        <span class="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-2">2</span>
+                        {{ gettext('Box Breakdown') }}
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="total-small-boxes" class="block text-sm font-medium text-gray-700 mb-1">
+                                {{ gettext('Total Small Boxes Found') }} *
+                            </label>
+                            <input type="number" id="total-small-boxes" name="total_small_boxes" required
+                                   min="1" max="50" class="form-input" 
+                                   onchange="generateBoxInputs(this.value)">
+                        </div>
+                        <div>
+                            <label for="received-by" class="block text-sm font-medium text-gray-700 mb-1">
+                                {{ gettext('Received By') }} *
+                            </label>
+                            <input type="text" id="received-by" name="received_by" required
+                                   class="form-input" placeholder="Employee name">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Box Details (Generated Dynamically) -->
+                <div id="box-details-section" class="hidden bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <h4 class="text-lg font-semibold mb-3 flex items-center">
+                        <span class="bg-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-2">3</span>
+                        {{ gettext('Box Details') }}
+                    </h4>
+                    <div id="box-inputs-container" class="space-y-4">
+                        <!-- Dynamic box inputs will be generated here -->
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label for="receiving-notes" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Notes') }}
+                    </label>
+                    <textarea id="receiving-notes" name="notes" rows="3" 
+                              class="form-input" 
+                              placeholder="{{ gettext('Any observations about the shipment condition, damages, etc.') }}"></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <button type="button" onclick="closeReceivingModal()" 
+                            class="btn-secondary">
+                        {{ gettext('Cancel') }}
+                    </button>
+                    <button type="submit" class="btn-primary flex items-center">
+                        <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-check" /></svg>
+                        {{ gettext('Complete Receiving') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Recent Receiving History -->
+    <div class="card">
+        <div class="flex items-center mb-6">
+            <svg class="w-6 h-6 mr-3 text-green-500" aria-hidden="true"><use href="#icon-check" /></svg>
+            <h3 class="text-xl font-semibold">{{ gettext('Recent Receiving History') }}</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('PO Number') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Received Date') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Boxes') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Total Bags') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Received By') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for receiving in recent_receiving %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-4 font-medium text-gray-900">{{ receiving.po_number }}</td>
+                        <td class="px-4 py-4 text-gray-600">{{ receiving.received_date.strftime('%Y-%m-%d %H:%M') if receiving.received_date else '-' }}</td>
+                        <td class="px-4 py-4 text-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ receiving.total_small_boxes }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4 text-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {{ receiving.total_bags or 0 }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4 text-gray-600">{{ receiving.received_by }}</td>
+                        <td class="px-4 py-4">
+                            <button onclick="viewReceivingDetails({{ receiving.id }})" 
+                                    class="text-blue-600 hover:text-blue-800 text-sm">
+                                {{ gettext('View Details') }}
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentShipmentId = null;
+
+function startReceiving(shipmentId, poNumber) {
+    currentShipmentId = shipmentId;
+    document.getElementById('shipment-id').value = shipmentId;
+    document.getElementById('modal-po-number').textContent = poNumber;
+    document.getElementById('receiving-modal').classList.remove('hidden');
+}
+
+function closeReceivingModal() {
+    document.getElementById('receiving-modal').classList.add('hidden');
+    document.getElementById('receiving-form').reset();
+    document.getElementById('box-details-section').classList.add('hidden');
+    document.getElementById('photo-preview').classList.add('hidden');
+    currentShipmentId = null;
+}
+
+// Photo preview
+document.getElementById('delivery-photo').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('photo-preview-img').src = e.target.result;
+            document.getElementById('photo-preview').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+function generateBoxInputs(totalBoxes) {
+    const container = document.getElementById('box-inputs-container');
+    const section = document.getElementById('box-details-section');
+    
+    if (totalBoxes < 1) {
+        section.classList.add('hidden');
+        return;
+    }
+    
+    container.innerHTML = '';
+    section.classList.remove('hidden');
+    
+    for (let i = 1; i <= totalBoxes; i++) {
+        const boxDiv = document.createElement('div');
+        boxDiv.className = 'p-3 border border-purple-200 rounded-lg bg-white';
+        boxDiv.innerHTML = `
+            <h5 class="font-medium text-gray-900 mb-2">{{ gettext('Box') }} ${i}</h5>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Number of bags in this box') }} *
+                    </label>
+                    <input type="number" name="box_${i}_bags" required min="1" max="10" 
+                           class="form-input" placeholder="1-2 bags typical">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Box notes') }}
+                    </label>
+                    <input type="text" name="box_${i}_notes" 
+                           class="form-input" placeholder="{{ gettext('Condition, damages, etc.') }}">
+                </div>
+            </div>
+        `;
+        container.appendChild(boxDiv);
+    }
+}
+
+// Form submission
+document.getElementById('receiving-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" aria-hidden="true"><use href="#icon-spinner" /></svg> {{ gettext("Processing...") }}';
+    
+    try {
+        const response = await fetch('/api/process_receiving', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess(result.message || '{{ gettext("Receiving completed successfully!") }}');
+            closeReceivingModal();
+            location.reload(); // Refresh to show updated data
+        } else {
+            showError(result.error || '{{ gettext("Failed to process receiving") }}');
+        }
+    } catch (error) {
+        showError('{{ gettext("Network error") }}: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+});
+
+function viewReceivingDetails(receivingId) {
+    // TODO: Implement receiving details modal
+    window.location.href = `/receiving/${receivingId}/details`;
+}
+</script>
+{% endblock %}

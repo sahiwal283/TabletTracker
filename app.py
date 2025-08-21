@@ -191,6 +191,44 @@ def init_db():
             except Exception:
                 pass
     
+    # Receiving table - tracks shipment arrival and photos
+    c.execute('''CREATE TABLE IF NOT EXISTS receiving (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        po_id INTEGER,
+        shipment_id INTEGER,
+        received_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        delivery_photo_path TEXT,
+        delivery_photo_zoho_id TEXT,
+        total_small_boxes INTEGER DEFAULT 0,
+        received_by TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders (id),
+        FOREIGN KEY (shipment_id) REFERENCES shipments (id)
+    )''')
+    
+    # Small boxes table - tracks individual boxes within shipment
+    c.execute('''CREATE TABLE IF NOT EXISTS small_boxes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        receiving_id INTEGER,
+        box_number INTEGER,
+        total_bags INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (receiving_id) REFERENCES receiving (id)
+    )''')
+    
+    # Bags table - tracks individual bags within boxes
+    c.execute('''CREATE TABLE IF NOT EXISTS bags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        small_box_id INTEGER,
+        bag_number INTEGER,
+        bag_label_count INTEGER,
+        status TEXT DEFAULT 'Available',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
+    )''')
+
     # Employees table for user authentication
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1632,6 +1670,168 @@ def get_po_summary_for_reports():
             'success': False,
             'error': f'Failed to get PO summary: {str(e)}'
         }), 500
+
+# ===== RECEIVING MANAGEMENT ROUTES =====
+
+@app.route('/receiving')
+@admin_required
+def receiving_management():
+    """Receiving management page for processing shipment arrivals"""
+    conn = get_db()
+    
+    # Get pending shipments (delivered but not yet received)
+    pending_shipments = conn.execute('''
+        SELECT s.*, po.po_number
+        FROM shipments s
+        JOIN purchase_orders po ON s.po_id = po.id
+        LEFT JOIN receiving r ON s.id = r.shipment_id
+        WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+        ORDER BY s.delivered_at DESC, s.created_at DESC
+    ''').fetchall()
+    
+    # Get recent receiving history
+    recent_receiving = conn.execute('''
+        SELECT r.*, po.po_number,
+               COUNT(sb.id) as total_boxes,
+               SUM(sb.total_bags) as total_bags
+        FROM receiving r
+        JOIN purchase_orders po ON r.po_id = po.id
+        LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+        GROUP BY r.id
+        ORDER BY r.received_date DESC
+        LIMIT 20
+    ''').fetchall()
+    
+    conn.close()
+    
+    return render_template('receiving_management.html', 
+                         pending_shipments=pending_shipments,
+                         recent_receiving=recent_receiving)
+
+@app.route('/api/process_receiving', methods=['POST'])
+@admin_required
+def process_receiving():
+    """Process a new shipment receiving with photos and box/bag tracking"""
+    try:
+        conn = get_db()
+        
+        # Get form data
+        shipment_id = request.form.get('shipment_id')
+        total_small_boxes = int(request.form.get('total_small_boxes', 0))
+        received_by = request.form.get('received_by')
+        notes = request.form.get('notes', '')
+        
+        # Get shipment and PO info
+        shipment = conn.execute('''
+            SELECT s.*, po.po_number, po.id as po_id
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            WHERE s.id = ?
+        ''', (shipment_id,)).fetchone()
+        
+        if not shipment:
+            return jsonify({'error': 'Shipment not found'}), 404
+        
+        # Handle photo upload
+        delivery_photo = request.files.get('delivery_photo')
+        photo_path = None
+        zoho_photo_id = None
+        
+        if delivery_photo and delivery_photo.filename:
+            # Save photo locally
+            import os
+            from werkzeug.utils import secure_filename
+            
+            # Create uploads directory if it doesn't exist
+            upload_dir = 'static/uploads/receiving'
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Generate unique filename
+            filename = f"shipment_{shipment_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            photo_path = os.path.join(upload_dir, filename)
+            delivery_photo.save(photo_path)
+            
+            # TODO: Upload to Zoho (implement after basic workflow is working)
+        
+        # Create receiving record
+        receiving_cursor = conn.execute('''
+            INSERT INTO receiving (po_id, shipment_id, total_small_boxes, received_by, notes, delivery_photo_path, delivery_photo_zoho_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (shipment['po_id'], shipment_id, total_small_boxes, received_by, notes, photo_path, zoho_photo_id))
+        
+        receiving_id = receiving_cursor.lastrowid
+        
+        # Process box details
+        total_bags = 0
+        for box_num in range(1, total_small_boxes + 1):
+            bags_in_box = int(request.form.get(f'box_{box_num}_bags', 0))
+            box_notes = request.form.get(f'box_{box_num}_notes', '')
+            
+            # Create small box record
+            box_cursor = conn.execute('''
+                INSERT INTO small_boxes (receiving_id, box_number, total_bags, notes)
+                VALUES (?, ?, ?, ?)
+            ''', (receiving_id, box_num, bags_in_box, box_notes))
+            
+            small_box_id = box_cursor.lastrowid
+            
+            # Create bag records for this box
+            for bag_num in range(1, bags_in_box + 1):
+                conn.execute('''
+                    INSERT INTO bags (small_box_id, bag_number, status)
+                    VALUES (?, ?, 'Available')
+                ''', (small_box_id, bag_num))
+                total_bags += 1
+        
+        # Update shipment status to indicate it's been received
+        conn.execute('''
+            UPDATE shipments SET actual_delivery = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (shipment_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully received shipment for PO {shipment["po_number"]}. Processed {total_small_boxes} boxes with {total_bags} total bags.',
+            'receiving_id': receiving_id
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to process receiving: {str(e)}'}), 500
+
+@app.route('/api/available_boxes_bags/<int:po_id>')
+@employee_required
+def get_available_boxes_bags(po_id):
+    """Get available boxes and bags for a PO (for warehouse form dropdowns)"""
+    conn = get_db()
+    
+    # Get all receiving records for this PO with available bags
+    receiving_data = conn.execute('''
+        SELECT r.id as receiving_id, sb.box_number, b.bag_number, b.id as bag_id, b.bag_label_count
+        FROM receiving r
+        JOIN small_boxes sb ON r.id = sb.receiving_id
+        JOIN bags b ON sb.id = b.small_box_id
+        WHERE r.po_id = ? AND b.status = 'Available'
+        ORDER BY sb.box_number, b.bag_number
+    ''', (po_id,)).fetchall()
+    
+    conn.close()
+    
+    # Structure data for frontend
+    boxes = {}
+    for row in receiving_data:
+        box_num = row['box_number']
+        if box_num not in boxes:
+            boxes[box_num] = []
+        boxes[box_num].append({
+            'bag_number': row['bag_number'],
+            'bag_id': row['bag_id'],
+            'bag_label_count': row['bag_label_count']
+        })
+    
+    return jsonify({'boxes': boxes})
 
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
