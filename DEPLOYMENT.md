@@ -33,13 +33,20 @@ Create `.env` file in your project directory:
 
 ```bash
 # In PythonAnywhere Files tab, create new file: .env
-SECRET_KEY=your-strong-secret-key-here
+SECRET_KEY=your-strong-secret-key-here-32-chars-minimum
+FLASK_ENV=production
+ADMIN_PASSWORD=YourSecureAdminPassword123!
 ZOHO_CLIENT_ID=your_zoho_client_id
 ZOHO_CLIENT_SECRET=your_zoho_client_secret  
 ZOHO_REFRESH_TOKEN=your_zoho_refresh_token
 ZOHO_ORGANIZATION_ID=your_org_id
-FLASK_ENV=production
 ```
+
+**🚨 IMPORTANT SECURITY NOTES:**
+- Change the `ADMIN_PASSWORD` from default immediately
+- Use a strong SECRET_KEY (32+ random characters)  
+- Never commit your `.env` file to version control
+- The admin session expires after 8 hours for security
 
 ### 4. Initialize Database
 

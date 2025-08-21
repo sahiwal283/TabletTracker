@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 import json
 import os
@@ -12,6 +12,38 @@ from __version__ import __version__, __title__, __description__
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
+
+# Configure session settings for production security
+if Config.ENV == 'production':
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+# Set permanent session lifetime
+app.permanent_session_lifetime = timedelta(seconds=Config.PERMANENT_SESSION_LIFETIME)
+
+# Production error handling
+@app.errorhandler(404)
+def not_found_error(error):
+    if Config.ENV == 'production':
+        return render_template('base.html'), 404
+    return str(error), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    if Config.ENV == 'production':
+        return render_template('base.html'), 500
+    return str(error), 500
+
+# Security headers for production
+@app.after_request
+def after_request(response):
+    if Config.ENV == 'production':
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 # Database setup
 def init_db():
@@ -577,14 +609,23 @@ def admin_panel():
 
 @app.route('/admin/login', methods=['POST'])
 def admin_login():
-    """Handle admin login"""
+    """Handle admin login with enhanced security"""
     password = request.form.get('password') or request.json.get('password')
     
-    # Simple password check (you can make this more secure)
-    if password == 'admin123':  # Change this password!
+    # Get admin password from environment variable with secure default
+    admin_password = Config.ADMIN_PASSWORD
+    
+    if password == admin_password:
         session['admin_authenticated'] = True
+        session['login_time'] = datetime.now().isoformat()
+        session.permanent = True  # Make session permanent
+        app.permanent_session_lifetime = timedelta(hours=8)  # 8 hour timeout
+        
         return redirect('/admin') if request.form else jsonify({'success': True})
     else:
+        # Log failed login attempt
+        print(f"Failed admin login attempt from {request.remote_addr} at {datetime.now()}")
+        
         if request.form:
             flash('Invalid password', 'error')
             return render_template('admin_login.html')

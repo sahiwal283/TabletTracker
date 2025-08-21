@@ -1,13 +1,24 @@
+# Environment variables for TabletTracker
+# Copy this to .env and fill in your actual values
+
 # Flask Configuration
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=your-strong-secret-key-here-change-this-in-production
 FLASK_ENV=development
+
+# Admin Authentication (CHANGE IN PRODUCTION!)
+ADMIN_PASSWORD=TabletTracker2024!
 
 # Zoho API Configuration
 # Get these from https://api-console.zoho.com/
-ZOHO_CLIENT_ID=1000.XCL3R2VA7QRBFID2IT6YERW2XC21VR
-ZOHO_CLIENT_SECRET=1d65e1e2c293cac86923689495b5b638a8d6a4db42
-ZOHO_REFRESH_TOKEN=1000.cd8b8486ea82b2bff0988f5eda49a8b4.fe589fd2f14b8bb0c1aeeb586bdd06b7
-ZOHO_ORGANIZATION_ID= 856048585
+ZOHO_CLIENT_ID=your_client_id_here
+ZOHO_CLIENT_SECRET=your_client_secret_here
+ZOHO_REFRESH_TOKEN=your_refresh_token_here
+ZOHO_ORGANIZATION_ID=your_organization_id_here
 
 # Database (SQLite for development, can be changed for production)
 DATABASE_URL=sqlite:///tablet_counter.db
+
+# Production Settings
+# Set these when deploying to production:
+# FLASK_ENV=production
+# SESSION_TIMEOUT=28800
