@@ -176,7 +176,9 @@ class ProductionReportGenerator:
         total_pack_times = []
         
         for po in pos:
-            po_data = self._get_detailed_po_data(conn, po['id'])
+            # Convert to dict immediately 
+            po_dict = dict(po)
+            po_data = self._get_detailed_po_data(conn, po_dict['id'])
             
             # Calculate pack time if we have delivery and completion data
             pack_time = self._calculate_pack_time(po_data)
@@ -186,9 +188,9 @@ class ProductionReportGenerator:
             report_data['pos'].append(po_data)
             
             # Update summary stats
-            report_data['summary']['total_ordered'] += po_data['ordered_quantity'] or 0
-            report_data['summary']['total_produced'] += po_data['current_good_count'] or 0
-            report_data['summary']['total_damaged'] += po_data['current_damaged_count'] or 0
+            report_data['summary']['total_ordered'] += po_data.get('ordered_quantity', 0) or 0
+            report_data['summary']['total_produced'] += po_data.get('current_good_count', 0) or 0
+            report_data['summary']['total_damaged'] += po_data.get('current_damaged_count', 0) or 0
         
         # Calculate average pack time
         if total_pack_times:
@@ -229,19 +231,25 @@ class ProductionReportGenerator:
             ORDER BY ws.created_at
         """, (po_id,)).fetchall()
         
+        # Convert to dicts to avoid sqlite3.Row issues
+        po_dict = dict(po) if po else {}
+        lines_list = [dict(line) for line in lines] if lines else []
+        shipment_dict = dict(shipment) if shipment else None
+        submissions_list = [dict(sub) for sub in submissions] if submissions else []
+        
         # Calculate production breakdown
-        production_breakdown = self._calculate_production_breakdown(submissions)
+        production_breakdown = self._calculate_production_breakdown(submissions_list)
         
         return {
-            **dict(po),
-            'lines': [dict(line) for line in lines],
-            'shipment': dict(shipment) if shipment else None,
-            'submissions': [dict(sub) for sub in submissions],
+            **po_dict,
+            'lines': lines_list,
+            'shipment': shipment_dict,
+            'submissions': submissions_list,
             'production_breakdown': production_breakdown,
-            'pack_time_days': self._calculate_pack_time({'po': po, 'shipment': shipment, 'submissions': submissions})
+            'pack_time_days': self._calculate_pack_time({'po': po_dict, 'shipment': shipment_dict, 'submissions': submissions_list})
         }
 
-    def _calculate_production_breakdown(self, submissions: List[sqlite3.Row]) -> Dict:
+    def _calculate_production_breakdown(self, submissions: List[Dict]) -> Dict:
         """Calculate detailed production breakdown from submissions"""
         breakdown = {
             'total_displays': 0,

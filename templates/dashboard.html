@@ -91,33 +91,38 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Report Controls -->
         <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label for="report_start_date" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input type="date" id="report_start_date" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label for="report_end_date" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input type="date" id="report_end_date" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-            </div>
-            
             <div>
-                <label for="specific_pos" class="block text-sm font-medium text-gray-700 mb-1">Specific POs (optional)</label>
-                <input type="text" id="specific_pos" placeholder="e.g., PO-001, PO-002, PO-003"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <p class="text-xs text-gray-500 mt-1">Comma-separated list of PO numbers</p>
+                <label for="po_selector" class="block text-sm font-medium text-gray-700 mb-1">Select Purchase Order</label>
+                <select id="po_selector" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Loading POs...</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Select a PO to generate its detailed production report</p>
             </div>
             
-            <button onclick="generateProductionReport()" id="generate-report-btn"
-                    class="btn-primary w-full py-3 text-lg font-bold shadow-2xl transform transition-all duration-500 hover:scale-105">
+            <div id="po_preview" class="hidden bg-white p-4 rounded-lg border border-gray-200">
+                <h4 class="font-bold text-gray-800 mb-2">PO Preview:</h4>
+                <div id="po_preview_content" class="text-sm text-gray-600 space-y-1">
+                    <!-- Preview content will be populated here -->
+                </div>
+            </div>
+            
+            <button onclick="generatePOReport()" id="generate-report-btn" disabled
+                    class="btn-primary w-full py-3 text-lg font-bold shadow-2xl transform transition-all duration-500 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
                 <span class="flex items-center justify-center">
                     <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-download" /></svg>
-                    Generate PDF Report
+                    Generate PO Report
                 </span>
             </button>
+            
+            <div class="text-center">
+                <button onclick="generateAllPOsReport()" id="generate-all-btn"
+                        class="btn-secondary text-sm px-4 py-2 transform transition-all duration-300 hover:scale-105">
+                    <span class="flex items-center justify-center">
+                        <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-list" /></svg>
+                        Generate All POs Report
+                    </span>
+                </button>
+            </div>
         </div>
         
         <!-- Report Preview Info -->
@@ -975,9 +980,73 @@ function toggleShippingDetails(poId) {
     details.classList.toggle('hidden');
 }
 
-async function generateProductionReport() {
+// Load available POs on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadAvailablePOs();
+});
+
+async function loadAvailablePOs() {
+    try {
+        const response = await fetch('/api/reports/po-summary');
+        const data = await response.json();
+        
+        const selector = document.getElementById('po_selector');
+        selector.innerHTML = '<option value="">Select a PO...</option>';
+        
+        if (data.success && data.pos) {
+            data.pos.forEach(po => {
+                const option = document.createElement('option');
+                option.value = po.po_number;
+                option.textContent = `${po.po_number} - ${po.tablet_type || 'N/A'} (${po.ordered || 0} tablets)`;
+                option.dataset.poData = JSON.stringify(po);
+                selector.appendChild(option);
+            });
+        }
+        
+        // Add change listener
+        selector.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const button = document.getElementById('generate-report-btn');
+            const preview = document.getElementById('po_preview');
+            const previewContent = document.getElementById('po_preview_content');
+            
+            if (this.value && selectedOption.dataset.poData) {
+                const poData = JSON.parse(selectedOption.dataset.poData);
+                button.disabled = false;
+                preview.classList.remove('hidden');
+                
+                previewContent.innerHTML = `
+                    <div><strong>PO Number:</strong> ${poData.po_number}</div>
+                    <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
+                    <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
+                    <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
+                    <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
+                    <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
+                    <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
+                    ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
+                `;
+            } else {
+                button.disabled = true;
+                preview.classList.add('hidden');
+            }
+        });
+        
+    } catch (error) {
+        console.error('Failed to load POs:', error);
+        const selector = document.getElementById('po_selector');
+        selector.innerHTML = '<option value="">Error loading POs</option>';
+    }
+}
+
+async function generatePOReport() {
+    const selector = document.getElementById('po_selector');
     const button = document.getElementById('generate-report-btn');
     const originalText = button.innerHTML;
+    
+    if (!selector.value) {
+        showError('Please select a PO first');
+        return;
+    }
     
     try {
         // Show loading state
@@ -989,18 +1058,10 @@ async function generateProductionReport() {
             </span>
         `;
         
-        // Get form data
-        const startDate = document.getElementById('report_start_date').value;
-        const endDate = document.getElementById('report_end_date').value;
-        const specificPOs = document.getElementById('specific_pos').value;
-        
-        // Prepare request data
-        const requestData = {};
-        if (startDate) requestData.start_date = startDate;
-        if (endDate) requestData.end_date = endDate;
-        if (specificPOs) {
-            requestData.po_numbers = specificPOs.split(',').map(po => po.trim()).filter(po => po);
-        }
+        // Prepare request data for single PO
+        const requestData = {
+            po_numbers: [selector.value]
+        };
         
         // Make API request
         const response = await fetch('/api/reports/production', {
@@ -1027,15 +1088,75 @@ async function generateProductionReport() {
         
         // Generate filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const dateRange = startDate && endDate ? `_${startDate}_to_${endDate}` : '';
-        a.download = `production_report${dateRange}_${timestamp}.pdf`;
+        a.download = `${selector.value}_production_report_${timestamp}.pdf`;
         
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        showSuccess('Production report generated successfully!');
+        showSuccess(`Report for ${selector.value} generated successfully!`);
+        
+    } catch (error) {
+        console.error('Report generation error:', error);
+        showError('Failed to generate report: ' + error.message);
+    } finally {
+        // Restore button state
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+async function generateAllPOsReport() {
+    const button = document.getElementById('generate-all-btn');
+    const originalText = button.innerHTML;
+    
+    try {
+        // Show loading state
+        button.disabled = true;
+        button.innerHTML = `
+            <span class="flex items-center justify-center">
+                <svg class="animate-spin w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-spinner" /></svg>
+                Generating...
+            </span>
+        `;
+        
+        // Generate report with no filters (all POs)
+        const requestData = {};
+        
+        // Make API request
+        const response = await fetch('/api/reports/production', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        // Get the PDF blob
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        // Generate filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        a.download = `all_pos_production_report_${timestamp}.pdf`;
+        
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showSuccess('All POs report generated successfully!');
         
     } catch (error) {
         console.error('Report generation error:', error);
