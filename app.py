@@ -576,7 +576,6 @@ def shipments_management():
                s.notes as shipment_notes
         FROM purchase_orders po
         LEFT JOIN shipments s ON po.id = s.po_id
-        WHERE po.zoho_po_id IS NOT NULL
         ORDER BY po.po_number DESC
     ''').fetchall()
     

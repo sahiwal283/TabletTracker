@@ -37,6 +37,9 @@
                             Ship Date
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            ETA
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
                         </th>
                     </tr>
@@ -78,6 +81,9 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {{ po.shipped_date or '-' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ po.estimated_delivery or '-' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <div class="flex items-center space-x-3">
