@@ -150,17 +150,22 @@ def init_db():
     )''')
 
     # Add tracking columns if upgrading existing DB
-    for alter in [
-        "ALTER TABLE shipments ADD COLUMN carrier_code TEXT",
-        "ALTER TABLE shipments ADD COLUMN tracking_status TEXT",
-        "ALTER TABLE shipments ADD COLUMN last_checkpoint TEXT",
-        "ALTER TABLE shipments ADD COLUMN delivered_at DATE",
-        "ALTER TABLE shipments ADD COLUMN last_checked_at TIMESTAMP"
-    ]:
-        try:
-            c.execute(alter)
-        except Exception:
-            pass
+    # Safe ALTERs to backfill missing columns
+    c.execute('PRAGMA table_info(shipments)')
+    existing_cols = [row[1] for row in c.fetchall()]
+    alters = {
+        'carrier_code': 'TEXT',
+        'tracking_status': 'TEXT',
+        'last_checkpoint': 'TEXT',
+        'delivered_at': 'DATE',
+        'last_checked_at': 'TIMESTAMP',
+    }
+    for col, coltype in alters.items():
+        if col not in existing_cols:
+            try:
+                c.execute(f'ALTER TABLE shipments ADD COLUMN {col} {coltype}')
+            except Exception:
+                pass
     
     # Employees table for user authentication
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
