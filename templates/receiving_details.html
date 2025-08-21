@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Receiving Details{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h2 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+                {{ gettext('Receiving Details') }}
+            </h2>
+            <p class="text-gray-600 mt-2">PO {{ receiving.po_number }} - {{ receiving.carrier }} {{ receiving.tracking_number }}</p>
+        </div>
+        <a href="{{ url_for('receiving_management') }}" class="btn-secondary">
+            <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-arrow-left" /></svg>
+            {{ gettext('Back to Receiving') }}
+        </a>
+    </div>
+
+    <!-- Receiving Summary -->
+    <div class="card mb-8">
+        <h3 class="text-xl font-semibold mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-3 text-blue-500" aria-hidden="true"><use href="#icon-info" /></svg>
+            {{ gettext('Receiving Summary') }}
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-blue-50 p-4 rounded-lg">
+                <div class="text-2xl font-bold text-blue-600">{{ receiving.total_small_boxes }}</div>
+                <div class="text-sm text-gray-600">{{ gettext('Small Boxes') }}</div>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg">
+                <div class="text-2xl font-bold text-green-600">{{ boxes|length }}</div>
+                <div class="text-sm text-gray-600">{{ gettext('Total Bags') }}</div>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-lg">
+                <div class="text-sm text-purple-600 font-medium">{{ gettext('Received') }}</div>
+                <div class="text-xs text-gray-600">{{ receiving.received_date.strftime('%Y-%m-%d %H:%M') if receiving.received_date else '-' }}</div>
+                <div class="text-xs text-gray-600">{{ gettext('by') }} {{ receiving.received_by }}</div>
+            </div>
+        </div>
+        
+        {% if receiving.notes %}
+        <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+            <strong class="text-gray-700">{{ gettext('Notes') }}:</strong>
+            <p class="text-gray-600 mt-1">{{ receiving.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Delivery Photo -->
+    {% if receiving.delivery_photo_path %}
+    <div class="card mb-8">
+        <h3 class="text-xl font-semibold mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-3 text-green-500" aria-hidden="true"><use href="#icon-camera" /></svg>
+            {{ gettext('Delivery Photo') }}
+        </h3>
+        <div class="text-center">
+            <img src="{{ url_for('static', filename=receiving.delivery_photo_path.replace('static/', '')) }}" 
+                 alt="Delivery photo" 
+                 class="max-w-full h-64 object-contain mx-auto rounded-lg border shadow-sm">
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Box and Bag Details -->
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-3 text-orange-500" aria-hidden="true"><use href="#icon-box" /></svg>
+            {{ gettext('Box and Bag Breakdown') }}
+        </h3>
+        
+        <div class="space-y-4">
+            {% for box in boxes %}
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-900">
+                        {{ gettext('Box') }} {{ box.box_number }}
+                    </h4>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {{ box.bag_count }} {{ gettext('bags') }}
+                    </span>
+                </div>
+                
+                {% if box.bag_numbers %}
+                <div class="mb-2">
+                    <span class="text-sm text-gray-600">{{ gettext('Bag numbers') }}:</span>
+                    <span class="text-sm font-mono">{{ box.bag_numbers }}</span>
+                </div>
+                {% endif %}
+                
+                {% if box.notes %}
+                <div class="text-sm text-gray-600">
+                    <strong>{{ gettext('Notes') }}:</strong> {{ box.notes }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
