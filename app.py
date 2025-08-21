@@ -1673,6 +1673,46 @@ def get_po_summary_for_reports():
 
 # ===== RECEIVING MANAGEMENT ROUTES =====
 
+@app.route('/debug/server-info')
+def server_debug_info():
+    """Debug route to check server state - no auth required"""
+    import os
+    import time
+    
+    try:
+        # Check file timestamps
+        app_py_time = os.path.getmtime('app.py')
+        version_time = os.path.getmtime('__version__.py')
+        
+        # Check if we can read version
+        try:
+            from __version__ import __version__, __title__
+            version_info = f"{__title__} v{__version__}"
+        except:
+            version_info = "Version import failed"
+        
+        # Check current working directory
+        cwd = os.getcwd()
+        
+        # Check if template exists
+        template_exists = os.path.exists('templates/receiving_management.html')
+        
+        return f"""
+        <h2>Server Debug Info</h2>
+        <p><strong>Version:</strong> {version_info}</p>
+        <p><strong>Working Directory:</strong> {cwd}</p>
+        <p><strong>App.py Modified:</strong> {time.ctime(app_py_time)}</p>
+        <p><strong>Version.py Modified:</strong> {time.ctime(version_time)}</p>
+        <p><strong>Receiving Template Exists:</strong> {template_exists}</p>
+        <p><strong>Python Path:</strong> {os.sys.path[0]}</p>
+        <hr>
+        <p><a href="/receiving">Test Receiving Route</a></p>
+        <p><a href="/receiving/debug">Test Debug Route</a></p>
+        """
+        
+    except Exception as e:
+        return f"<h2>Server Debug Error</h2><p>{str(e)}</p>"
+
 @app.route('/receiving/debug')
 @admin_required
 def receiving_debug():
