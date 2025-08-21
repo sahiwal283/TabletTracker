@@ -8,12 +8,34 @@
     <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-gray-900">⚡ Admin Panel</h1>
         <p class="text-gray-600 mt-2">System configuration and management tools</p>
+        
+        <!-- Logout button -->
+        <div class="mt-4">
+            <a href="/admin/logout" class="text-sm text-red-600 hover:text-red-800 underline">
+                🚪 Admin Logout
+            </a>
+        </div>
     </div>
 
     <!-- Configuration Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Employee Management Card -->
+        <div class="card hover-lift">
+            <div class="p-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-4">
+                    <span class="text-2xl">👥</span>
+                </div>
+                <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Employee Management</h3>
+                <p class="text-sm text-gray-600 text-center mb-4">Add and manage employee accounts</p>
+                <a href="/admin/employees" 
+                   class="block w-full text-center btn-primary text-sm py-2">
+                    👥 Manage Employees
+                </a>
+            </div>
+        </div>
+        
         <!-- Product Configuration Card -->
-        <div class="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow">
+        <div class="card hover-lift">
             <div class="p-6">
                 <div class="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-lg mx-auto mb-4">
                     <span class="text-2xl">📊</span>
@@ -22,11 +44,11 @@
                 <p class="text-sm text-gray-600 text-center mb-4">Manage tablet types, products, and calculations</p>
                 <div class="space-y-2">
                     <a href="/admin/tablet_types" 
-                       class="block w-full text-center bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm">
+                       class="block w-full text-center btn-secondary text-sm py-2">
                         🧪 Tablet Types & IDs
                     </a>
                     <a href="/admin/products" 
-                       class="block w-full text-center bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm">
+                       class="block w-full text-center btn-warning text-sm py-2">
                         📝 Product Config
                     </a>
                 </div>
@@ -34,7 +56,7 @@
         </div>
 
         <!-- Shipments Card -->
-        <div class="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow">
+        <div class="card hover-lift">
             <div class="p-6">
                 <div class="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-4">
                     <span class="text-2xl">🚚</span>
@@ -42,7 +64,7 @@
                 <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Shipments</h3>
                 <p class="text-sm text-gray-600 text-center mb-4">Track vendor shipments</p>
                 <a href="/admin/shipments" 
-                   class="block w-full text-center bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                   class="block w-full text-center btn-success text-sm py-2">
                     Manage Shipments
                 </a>
             </div>
@@ -50,13 +72,16 @@
     </div>
 
     <!-- System Tools -->
-    <div class="bg-gray-50 rounded-xl p-6">
+    <div class="card p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center">🔧 System Tools</h3>
-        <div class="flex justify-center">
+        <div class="flex justify-center space-x-4">
             <button onclick="testZohoConnection()" 
-                    class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium">
+                    class="btn-primary">
                 🔌 Test Zoho Connection
             </button>
+            <a href="/dashboard" class="btn-secondary">
+                📈 View Dashboard
+            </a>
         </div>
     </div>
 </div>

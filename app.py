@@ -4,6 +4,7 @@ import sqlite3
 import json
 import os
 import requests
+import hashlib
 from functools import wraps
 from config import Config
 from zoho_integration import zoho_api
@@ -142,6 +143,17 @@ def init_db():
         FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
     )''')
     
+    # Employees table for user authentication
+    c.execute('''CREATE TABLE IF NOT EXISTS employees (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        full_name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
     conn.commit()
     conn.close()
 
@@ -158,10 +170,28 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Helper function to require employee login
+def employee_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('employee_authenticated') or not session.get('employee_id'):
+            return redirect(url_for('employee_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Password hashing functions
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password, hash):
+    return hashlib.sha256(password.encode()).hexdigest() == hash
+
 @app.route('/')
 def index():
-    """Default to warehouse form - main user workflow"""
-    return redirect(url_for('warehouse_form'))
+    """Default to employee login for secure access"""
+    if session.get('employee_authenticated'):
+        return redirect(url_for('warehouse_form'))
+    return redirect(url_for('employee_login'))
 
 @app.route('/version')
 def version():
@@ -173,6 +203,7 @@ def version():
     })
 
 @app.route('/warehouse')
+@employee_required
 def warehouse_form():
     """Mobile-optimized form for warehouse staff"""
     conn = get_db()
@@ -185,16 +216,32 @@ def warehouse_form():
         ORDER BY pd.product_name
     ''').fetchall()
     
+    # Get employee info for display
+    employee = conn.execute('''
+        SELECT full_name FROM employees WHERE id = ?
+    ''', (session.get('employee_id'),)).fetchone()
+    
     conn.close()
-    return render_template('warehouse_form.html', products=products)
+    return render_template('warehouse_form.html', products=products, employee=employee)
 
 @app.route('/submit_warehouse', methods=['POST'])
+@employee_required
 def submit_warehouse():
     """Process warehouse submission and update PO counts"""
     try:
         data = request.get_json() if request.is_json else request.form
         
+        # Get employee name from session
         conn = get_db()
+        employee = conn.execute('''
+            SELECT full_name FROM employees WHERE id = ?
+        ''', (session.get('employee_id'),)).fetchone()
+        
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 400
+        
+        # Override employee name with logged-in user
+        employee_name = employee['full_name']
         
         # Get product details
         product = conn.execute('''
@@ -217,13 +264,13 @@ def submit_warehouse():
                        packs_remaining * product['tablets_per_package'] + 
                        loose_tablets)
         
-        # Insert submission record
+        # Insert submission record using logged-in employee name
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (data['employee_name'], data['product_name'], data.get('box_number'),
+        ''', (employee_name, data['product_name'], data.get('box_number'),
               data.get('bag_number'), data.get('bag_label_count'),
               displays_made, packs_remaining, loose_tablets, damaged_tablets))
         
@@ -638,6 +685,61 @@ def admin_logout():
     session.pop('admin_authenticated', None)
     return redirect('/')
 
+@app.route('/login')
+def employee_login():
+    """Employee login page"""
+    return render_template('employee_login.html')
+
+@app.route('/login', methods=['POST'])
+def employee_login_post():
+    """Handle employee login"""
+    username = request.form.get('username') or request.json.get('username')
+    password = request.form.get('password') or request.json.get('password')
+    
+    if not username or not password:
+        if request.form:
+            flash('Username and password required', 'error')
+            return render_template('employee_login.html')
+        else:
+            return jsonify({'success': False, 'error': 'Username and password required'})
+    
+    conn = get_db()
+    employee = conn.execute('''
+        SELECT id, username, full_name, password_hash, is_active 
+        FROM employees 
+        WHERE username = ? AND is_active = TRUE
+    ''', (username,)).fetchone()
+    
+    conn.close()
+    
+    if employee and verify_password(password, employee['password_hash']):
+        session['employee_authenticated'] = True
+        session['employee_id'] = employee['id']
+        session['employee_name'] = employee['full_name']
+        session['employee_username'] = employee['username']
+        session.permanent = True
+        app.permanent_session_lifetime = timedelta(hours=8)
+        
+        return redirect(url_for('warehouse_form')) if request.form else jsonify({'success': True})
+    else:
+        # Log failed login attempt
+        print(f"Failed employee login attempt for {username} from {request.remote_addr} at {datetime.now()}")
+        
+        if request.form:
+            flash('Invalid username or password', 'error')
+            return render_template('employee_login.html')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid username or password'})
+
+@app.route('/logout')
+def employee_logout():
+    """Employee logout"""
+    session.pop('employee_authenticated', None)
+    session.pop('employee_id', None)
+    session.pop('employee_name', None)
+    session.pop('employee_username', None)
+    return redirect(url_for('employee_login'))
+
 @app.route('/count')
 def count_form():
     """Manual count form for end-of-period PO close-outs"""
@@ -994,6 +1096,119 @@ def delete_tablet_type(tablet_type_id):
         conn.close()
         
         return jsonify({'success': True, 'message': f'Deleted {tablet_type["tablet_type_name"]} and its products'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Employee Management Routes for Admin
+@app.route('/admin/employees')
+def manage_employees():
+    """Employee management page"""
+    if not session.get('admin_authenticated'):
+        return redirect('/admin')
+        
+    conn = get_db()
+    employees = conn.execute('''
+        SELECT id, username, full_name, is_active, created_at
+        FROM employees 
+        ORDER BY full_name
+    ''').fetchall()
+    
+    conn.close()
+    return render_template('employee_management.html', employees=employees)
+
+@app.route('/api/add_employee', methods=['POST'])
+def add_employee():
+    """Add a new employee"""
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        full_name = data.get('full_name', '').strip()
+        password = data.get('password', '').strip()
+        
+        if not username or not full_name or not password:
+            return jsonify({'success': False, 'error': 'Username, full name, and password required'}), 400
+            
+        conn = get_db()
+        
+        # Check if username already exists
+        existing = conn.execute(
+            'SELECT id FROM employees WHERE username = ?', 
+            (username,)
+        ).fetchone()
+        
+        if existing:
+            return jsonify({'success': False, 'error': 'Username already exists'}), 400
+        
+        # Hash password and insert employee
+        password_hash = hash_password(password)
+        conn.execute('''
+            INSERT INTO employees (username, full_name, password_hash)
+            VALUES (?, ?, ?)
+        ''', (username, full_name, password_hash))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Added employee: {full_name}'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/toggle_employee/<int:employee_id>', methods=['POST'])
+def toggle_employee(employee_id):
+    """Toggle employee active status"""
+    try:
+        conn = get_db()
+        
+        # Get current status
+        employee = conn.execute(
+            'SELECT full_name, is_active FROM employees WHERE id = ?', 
+            (employee_id,)
+        ).fetchone()
+        
+        if not employee:
+            return jsonify({'success': False, 'error': 'Employee not found'}), 404
+        
+        # Toggle status
+        new_status = not employee['is_active']
+        conn.execute('''
+            UPDATE employees 
+            SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (new_status, employee_id))
+        
+        conn.commit()
+        conn.close()
+        
+        status_text = 'activated' if new_status else 'deactivated'
+        return jsonify({'success': True, 'message': f'{employee["full_name"]} {status_text}'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/delete_employee/<int:employee_id>', methods=['DELETE'])
+def delete_employee(employee_id):
+    """Delete an employee"""
+    try:
+        conn = get_db()
+        
+        # Get employee name first
+        employee = conn.execute(
+            'SELECT full_name FROM employees WHERE id = ?', 
+            (employee_id,)
+        ).fetchone()
+        
+        if not employee:
+            return jsonify({'success': False, 'error': 'Employee not found'}), 404
+        
+        # Delete employee
+        conn.execute('DELETE FROM employees WHERE id = ?', (employee_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Deleted employee: {employee["full_name"]}'})
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

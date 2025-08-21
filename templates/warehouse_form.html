@@ -7,18 +7,25 @@
     <div class="text-center mb-8">
         <div class="text-5xl mb-4">📦</div>
         <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Production Submission</h2>
+        {% if employee %}
+        <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
+            <p class="text-green-800 font-semibold flex items-center justify-center">
+                <span class="text-2xl mr-3">👷</span>
+                Logged in as: {{ employee.full_name }}
+            </p>
+        </div>
+        {% endif %}
         <p class="text-gray-600">Enter your production counts below</p>
+        
+        <!-- Logout button -->
+        <div class="mt-4">
+            <a href="/logout" class="text-sm text-red-600 hover:text-red-800 underline">
+                🚪 Logout
+            </a>
+        </div>
     </div>
     
     <form id="warehouse-form" class="space-y-4">
-        <!-- Employee Name -->
-        <div>
-            <label for="employee_name" class="block text-sm font-medium text-gray-700 mb-1">
-                Employee Name *
-            </label>
-            <input type="text" id="employee_name" name="employee_name" required
-                   class="form-input" placeholder="Enter your name">
-        </div>
         
         <!-- Product Selection with Count -->
         <div class="grid grid-cols-1 gap-3">
