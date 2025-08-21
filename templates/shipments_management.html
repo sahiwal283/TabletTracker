@@ -135,17 +135,17 @@
                     </select>
                 </div>
                 
-                <div>
+                <div id="shipped-date-wrap">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Shipped Date</label>
                     <input type="date" id="shipped-date" class="form-input">
                 </div>
                 
-                <div>
+                <div id="estimated-delivery-wrap">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Estimated Delivery</label>
                     <input type="date" id="estimated-delivery" class="form-input">
                 </div>
                 
-                <div>
+                <div id="actual-delivery-wrap">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Actual Delivery</label>
                     <input type="date" id="actual-delivery" class="form-input">
                 </div>
@@ -229,6 +229,16 @@ document.getElementById('shipment-form').addEventListener('submit', async functi
     } catch (error) {
         alert('Failed to save shipment: ' + error.message);
     }
+});
+
+// Hide manual date fields for auto-tracked carriers (UPS/FedEx)
+document.getElementById('carrier').addEventListener('change', function() {
+    const v = (this.value || '').toLowerCase();
+    const auto = v === 'ups' || v === 'fedex' || v === 'fed ex';
+    ['shipped-date-wrap','estimated-delivery-wrap','actual-delivery-wrap'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = auto ? 'none' : '';
+    });
 });
 
 // Close modal when clicking outside

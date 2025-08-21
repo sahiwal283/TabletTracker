@@ -90,6 +90,82 @@ def normalize_ups_response(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+class FedExTrackingClient:
+    """Minimal FedEx OAuth2 + Tracking API client."""
+
+    def __init__(self):
+        self.base = (Config.FEDEX_BASE or 'https://apis.fedex.com').rstrip('/')
+        self.api_key = Config.FEDEX_API_KEY
+        self.api_secret = Config.FEDEX_API_SECRET
+        self.account = Config.FEDEX_ACCOUNT_NUMBER
+        self._token: Optional[str] = None
+        self._token_expiry: float = 0
+
+    def _get_token(self) -> str:
+        if self._token and time.time() < self._token_expiry - 60:
+            return self._token
+        url = f"{self.base}/oauth/token"
+        data = {"grant_type": "client_credentials"}
+        auth = (self.api_key, self.api_secret)
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        resp = requests.post(url, data=data, auth=auth, headers=headers, timeout=20)
+        resp.raise_for_status()
+        payload = resp.json()
+        self._token = payload.get("access_token")
+        expires_in = payload.get("expires_in", 3300)
+        self._token_expiry = time.time() + int(expires_in)
+        return self._token
+
+    def track(self, tracking_number: str) -> Dict[str, Any]:
+        token = self._get_token()
+        url = f"{self.base}/track/v1/trackingnumbers"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "trackingInfo": [{"trackingNumberInfo": {"trackingNumber": tracking_number}}],
+            "includeDetailedScans": True,
+        }
+        resp = requests.post(url, headers=headers, json=body, timeout=20)
+        if resp.status_code == 404:
+            return {"status": "Unknown", "raw": resp.text}
+        resp.raise_for_status()
+        return resp.json()
+
+
+def normalize_fedex_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    status_text = "Unknown"
+    est_delivery = None
+    delivered_at = None
+    last_checkpoint = None
+    try:
+        shipments = data.get("output", {}).get("completeTrackResults", [])
+        if shipments:
+            result = shipments[0].get("trackResults", [{}])[0]
+            status_text = result.get("latestStatusDetail", {}).get("statusByLocale") or status_text
+            est = result.get("dateAndTimes", [])
+            for dt in est:
+                if dt.get("type") == "ESTIMATED_DELIVERY":
+                    est_delivery = dt.get("dateTime")
+                    break
+            scans = result.get("scanEvents", [])
+            if scans:
+                last_checkpoint = scans[0].get("date")
+            if (result.get("latestStatusDetail", {}).get("code") or "").lower() == "dlv":
+                delivered_at = result.get("dateAndTimes", [{}])[0].get("dateTime")
+    except Exception:
+        pass
+
+    return {
+        "tracking_status": status_text,
+        "estimated_delivery": est_delivery,
+        "delivered_at": delivered_at,
+        "last_checkpoint": last_checkpoint,
+        "provider_raw": data,
+    }
+
+
 def refresh_shipment_row(conn, shipment_id: int) -> Dict[str, Any]:
     """Fetch shipment, call provider, and persist results."""
     cur = conn.cursor()
@@ -104,11 +180,15 @@ def refresh_shipment_row(conn, shipment_id: int) -> Dict[str, Any]:
     carrier = (row[2] or "").lower()
     carrier_code = (row[3] or "").lower()
 
-    # Currently support UPS only
+    # Currently support UPS and FedEx
     if carrier in ("ups",) or carrier_code in ("ups", "ups_ground", "ups_air"):
         client = UPSTrackingClient()
         raw = client.track(tracking_number)
         norm = normalize_ups_response(raw)
+    elif carrier in ("fedex", "fed ex", "fx") or carrier_code in ("fedex", "fx"):
+        client = FedExTrackingClient()
+        raw = client.track(tracking_number)
+        norm = normalize_fedex_response(raw)
     else:
         return {"success": False, "error": f"Carrier not supported: {carrier or carrier_code}"}
 

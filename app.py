@@ -481,6 +481,21 @@ def admin_dashboard():
     conn.close()
     return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats)
 
+@app.route('/shipments')
+def public_shipments():
+    """Read-only shipment status page for staff (no login required)."""
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+               s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
+        FROM shipments s
+        JOIN purchase_orders po ON po.id = s.po_id
+        ORDER BY s.updated_at DESC
+        LIMIT 200
+    ''').fetchall()
+    conn.close()
+    return render_template('shipments_public.html', shipments=rows)
+
 @app.route('/api/sync_zoho_pos')
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
@@ -632,7 +647,7 @@ def save_shipment():
         conn.commit()
 
         # Trigger immediate UPS refresh when applicable
-        if data.get('tracking_number') and (data.get('carrier', '').lower() == 'ups'):
+        if data.get('tracking_number') and (data.get('carrier', '').lower() in ('ups','fedex','fed ex')):
             sh = conn.execute('''
                 SELECT id FROM shipments WHERE po_id = ? AND tracking_number = ?
                 ORDER BY updated_at DESC LIMIT 1
