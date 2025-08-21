@@ -7,21 +7,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
-        /* Enhanced modern styling with extra rounded inputs */
+        /* Earthy Green themed inputs */
         .form-input {
             @apply w-full px-5 py-4 border-2 bg-white transition-all duration-300;
             font-size: 16px !important; /* Prevents zoom on iOS */
             border-radius: 20px !important; /* Extra rounded inputs */
-            border-color: #e0e7ff !important; /* Light purple border */
-            background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%);
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+            border-color: #d1fae5 !important; /* Light earthy green border */
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255,255,255,0.6) !important;
             min-height: 56px !important; /* Larger touch target */
             padding: 16px 20px !important;
         }
         .form-input:focus {
-            border-color: #8b5cf6 !important; /* Purple focus border */
-            background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2), 0 12px 20px rgba(139, 92, 246, 0.15) !important;
+            border-color: #22c55e !important; /* Earthy green focus border */
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2), 0 12px 20px rgba(34, 197, 94, 0.15) !important;
             transform: translateY(-2px);
             outline: none;
         }
@@ -36,11 +36,11 @@
             -moz-appearance: textfield;
         }
         
-        /* Enhanced select dropdowns with extra rounding */
+        /* Earthy Green themed select dropdowns */
         select.form-input {
-            border-color: #e0e7ff !important;
-            background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%);
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b5cf6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            border-color: #d1fae5 !important;
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2322c55e' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
             background-position: right 1rem center;
             background-repeat: no-repeat;
             background-size: 1.25em 1.25em;
@@ -48,77 +48,77 @@
             border-radius: 20px !important;
         }
         
-        /* Professional unified button system */
+        /* Earthy Green unified button system */
         .btn-primary {
             @apply text-white px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
             border-radius: 24px !important; /* Consistent rounded buttons */
-            background: linear-gradient(135deg, #1f2937 0%, #374151 50%, #111827 100%); /* Professional dark gradient */
-            border: 2px solid rgba(255,255,255,0.1);
-            box-shadow: 0 6px 20px rgba(31, 41, 55, 0.3);
+            background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%); /* Earthy green gradient */
+            border: 2px solid rgba(255,255,255,0.2);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
             transform: translateY(0) scale(1);
             min-height: 56px;
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, #374151 0%, #4b5563 50%, #1f2937 100%);
+            background: linear-gradient(135deg, #14532d 0%, #15803d 50%, #166534 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(31, 41, 55, 0.4);
-            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+            border-color: rgba(255,255,255,0.3);
         }
         .btn-primary:active {
             transform: translateY(-1px) scale(1.0);
-            box-shadow: 0 6px 15px rgba(31, 41, 55, 0.3);
+            box-shadow: 0 6px 15px rgba(34, 197, 94, 0.3);
         }
         
         .btn-secondary {
-            @apply text-gray-700 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-gray-300 focus:ring-opacity-30 transition-all duration-300;
+            @apply text-green-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-green-200 focus:ring-opacity-30 transition-all duration-300;
             border-radius: 20px !important; /* Consistent rounded buttons */
-            border: 2px solid #e5e7eb;
+            border: 2px solid #d1fae5; /* Light green border */
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.1);
         }
         .btn-secondary:hover {
-            @apply bg-gray-50 text-gray-800;
+            @apply bg-green-50 text-green-900;
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-            border-color: #d1d5db;
+            box-shadow: 0 8px 20px rgba(34, 197, 94, 0.15);
+            border-color: #bbf7d0;
         }
         
-        /* Keep success and warning classes but make them use the primary style */
+        /* Unified earthy green styling for all button types */
         .btn-success {
             @apply text-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
             border-radius: 20px !important;
-            background: linear-gradient(135deg, #1f2937 0%, #374151 50%, #111827 100%);
-            border: 2px solid rgba(255,255,255,0.1);
-            box-shadow: 0 6px 20px rgba(31, 41, 55, 0.3);
+            background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%);
+            border: 2px solid rgba(255,255,255,0.2);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
             transform: translateY(0);
         }
         .btn-success:hover {
-            background: linear-gradient(135deg, #374151 0%, #4b5563 50%, #1f2937 100%);
+            background: linear-gradient(135deg, #14532d 0%, #15803d 50%, #166534 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(31, 41, 55, 0.4);
-            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+            border-color: rgba(255,255,255,0.3);
         }
         
         .btn-warning {
-            @apply text-gray-700 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-gray-300 focus:ring-opacity-30 transition-all duration-300;
+            @apply text-green-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-green-200 focus:ring-opacity-30 transition-all duration-300;
             border-radius: 20px !important;
-            border: 2px solid #e5e7eb;
+            border: 2px solid #d1fae5;
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.1);
         }
         .btn-warning:hover {
-            @apply bg-gray-50 text-gray-800;
+            @apply bg-green-50 text-green-900;
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-            border-color: #d1d5db;
+            box-shadow: 0 8px 20px rgba(34, 197, 94, 0.15);
+            border-color: #bbf7d0;
         }
 
-        /* Card enhancements with ultra rounded corners */
+        /* Earthy Green themed cards */
         .card {
             @apply bg-white shadow-xl border border-gray-100;
             border-radius: 28px !important; /* Ultra rounded corners */
-            background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%); /* Subtle purple tint */
-            border-color: rgba(139, 92, 246, 0.1) !important; /* Light purple border */
+            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); /* Subtle earthy green tint */
+            border-color: rgba(34, 197, 94, 0.1) !important; /* Light earthy green border */
         }
         
         /* Status badge enhancements */
@@ -150,34 +150,34 @@
         }
     </style>
 </head>
-<body class="min-h-screen" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-    <!-- Enhanced navigation with gradient -->
-    <nav class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 text-white shadow-2xl">
+<body class="min-h-screen" style="background: linear-gradient(135deg, #84A98C 0%, #52796F 50%, #354F52 100%);">
+    <!-- Enhanced navigation with earthy green gradient -->
+    <nav class="bg-gradient-to-r from-green-600 via-green-700 to-green-800 text-white shadow-2xl">
         <div class="container mx-auto px-4 py-4">
             <div class="flex justify-between items-center">
                 <h1 class="text-2xl font-bold">
-                    <a href="{{ url_for('index') }}" class="hover:text-indigo-200 transition-colors duration-300 flex items-center">
+                    <a href="{{ url_for('index') }}" class="hover:text-green-200 transition-colors duration-300 flex items-center">
                         <span class="text-3xl mr-2">📊</span>
-                        <span class="bg-gradient-to-r from-white to-indigo-100 bg-clip-text text-transparent">TabletTracker</span>
+                        <span class="bg-gradient-to-r from-white to-green-100 bg-clip-text text-transparent">TabletTracker</span>
                     </a>
                 </h1>
                 <div class="hidden md:flex space-x-6">
-                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">📦</span> Warehouse
                     </a>
-                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">🔢</span> Count
                     </a>
-                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">📈</span> Dashboard
                     </a>
-                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">⚙️</span> Admin
                     </a>
                 </div>
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
-                    <button onclick="toggleMobileMenu()" class="text-white hover:text-indigo-200 transition-colors duration-300">
+                    <button onclick="toggleMobileMenu()" class="text-white hover:text-green-200 transition-colors duration-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                         </svg>
@@ -186,10 +186,10 @@
             </div>
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📦 Warehouse Form</a>
-                <a href="{{ url_for('count_form') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">🔢 Count Form</a>
-                <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📈 Dashboard</a>
-                <a href="{{ url_for('admin_panel') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">⚙️ Admin</a>
+                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📦 Warehouse Form</a>
+                <a href="{{ url_for('count_form') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">🔢 Count Form</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📈 Dashboard</a>
+                <a href="{{ url_for('admin_panel') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">⚙️ Admin</a>
             </div>
         </div>
     </nav>
