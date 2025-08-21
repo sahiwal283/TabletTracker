@@ -1673,6 +1673,26 @@ def get_po_summary_for_reports():
 
 # ===== RECEIVING MANAGEMENT ROUTES =====
 
+@app.route('/debug/force-reload')
+def force_reload():
+    """Force reload all Python modules"""
+    import importlib
+    import sys
+    
+    try:
+        # Reload this module
+        current_module = sys.modules[__name__]
+        importlib.reload(current_module)
+        
+        return """
+        <h2>Force Reload Complete</h2>
+        <p>Python modules reloaded</p>
+        <p><a href="/receiving">Test Receiving Route Now</a></p>
+        <p><a href="/debug/server-info">Back to Debug Info</a></p>
+        """
+    except Exception as e:
+        return f"<h2>Reload Error</h2><p>{str(e)}</p>"
+
 @app.route('/debug/server-info')
 def server_debug_info():
     """Debug route to check server state - no auth required"""
@@ -1786,11 +1806,23 @@ def receiving_debug():
         """
 
 @app.route('/receiving')
-@admin_required
-def receiving_management():
-    """Receiving management page for processing shipment arrivals"""
+@admin_required  
+def receiving_management_v2():
+    """Receiving management page - REBUILT VERSION"""
     try:
         conn = get_db()
+        
+        # Simple query first - just check if we can access receiving table
+        try:
+            test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+            receiving_count = test_query['count'] if test_query else 0
+        except Exception as e:
+            conn.close()
+            return f"""
+            <h2>Database Error (v1.7.6 REBUILT)</h2>
+            <p>Cannot access receiving table: {str(e)}</p>
+            <p><a href="/debug/server-info">Check Database</a></p>
+            """
         
         # Get pending shipments (delivered but not yet received)
         pending_shipments = conn.execute('''
@@ -1822,11 +1854,12 @@ def receiving_management():
                              recent_receiving=recent_receiving)
                              
     except Exception as e:
-        # If template fails, return simple HTML
+        # If template fails, return simple HTML with version
         return f"""
-        <h2>Receiving Page Error (v1.7.1)</h2>
+        <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
         <p>Template error: {str(e)}</p>
         <p><a href="/receiving/debug">View debug info</a></p>
+        <p><a href="/debug/server-info">Check Server Info</a></p>
         <p><a href="/admin">Back to admin</a></p>
         """
 
