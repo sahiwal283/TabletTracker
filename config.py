@@ -16,6 +16,19 @@ class Config:
     ZOHO_REFRESH_TOKEN = os.environ.get('ZOHO_REFRESH_TOKEN')
     ZOHO_ORGANIZATION_ID = os.environ.get('ZOHO_ORGANIZATION_ID', '856048585')  # Your org ID
     
+    # UPS Tracking API (free; client credentials)
+    UPS_CLIENT_ID = os.environ.get('UPS_CLIENT_ID')
+    UPS_CLIENT_SECRET = os.environ.get('UPS_CLIENT_SECRET')
+    # Base URL: 'https://apis.ups.com' (prod) or 'https://wwwcie.ups.com' (test)
+    UPS_API_BASE = os.environ.get('UPS_API_BASE', 'https://apis.ups.com')
+    UPS_TRANSACTION_SRC = os.environ.get('UPS_TRANSACTION_SRC', 'TabletTracker')
+
+    # FedEx Tracking API (free with dev account)
+    FEDEX_API_KEY = os.environ.get('FEDEX_API_KEY')
+    FEDEX_API_SECRET = os.environ.get('FEDEX_API_SECRET')
+    FEDEX_ACCOUNT_NUMBER = os.environ.get('FEDEX_ACCOUNT_NUMBER')
+    FEDEX_BASE = os.environ.get('FEDEX_BASE', 'https://apis.fedex.com')
+    
     # Database
     DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///tablet_counter.db'
     
