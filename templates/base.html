@@ -6,7 +6,7 @@
     <title>{% block title %}Tablet Counter{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <style>
+    <style type="text/tailwindcss">
         :root {
             /* Winter Chill Palette */
             --wc-light: #B8E3E9;  /* Light ice */
@@ -64,7 +64,8 @@
         
         /* Button system */
         .btn-primary {
-            @apply text-white px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
+            @apply px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
+            color: #ffffff !important;
             border-radius: 24px !important;
             background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
             border: 2px solid rgba(255,255,255,0.2);
@@ -84,7 +85,8 @@
         }
         
         .btn-secondary {
-            @apply text-slate-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
+            @apply bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
+            color: var(--wc-dark) !important;
             border-radius: 20px !important;
             border: 2px solid var(--neutral-border);
             transform: translateY(0);
@@ -99,7 +101,8 @@
         
         /* Success button */
         .btn-success {
-            @apply text-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
+            @apply px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
+            color: #ffffff !important;
             border-radius: 20px !important;
             background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
             border: 2px solid rgba(255,255,255,0.2);
@@ -114,7 +117,8 @@
         }
         
         .btn-warning {
-            @apply text-slate-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
+            @apply bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
+            color: var(--wc-dark) !important;
             border-radius: 20px !important;
             border: 2px solid var(--neutral-border);
             transform: translateY(0);
@@ -134,6 +138,14 @@
             background: linear-gradient(135deg, #ffffff 0%, var(--wc-light) 100%);
             border-color: rgba(var(--neutral-shadow), 0.08) !important;
         }
+
+        /* Improve contrast for descriptive text inside light cards */
+        .card .text-gray-600 { color: #334155 !important; } /* slate-700 */
+        .card .text-gray-500 { color: #1f2937 !important; } /* gray-800 */
+
+        /* Nav link default contrast */
+        .nav-link { color: #ffffff !important; }
+        .nav-link svg { color: inherit; }
 
         /* Semantic helpers mapped to Winter Chill */
         .text-primary { color: var(--wc-primary) !important; }
