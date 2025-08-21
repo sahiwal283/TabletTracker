@@ -6,22 +6,22 @@
 <div class="max-w-md mx-auto card hover-lift p-8">
     <div class="text-center mb-8">
         <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-box" /></svg></div>
-        <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Production Submission</h2>
+        <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">{{ gettext('Production Submission') }}</h2>
         {% if employee %}
         <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
             <p class="text-green-800 font-semibold flex items-center justify-center">
                 <span class="text-2xl mr-3">👷</span>
-                Logged in as: {{ employee.full_name }}
+                {{ gettext('Logged in as') }}: {{ employee.full_name }}
             </p>
         </div>
         {% endif %}
-        <p class="text-gray-600">Enter your production counts below</p>
+        <p class="text-gray-600">{{ gettext('Enter your production counts below') }}</p>
         
         <!-- Logout button -->
         <div class="mt-4">
             <a href="/logout" class="text-sm text-red-600 hover:text-red-800 underline inline-flex items-center">
                 <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
-                Logout
+                {{ gettext('Logout') }}
             </a>
         </div>
     </div>
@@ -32,19 +32,19 @@
         <div class="grid grid-cols-1 gap-3">
             <div>
                 <label for="product_base" class="block text-sm font-medium text-gray-700 mb-1">
-                    Product Type *
+                    {{ gettext('Product Type') }} *
                 </label>
                 <select id="product_base" name="product_base" required class="form-input">
-                    <option value="">Select product type...</option>
+                    <option value="">{{ gettext('Select product type...') }}</option>
                 </select>
             </div>
             
             <div id="count-selection" class="hidden">
                 <label for="product_count" class="block text-sm font-medium text-gray-700 mb-1">
-                    Count *
+                    {{ gettext('Count') }} *
                 </label>
                 <select id="product_count" name="product_count" class="form-input">
-                    <option value="">Select count...</option>
+                    <option value="">{{ gettext('Select count...') }}</option>
                 </select>
             </div>
             
