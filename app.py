@@ -1611,6 +1611,17 @@ def get_po_summary_for_reports():
             'error': f'Failed to get PO summary: {str(e)}'
         }), 500
 
+# ===== TEMPLATE CONTEXT PROCESSORS =====
+
+@app.context_processor
+def inject_version():
+    """Make version information available to all templates"""
+    return {
+        'version': lambda: __version__,
+        'app_title': __title__,
+        'app_description': __description__
+    }
+
 if __name__ == '__main__':
     init_db()
     app.run(debug=True, port=5001)

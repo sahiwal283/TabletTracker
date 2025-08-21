@@ -194,7 +194,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
+<body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">    
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
         <symbol id="icon-chart" viewBox="0 0 24 24" fill="currentColor">
@@ -291,6 +291,7 @@
                     <a href="{{ url_for('index') }}" class="hover:text-primary transition-colors duration-300 flex items-center">
                         <svg class="w-7 h-7 mr-2" aria-hidden="true"><use href="#icon-chart" /></svg>
                         <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
+                        <span class="ml-2 text-xs text-gray-300 font-normal">v{{ version() }}</span>
                     </a>
                 </h1>
                 <div class="hidden md:flex space-x-6">
@@ -330,7 +331,7 @@
     </nav>
 
     <!-- Enhanced main content area -->
-    <main class="container mx-auto px-4 py-8">
+    <main class="flex-1 container mx-auto px-4 py-8">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -350,6 +351,13 @@
 
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Footer with version info -->
+    <footer class="mt-auto py-4 text-center text-gray-500 text-sm">
+        <div class="container mx-auto px-4">
+            <p>{{ app_title }} v{{ version() }} - {{ app_description }}</p>
+        </div>
+    </footer>
 
     <script>
         // Enhanced JavaScript utilities with better styling
