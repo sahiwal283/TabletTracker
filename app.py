@@ -1833,6 +1833,42 @@ def get_available_boxes_bags(po_id):
     
     return jsonify({'boxes': boxes})
 
+@app.route('/api/create_sample_receiving_data', methods=['POST'])
+@admin_required  
+def create_sample_receiving_data():
+    """Create sample PO and shipment data for testing receiving workflow"""
+    try:
+        conn = get_db()
+        
+        # Create sample PO
+        po_cursor = conn.execute('''
+            INSERT INTO purchase_orders (po_number, tablet_type, zoho_status, ordered_quantity, internal_status)
+            VALUES (?, ?, ?, ?, ?)
+        ''', ('TEST-001', 'Test Tablets', 'confirmed', 1000, 'Active'))
+        
+        po_id = po_cursor.lastrowid
+        
+        # Create sample shipment with delivered status
+        shipment_cursor = conn.execute('''
+            INSERT INTO shipments (po_id, tracking_number, carrier, tracking_status, delivered_at, created_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ''', (po_id, '1Z999AA1234567890', 'UPS', 'Delivered'))
+        
+        shipment_id = shipment_cursor.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Created sample PO TEST-001 with delivered UPS shipment. Ready for receiving!',
+            'po_id': po_id,
+            'shipment_id': shipment_id
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
+
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
 @app.context_processor
