@@ -16,6 +16,13 @@ class Config:
     ZOHO_REFRESH_TOKEN = os.environ.get('ZOHO_REFRESH_TOKEN')
     ZOHO_ORGANIZATION_ID = os.environ.get('ZOHO_ORGANIZATION_ID', '856048585')  # Your org ID
     
+    # UPS Tracking API (free; client credentials)
+    UPS_CLIENT_ID = os.environ.get('UPS_CLIENT_ID')
+    UPS_CLIENT_SECRET = os.environ.get('UPS_CLIENT_SECRET')
+    # Base URL: 'https://apis.ups.com' (prod) or 'https://wwwcie.ups.com' (test)
+    UPS_API_BASE = os.environ.get('UPS_API_BASE', 'https://apis.ups.com')
+    UPS_TRANSACTION_SRC = os.environ.get('UPS_TRANSACTION_SRC', 'TabletTracker')
+    
     # Database
     DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///tablet_counter.db'
     

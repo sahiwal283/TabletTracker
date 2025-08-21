@@ -80,10 +80,18 @@
                             {{ po.shipped_date or '-' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <button onclick="editShipment({{ po.id }}, '{{ po.po_number }}')" 
-                                    class="text-blue-600 hover:text-blue-900">
-                                {% if po.tracking_number %}Edit{% else %}Add Tracking{% endif %}
-                            </button>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="editShipment({{ po.id }}, '{{ po.po_number }}')" 
+                                        class="text-blue-600 hover:text-blue-900">
+                                    {% if po.tracking_number %}Edit{% else %}Add Tracking{% endif %}
+                                </button>
+                                {% if po.shipment_id %}
+                                <button onclick="refreshTracking({{ po.shipment_id }})" 
+                                        class="text-primary hover:underline">
+                                    Refresh Status
+                                </button>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -169,6 +177,21 @@ function editShipment(poId, poNumber) {
     
     // TODO: Pre-fill existing data if editing
     document.getElementById('shipment-modal').classList.remove('hidden');
+}
+
+async function refreshTracking(id) {
+    try {
+        const resp = await fetch(`/api/shipments/${id}/refresh`, { method: 'POST' });
+        const result = await resp.json();
+        if (result.success) {
+            alert('Tracking updated');
+            location.reload();
+        } else {
+            alert('Refresh failed: ' + (result.error || 'unknown error'));
+        }
+    } catch (e) {
+        alert('Refresh failed: ' + e.message);
+    }
 }
 
 function closeShipmentModal() {

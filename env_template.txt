@@ -15,6 +15,14 @@ ZOHO_CLIENT_SECRET=your_client_secret_here
 ZOHO_REFRESH_TOKEN=your_refresh_token_here
 ZOHO_ORGANIZATION_ID=your_organization_id_here
 
+# UPS Tracking API (free)
+# Get these from UPS Developer Portal
+UPS_CLIENT_ID=
+UPS_CLIENT_SECRET=
+# use https://wwwcie.ups.com for test or https://apis.ups.com for prod
+UPS_API_BASE=https://wwwcie.ups.com
+UPS_TRANSACTION_SRC=TabletTracker
+
 # Database (SQLite for development, can be changed for production)
 DATABASE_URL=sqlite:///tablet_counter.db
 
