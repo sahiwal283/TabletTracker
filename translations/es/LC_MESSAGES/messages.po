@@ -1,17 +1,17 @@
-# Spanish translations for PROJECT.
-# Copyright (C) 2025 ORGANIZATION
-# This file is distributed under the same license as the PROJECT project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+# Spanish translations for TabletTracker.
+# Copyright (C) 2025 TabletTracker
+# This file is distributed under the same license as the TabletTracker project.
+# TabletTracker Team, 2025.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: PROJECT VERSION\n"
-"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"Project-Id-Version: TabletTracker 1.6.0\n"
+"Report-Msgid-Bugs-To: support@tablettracker.com\n"
 "POT-Creation-Date: 2025-08-21 17:00-0400\n"
 "PO-Revision-Date: 2025-08-21 17:00-0400\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Last-Translator: TabletTracker Team\n"
 "Language: es\n"
-"Language-Team: es <LL@li.org>\n"
+"Language-Team: es <es@tablettracker.com>\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
@@ -50,3 +50,42 @@ msgstr "Cantidad"
 msgid "Select count..."
 msgstr "Seleccionar cantidad..."
 
+#: templates/warehouse_form.html:58 templates/warehouse_form.html:61
+msgid "Box #"
+msgstr "# de Caja"
+
+#: templates/warehouse_form.html:67 templates/warehouse_form.html:70
+msgid "Bag #"
+msgstr "# de Bolsa"
+
+#: templates/warehouse_form.html:76
+msgid "Bag Label Count"
+msgstr "Conteo de Etiqueta de Bolsa"
+
+#: templates/warehouse_form.html:79
+msgid "Count on the bag label"
+msgstr "Conteo en la etiqueta de la bolsa"
+
+#: templates/warehouse_form.html:86
+msgid "Production Details"
+msgstr "Detalles de Producción"
+
+#: templates/warehouse_form.html:91
+msgid "Displays Made"
+msgstr "Exhibidores Hechos"
+
+#: templates/warehouse_form.html:99
+msgid "Single Packs Remaining"
+msgstr "Paquetes Individuales Restantes"
+
+#: templates/warehouse_form.html:107
+msgid "Loose Tablets"
+msgstr "Tabletas Sueltas"
+
+#: templates/warehouse_form.html:115
+msgid "Damaged Tablets"
+msgstr "Tabletas Dañadas"
+
+#: templates/warehouse_form.html:127
+msgid "Submit Production Count"
+msgstr "Enviar Conteo de Producción"
