@@ -191,7 +191,8 @@ def get_db():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # For now, allow all access - implement authentication later
+        if not session.get('admin_authenticated'):
+            return redirect(url_for('admin_panel'))  # Redirect to admin login
         return f(*args, **kwargs)
     return decorated_function
 
@@ -417,6 +418,7 @@ def submit_warehouse():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
+@admin_required
 def admin_dashboard():
     """Desktop dashboard for managers/admins"""
     conn = get_db()
@@ -503,6 +505,7 @@ def public_shipments():
     return render_template('shipments_public.html', shipments=rows)
 
 @app.route('/api/sync_zoho_pos')
+@admin_required
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
     try:
@@ -530,6 +533,7 @@ def get_po_lines(po_id):
     return jsonify([dict(line) for line in lines])
 
 @app.route('/admin/products')
+@admin_required
 def product_mapping():
     """Show product → tablet mapping and calculation examples"""
     conn = get_db()
@@ -549,12 +553,9 @@ def product_mapping():
     return render_template('product_mapping.html', products=products, tablet_types=tablet_types)
 
 @app.route('/admin/tablet_types')
+@admin_required
 def tablet_types_config():
     """Configuration page for tablet types and their inventory item IDs"""
-    # Check for admin session
-    if not session.get('admin_authenticated'):
-        return redirect('/admin')
-        
     conn = get_db()
     
     # Get all tablet types with their current inventory item IDs
@@ -567,12 +568,9 @@ def tablet_types_config():
     return render_template('tablet_types_config.html', tablet_types=tablet_types)
 
 @app.route('/admin/shipments')
+@admin_required
 def shipments_management():
     """Shipment tracking management page"""
-    # Check for admin session
-    if not session.get('admin_authenticated'):
-        return redirect('/admin')
-        
     conn = get_db()
     
     # Get all POs with optional shipment info
@@ -835,6 +833,7 @@ def employee_logout():
     return redirect(url_for('employee_login'))
 
 @app.route('/count')
+@employee_required
 def count_form():
     """Manual count form for end-of-period PO close-outs"""
     conn = get_db()
@@ -971,6 +970,7 @@ def submit_count():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/save_product', methods=['POST'])
+@admin_required
 def save_product():
     """Save or update a product configuration"""
     try:
@@ -1196,11 +1196,9 @@ def delete_tablet_type(tablet_type_id):
 
 # Employee Management Routes for Admin
 @app.route('/admin/employees')
+@admin_required
 def manage_employees():
     """Employee management page"""
-    if not session.get('admin_authenticated'):
-        return redirect('/admin')
-        
     conn = get_db()
     employees = conn.execute('''
         SELECT id, username, full_name, is_active, created_at
@@ -1450,6 +1448,7 @@ def test_zoho_connection():
         })
 
 @app.route('/api/clear_po_data', methods=['POST'])
+@admin_required
 def clear_po_data():
     """Clear all PO data for fresh sync testing"""
     try:
