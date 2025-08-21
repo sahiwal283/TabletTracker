@@ -6,22 +6,36 @@
     <title>{% block title %}Tablet Counter{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <style>
-        /* Earthy Green themed inputs */
+    <style type="text/tailwindcss">
+        :root {
+            /* Winter Chill Palette */
+            --wc-light: #B8E3E9;  /* Light ice */
+            --wc-mid:   #93B1B5;  /* Mist */
+            --wc-primary:#4F7C82;  /* Deep teal */
+            --wc-dark:  #0B2E33;  /* Midnight teal */
+
+            /* Derived neutrals */
+            --bg-start: #f8fbfc;
+            --bg-end:   #eef7f8;
+            --neutral-border: #e2edf0;
+            --neutral-shadow: 11, 46, 51; /* wc-dark RGB */
+        }
+
+        /* Inputs */
         .form-input {
             @apply w-full px-5 py-4 border-2 bg-white transition-all duration-300;
             font-size: 16px !important; /* Prevents zoom on iOS */
-            border-radius: 20px !important; /* Extra rounded inputs */
-            border-color: #d1fae5 !important; /* Light earthy green border */
-            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255,255,255,0.6) !important;
-            min-height: 56px !important; /* Larger touch target */
+            border-radius: 20px !important;
+            border-color: var(--neutral-border) !important;
+            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
+            box-shadow: 0 4px 12px rgba(var(--neutral-shadow), 0.06), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+            min-height: 56px !important;
             padding: 16px 20px !important;
         }
         .form-input:focus {
-            border-color: #22c55e !important; /* Earthy green focus border */
-            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2), 0 12px 20px rgba(34, 197, 94, 0.15) !important;
+            border-color: var(--wc-primary) !important;
+            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
+            box-shadow: 0 0 0 4px rgba(79, 124, 130, 0.2), 0 12px 20px rgba(79, 124, 130, 0.15) !important;
             transform: translateY(-2px);
             outline: none;
         }
@@ -36,11 +50,11 @@
             -moz-appearance: textfield;
         }
         
-        /* Earthy Green themed select dropdowns */
+        /* Select dropdowns */
         select.form-input {
-            border-color: #d1fae5 !important;
-            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2322c55e' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            border-color: var(--neutral-border) !important;
+            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234F7C82' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
             background-position: right 1rem center;
             background-repeat: no-repeat;
             background-size: 1.25em 1.25em;
@@ -48,84 +62,114 @@
             border-radius: 20px !important;
         }
         
-        /* Earthy Green unified button system */
+        /* Button system */
         .btn-primary {
-            @apply text-white px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
-            border-radius: 24px !important; /* Consistent rounded buttons */
-            background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%); /* Earthy green gradient */
+            @apply px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
+            color: #ffffff !important;
+            border-radius: 24px !important;
+            background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
             border: 2px solid rgba(255,255,255,0.2);
-            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
+            box-shadow: 0 6px 20px rgba(var(--neutral-shadow), 0.18);
             transform: translateY(0) scale(1);
             min-height: 56px;
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, #14532d 0%, #15803d 50%, #166534 100%);
+            background: linear-gradient(135deg, var(--wc-dark) 0%, var(--wc-primary) 50%, var(--wc-mid) 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+            box-shadow: 0 10px 25px rgba(var(--neutral-shadow), 0.25);
             border-color: rgba(255,255,255,0.3);
         }
         .btn-primary:active {
             transform: translateY(-1px) scale(1.0);
-            box-shadow: 0 6px 15px rgba(34, 197, 94, 0.3);
+            box-shadow: 0 6px 15px rgba(var(--neutral-shadow), 0.2);
         }
         
         .btn-secondary {
-            @apply text-green-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-green-200 focus:ring-opacity-30 transition-all duration-300;
-            border-radius: 20px !important; /* Consistent rounded buttons */
-            border: 2px solid #d1fae5; /* Light green border */
+            @apply bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
+            color: var(--wc-dark) !important;
+            border-radius: 20px !important;
+            border: 2px solid var(--neutral-border);
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.1);
+            box-shadow: 0 4px 15px rgba(var(--neutral-shadow), 0.06);
         }
         .btn-secondary:hover {
-            @apply bg-green-50 text-green-900;
+            @apply bg-slate-50 text-slate-900;
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(34, 197, 94, 0.15);
-            border-color: #bbf7d0;
+            box-shadow: 0 8px 20px rgba(var(--neutral-shadow), 0.1);
+            border-color: #cbd5e1; /* slate-300 */
         }
         
-        /* Unified earthy green styling for all button types */
+        /* Success button */
         .btn-success {
-            @apply text-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
+            @apply px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
+            color: #ffffff !important;
             border-radius: 20px !important;
-            background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%);
+            background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
             border: 2px solid rgba(255,255,255,0.2);
-            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
+            box-shadow: 0 6px 20px rgba(var(--neutral-shadow), 0.18);
             transform: translateY(0);
         }
         .btn-success:hover {
-            background: linear-gradient(135deg, #14532d 0%, #15803d 50%, #166534 100%);
+            background: linear-gradient(135deg, var(--wc-dark) 0%, var(--wc-primary) 50%, var(--wc-mid) 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+            box-shadow: 0 10px 25px rgba(var(--neutral-shadow), 0.24);
             border-color: rgba(255,255,255,0.3);
         }
         
         .btn-warning {
-            @apply text-green-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-green-200 focus:ring-opacity-30 transition-all duration-300;
+            @apply bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
+            color: var(--wc-dark) !important;
             border-radius: 20px !important;
-            border: 2px solid #d1fae5;
+            border: 2px solid var(--neutral-border);
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.1);
+            box-shadow: 0 4px 15px rgba(var(--neutral-shadow), 0.08);
         }
         .btn-warning:hover {
-            @apply bg-green-50 text-green-900;
+            @apply bg-slate-50 text-slate-900;
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(34, 197, 94, 0.15);
-            border-color: #bbf7d0;
+            box-shadow: 0 8px 20px rgba(var(--neutral-shadow), 0.12);
+            border-color: #cbd5e1; /* slate-300 */
         }
 
-        /* Earthy Green themed cards */
+        /* Cards */
         .card {
             @apply bg-white shadow-xl border border-gray-100;
-            border-radius: 28px !important; /* Ultra rounded corners */
-            background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); /* Subtle earthy green tint */
-            border-color: rgba(34, 197, 94, 0.1) !important; /* Light earthy green border */
+            border-radius: 28px !important;
+            background: linear-gradient(135deg, #ffffff 0%, var(--wc-light) 100%);
+            border-color: rgba(var(--neutral-shadow), 0.08) !important;
         }
+
+        /* Improve contrast for descriptive text inside light cards */
+        .card .text-gray-600 { color: #334155 !important; } /* slate-700 */
+        .card .text-gray-500 { color: #1f2937 !important; } /* gray-800 */
+
+        /* Nav link default contrast */
+        .nav-link { color: #ffffff !important; }
+        .nav-link svg { color: inherit; }
+
+        /* Semantic helpers mapped to Winter Chill */
+        .text-primary { color: var(--wc-primary) !important; }
+        .text-secondary { color: var(--wc-mid) !important; }
+        .bg-accent { background-color: var(--wc-light) !important; }
+        .border-accent { border-color: var(--wc-mid) !important; }
+
+        /* Override common Tailwind color utilities used across templates */
+        .text-blue-600, .text-indigo-600, .text-green-600, .text-emerald-600, .text-teal-600 { color: var(--wc-primary) !important; }
+        .text-yellow-600, .text-orange-600 { color: var(--wc-mid) !important; }
+        .text-red-600 { color: var(--wc-dark) !important; }
+
+        .bg-blue-600, .bg-indigo-600, .bg-emerald-500, .bg-teal-600, .bg-green-500 { background-color: var(--wc-primary) !important; }
+        .bg-green-50, .bg-blue-50, .bg-indigo-50 { background-color: rgba(184, 227, 233, 0.25) !important; }
+
+        .from-indigo-600, .from-purple-600, .from-blue-600, .from-green-600, .from-emerald-400, .from-teal-400, .from-amber-400, .from-orange-400 { --tw-gradient-from: var(--wc-primary) !important; }
+        .to-purple-600, .to-indigo-600, .to-blue-600, .to-emerald-600, .to-green-500, .to-cyan-500, .to-yellow-500, .to-orange-600 { --tw-gradient-to: var(--wc-mid) !important; }
+        .from-green-100, .to-emerald-100, .via-purple-50, .to-pink-50, .from-indigo-50 { --tw-gradient-from: rgba(184, 227, 233, 0.35) !important; --tw-gradient-to: rgba(147, 177, 181, 0.35) !important; }
         
-        /* Status badge enhancements */
-        .status-complete { @apply bg-gradient-to-r from-emerald-400 to-green-500 text-white; }
-        .status-processing { @apply bg-gradient-to-r from-blue-400 to-indigo-500 text-white; }
-        .status-shipped { @apply bg-gradient-to-r from-purple-400 to-indigo-500 text-white; }
-        .status-draft { @apply bg-gradient-to-r from-amber-400 to-orange-500 text-white; }
+        /* Status badge enhancements - Winter Chill */
+        .status-complete { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-primary), var(--wc-mid)); }
+        .status-processing { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-mid), var(--wc-primary)); }
+        .status-shipped { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-dark), var(--wc-primary)); }
+        .status-draft { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-light), var(--wc-mid)); }
         
         /* Animated gradient background */
         .gradient-bg {
@@ -150,34 +194,113 @@
         }
     </style>
 </head>
-<body class="min-h-screen" style="background: linear-gradient(135deg, #84A98C 0%, #52796F 50%, #354F52 100%);">
+<body class="min-h-screen" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
+    <!-- SVG Sprite -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <symbol id="icon-chart" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v18h14a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V3Z"/>
+            <path d="M8 17a1 1 0 0 0 1-1v-6a1 1 0 1 0-2 0v6a1 1 0 0 0 1 1Zm5 0a1 1 0 0 0 1-1V7a1 1 0 1 0-2 0v9a1 1 0 0 0 1 1Zm5 0a1 1 0 0 0 1-1v-4a1 1 0 1 0-2 0v4a1 1 0 0 0 1 1Z"/>
+        </symbol>
+        <symbol id="icon-box" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 8.5V17a2 2 0 0 1-1.106 1.789l-7 3.5a2 2 0 0 1-1.788 0l-7-3.5A2 2 0 0 1 3 17V8.5l8.106 4.053a2 2 0 0 0 1.788 0L21 8.5ZM20.553 6.894 12.447 3.34a2 2 0 0 0-1.894 0L2.447 6.894A1 1 0 0 0 2 7.776V8l9 4.5a1 1 0 0 0 .894 0L21 8V7.776a1 1 0 0 0-.447-.882Z"/>
+        </symbol>
+        <symbol id="icon-calc" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm2 4v4h8V6H8Zm0 6v6h2v-6H8Zm4 0v6h2v-6h-2Zm4 0v6h2v-6h-2Z"/>
+        </symbol>
+        <symbol id="icon-gear" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9.4 4a7.4 7.4 0 0 0-.132-1.3l2.044-1.582-2-3.464-2.4.6a7.47 7.47 0 0 0-2.252-1.302L14.4 1h-4.8l-.96 2.952a7.47 7.47 0 0 0-2.252 1.302l-2.4-.6-2 3.464L3.032 10.7A7.402 7.402 0 0 0 2.9 12c0 .44.044.867.132 1.3L.988 14.882l2 3.464 2.4-.6a7.47 7.47 0 0 0 2.252 1.302L9.6 23h4.8l.96-2.952a7.47 7.47 0 0 0 2.252-1.302l2.4.6 2-3.464-2.044-1.582c.088-.433.132-.86.132-1.3Z"/>
+        </symbol>
+        <symbol id="icon-eye" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 5c6 0 10 7 10 7s-4 7-10 7S2 12 2 12s4-7 10-7Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/>
+        </symbol>
+        <symbol id="icon-bolt" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13 2 3 14h7l-1 8 11-12h-7l0-8Z"/>
+        </symbol>
+        <symbol id="icon-clock" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm1 11h5v-2h-4V7h-2v6Z"/>
+        </symbol>
+        <symbol id="icon-exclamation" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm1 15h-2v-2h2Zm0-4h-2V7h2Z"/>
+        </symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.285 6.708 9 18l-5.285-5.292 1.415-1.416L9 15.172l9.87-9.88 1.415 1.416Z"/>
+        </symbol>
+        <symbol id="icon-users" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM6 13a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm10 2a6 6 0 0 0-6 6h12a6 6 0 0 0-6-6Zm-10 1a5 5 0 0 0-5 5h6a5 5 0 0 0-5-5Z"/>
+        </symbol>
+        <symbol id="icon-user" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a5 5 0 1 1-5 5 5 5 0 0 1 5-5Zm0 9a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7Z"/>
+        </symbol>
+        <symbol id="icon-user-helmet" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a5 5 0 0 0-5 5v1h10V7a5 5 0 0 0-5-5Zm-7 12a7 7 0 0 1 14 0v3H5v-3Z"/>
+        </symbol>
+        <symbol id="icon-lock" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Zm-5 8a2 2 0 1 1 2-2 2 2 0 0 1-2 2Z"/>
+        </symbol>
+        <symbol id="icon-login" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 17 15 12 10 7v3H3v4h7v3Zm2-15h7a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-7v-2h7V4h-7V2Z"/>
+        </symbol>
+        <symbol id="icon-logout" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 7V4h7v16h-7v-3h-2v5h11V2H12v5h2Zm-2 5-5-5v3H2v4h5v3l5-5Z"/>
+        </symbol>
+        <symbol id="icon-lab" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 2h8v2l-3 5v6l5 5H6l5-5V9L8 4V2Z"/>
+        </symbol>
+        <symbol id="icon-edit" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41L18.66 1a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75Z"/>
+        </symbol>
+        <symbol id="icon-truck" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 3h12v8h4l2 3v6h-2a3 3 0 0 1-6 0H9a3 3 0 0 1-6 0H1V5a2 2 0 0 1 2-2Zm3 16a1 1 0 1 0 1 1 1 1 0 0 0-1-1Zm10 0a1 1 0 1 0 1 1 1 1 0 0 0-1-1Z"/>
+        </symbol>
+        <symbol id="icon-plug" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 2h2v6h6V2h2v6h3v2H4V8h3V2Z"/>
+        </symbol>
+        <symbol id="icon-plus" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M11 11V4h2v7h7v2h-7v7h-2v-7H4v-2h7Z"/>
+        </symbol>
+        <symbol id="icon-x" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.41 4.29 19.71 2.87 18.29 9.17 12 2.87 5.71 4.29 4.29l6.3 6.3 6.29-6.3 1.42 1.42Z"/>
+        </symbol>
+        <symbol id="icon-list" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z"/>
+        </symbol>
+        <symbol id="icon-mobile" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm5 18a1.5 1.5 0 1 0-1.5-1.5A1.5 1.5 0 0 0 12 20Z"/>
+        </symbol>
+        <symbol id="icon-laptop" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8H4V6Zm-2 10h20v2H2v-2Z"/>
+        </symbol>
+        <symbol id="icon-send" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2 21 23 12 2 3v7l15 2-15 2v7Z"/>
+        </symbol>
+    </svg>
     <!-- Enhanced navigation with earthy green gradient -->
-    <nav class="bg-gradient-to-r from-green-600 via-green-700 to-green-800 text-white shadow-2xl">
+    <nav class="bg-gradient-to-r" style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));" class="text-white shadow-2xl">
         <div class="container mx-auto px-4 py-4">
             <div class="flex justify-between items-center">
                 <h1 class="text-2xl font-bold">
-                    <a href="{{ url_for('index') }}" class="hover:text-green-200 transition-colors duration-300 flex items-center">
-                        <span class="text-3xl mr-2">📊</span>
-                        <span class="bg-gradient-to-r from-white to-green-100 bg-clip-text text-transparent">TabletTracker</span>
+                    <a href="{{ url_for('index') }}" class="hover:text-primary transition-colors duration-300 flex items-center">
+                        <svg class="w-7 h-7 mr-2" aria-hidden="true"><use href="#icon-chart" /></svg>
+                        <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
                     </a>
                 </h1>
                 <div class="hidden md:flex space-x-6">
-                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <span class="mr-1">📦</span> Warehouse
+                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Warehouse
                     </a>
-                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <span class="mr-1">🔢</span> Count
+                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-calc" /></svg> Count
                     </a>
-                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <span class="mr-1">📈</span> Dashboard
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
-                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-green-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <span class="mr-1">⚙️</span> Admin
+                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg> Admin
                     </a>
                 </div>
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
-                    <button onclick="toggleMobileMenu()" class="text-white hover:text-green-200 transition-colors duration-300">
+                    <button onclick="toggleMobileMenu()" class="text-white hover:text-primary transition-colors duration-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                         </svg>
@@ -186,10 +309,10 @@
             </div>
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📦 Warehouse Form</a>
-                <a href="{{ url_for('count_form') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">🔢 Count Form</a>
-                <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📈 Dashboard</a>
-                <a href="{{ url_for('admin_panel') }}" class="block hover:text-green-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">⚙️ Admin</a>
+                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Warehouse Form</a>
+                <a href="{{ url_for('count_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-calc" /></svg> Count Form</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
+                <a href="{{ url_for('admin_panel') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-gear" /></svg> Admin</a>
             </div>
         </div>
     </nav>
@@ -199,9 +322,13 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="mb-6 p-4 rounded-xl shadow-lg transform transition-all duration-500 hover:scale-105 {% if category == 'error' %}bg-gradient-to-r from-red-500 to-pink-500 text-white border border-red-400{% else %}bg-gradient-to-r from-emerald-500 to-green-500 text-white border border-green-400{% endif %}">
+                    <div class="mb-6 p-4 rounded-xl shadow-lg transform transition-all duration-500 hover:scale-105 {% if category == 'error' %}bg-gradient-to-r from-[#0B2E33] to-[#4F7C82] text-white border border-[#93B1B5]{% else %}bg-gradient-to-r from-[#4F7C82] to-[#93B1B5] text-white border border-[#B8E3E9]{% endif %}">
                         <div class="flex items-center">
-                            <span class="text-2xl mr-3">{% if category == 'error' %}⚠️{% else %}✅{% endif %}</span>
+                            {% if category == 'error' %}
+                                <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-exclamation" /></svg>
+                            {% else %}
+                                <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-check" /></svg>
+                            {% endif %}
                             <span class="font-medium">{{ message }}</span>
                         </div>
                     </div>
