@@ -105,11 +105,18 @@ class FedExTrackingClient:
         if self._token and time.time() < self._token_expiry - 60:
             return self._token
         url = f"{self.base}/oauth/token"
-        data = {"grant_type": "client_credentials"}
-        auth = (self.api_key, self.api_secret)
+        # FedEx expects credentials in body (not Basic) for many accounts
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": self.api_key,
+            "client_secret": self.api_secret,
+        }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        resp = requests.post(url, data=data, auth=auth, headers=headers, timeout=20)
-        resp.raise_for_status()
+        resp = requests.post(url, data=data, headers=headers, timeout=25)
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            raise requests.HTTPError(f"FedEx token error {resp.status_code}: {resp.text}") from e
         payload = resp.json()
         self._token = payload.get("access_token")
         expires_in = payload.get("expires_in", 3300)
@@ -127,10 +134,13 @@ class FedExTrackingClient:
             "trackingInfo": [{"trackingNumberInfo": {"trackingNumber": tracking_number}}],
             "includeDetailedScans": True,
         }
-        resp = requests.post(url, headers=headers, json=body, timeout=20)
+        resp = requests.post(url, headers=headers, json=body, timeout=25)
         if resp.status_code == 404:
             return {"status": "Unknown", "raw": resp.text}
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            raise requests.HTTPError(f"FedEx track error {resp.status_code}: {resp.text}") from e
         return resp.json()
 
 
@@ -187,8 +197,11 @@ def refresh_shipment_row(conn, shipment_id: int) -> Dict[str, Any]:
         norm = normalize_ups_response(raw)
     elif carrier in ("fedex", "fed ex", "fx") or carrier_code in ("fedex", "fx"):
         client = FedExTrackingClient()
-        raw = client.track(tracking_number)
-        norm = normalize_fedex_response(raw)
+        try:
+            raw = client.track(tracking_number)
+            norm = normalize_fedex_response(raw)
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
     else:
         return {"success": False, "error": f"Carrier not supported: {carrier or carrier_code}"}
 

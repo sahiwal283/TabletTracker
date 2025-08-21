@@ -10,6 +10,7 @@ from config import Config
 from zoho_integration import zoho_api
 from __version__ import __version__, __title__, __description__
 from tracking_service import refresh_shipment_row
+from report_service import ProductionReportGenerator
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -1471,6 +1472,143 @@ def clear_po_data():
         return jsonify({
             'success': False,
             'error': f'Clear failed: {str(e)}'
+        }), 500
+
+# ===== PRODUCTION REPORT ENDPOINTS =====
+
+@app.route('/api/reports/production', methods=['POST'])
+@admin_required
+def generate_production_report():
+    """Generate comprehensive production report PDF"""
+    try:
+        data = request.get_json() or {}
+        
+        start_date = data.get('start_date')
+        end_date = data.get('end_date') 
+        po_numbers = data.get('po_numbers', [])
+        
+        # Validate date formats if provided
+        if start_date:
+            try:
+                datetime.strptime(start_date, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid start_date format. Use YYYY-MM-DD'}), 400
+        
+        if end_date:
+            try:
+                datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
+        
+        # Generate report
+        generator = ProductionReportGenerator()
+        pdf_content = generator.generate_production_report(
+            start_date=start_date,
+            end_date=end_date,
+            po_numbers=po_numbers if po_numbers else None
+        )
+        
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'production_report_{timestamp}.pdf'
+        
+        # Return PDF as download
+        from flask import make_response
+        response = make_response(pdf_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
+        
+    except Exception as e:
+        print(f"Report generation error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Report generation failed: {str(e)}'
+        }), 500
+
+@app.route('/api/reports/po-summary')
+@admin_required 
+def get_po_summary_for_reports():
+    """Get summary of POs available for reporting"""
+    try:
+        conn = get_db()
+        
+        # Get PO summary with date ranges
+        pos = conn.execute('''
+            SELECT 
+                po.po_number,
+                po.tablet_type,
+                po.internal_status,
+                po.ordered_quantity,
+                po.current_good_count,
+                po.current_damaged_count,
+                po.created_at,
+                po.updated_at,
+                COUNT(DISTINCT ws.id) as submission_count,
+                MIN(ws.created_at) as first_submission,
+                MAX(ws.created_at) as last_submission,
+                s.actual_delivery,
+                s.delivered_at,
+                s.tracking_status
+            FROM purchase_orders po
+            LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+            LEFT JOIN shipments s ON po.id = s.po_id
+            GROUP BY po.id
+            ORDER BY po.created_at DESC
+            LIMIT 100
+        ''').fetchall()
+        
+        po_list = []
+        for po in pos:
+            # Calculate pack time if possible
+            pack_time = None
+            delivery_date = None
+            completion_date = None
+            
+            if po['actual_delivery']:
+                delivery_date = po['actual_delivery']
+            elif po['delivered_at']:
+                delivery_date = po['delivered_at']
+            
+            if po['last_submission']:
+                completion_date = po['last_submission'][:10]
+            elif po['internal_status'] == 'Complete':
+                completion_date = po['updated_at'][:10]
+            
+            if delivery_date and completion_date:
+                try:
+                    del_dt = datetime.strptime(delivery_date[:10], '%Y-%m-%d')
+                    comp_dt = datetime.strptime(completion_date, '%Y-%m-%d')
+                    pack_time = (comp_dt - del_dt).days
+                except:
+                    pack_time = None
+            
+            po_list.append({
+                'po_number': po['po_number'],
+                'tablet_type': po['tablet_type'],
+                'status': po['internal_status'],
+                'ordered': po['ordered_quantity'] or 0,
+                'produced': po['current_good_count'] or 0,
+                'damaged': po['current_damaged_count'] or 0,
+                'created_date': po['created_at'][:10] if po['created_at'] else None,
+                'submissions': po['submission_count'],
+                'pack_time_days': pack_time,
+                'tracking_status': po['tracking_status']
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'pos': po_list,
+            'total_count': len(po_list)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Failed to get PO summary: {str(e)}'
         }), 500
 
 if __name__ == '__main__':
