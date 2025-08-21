@@ -33,35 +33,61 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
-                    {% for shipment in pending_shipments %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-4 font-medium text-gray-900">{{ shipment.po_number }}</td>
-                        <td class="px-4 py-4 text-gray-600 font-mono">{{ shipment.tracking_number }}</td>
-                        <td class="px-4 py-4">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                {% if shipment.carrier == 'UPS' %}bg-brown-100 text-brown-800{% elif shipment.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ shipment.carrier }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-4">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                {% if shipment.tracking_status == 'Delivered' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                {{ shipment.tracking_status or 'In Transit' }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-4">
-                            {% if shipment.tracking_status == 'Delivered' %}
-                            <button onclick="startReceiving({{ shipment.id }}, '{{ shipment.po_number }}')" 
-                                    class="btn-primary text-sm px-3 py-1">
-                                <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-box" /></svg>
-                                {{ gettext('Start Receiving') }}
-                            </button>
-                            {% else %}
-                            <span class="text-gray-400 text-sm">{{ gettext('Awaiting Delivery') }}</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    {% if pending_shipments %}
+                        {% for shipment in pending_shipments %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-4 font-medium text-gray-900">{{ shipment.po_number }}</td>
+                            <td class="px-4 py-4 text-gray-600 font-mono">{{ shipment.tracking_number }}</td>
+                            <td class="px-4 py-4">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                    {% if shipment.carrier == 'UPS' %}bg-brown-100 text-brown-800{% elif shipment.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ shipment.carrier }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                    {% if shipment.tracking_status == 'Delivered' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {{ shipment.tracking_status or 'In Transit' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4">
+                                {% if shipment.tracking_status == 'Delivered' %}
+                                <button onclick="startReceiving({{ shipment.id }}, '{{ shipment.po_number }}')" 
+                                        class="btn-primary text-sm px-3 py-1">
+                                    <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-box" /></svg>
+                                    {{ gettext('Start Receiving') }}
+                                </button>
+                                {% else %}
+                                <span class="text-gray-400 text-sm">{{ gettext('Awaiting Delivery') }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-12 text-center">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-400 mb-4" aria-hidden="true"><use href="#icon-truck" /></svg>
+                                    <h3 class="text-lg font-medium text-gray-900 mb-2">{{ gettext('No Pending Shipments') }}</h3>
+                                    <p class="text-gray-500 mb-4">{{ gettext('No delivered shipments awaiting receiving') }}</p>
+                                    <div class="space-y-2 text-sm text-gray-600">
+                                        <p>{{ gettext('To get started:') }}</p>
+                                        <div class="space-y-1">
+                                            <p>1. {{ gettext('Sync POs from Zoho') }} → <a href="{{ url_for('admin_dashboard') }}" class="text-blue-600 hover:underline">{{ gettext('Dashboard') }}</a></p>
+                                            <p>2. {{ gettext('Add shipment tracking') }} → <a href="{{ url_for('shipments_management') }}" class="text-blue-600 hover:underline">{{ gettext('Admin Shipments') }}</a></p>
+                                            <p>3. {{ gettext('Wait for delivery status') }} → {{ gettext('Returns here when delivered') }}</p>
+                                    </div>
+                                    <div class="mt-4">
+                                        <button onclick="createSampleData()" class="btn-secondary text-sm">
+                                            <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg>
+                                            {{ gettext('Create Sample Data for Testing') }}
+                                        </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -187,29 +213,41 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
-                    {% for receiving in recent_receiving %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-4 font-medium text-gray-900">{{ receiving.po_number }}</td>
-                        <td class="px-4 py-4 text-gray-600">{{ receiving.received_date.strftime('%Y-%m-%d %H:%M') if receiving.received_date else '-' }}</td>
-                        <td class="px-4 py-4 text-center">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {{ receiving.total_small_boxes }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-4 text-center">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                {{ receiving.total_bags or 0 }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-4 text-gray-600">{{ receiving.received_by }}</td>
-                        <td class="px-4 py-4">
-                            <button onclick="viewReceivingDetails({{ receiving.id }})" 
-                                    class="text-blue-600 hover:text-blue-800 text-sm">
-                                {{ gettext('View Details') }}
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    {% if recent_receiving %}
+                        {% for receiving in recent_receiving %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-4 font-medium text-gray-900">{{ receiving.po_number }}</td>
+                            <td class="px-4 py-4 text-gray-600">{{ receiving.received_date.strftime('%Y-%m-%d %H:%M') if receiving.received_date else '-' }}</td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {{ receiving.total_small_boxes }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    {{ receiving.total_bags or 0 }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4 text-gray-600">{{ receiving.received_by }}</td>
+                            <td class="px-4 py-4">
+                                <button onclick="viewReceivingDetails({{ receiving.id }})" 
+                                        class="text-blue-600 hover:text-blue-800 text-sm">
+                                    {{ gettext('View Details') }}
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true"><use href="#icon-check" /></svg>
+                                    <p class="text-gray-500">{{ gettext('No receiving history yet') }}</p>
+                                    <p class="text-sm text-gray-400">{{ gettext('Completed receivings will appear here') }}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -322,6 +360,30 @@ document.getElementById('receiving-form').addEventListener('submit', async funct
 function viewReceivingDetails(receivingId) {
     // TODO: Implement receiving details modal
     window.location.href = `/receiving/${receivingId}/details`;
+}
+
+async function createSampleData() {
+    if (!confirm('{{ gettext("Create sample PO and shipment data for testing?") }}')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/create_sample_receiving_data', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess(result.message || '{{ gettext("Sample data created successfully!") }}');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showError(result.error || '{{ gettext("Failed to create sample data") }}');
+        }
+    } catch (error) {
+        showError('{{ gettext("Network error") }}: ' + error.message);
+    }
 }
 </script>
 {% endblock %}
