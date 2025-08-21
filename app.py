@@ -1673,40 +1673,99 @@ def get_po_summary_for_reports():
 
 # ===== RECEIVING MANAGEMENT ROUTES =====
 
+@app.route('/receiving/debug')
+@admin_required
+def receiving_debug():
+    """Debug route to test receiving functionality"""
+    try:
+        conn = get_db()
+        
+        # Test database connections
+        po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
+        shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
+        receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+        
+        # Test the actual query
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        conn.close()
+        
+        debug_info = {
+            'status': 'success',
+            'database_counts': {
+                'purchase_orders': po_count['count'] if po_count else 0,
+                'shipments': shipment_count['count'] if shipment_count else 0,
+                'receiving': receiving_count['count'] if receiving_count else 0
+            },
+            'pending_shipments': len(pending_shipments),
+            'template_exists': 'receiving_management.html exists',
+            'version': '1.7.1'
+        }
+        
+        return f"""
+        <h2>Receiving Debug Info (v1.7.1)</h2>
+        <pre>{debug_info}</pre>
+        <p><a href="/receiving">Go to actual receiving page</a></p>
+        """
+        
+    except Exception as e:
+        return f"""
+        <h2>Receiving Debug Error</h2>
+        <p>Error: {str(e)}</p>
+        <p><a href="/receiving">Try receiving page anyway</a></p>
+        """
+
 @app.route('/receiving')
 @admin_required
 def receiving_management():
     """Receiving management page for processing shipment arrivals"""
-    conn = get_db()
-    
-    # Get pending shipments (delivered but not yet received)
-    pending_shipments = conn.execute('''
-        SELECT s.*, po.po_number
-        FROM shipments s
-        JOIN purchase_orders po ON s.po_id = po.id
-        LEFT JOIN receiving r ON s.id = r.shipment_id
-        WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
-        ORDER BY s.delivered_at DESC, s.created_at DESC
-    ''').fetchall()
-    
-    # Get recent receiving history
-    recent_receiving = conn.execute('''
-        SELECT r.*, po.po_number,
-               COUNT(sb.id) as total_boxes,
-               SUM(sb.total_bags) as total_bags
-        FROM receiving r
-        JOIN purchase_orders po ON r.po_id = po.id
-        LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
-        GROUP BY r.id
-        ORDER BY r.received_date DESC
-        LIMIT 20
-    ''').fetchall()
-    
-    conn.close()
-    
-    return render_template('receiving_management.html', 
-                         pending_shipments=pending_shipments,
-                         recent_receiving=recent_receiving)
+    try:
+        conn = get_db()
+        
+        # Get pending shipments (delivered but not yet received)
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        # Get recent receiving history
+        recent_receiving = conn.execute('''
+            SELECT r.*, po.po_number,
+                   COUNT(sb.id) as total_boxes,
+                   SUM(sb.total_bags) as total_bags
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+            LIMIT 20
+        ''').fetchall()
+        
+        conn.close()
+        
+        return render_template('receiving_management.html', 
+                             pending_shipments=pending_shipments,
+                             recent_receiving=recent_receiving)
+                             
+    except Exception as e:
+        # If template fails, return simple HTML
+        return f"""
+        <h2>Receiving Page Error (v1.7.1)</h2>
+        <p>Template error: {str(e)}</p>
+        <p><a href="/receiving/debug">View debug info</a></p>
+        <p><a href="/admin">Back to admin</a></p>
+        """
 
 @app.route('/api/process_receiving', methods=['POST'])
 @admin_required
