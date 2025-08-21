@@ -4,11 +4,11 @@
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl font-bold text-gray-900 mb-6">📊 Product → Tablet Mapping & Calculations</h2>
+    <h2 class="text-2xl font-bold text-gray-900 mb-6"><svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-chart" /></svg> Product → Tablet Mapping & Calculations</h2>
     
     <!-- Calculation Formula -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-        <h3 class="text-lg font-semibold text-blue-900 mb-4">🧮 Calculation Formula</h3>
+        <h3 class="text-lg font-semibold text-blue-900 mb-4"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-calc" /></svg> Calculation Formula</h3>
         <div class="space-y-2 text-sm">
             <div><strong>Good Tablets =</strong></div>
             <div class="ml-4">
@@ -30,7 +30,7 @@
     <!-- Product Actions Header -->
     <div class="bg-white rounded-lg shadow p-4 mb-6">
         <div class="flex justify-between items-center">
-            <h3 class="text-lg font-medium text-gray-900">📊 Product Configuration</h3>
+            <h3 class="text-lg font-medium text-gray-900"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Product Configuration</h3>
             <button onclick="refreshProductsWithConfirm()" 
                     class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors text-sm">
                 🔄 Refresh All Products
@@ -41,7 +41,7 @@
     <!-- Product Mapping Table -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-medium text-gray-900">📊 Product Configuration</h3>
+            <h3 class="text-lg font-medium text-gray-900"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Product Configuration</h3>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -123,7 +123,7 @@
 
     <!-- Example Calculation -->
     <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">💡 Example: "7OH 4ct" Product</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Example: "7OH 4ct" Product</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
                 <h4 class="font-medium text-gray-700 mb-2">Input from Warehouse Staff:</h4>
@@ -150,7 +150,7 @@
 
     <!-- Add New Product (Moved to Bottom) -->
     <div class="bg-white rounded-lg shadow p-6 mt-8">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">➕ Add New Product</h3>
+        <h3 class="text-lg font-medium text-gray-900 mb-4"><svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg> Add New Product</h3>
         <form id="add-product-form" class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <input type="text" id="new-product-name" placeholder="Product Name" class="form-input" required>
             <input type="text" id="new-tablet-type" list="tablet-types-list" placeholder="Tablet Type" class="form-input" required>
