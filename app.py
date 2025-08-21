@@ -1678,6 +1678,7 @@ def server_debug_info():
     """Debug route to check server state - no auth required"""
     import os
     import time
+    import sqlite3
     
     try:
         # Check file timestamps
@@ -1697,6 +1698,24 @@ def server_debug_info():
         # Check if template exists
         template_exists = os.path.exists('templates/receiving_management.html')
         
+        # Find database path and check what tables exist
+        db_path = 'tablettracker.db'
+        db_full_path = os.path.abspath(db_path)
+        db_exists = os.path.exists(db_path)
+        
+        # Check what tables actually exist in this database
+        tables_info = "Database not accessible"
+        if db_exists:
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [row[0] for row in cursor.fetchall()]
+                tables_info = f"Tables: {tables}"
+                conn.close()
+            except Exception as e:
+                tables_info = f"Database error: {e}"
+        
         return f"""
         <h2>Server Debug Info</h2>
         <p><strong>Version:</strong> {version_info}</p>
@@ -1705,6 +1724,10 @@ def server_debug_info():
         <p><strong>Version.py Modified:</strong> {time.ctime(version_time)}</p>
         <p><strong>Receiving Template Exists:</strong> {template_exists}</p>
         <p><strong>Python Path:</strong> {os.sys.path[0]}</p>
+        <hr>
+        <p><strong>Database Path:</strong> {db_full_path}</p>
+        <p><strong>Database Exists:</strong> {db_exists}</p>
+        <p><strong>{tables_info}</strong></p>
         <hr>
         <p><a href="/receiving">Test Receiving Route</a></p>
         <p><a href="/receiving/debug">Test Debug Route</a></p>
