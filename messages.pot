@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-08-21 17:00-0400\n"
+"POT-Creation-Date: 2025-08-21 17:11-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -47,5 +47,45 @@ msgstr ""
 
 #: templates/warehouse_form.html:47
 msgid "Select count..."
+msgstr ""
+
+#: templates/warehouse_form.html:58 templates/warehouse_form.html:61
+msgid "Box #"
+msgstr ""
+
+#: templates/warehouse_form.html:67 templates/warehouse_form.html:70
+msgid "Bag #"
+msgstr ""
+
+#: templates/warehouse_form.html:76
+msgid "Bag Label Count"
+msgstr ""
+
+#: templates/warehouse_form.html:79
+msgid "Count on the bag label"
+msgstr ""
+
+#: templates/warehouse_form.html:86
+msgid "Production Details"
+msgstr ""
+
+#: templates/warehouse_form.html:91
+msgid "Displays Made"
+msgstr ""
+
+#: templates/warehouse_form.html:99
+msgid "Single Packs Remaining"
+msgstr ""
+
+#: templates/warehouse_form.html:107
+msgid "Loose Tablets"
+msgstr ""
+
+#: templates/warehouse_form.html:115
+msgid "Damaged Tablets"
+msgstr ""
+
+#: templates/warehouse_form.html:127
+msgid "Submit Production Count"
 msgstr ""
 
