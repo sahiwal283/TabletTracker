@@ -8,18 +8,17 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
         :root {
-            /* Professional, cohesive palette */
-            --bg-start: #f8fafc; /* slate-50 */
-            --bg-end: #f1f5f9;   /* slate-100 */
-            --neutral-border: #e2e8f0; /* slate-200 */
-            --neutral-shadow: 15, 23, 42; /* slate-800 RGB */
-            --primary-600: #4f46e5; /* indigo-600 */
-            --primary-700: #4338ca; /* indigo-700 */
-            --primary-800: #3730a3; /* indigo-800 */
-            --success-500: #22c55e; /* emerald-500 */
-            --success-700: #15803d; /* emerald-700 */
-            --warning-400: #f59e0b; /* amber-500-ish */
-            --warning-200: #fde68a; /* amber-200 */
+            /* Winter Chill Palette */
+            --wc-light: #B8E3E9;  /* Light ice */
+            --wc-mid:   #93B1B5;  /* Mist */
+            --wc-primary:#4F7C82;  /* Deep teal */
+            --wc-dark:  #0B2E33;  /* Midnight teal */
+
+            /* Derived neutrals */
+            --bg-start: #f8fbfc;
+            --bg-end:   #eef7f8;
+            --neutral-border: #e2edf0;
+            --neutral-shadow: 11, 46, 51; /* wc-dark RGB */
         }
 
         /* Inputs */
@@ -34,9 +33,9 @@
             padding: 16px 20px !important;
         }
         .form-input:focus {
-            border-color: var(--primary-600) !important;
+            border-color: var(--wc-primary) !important;
             background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
-            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2), 0 12px 20px rgba(79, 70, 229, 0.15) !important;
+            box-shadow: 0 0 0 4px rgba(79, 124, 130, 0.2), 0 12px 20px rgba(79, 124, 130, 0.15) !important;
             transform: translateY(-2px);
             outline: none;
         }
@@ -55,7 +54,7 @@
         select.form-input {
             border-color: var(--neutral-border) !important;
             background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234f46e5' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234F7C82' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
             background-position: right 1rem center;
             background-repeat: no-repeat;
             background-size: 1.25em 1.25em;
@@ -67,25 +66,25 @@
         .btn-primary {
             @apply text-white px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
             border-radius: 24px !important;
-            background: linear-gradient(135deg, var(--primary-700) 0%, var(--primary-600) 50%, #6366f1 100%);
+            background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
             border: 2px solid rgba(255,255,255,0.2);
-            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.3);
+            box-shadow: 0 6px 20px rgba(var(--neutral-shadow), 0.18);
             transform: translateY(0) scale(1);
             min-height: 56px;
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, var(--primary-800) 0%, var(--primary-700) 50%, var(--primary-600) 100%);
+            background: linear-gradient(135deg, var(--wc-dark) 0%, var(--wc-primary) 50%, var(--wc-mid) 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+            box-shadow: 0 10px 25px rgba(var(--neutral-shadow), 0.25);
             border-color: rgba(255,255,255,0.3);
         }
         .btn-primary:active {
             transform: translateY(-1px) scale(1.0);
-            box-shadow: 0 6px 15px rgba(79, 70, 229, 0.3);
+            box-shadow: 0 6px 15px rgba(var(--neutral-shadow), 0.2);
         }
         
         .btn-secondary {
-            @apply text-slate-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:ring-opacity-30 transition-all duration-300;
+            @apply text-slate-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
             border-radius: 20px !important;
             border: 2px solid var(--neutral-border);
             transform: translateY(0);
@@ -102,45 +101,63 @@
         .btn-success {
             @apply text-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
             border-radius: 20px !important;
-            background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, var(--success-500) 100%);
+            background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
             border: 2px solid rgba(255,255,255,0.2);
-            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.25);
+            box-shadow: 0 6px 20px rgba(var(--neutral-shadow), 0.18);
             transform: translateY(0);
         }
         .btn-success:hover {
-            background: linear-gradient(135deg, #14532d 0%, #15803d 50%, var(--success-700) 100%);
+            background: linear-gradient(135deg, var(--wc-dark) 0%, var(--wc-primary) 50%, var(--wc-mid) 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.35);
+            box-shadow: 0 10px 25px rgba(var(--neutral-shadow), 0.24);
             border-color: rgba(255,255,255,0.3);
         }
         
         .btn-warning {
-            @apply text-slate-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-amber-200 focus:ring-opacity-30 transition-all duration-300;
+            @apply text-slate-800 bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
             border-radius: 20px !important;
-            border: 2px solid var(--warning-200);
+            border: 2px solid var(--neutral-border);
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
+            box-shadow: 0 4px 15px rgba(var(--neutral-shadow), 0.08);
         }
         .btn-warning:hover {
-            @apply bg-amber-50 text-amber-900;
+            @apply bg-slate-50 text-slate-900;
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
-            border-color: #fcd34d; /* amber-300 */
+            box-shadow: 0 8px 20px rgba(var(--neutral-shadow), 0.12);
+            border-color: #cbd5e1; /* slate-300 */
         }
 
         /* Cards */
         .card {
             @apply bg-white shadow-xl border border-gray-100;
             border-radius: 28px !important;
-            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
-            border-color: rgba(var(--neutral-shadow), 0.06) !important;
+            background: linear-gradient(135deg, #ffffff 0%, var(--wc-light) 100%);
+            border-color: rgba(var(--neutral-shadow), 0.08) !important;
         }
+
+        /* Semantic helpers mapped to Winter Chill */
+        .text-primary { color: var(--wc-primary) !important; }
+        .text-secondary { color: var(--wc-mid) !important; }
+        .bg-accent { background-color: var(--wc-light) !important; }
+        .border-accent { border-color: var(--wc-mid) !important; }
+
+        /* Override common Tailwind color utilities used across templates */
+        .text-blue-600, .text-indigo-600, .text-green-600, .text-emerald-600, .text-teal-600 { color: var(--wc-primary) !important; }
+        .text-yellow-600, .text-orange-600 { color: var(--wc-mid) !important; }
+        .text-red-600 { color: var(--wc-dark) !important; }
+
+        .bg-blue-600, .bg-indigo-600, .bg-emerald-500, .bg-teal-600, .bg-green-500 { background-color: var(--wc-primary) !important; }
+        .bg-green-50, .bg-blue-50, .bg-indigo-50 { background-color: rgba(184, 227, 233, 0.25) !important; }
+
+        .from-indigo-600, .from-purple-600, .from-blue-600, .from-green-600, .from-emerald-400, .from-teal-400, .from-amber-400, .from-orange-400 { --tw-gradient-from: var(--wc-primary) !important; }
+        .to-purple-600, .to-indigo-600, .to-blue-600, .to-emerald-600, .to-green-500, .to-cyan-500, .to-yellow-500, .to-orange-600 { --tw-gradient-to: var(--wc-mid) !important; }
+        .from-green-100, .to-emerald-100, .via-purple-50, .to-pink-50, .from-indigo-50 { --tw-gradient-from: rgba(184, 227, 233, 0.35) !important; --tw-gradient-to: rgba(147, 177, 181, 0.35) !important; }
         
-        /* Status badge enhancements */
-        .status-complete { @apply bg-gradient-to-r from-emerald-400 to-green-500 text-white; }
-        .status-processing { @apply bg-gradient-to-r from-blue-400 to-indigo-500 text-white; }
-        .status-shipped { @apply bg-gradient-to-r from-purple-400 to-indigo-500 text-white; }
-        .status-draft { @apply bg-gradient-to-r from-amber-400 to-orange-500 text-white; }
+        /* Status badge enhancements - Winter Chill */
+        .status-complete { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-primary), var(--wc-mid)); }
+        .status-processing { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-mid), var(--wc-primary)); }
+        .status-shipped { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-dark), var(--wc-primary)); }
+        .status-draft { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-light), var(--wc-mid)); }
         
         /* Animated gradient background */
         .gradient-bg {
@@ -167,32 +184,32 @@
 </head>
 <body class="min-h-screen" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
     <!-- Enhanced navigation with earthy green gradient -->
-    <nav class="bg-gradient-to-r from-slate-800 via-slate-900 to-black text-white shadow-2xl">
+    <nav class="bg-gradient-to-r" style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));" class="text-white shadow-2xl">
         <div class="container mx-auto px-4 py-4">
             <div class="flex justify-between items-center">
                 <h1 class="text-2xl font-bold">
-                    <a href="{{ url_for('index') }}" class="hover:text-indigo-200 transition-colors duration-300 flex items-center">
+                    <a href="{{ url_for('index') }}" class="hover:text-primary transition-colors duration-300 flex items-center">
                         <span class="text-3xl mr-2">📊</span>
-                        <span class="bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">TabletTracker</span>
+                        <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
                     </a>
                 </h1>
                 <div class="hidden md:flex space-x-6">
-                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">📦</span> Warehouse
                     </a>
-                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">🔢</span> Count
                     </a>
-                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">📈</span> Dashboard
                     </a>
-                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-indigo-200 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <span class="mr-1">⚙️</span> Admin
                     </a>
                 </div>
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
-                    <button onclick="toggleMobileMenu()" class="text-white hover:text-indigo-200 transition-colors duration-300">
+                    <button onclick="toggleMobileMenu()" class="text-white hover:text-primary transition-colors duration-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                         </svg>
@@ -201,10 +218,10 @@
             </div>
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📦 Warehouse Form</a>
-                <a href="{{ url_for('count_form') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">🔢 Count Form</a>
-                <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📈 Dashboard</a>
-                <a href="{{ url_for('admin_panel') }}" class="block hover:text-indigo-200 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">⚙️ Admin</a>
+                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📦 Warehouse Form</a>
+                <a href="{{ url_for('count_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">🔢 Count Form</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">📈 Dashboard</a>
+                <a href="{{ url_for('admin_panel') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10">⚙️ Admin</a>
             </div>
         </div>
     </nav>
@@ -214,7 +231,7 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="mb-6 p-4 rounded-xl shadow-lg transform transition-all duration-500 hover:scale-105 {% if category == 'error' %}bg-gradient-to-r from-red-500 to-pink-500 text-white border border-red-400{% else %}bg-gradient-to-r from-emerald-500 to-green-500 text-white border border-green-400{% endif %}">
+                    <div class="mb-6 p-4 rounded-xl shadow-lg transform transition-all duration-500 hover:scale-105 {% if category == 'error' %}bg-gradient-to-r from-[#0B2E33] to-[#4F7C82] text-white border border-[#93B1B5]{% else %}bg-gradient-to-r from-[#4F7C82] to-[#93B1B5] text-white border border-[#B8E3E9]{% endif %}">
                         <div class="flex items-center">
                             <span class="text-2xl mr-3">{% if category == 'error' %}⚠️{% else %}✅{% endif %}</span>
                             <span class="font-medium">{{ message }}</span>
