@@ -87,7 +87,7 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                             <div class="flex items-center space-x-3">
-                                <button onclick="editShipment({{ po.id }}, '{{ po.po_number }}')" 
+                                <button onclick="editShipment({{ po.id }}, '{{ po.po_number }}', {{ po.shipment_id or 'null' }})" 
                                         class="text-blue-600 hover:text-blue-900">
                                     {% if po.tracking_number %}Edit{% else %}Add Tracking{% endif %}
                                 </button>
@@ -95,6 +95,9 @@
                                 <button onclick="refreshTracking({{ po.shipment_id }})" 
                                         class="text-primary hover:underline">
                                     Refresh Status
+                                </button>
+                                <button onclick="deleteShipment({{ po.shipment_id }})" class="text-red-600 hover:underline">
+                                    Delete
                                 </button>
                                 {% endif %}
                             </div>
@@ -123,6 +126,7 @@
             
             <form id="shipment-form" class="space-y-4">
                 <input type="hidden" id="shipment-po-id">
+                <input type="hidden" id="shipment-id">
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Tracking Number</label>
@@ -177,11 +181,29 @@
 </div>
 
 <script>
-function editShipment(poId, poNumber) {
+function editShipment(poId, poNumber, shipmentId) {
     document.getElementById('modal-title').textContent = `Shipment Info - ${poNumber}`;
     document.getElementById('shipment-po-id').value = poId;
-    
-    // TODO: Pre-fill existing data if editing
+    document.getElementById('shipment-id').value = shipmentId || '';
+
+    if (shipmentId) {
+        fetch(`/api/shipment/${shipmentId}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    const s = d.shipment;
+                    document.getElementById('tracking-number').value = s.tracking_number || '';
+                    document.getElementById('carrier').value = s.carrier || '';
+                    document.getElementById('shipped-date').value = s.shipped_date || '';
+                    document.getElementById('estimated-delivery').value = s.estimated_delivery || '';
+                    document.getElementById('actual-delivery').value = s.actual_delivery || '';
+                    document.getElementById('shipment-notes').value = s.notes || '';
+                }
+            });
+    } else {
+        document.getElementById('shipment-form').reset();
+        document.getElementById('shipment-po-id').value = poId;
+    }
     document.getElementById('shipment-modal').classList.remove('hidden');
 }
 
@@ -210,6 +232,7 @@ document.getElementById('shipment-form').addEventListener('submit', async functi
     
     const data = {
         po_id: parseInt(document.getElementById('shipment-po-id').value),
+        shipment_id: document.getElementById('shipment-id').value ? parseInt(document.getElementById('shipment-id').value) : null,
         tracking_number: document.getElementById('tracking-number').value,
         carrier: document.getElementById('carrier').value,
         shipped_date: document.getElementById('shipped-date').value,
@@ -236,6 +259,20 @@ document.getElementById('shipment-form').addEventListener('submit', async functi
         alert('Failed to save shipment: ' + error.message);
     }
 });
+async function deleteShipment(id) {
+    if (!confirm('Delete this shipment?')) return;
+    try {
+        const resp = await fetch(`/api/shipment/${id}`, { method: 'DELETE' });
+        const result = await resp.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Delete failed: ' + (result.error || 'unknown error'));
+        }
+    } catch (e) {
+        alert('Delete failed: ' + e.message);
+    }
+}
 
 // Hide manual date fields for auto-tracked carriers (UPS/FedEx)
 document.getElementById('carrier').addEventListener('change', function() {
