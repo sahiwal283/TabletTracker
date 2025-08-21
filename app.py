@@ -600,6 +600,32 @@ def refresh_shipment(shipment_id: int):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/shipment/<int:shipment_id>', methods=['GET'])
+def get_shipment(shipment_id: int):
+    try:
+        conn = get_db()
+        row = conn.execute('''
+            SELECT id, po_id, tracking_number, carrier, shipped_date, estimated_delivery, actual_delivery, notes
+            FROM shipments WHERE id = ?
+        ''', (shipment_id,)).fetchone()
+        conn.close()
+        if not row:
+            return jsonify({'success': False, 'error': 'Not found'}), 404
+        return jsonify({'success': True, 'shipment': dict(row)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/shipment/<int:shipment_id>', methods=['DELETE'])
+def delete_shipment(shipment_id: int):
+    try:
+        conn = get_db()
+        conn.execute('DELETE FROM shipments WHERE id = ?', (shipment_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/save_shipment', methods=['POST'])
 def save_shipment():
     """Save shipment information (supports multiple shipments per PO)"""
