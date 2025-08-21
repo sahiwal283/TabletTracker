@@ -3,10 +3,13 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
     <!-- Summary Stats -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">📊 Overview</h3>
+    <div class="card hover-lift p-8">
+        <div class="flex items-center mb-6">
+            <span class="text-4xl mr-4">📊</span>
+            <h3 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Overview</h3>
+        </div>
         <div class="space-y-3">
             <div class="flex justify-between">
                 <span class="text-gray-600">🔄 Active POs:</span>
@@ -28,17 +31,26 @@
     </div>
     
     <!-- Data Management -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">⚡ Data Management</h3>
-        <div class="space-y-3">
+    <div class="card hover-lift p-8">
+        <div class="flex items-center mb-6">
+            <span class="text-4xl mr-4">⚡</span>
+            <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Data Management</h3>
+        </div>
+        <div class="space-y-4">
             <button id="sync-pos-btn" onclick="syncZohoPOs()" 
-                    class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 w-full font-bold text-lg shadow-lg border-2 border-green-500 transition-all transform hover:scale-105">
-                🔄 SYNC ZOHO POs
+                    class="btn-success w-full py-4 text-lg font-bold shadow-2xl transform transition-all duration-500 hover:scale-105 hover:rotate-1">
+                <span class="flex items-center justify-center">
+                    <span class="text-2xl mr-3 animate-spin">🔄</span>
+                    SYNC ZOHO POs
+                </span>
             </button>
             <button onclick="clearPOData()" 
-                    class="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 w-full transition-colors"
+                    class="btn-warning w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
                     title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
-                🗑️ Clear PO Data
+                <span class="flex items-center justify-center">
+                    <span class="text-lg mr-2">🗑️</span>
+                    Clear PO Data
+                </span>
             </button>
             <p class="text-xs text-gray-500 mt-1">
                 <strong>Clear PO Data use cases:</strong><br>
@@ -50,8 +62,11 @@
     </div>
     
     <!-- Recent Activity -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">🕒 Recent Activity</h3>
+    <div class="card hover-lift p-8">
+        <div class="flex items-center mb-6">
+            <span class="text-4xl mr-4">🕒</span>
+            <h3 class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Recent Activity</h3>
+        </div>
         <div class="text-sm space-y-2">
             {% for submission in submissions[:5] %}
                 <div class="border-l-2 border-blue-200 pl-3">
@@ -67,13 +82,19 @@
 </div>
 
 <!-- Purchase Orders Table -->
-<div class="bg-white rounded-lg shadow">
-    <div class="px-6 py-4 border-b border-gray-200">
+<div class="card hover-lift">
+    <div class="px-8 py-6 border-b border-gray-200">
         <div class="flex justify-between items-center">
-            <h3 class="text-lg font-medium text-gray-900">📋 Active Purchase Orders</h3>
+            <div class="flex items-center">
+                <span class="text-3xl mr-4">📋</span>
+                <h3 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Active Purchase Orders</h3>
+            </div>
             <button onclick="toggleAllPurchaseOrders()" id="show-more-pos-btn" 
-                    class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                Show All
+                    class="btn-secondary text-sm px-4 py-2 transform transition-all duration-300 hover:scale-105">
+                <span class="flex items-center">
+                    <span class="mr-2">👁️</span>
+                    Show All
+                </span>
             </button>
         </div>
     </div>
@@ -149,47 +170,47 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         {% if po.status_display == 'Complete' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold status-complete shadow-lg transform transition-all duration-300 hover:scale-105">
                                 ✅ Complete
                             </span>
                         {% elif po.status_display == 'Closed' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-gray-400 to-gray-500 text-white shadow-lg">
                                 🔒 Closed
                             </span>
                         {% elif po.status_display == 'Reconciled' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-400 to-purple-600 text-white shadow-lg">
                                 📋 Reconciled
                             </span>
                         {% elif po.status_display == 'Ready for Payment' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-orange-400 to-orange-600 text-white shadow-lg">
                                 💰 Ready for Payment
                             </span>
                         {% elif po.status_display == 'Processing' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold status-processing shadow-lg transform transition-all duration-300 hover:scale-105">
                                 ⚙️ Processing
                             </span>
                         {% elif po.status_display == 'Received' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-teal-400 to-cyan-500 text-white shadow-lg">
                                 📦 Received
                             </span>
                         {% elif po.status_display == 'Partially Received' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-400 to-yellow-500 text-white shadow-lg">
                                 📦 Partial
                             </span>
                         {% elif po.status_display == 'Shipped' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold status-shipped shadow-lg transform transition-all duration-300 hover:scale-105">
                                 🚚 Shipped
                             </span>
                         {% elif po.status_display == 'Draft' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold status-draft shadow-lg transform transition-all duration-300 hover:scale-105">
                                 📝 Draft
                             </span>
                         {% elif po.status_display == 'Issued' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow-lg">
                                 📤 Issued
                             </span>
                         {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-gray-400 to-gray-500 text-white shadow-lg">
                                 {{ po.status_display }}
                             </span>
                         {% endif %}
@@ -217,9 +238,12 @@
 </div>
 
 <!-- Recent Submissions Table -->
-<div class="bg-white rounded-lg shadow mt-8">
-    <div class="px-6 py-4 border-b border-gray-200">
-        <h3 class="text-lg font-medium text-gray-900">📝 Recent Submissions</h3>
+<div class="card hover-lift mt-10">
+    <div class="px-8 py-6 border-b border-gray-200">
+        <div class="flex items-center">
+            <span class="text-3xl mr-4">📝</span>
+            <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Recent Submissions</h3>
+        </div>
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
