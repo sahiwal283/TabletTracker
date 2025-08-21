@@ -1673,25 +1673,7 @@ def get_po_summary_for_reports():
 
 # ===== RECEIVING MANAGEMENT ROUTES =====
 
-@app.route('/debug/force-reload')
-def force_reload():
-    """Force reload all Python modules"""
-    import importlib
-    import sys
-    
-    try:
-        # Reload this module
-        current_module = sys.modules[__name__]
-        importlib.reload(current_module)
-        
-        return """
-        <h2>Force Reload Complete</h2>
-        <p>Python modules reloaded</p>
-        <p><a href="/receiving">Test Receiving Route Now</a></p>
-        <p><a href="/debug/server-info">Back to Debug Info</a></p>
-        """
-    except Exception as e:
-        return f"<h2>Reload Error</h2><p>{str(e)}</p>"
+# Temporarily removed force-reload route due to import issues
 
 @app.route('/debug/server-info')
 def server_debug_info():
