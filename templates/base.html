@@ -282,6 +282,11 @@
         <symbol id="icon-spinner" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2Z"/>
         </symbol>
+        <symbol id="icon-language" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            <path d="M3.9 12c0-4.42 3.58-8 8-8s8 3.58 8 8h-2c0-3.31-2.69-6-6-6s-6 2.69-6 6H3.9z"/>
+            <path d="M12 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+        </symbol>
     </svg>
     <!-- Enhanced navigation with earthy green gradient -->
     <nav class="bg-gradient-to-r" style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));" class="text-white shadow-2xl">
@@ -310,6 +315,22 @@
                     <a href="{{ url_for('public_shipments') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-truck" /></svg> Shipments
                     </a>
+                    <!-- Language Toggle -->
+                    <div class="relative ml-4">
+                        <button onclick="toggleLanguageMenu()" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                            <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-language" /></svg>
+                            <span class="hidden sm:inline">{{ current_language.upper() }}</span>
+                        </button>
+                        <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
+                            {% for code, name in languages.items() %}
+                            <a href="?lang={{ code }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
+                                <span class="mr-2">{% if code == 'en' %}🇺🇸{% else %}🇪🇸{% endif %}</span>
+                                {{ name }}
+                                {% if current_language == code %}<span class="float-right">✓</span>{% endif %}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
@@ -408,6 +429,22 @@
             const menu = document.getElementById('mobile-menu');
             menu.classList.toggle('hidden');
         }
+
+        // Language menu toggle function
+        function toggleLanguageMenu() {
+            const menu = document.getElementById('language-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Close language menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('language-menu');
+            const button = event.target.closest('button[onclick="toggleLanguageMenu()"]');
+            
+            if (!button && !menu.contains(event.target)) {
+                menu.classList.add('hidden');
+            }
+        });
 
         // Add some sparkle effect on page load
         document.addEventListener('DOMContentLoaded', function() {

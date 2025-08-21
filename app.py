@@ -11,11 +11,34 @@ from zoho_integration import zoho_api
 from __version__ import __version__, __title__, __description__
 from tracking_service import refresh_shipment_row
 from report_service import ProductionReportGenerator
+from flask_babel import Babel, gettext, ngettext, lazy_gettext, get_locale
 
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
 
+# Configure Babel for internationalization
+app.config['LANGUAGES'] = {
+    'en': 'English',
+    'es': 'Español'
+}
+app.config['BABEL_DEFAULT_LOCALE'] = 'en'
+app.config['BABEL_DEFAULT_TIMEZONE'] = 'UTC'
+
+def get_locale():
+    # 1. Check if user explicitly chose a language
+    if request.args.get('lang'):
+        session['language'] = request.args.get('lang')
+    
+    # 2. Use session language if available
+    if 'language' in session and session['language'] in app.config['LANGUAGES']:
+        return session['language']
+    
+    # 3. Use browser's preferred language if available
+    return request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or app.config['BABEL_DEFAULT_LOCALE']
+
+babel = Babel()
+babel.init_app(app, locale_selector=get_locale)
 # Configure session settings for production security
 if Config.ENV == 'production':
     app.config['SESSION_COOKIE_SECURE'] = True
@@ -1618,7 +1641,11 @@ def inject_version():
     return {
         'version': lambda: __version__,
         'app_title': __title__,
-        'app_description': __description__
+        'app_description': __description__,
+        'current_language': get_locale(),
+        'languages': app.config['LANGUAGES'],
+        'gettext': gettext,
+        'ngettext': ngettext
     }
 
 if __name__ == '__main__':
