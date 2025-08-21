@@ -1,0 +1,873 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Summary Stats -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">📊 Overview</h3>
+        <div class="space-y-3">
+            <div class="flex justify-between">
+                <span class="text-gray-600">🔄 Active POs:</span>
+                <span class="font-medium text-blue-600">{{ active_pos|length }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">📝 Draft POs:</span>
+                <span class="font-medium text-yellow-600">{{ stats.draft_pos }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">⛔ Closed POs:</span>
+                <span class="font-medium text-gray-600">{{ stats.closed_pos }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">📊 Total Remaining:</span>
+                <span class="font-medium text-blue-600">{{ "{:,}".format(stats.total_remaining) }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Data Management -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">⚡ Data Management</h3>
+        <div class="space-y-3">
+            <button id="sync-pos-btn" onclick="syncZohoPOs()" 
+                    class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 w-full font-bold text-lg shadow-lg border-2 border-green-500 transition-all transform hover:scale-105">
+                🔄 SYNC ZOHO POs
+            </button>
+            <button onclick="clearPOData()" 
+                    class="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 w-full transition-colors"
+                    title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
+                🗑️ Clear PO Data
+            </button>
+            <p class="text-xs text-gray-500 mt-1">
+                <strong>Clear PO Data use cases:</strong><br>
+                • Start fresh testing<br>
+                • Fix corrupted sync data<br>
+                • Reset all counts to zero
+            </p>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">🕒 Recent Activity</h3>
+        <div class="text-sm space-y-2">
+            {% for submission in submissions[:5] %}
+                <div class="border-l-2 border-blue-200 pl-3">
+                    <div class="font-medium">{{ submission.product_name }}</div>
+                    <div class="text-gray-600">{{ submission.employee_name }}</div>
+                    <div class="text-xs text-gray-500">
+                        {{ submission.created_at.split('.')[0] if submission.created_at else 'Unknown time' }}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Purchase Orders Table -->
+<div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900">📋 Active Purchase Orders</h3>
+            <button onclick="toggleAllPurchaseOrders()" id="show-more-pos-btn" 
+                    class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                Show All
+            </button>
+        </div>
+    </div>
+    <div class="max-h-96 overflow-y-auto">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        PO Number
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tablet Type
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Ordered
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Good
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Damaged
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Remaining
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Progress
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for po in active_pos %}
+                <tr class="hover:bg-gray-50 po-row {% if loop.index > 5 %}hidden{% endif %}" data-po-index="{{ loop.index }}" data-po-id="{{ po.id }}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {{ po.po_number }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ po.tablet_type or 'N/A' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ "{:,}".format(po.ordered_quantity) if po.ordered_quantity else '0' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">
+                        {{ "{:,}".format(po.current_good_count) if po.current_good_count else '0' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                        {{ "{:,}".format(po.current_damaged_count) if po.current_damaged_count else '0' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                        {{ "{:,}".format(po.remaining_quantity) if po.remaining_quantity else '0' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% set total_received = (po.current_good_count or 0) + (po.current_damaged_count or 0) %}
+                        {% set ordered = po.ordered_quantity or 0 %}
+                        {% if ordered > 0 %}
+                            {% set progress_percent = ((total_received / ordered) * 100) | round(1) %}
+                            <div class="flex items-center">
+                                <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+                                    <div class="bg-blue-600 h-2 rounded-full" style="width: {{ progress_percent }}%"></div>
+                                </div>
+                                <span class="text-xs font-medium text-gray-700">{{ progress_percent }}%</span>
+                            </div>
+                        {% else %}
+                            <span class="text-xs text-gray-400">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if po.status_display == 'Complete' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ✅ Complete
+                            </span>
+                        {% elif po.status_display == 'Closed' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                🔒 Closed
+                            </span>
+                        {% elif po.status_display == 'Reconciled' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                📋 Reconciled
+                            </span>
+                        {% elif po.status_display == 'Ready for Payment' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                💰 Ready for Payment
+                            </span>
+                        {% elif po.status_display == 'Processing' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                ⚙️ Processing
+                            </span>
+                        {% elif po.status_display == 'Received' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                📦 Received
+                            </span>
+                        {% elif po.status_display == 'Partially Received' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                📦 Partial
+                            </span>
+                        {% elif po.status_display == 'Shipped' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                🚚 Shipped
+                            </span>
+                        {% elif po.status_display == 'Draft' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                📝 Draft
+                            </span>
+                        {% elif po.status_display == 'Issued' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                📤 Issued
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {{ po.status_display }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="togglePODetails({{ po.id }}, this)" 
+                                class="text-blue-600 hover:text-blue-900 font-medium">
+                            ▼ View Details
+                        </button>
+                    </td>
+                </tr>
+                <!-- Expandable details row -->
+                <tr id="details-{{ po.id }}" class="hidden bg-gray-50 po-details-row {% if loop.index > 5 %}hidden{% endif %}" data-po-index="{{ loop.index }}">
+                    <td colspan="9" class="px-6 py-4">
+                        <div id="details-content-{{ po.id }}" class="text-sm">
+                            <div class="animate-pulse">Loading line items...</div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    </div>
+</div>
+
+<!-- Recent Submissions Table -->
+<div class="bg-white rounded-lg shadow mt-8">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900">📝 Recent Submissions</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Time
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Employee
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Product
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Box/Bag
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Displays
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Packs
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Loose
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Damaged
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Count Check
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        PO
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for sub in submissions %}
+                <tr class="{% if sub.has_discrepancy %}bg-yellow-50 border-l-4 border-yellow-400{% else %}hover:bg-gray-50{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.created_at.split('.')[0] if sub.created_at else 'N/A' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ sub.employee_name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.product_name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.box_number }}/{{ sub.bag_number }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.displays_made }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.packs_remaining }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.loose_tablets }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                        {{ sub.damaged_tablets }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% if sub.has_discrepancy %}
+                            <div class="text-orange-600 font-medium">
+                                <div class="text-xs">Calc: {{ sub.calculated_total }}</div>
+                                <div class="text-xs">Bag: {{ sub.bag_label_count }}</div>
+                                <div class="text-xs font-bold">⚠️ Mismatch</div>
+                            </div>
+                        {% else %}
+                            <span class="text-green-600 text-xs">✅ Match</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.po_number or 'Unassigned' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Closed Purchase Orders (Historical) -->
+{% if closed_pos %}
+<div class="bg-white rounded-lg shadow mt-8">
+    <div class="px-6 py-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50" onclick="toggleClosedPOs()">
+        <div class="flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900">🔒 Closed Purchase Orders ({{ closed_pos|length }})</h3>
+            <span id="closed-po-toggle-icon" class="text-gray-500 transform transition-transform">▶</span>
+        </div>
+    </div>
+    <div id="closed-pos-content" class="hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO Number</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tablet Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ordered</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for po in closed_pos %}
+                    <tr class="hover:bg-gray-50 opacity-75">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ po.po_number }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ po.tablet_type or 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ "{:,}".format(po.ordered_quantity) if po.ordered_quantity else '0' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ "{:,}".format((po.current_good_count or 0) + (po.current_damaged_count or 0)) }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                🔒 Closed
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="togglePODetails({{ po.id }}, this)" 
+                                    class="text-blue-600 hover:text-blue-900 font-medium">
+                                ▼ View Details
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Expandable details row for closed POs -->
+                    <tr id="details-{{ po.id }}" class="hidden bg-gray-50">
+                        <td colspan="6" class="px-6 py-4">
+                            <div id="details-content-{{ po.id }}" class="text-sm">
+                                <div class="animate-pulse">Loading line items...</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Small Shipments Link -->
+<div class="mt-6 text-center">
+    <a href="/admin/shipments" class="text-xs text-gray-500 hover:text-gray-700 underline">
+        Manage All Shipments
+    </a>
+</div>
+
+<script>
+async function findOrgId() {
+    try {
+        const button = event.target;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '🔍 Searching...';
+        
+        const response = await fetch('/api/find_org_id');
+        const result = await response.json();
+        
+        if (result.success) {
+            let message = 'Found organizations:\n\n';
+            result.organizations.forEach(org => {
+                message += `Name: ${org.name}\n`;
+                message += `ID: ${org.organization_id}\n`;
+                message += `Currency: ${org.currency_code || 'N/A'}\n\n`;
+            });
+            message += 'Copy the organization_id you want to use into your .env file!';
+            alert(message);
+        } else {
+            showError(result.error);
+        }
+        
+        button.disabled = false;
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Org ID search failed: ' + error.message);
+        event.target.disabled = false;
+        event.target.textContent = '🔍 Find Correct Org ID';
+    }
+}
+
+async function clearPOData() {
+    if (!confirm('Are you sure you want to clear all PO data? This will remove all synced POs and line items.')) {
+        return;
+    }
+    
+    try {
+        const button = event.target;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '🗑️ Clearing...';
+        
+        const response = await fetch('/api/clear_po_data', {method: 'POST'});
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+        
+        button.disabled = false;
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Clear failed: ' + error.message);
+        event.target.disabled = false;
+        event.target.textContent = '🗑️ Clear PO Data';
+    }
+}
+
+async function testZohoConnection() {
+    try {
+        const button = event.target;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Testing...';
+        
+        const response = await fetch('/api/test_zoho_connection');
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+        } else {
+            showError(result.error);
+        }
+        
+        button.disabled = false;
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Connection test failed: ' + error.message);
+        event.target.disabled = false;
+        event.target.textContent = 'Test Zoho Connection';
+    }
+}
+
+async function syncZohoPOs() {
+    try {
+        const button = document.getElementById('sync-pos-btn');
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.textContent = '🔄 SYNCING...';
+        
+        const response = await fetch('/api/sync_zoho_pos');
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            // Reload page to show new data
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error || 'Sync failed - check terminal for details');
+        }
+        
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Sync failed: ' + error.message);
+        const button = document.getElementById('sync-pos-btn');
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = '🔄 SYNC ZOHO POs';
+    }
+}
+
+async function togglePODetails(poId, button) {
+    const detailsRow = document.getElementById(`details-${poId}`);
+    const detailsContent = document.getElementById(`details-content-${poId}`);
+    
+    if (detailsRow.classList.contains('hidden')) {
+        // Show details
+        button.textContent = '▲ Hide Details';
+        detailsRow.classList.remove('hidden');
+        
+        try {
+            const response = await fetch(`/api/po_lines/${poId}`);
+            const lines = await response.json();
+            
+            if (lines.length === 0) {
+                detailsContent.innerHTML = '<div class="text-gray-500 italic">No line items found</div>';
+            } else {
+                let html = '<div class="space-y-2">';
+                html += '<h4 class="font-medium text-gray-900 mb-3">📦 Line Items:</h4>';
+                
+                lines.forEach(line => {
+                    const remaining = line.quantity_ordered - line.good_count - line.damaged_count;
+                    const received = line.good_count + line.damaged_count;
+                    const progressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
+                    
+                    html += `
+                        <div class="bg-white border border-gray-200 rounded-lg p-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="font-medium text-gray-900">${line.line_item_name}</div>
+                                    <div class="text-xs text-gray-500 font-mono">ID: ${line.inventory_item_id}</div>
+                                    
+                                    <!-- Progress bar for this line item -->
+                                    <div class="mt-2 flex items-center">
+                                        <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+                                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${progressPercent}%"></div>
+                                        </div>
+                                        <span class="text-xs font-medium text-gray-700">${progressPercent}%</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-right ml-4">
+                                    <div class="text-sm">
+                                        <span class="text-gray-600">Ordered:</span> 
+                                        <span class="font-medium">${line.quantity_ordered.toLocaleString()}</span>
+                                    </div>
+                                    <div class="text-sm">
+                                        <span class="text-green-600">Good:</span> ${line.good_count.toLocaleString()} | 
+                                        <span class="text-red-600">Damaged:</span> ${line.damaged_count.toLocaleString()}
+                                    </div>
+                                    <div class="text-sm">
+                                        <span class="text-blue-600">Remaining:</span> 
+                                        <span class="font-medium">${remaining.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+                                                                </div>
+                                    `;
+                                });
+                                
+                                                // Add inline tracking info section
+                html += `
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <button onclick="toggleShippingDetails(${poId})" class="font-medium text-gray-900 hover:text-blue-600 cursor-pointer">🚚 Shipping</button>
+                            <div id="tracking-header-${poId}" class="text-sm">Loading...</div>
+                        </div>
+                        
+                        <!-- Detailed shipping info (hidden by default) -->
+                        <div id="shipping-details-${poId}" class="hidden mt-3 bg-white rounded border p-3 space-y-2 text-sm">
+                            <div id="shipping-details-content-${poId}">Loading detailed shipping info...</div>
+                        </div>
+                        
+                        <!-- Tracking edit form (hidden by default) -->
+                        <div id="tracking-edit-${poId}" class="hidden mt-3 bg-gray-50 rounded-lg p-3 space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="text" id="tracking-num-${poId}" placeholder="Tracking Number" class="text-sm px-3 py-2 border border-gray-300 rounded">
+                                <select id="carrier-${poId}" class="text-sm px-3 py-2 border border-gray-300 rounded">
+                                    <option value="">Select Carrier</option>
+                                    <option value="FedEx">FedEx</option>
+                                    <option value="UPS">UPS</option>
+                                    <option value="USPS">USPS</option>
+                                    <option value="DHL">DHL</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="date" id="shipped-date-${poId}" placeholder="Ship Date" class="text-sm px-3 py-2 border border-gray-300 rounded">
+                                <input type="date" id="delivery-date-${poId}" placeholder="Expected Delivery" class="text-sm px-3 py-2 border border-gray-300 rounded">
+                            </div>
+                            <div class="flex justify-end space-x-2">
+                                <button onclick="saveTrackingInline(${poId})" class="text-green-600 hover:text-green-800 text-sm font-medium">Save</button>
+                                <button onclick="cancelTrackingEdit(${poId})" class="text-gray-600 hover:text-gray-800 text-sm">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                                
+                                html += '</div>';
+                                detailsContent.innerHTML = html;
+                                
+                                // Load tracking info
+                                loadTrackingInfo(poId);
+            }
+        } catch (error) {
+            detailsContent.innerHTML = '<div class="text-red-500">Failed to load line items</div>';
+        }
+    } else {
+        // Hide details
+        button.textContent = '▼ View Details';
+        detailsRow.classList.add('hidden');
+    }
+}
+
+function exportData() {
+    // This would export CSV data - implement as needed
+    showSuccess('Export feature coming soon');
+}
+
+async function syncZohoPOs() {
+    try {
+        const button = document.getElementById('sync-pos-btn');
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.textContent = '🔄 SYNCING...';
+        
+        const response = await fetch('/api/sync_zoho_pos');
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error || 'Sync failed - check terminal for details');
+        }
+        
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Sync failed: ' + error.message);
+        const button = document.getElementById('sync-pos-btn');
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = '🔄 SYNC ZOHO POs';
+    }
+}
+
+async function clearPOData() {
+    if (!confirm('This will delete all synced PO data. Are you sure?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/clear_po_data', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to clear data: ' + error.message);
+    }
+}
+
+async function refreshProducts() {
+    if (!confirm('This will refresh all products with the updated configuration. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/refresh_products', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to refresh products: ' + error.message);
+    }
+}
+
+function toggleAllPurchaseOrders() {
+    const button = document.getElementById('show-more-pos-btn');
+    const allRows = document.querySelectorAll('.po-row[data-po-index]');
+    const visibleRows = document.querySelectorAll('.po-row[data-po-index]:not(.hidden)');
+    const isShowingAll = visibleRows.length >= allRows.length;
+    
+    if (isShowingAll) {
+        // Show only first 5 POs
+        allRows.forEach(row => {
+            const poIndex = parseInt(row.dataset.poIndex);
+            if (poIndex > 5) {
+                row.classList.add('hidden');
+                // Hide corresponding details row
+                const detailsRow = document.querySelector(`[id="details-${row.dataset.poId}"]`);
+                if (detailsRow && !detailsRow.classList.contains('hidden')) {
+                    detailsRow.classList.add('hidden');
+                }
+            }
+        });
+        button.textContent = 'Show All';
+    } else {
+        // Show all POs
+        allRows.forEach(row => {
+            row.classList.remove('hidden');
+        });
+        document.querySelectorAll('.po-details-row[data-po-index]').forEach(row => {
+            const poIndex = parseInt(row.dataset.poIndex);
+            if (poIndex > 5) {
+                row.classList.remove('hidden');
+            }
+        });
+        button.textContent = 'Show Less';
+    }
+}
+
+function getTrackingUrl(trackingNumber, carrier) {
+    const tracking = trackingNumber.trim();
+    
+    switch(carrier) {
+        case 'FedEx':
+            return `https://www.fedex.com/fedextrack/?trknbr=${tracking}`;
+        case 'UPS':
+            return `https://www.ups.com/track?loc=en_US&tracknum=${tracking}`;
+        case 'USPS':
+            return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${tracking}`;
+        case 'DHL':
+            return `https://www.dhl.com/en/express/tracking.html?AWB=${tracking}`;
+        default:
+            // Google search fallback
+            return `https://www.google.com/search?q=track+package+${encodeURIComponent(tracking)}`;
+    }
+}
+
+async function loadTrackingInfo(poId) {
+    try {
+        const response = await fetch(`/api/po_tracking/${poId}`);
+        const data = await response.json();
+        
+        const trackingHeader = document.getElementById(`tracking-header-${poId}`);
+        const shippingDetails = document.getElementById(`shipping-details-content-${poId}`);
+        
+        if (data.has_tracking && data.shipments.length > 0) {
+            // Show primary tracking number in header (most recent)
+            const primaryShipment = data.shipments[0];
+            const trackingUrl = getTrackingUrl(primaryShipment.tracking_number, primaryShipment.carrier);
+            
+            if (data.shipments.length === 1) {
+                // Single shipment - show tracking # and delivery
+                trackingHeader.innerHTML = `
+                    <a href="${trackingUrl}" target="_blank" 
+                       class="font-mono text-blue-600 hover:text-blue-800 underline">
+                        ${primaryShipment.tracking_number}
+                    </a>
+                    ${primaryShipment.estimated_delivery ? ` | <span class="text-green-600 font-medium">Due: ${primaryShipment.estimated_delivery}</span>` : ''}
+                `;
+            } else {
+                // Multiple shipments - show count
+                trackingHeader.innerHTML = `
+                    <span class="text-blue-600 font-medium">${data.shipments.length} Shipments</span>
+                    ${primaryShipment.estimated_delivery ? ` | <span class="text-green-600 font-medium">Next: ${primaryShipment.estimated_delivery}</span>` : ''}
+                `;
+            }
+            
+            // Populate detailed shipping info (all shipments)
+            let detailsHtml = '';
+            data.shipments.forEach((shipment, index) => {
+                const url = getTrackingUrl(shipment.tracking_number, shipment.carrier);
+                detailsHtml += `
+                    <div class="border-b border-gray-200 pb-2 ${index < data.shipments.length - 1 ? 'mb-2' : ''}">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><span class="text-gray-600">Tracking #:</span> 
+                                <a href="${url}" target="_blank" class="font-mono text-blue-600 hover:text-blue-800 underline">${shipment.tracking_number}</a>
+                            </div>
+                            <div><span class="text-gray-600">Carrier:</span> ${shipment.carrier || 'Not Set'}</div>
+                            <div><span class="text-gray-600">Shipped:</span> ${shipment.shipped_date || 'Not Set'}</div>
+                            <div><span class="text-gray-600">Est. Delivery:</span> ${shipment.estimated_delivery || 'Not Set'}</div>
+                            ${shipment.actual_delivery ? `<div><span class="text-gray-600">Actual Delivery:</span> ${shipment.actual_delivery}</div>` : ''}
+                            ${shipment.notes ? `<div class="col-span-2"><span class="text-gray-600">Notes:</span> ${shipment.notes}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            detailsHtml += `
+                <div class="mt-3 text-center">
+                    <button onclick="editTrackingInline(${poId})" class="text-blue-600 hover:text-blue-800 text-sm mr-3">Add Another Shipment</button>
+                </div>
+            `;
+            
+            shippingDetails.innerHTML = detailsHtml;
+        } else {
+            // No tracking yet
+            trackingHeader.innerHTML = `
+                <button onclick="editTrackingInline(${poId})" 
+                        class="text-blue-600 hover:text-blue-800 text-sm">
+                    Add Tracking
+                </button>
+            `;
+            
+            shippingDetails.innerHTML = `
+                <div class="text-center text-gray-500">
+                    <p>No shipping information yet</p>
+                    <button onclick="editTrackingInline(${poId})" class="mt-2 text-blue-600 hover:text-blue-800 text-sm">Add Tracking Info</button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Failed to load tracking info:', error);
+        const trackingHeader = document.getElementById(`tracking-header-${poId}`);
+        if (trackingHeader) {
+            trackingHeader.innerHTML = '<span class="text-red-500 text-sm">Error loading tracking</span>';
+        }
+    }
+}
+
+function editTrackingInline(poId) {
+    document.getElementById(`tracking-edit-${poId}`).classList.remove('hidden');
+}
+
+function cancelTrackingEdit(poId) {
+    document.getElementById(`tracking-edit-${poId}`).classList.add('hidden');
+}
+
+async function saveTrackingInline(poId) {
+    const data = {
+        po_id: poId,
+        tracking_number: document.getElementById(`tracking-num-${poId}`).value,
+        carrier: document.getElementById(`carrier-${poId}`).value,
+        shipped_date: document.getElementById(`shipped-date-${poId}`).value,
+        estimated_delivery: document.getElementById(`delivery-date-${poId}`).value
+    };
+    
+    try {
+        const response = await fetch('/api/save_shipment', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess('Tracking info saved!');
+            // Reload tracking info and hide edit form
+            await loadTrackingInfo(poId);
+            cancelTrackingEdit(poId);
+            // Reload page to update status if it changed to "Shipped"
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to save tracking: ' + error.message);
+    }
+}
+
+function toggleClosedPOs() {
+    const content = document.getElementById('closed-pos-content');
+    const icon = document.getElementById('closed-po-toggle-icon');
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.textContent = '▼';
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        content.classList.add('hidden');
+        icon.textContent = '▶';
+        icon.style.transform = 'rotate(-90deg)';
+    }
+}
+
+function toggleShippingDetails(poId) {
+    const details = document.getElementById(`shipping-details-${poId}`);
+    details.classList.toggle('hidden');
+}
+</script>
+{% endblock %}

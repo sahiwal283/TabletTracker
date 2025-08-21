@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">🔒 Admin Access</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 p-3 rounded-md {% if category == 'error' %}bg-red-100 border border-red-400 text-red-700{% else %}bg-green-100 border border-green-400 text-green-700{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <form method="POST" action="/admin/login" class="space-y-4">
+        <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                Admin Password
+            </label>
+            <input type="password" id="password" name="password" required
+                   class="form-input" placeholder="Enter admin password" autofocus>
+        </div>
+        
+        <button type="submit" class="w-full py-3 px-4 text-lg font-semibold text-white bg-gray-700 hover:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500">
+            Access Admin Panel
+        </button>
+    </form>
+    
+    <div class="mt-6 text-center">
+        <a href="/" class="text-sm text-blue-600 hover:text-blue-800">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}

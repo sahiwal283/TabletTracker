@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Manual Count Form{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">📋 Manual Count Form</h2>
+    <p class="text-sm text-gray-600 mb-6 text-center">For end-of-period PO close-outs with vendors</p>
+    
+    <form id="count-form" class="space-y-4">
+        <!-- Employee Name -->
+        <div>
+            <label for="employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                Employee Name *
+            </label>
+            <input type="text" id="employee_name" name="employee_name" required
+                   class="form-input" placeholder="Enter your name">
+        </div>
+        
+        <!-- Tablet Type Selection -->
+        <div>
+            <label for="tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
+                Tablet Type *
+            </label>
+            <select id="tablet_type" name="tablet_type" required class="form-input">
+                <option value="">Select tablet type...</option>
+                {% for tablet_type in tablet_types %}
+                    <option value="{{ tablet_type.tablet_type_name }}">
+                        {{ tablet_type.tablet_type_name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <!-- Box Number -->
+        <div>
+            <label for="box_number" class="block text-sm font-medium text-gray-700 mb-1">
+                Box # *
+            </label>
+            <input type="number" id="box_number" name="box_number" required
+                   class="form-input" min="1" max="999" placeholder="Box #">
+        </div>
+        
+        <!-- Bag Number -->
+        <div>
+            <label for="bag_number" class="block text-sm font-medium text-gray-700 mb-1">
+                Bag # *
+            </label>
+            <input type="number" id="bag_number" name="bag_number" required
+                   class="form-input" min="1" max="999" placeholder="Bag #">
+        </div>
+        
+        <!-- Bag Label Count -->
+        <div>
+            <label for="bag_label_count" class="block text-sm font-medium text-gray-700 mb-1">
+                Bag Label Count *
+            </label>
+            <input type="number" id="bag_label_count" name="bag_label_count" required
+                   class="form-input" min="0" placeholder="Count on the bag label">
+        </div>
+        
+        <!-- Actual Count -->
+        <div class="bg-green-50 p-4 rounded-md">
+            <h3 class="font-medium text-green-900 mb-3">Manual Count</h3>
+            <div>
+                <input type="number" id="actual_count" name="actual_count" required
+                       class="form-input text-2xl py-4 text-center font-bold" min="0" placeholder="Your actual count">
+                <p class="text-xs text-green-600 mt-2 text-center">Enter the actual count of tablets you counted</p>
+            </div>
+        </div>
+        
+        <!-- Count Comparison -->
+        <div id="count-comparison" class="bg-gray-50 p-4 rounded-md hidden">
+            <h3 class="font-medium text-gray-900 mb-2">Count Comparison</h3>
+            <div class="text-sm space-y-1">
+                <div>Bag Label: <span id="label-display" class="font-medium">0</span></div>
+                <div>Actual Count: <span id="actual-display" class="font-medium">0</span></div>
+                <div id="variance-display" class="font-medium"></div>
+            </div>
+        </div>
+        
+        <!-- Submit Button -->
+        <button type="submit" class="w-full py-4 px-6 text-lg font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg shadow-md hover:shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500">
+            Submit Count
+        </button>
+    </form>
+    
+    <!-- Success/Error Messages -->
+    <div id="form-messages" class="mt-4"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('count-form');
+    const bagLabelInput = document.getElementById('bag_label_count');
+    const actualCountInput = document.getElementById('actual_count');
+    const countComparison = document.getElementById('count-comparison');
+    
+    // Update comparison when counts change
+    function updateComparison() {
+        const bagLabel = parseInt(bagLabelInput.value) || 0;
+        const actualCount = parseInt(actualCountInput.value) || 0;
+        
+        if (bagLabel > 0 || actualCount > 0) {
+            document.getElementById('label-display').textContent = bagLabel;
+            document.getElementById('actual-display').textContent = actualCount;
+            
+            const variance = actualCount - bagLabel;
+            const varianceDisplay = document.getElementById('variance-display');
+            
+            if (variance === 0) {
+                varianceDisplay.textContent = 'Variance: Perfect match ✅';
+                varianceDisplay.className = 'font-medium text-green-600';
+            } else if (variance > 0) {
+                varianceDisplay.textContent = `Variance: +${variance} (over count)`;
+                varianceDisplay.className = 'font-medium text-orange-600';
+            } else {
+                varianceDisplay.textContent = `Variance: ${variance} (under count)`;
+                varianceDisplay.className = 'font-medium text-red-600';
+            }
+            
+            countComparison.classList.remove('hidden');
+        } else {
+            countComparison.classList.add('hidden');
+        }
+    }
+    
+    bagLabelInput.addEventListener('input', updateComparison);
+    actualCountInput.addEventListener('input', updateComparison);
+    
+    // Form submission
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        
+        try {
+            const response = await fetch('/submit_count', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showSuccess(result.message || result.warning || 'Count submitted successfully!');
+                form.reset();
+                countComparison.classList.add('hidden');
+            } else {
+                showError(result.error || 'Submission failed');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+});
+</script>
+{% endblock %}

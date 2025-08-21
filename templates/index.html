@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Tablet Counter - Home{% endblock %}
+
+{% block content %}
+<div class="text-center py-12">
+    <h1 class="text-4xl font-bold text-gray-900 mb-8">Tablet Production Counter</h1>
+    
+    <div class="max-w-md mx-auto space-y-6">
+        <!-- Warehouse Staff Option -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <h2 class="text-xl font-semibold mb-3 text-gray-800">📱 Warehouse Staff</h2>
+            <p class="text-gray-600 mb-4">Submit production counts from mobile device</p>
+            <a href="{{ url_for('warehouse_form') }}" 
+               class="btn-primary w-full text-center block py-3 text-lg">
+                Open Warehouse Form
+            </a>
+        </div>
+        
+        <!-- Manager/Admin Option -->
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+            <h2 class="text-xl font-semibold mb-3 text-gray-800">💻 Managers & Admins</h2>
+            <p class="text-gray-600 mb-4">View dashboard and manage purchase orders</p>
+            <a href="{{ url_for('admin_dashboard') }}" 
+               class="btn-secondary w-full text-center block py-3 text-lg">
+                Open Dashboard
+            </a>
+        </div>
+    </div>
+    
+    <div class="mt-12 text-sm text-gray-500">
+        <p>Replaces Google Forms + Sheets workflow</p>
+        <p>Syncs with Zoho Inventory Purchase Orders</p>
+    </div>
+</div>
+{% endblock %}

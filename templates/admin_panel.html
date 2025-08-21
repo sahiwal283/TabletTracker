@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Admin Header -->
+    <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">⚡ Admin Panel</h1>
+        <p class="text-gray-600 mt-2">System configuration and management tools</p>
+    </div>
+
+    <!-- Configuration Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Product Configuration Card -->
+        <div class="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow">
+            <div class="p-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-lg mx-auto mb-4">
+                    <span class="text-2xl">📊</span>
+                </div>
+                <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Product Configuration</h3>
+                <p class="text-sm text-gray-600 text-center mb-4">Manage tablet types, products, and calculations</p>
+                <div class="space-y-2">
+                    <a href="/admin/tablet_types" 
+                       class="block w-full text-center bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 transition-colors text-sm">
+                        🧪 Tablet Types & IDs
+                    </a>
+                    <a href="/admin/products" 
+                       class="block w-full text-center bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm">
+                        📝 Product Config
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shipments Card -->
+        <div class="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow">
+            <div class="p-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-4">
+                    <span class="text-2xl">🚚</span>
+                </div>
+                <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Shipments</h3>
+                <p class="text-sm text-gray-600 text-center mb-4">Track vendor shipments</p>
+                <a href="/admin/shipments" 
+                   class="block w-full text-center bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    Manage Shipments
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Tools -->
+    <div class="bg-gray-50 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center">🔧 System Tools</h3>
+        <div class="flex justify-center">
+            <button onclick="testZohoConnection()" 
+                    class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium">
+                🔌 Test Zoho Connection
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Status Messages -->
+<div id="admin-messages" class="mt-6"></div>
+
+<script>
+// Admin panel functions
+
+async function testZohoConnection() {
+    const button = event.target;
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.textContent = '🔌 Testing Connection...';
+        
+        const response = await fetch('/api/test_zoho_connection');
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('✅ Connection successful!');
+        } else {
+            showError('❌ Connection failed: ' + result.error);
+        }
+        
+        button.disabled = false;
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Connection test failed: ' + error.message);
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+
+
+
+
+
+
+
+
+function showSuccess(message) {
+    showMessage(message, 'success');
+}
+
+function showError(message) {
+    showMessage(message, 'error');
+}
+
+function showMessage(message, type) {
+    const container = document.getElementById('admin-messages');
+    const alertClass = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+    
+    const alert = document.createElement('div');
+    alert.className = `border-l-4 p-4 rounded ${alertClass} mb-4`;
+    alert.innerHTML = `
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <span class="text-lg">${type === 'success' ? '✅' : '❌'}</span>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm">${message}</p>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(alert);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        alert.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

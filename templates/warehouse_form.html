@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Warehouse Submission{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">📦 Production Submission</h2>
+    
+    <form id="warehouse-form" class="space-y-4">
+        <!-- Employee Name -->
+        <div>
+            <label for="employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                Employee Name *
+            </label>
+            <input type="text" id="employee_name" name="employee_name" required
+                   class="form-input" placeholder="Enter your name">
+        </div>
+        
+        <!-- Product Selection with Count -->
+        <div class="grid grid-cols-1 gap-3">
+            <div>
+                <label for="product_base" class="block text-sm font-medium text-gray-700 mb-1">
+                    Product Type *
+                </label>
+                <select id="product_base" name="product_base" required class="form-input">
+                    <option value="">Select product type...</option>
+                </select>
+            </div>
+            
+            <div id="count-selection" class="hidden">
+                <label for="product_count" class="block text-sm font-medium text-gray-700 mb-1">
+                    Count *
+                </label>
+                <select id="product_count" name="product_count" class="form-input">
+                    <option value="">Select count...</option>
+                </select>
+            </div>
+            
+            <!-- Hidden field for the actual product name -->
+            <input type="hidden" id="product_name" name="product_name">
+        </div>
+        
+        <!-- Box Number -->
+        <div>
+            <label for="box_number" class="block text-sm font-medium text-gray-700 mb-1">
+                Box # *
+            </label>
+            <input type="number" id="box_number" name="box_number" required
+                   class="form-input" min="1" max="999" placeholder="Box #">
+        </div>
+        
+        <!-- Bag Number -->
+        <div>
+            <label for="bag_number" class="block text-sm font-medium text-gray-700 mb-1">
+                Bag # *
+            </label>
+            <input type="number" id="bag_number" name="bag_number" required
+                   class="form-input" min="1" max="999" placeholder="Bag #">
+        </div>
+        
+        <!-- Bag Label Count -->
+        <div>
+            <label for="bag_label_count" class="block text-sm font-medium text-gray-700 mb-1">
+                Bag Label Count *
+            </label>
+            <input type="number" id="bag_label_count" name="bag_label_count" required
+                   class="form-input" min="0" placeholder="Count on the bag label">
+        </div>
+        
+        <!-- Production Counts -->
+        <div class="bg-blue-50 p-4 rounded-md space-y-3">
+            <h3 class="font-medium text-blue-900">Production Details</h3>
+            
+            <div>
+                <label for="displays_made" class="block text-sm font-medium text-gray-700 mb-1">
+                    Displays Made *
+                </label>
+                <input type="number" id="displays_made" name="displays_made" required
+                       class="form-input" min="0" value="0">
+            </div>
+            
+            <div>
+                <label for="packs_remaining" class="block text-sm font-medium text-gray-700 mb-1">
+                    Single Packs Remaining *
+                </label>
+                <input type="number" id="packs_remaining" name="packs_remaining" required
+                       class="form-input" min="0" value="0">
+            </div>
+            
+            <div>
+                <label for="loose_tablets" class="block text-sm font-medium text-gray-700 mb-1">
+                    Loose Tablets *
+                </label>
+                <input type="number" id="loose_tablets" name="loose_tablets" required
+                       class="form-input" min="0" value="0">
+            </div>
+            
+            <div>
+                <label for="damaged_tablets" class="block text-sm font-medium text-gray-700 mb-1">
+                    Damaged Tablets *
+                </label>
+                <input type="number" id="damaged_tablets" name="damaged_tablets" required
+                       class="form-input" min="0" value="0">
+            </div>
+        </div>
+        
+
+        
+        <!-- Submit Button -->
+        <button type="submit" class="w-full py-4 px-6 text-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md hover:shadow-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            Submit Production Count
+        </button>
+    </form>
+    
+    <!-- Success/Error Messages -->
+    <div id="form-messages" class="mt-4"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('warehouse-form');
+    const productBaseSelect = document.getElementById('product_base');
+    const productCountSelect = document.getElementById('product_count');
+    const countSelection = document.getElementById('count-selection');
+    const productNameHidden = document.getElementById('product_name');
+    
+    // Product data from server
+    const products = [
+        {% for product in products %}
+        {
+            name: "{{ product.product_name }}",
+            ppd: {{ product.packages_per_display }},
+            tpp: {{ product.tablets_per_package }},
+            tabletType: "{{ product.tablet_type_name }}"
+        },
+        {% endfor %}
+    ];
+    
+    // Group products by base type (remove count suffix)
+    const productGroups = {};
+    products.forEach(product => {
+        const baseName = product.name.replace(/\s+(1ct|4ct|5ct|7ct|12ct)$/i, '');
+        const countMatch = product.name.match(/(\d+)ct$/i);
+        const count = countMatch ? countMatch[1] : null;
+        
+        if (!productGroups[baseName]) {
+            productGroups[baseName] = [];
+        }
+        productGroups[baseName].push({
+            ...product,
+            count: count
+        });
+    });
+    
+    // Populate base product dropdown
+    Object.keys(productGroups).sort().forEach(baseName => {
+        const option = document.createElement('option');
+        option.value = baseName;
+        option.textContent = baseName;
+        productBaseSelect.appendChild(option);
+    });
+    
+    // Handle base product selection
+    productBaseSelect.addEventListener('change', function() {
+        productCountSelect.innerHTML = '<option value="">Select count...</option>';
+        countSelection.classList.add('hidden');
+        productNameHidden.value = '';
+        
+        if (this.value) {
+            const availableCounts = productGroups[this.value] || [];
+            availableCounts.sort((a, b) => parseInt(a.count || 0) - parseInt(b.count || 0));
+            
+            availableCounts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.name;
+                option.textContent = product.count ? `${product.count}ct` : product.name;
+                option.dataset.ppd = product.ppd;
+                option.dataset.tpp = product.tpp;
+                option.dataset.tabletType = product.tabletType;
+                productCountSelect.appendChild(option);
+            });
+            
+            countSelection.classList.remove('hidden');
+        }
+    });
+    
+    // Handle count selection
+    productCountSelect.addEventListener('change', function() {
+        productNameHidden.value = this.value;
+    });
+    
+    // Form submission
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        
+        try {
+            const response = await fetch('/submit_warehouse', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showSuccess(result.message || 'Submission processed successfully!');
+                form.reset();
+                countSelection.classList.add('hidden');
+            } else {
+                showError(result.error || 'Submission failed');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+});
+</script>
+{% endblock %}

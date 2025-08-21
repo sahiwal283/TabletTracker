@@ -1,0 +1,1129 @@
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from datetime import datetime
+import sqlite3
+import json
+import os
+import requests
+from functools import wraps
+from config import Config
+from zoho_integration import zoho_api
+from __version__ import __version__, __title__, __description__
+
+app = Flask(__name__)
+app.config.from_object(Config)
+app.secret_key = Config.SECRET_KEY
+
+# Database setup
+def init_db():
+    conn = sqlite3.connect('tablet_counter.db')
+    c = conn.cursor()
+    
+    # Purchase Orders table
+    c.execute('''CREATE TABLE IF NOT EXISTS purchase_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        po_number TEXT UNIQUE NOT NULL,
+        zoho_po_id TEXT UNIQUE,
+        tablet_type TEXT,
+        zoho_status TEXT,
+        ordered_quantity INTEGER DEFAULT 0,
+        current_good_count INTEGER DEFAULT 0,
+        current_damaged_count INTEGER DEFAULT 0,
+        remaining_quantity INTEGER DEFAULT 0,
+        closed BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # Add zoho_status column if it doesn't exist (for existing databases)
+    try:
+        c.execute('ALTER TABLE purchase_orders ADD COLUMN zoho_status TEXT')
+    except:
+        pass  # Column already exists
+        
+    # Add internal_status column for your workflow tracking
+    try:
+        c.execute('ALTER TABLE purchase_orders ADD COLUMN internal_status TEXT DEFAULT "Active"')
+    except:
+        pass  # Column already exists
+    
+    # PO Line Items table
+    c.execute('''CREATE TABLE IF NOT EXISTS po_lines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        po_id INTEGER,
+        po_number TEXT,
+        inventory_item_id TEXT NOT NULL,
+        line_item_name TEXT,
+        quantity_ordered INTEGER DEFAULT 0,
+        good_count INTEGER DEFAULT 0,
+        damaged_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
+    )''')
+    
+    # Tablet Types table
+    c.execute('''CREATE TABLE IF NOT EXISTS tablet_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tablet_type_name TEXT UNIQUE NOT NULL,
+        inventory_item_id TEXT UNIQUE
+    )''')
+    
+    # Product Details table
+    c.execute('''CREATE TABLE IF NOT EXISTS product_details (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_name TEXT UNIQUE NOT NULL,
+        tablet_type_id INTEGER,
+        packages_per_display INTEGER DEFAULT 0,
+        tablets_per_package INTEGER DEFAULT 0,
+        FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
+    )''')
+    
+    # Warehouse Submissions table
+    c.execute('''CREATE TABLE IF NOT EXISTS warehouse_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_name TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        box_number INTEGER,
+        bag_number INTEGER,
+        bag_label_count INTEGER,
+        displays_made INTEGER DEFAULT 0,
+        packs_remaining INTEGER DEFAULT 0,
+        loose_tablets INTEGER DEFAULT 0,
+        damaged_tablets INTEGER DEFAULT 0,
+        discrepancy_flag BOOLEAN DEFAULT FALSE,
+        assigned_po_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (assigned_po_id) REFERENCES purchase_orders (id)
+    )''')
+    
+    # Shipments table for tracking vendor WhatsApp info
+    c.execute('''CREATE TABLE IF NOT EXISTS shipments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        po_id INTEGER,
+        tracking_number TEXT,
+        carrier TEXT,
+        shipped_date DATE,
+        estimated_delivery DATE,
+        actual_delivery DATE,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
+    )''')
+    
+    conn.commit()
+    conn.close()
+
+def get_db():
+    conn = sqlite3.connect('tablet_counter.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Helper function to require login for admin views
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # For now, allow all access - implement authentication later
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/')
+def index():
+    """Default to warehouse form - main user workflow"""
+    return redirect(url_for('warehouse_form'))
+
+@app.route('/version')
+def version():
+    """Get application version information"""
+    return jsonify({
+        'version': __version__,
+        'title': __title__,
+        'description': __description__
+    })
+
+@app.route('/warehouse')
+def warehouse_form():
+    """Mobile-optimized form for warehouse staff"""
+    conn = get_db()
+    
+    # Get product list for dropdown
+    products = conn.execute('''
+        SELECT pd.product_name, tt.tablet_type_name, pd.packages_per_display, pd.tablets_per_package
+        FROM product_details pd
+        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        ORDER BY pd.product_name
+    ''').fetchall()
+    
+    conn.close()
+    return render_template('warehouse_form.html', products=products)
+
+@app.route('/submit_warehouse', methods=['POST'])
+def submit_warehouse():
+    """Process warehouse submission and update PO counts"""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        
+        conn = get_db()
+        
+        # Get product details
+        product = conn.execute('''
+            SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE pd.product_name = ?
+        ''', (data['product_name'],)).fetchone()
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 400
+        
+        # Calculate tablet counts
+        displays_made = int(data.get('displays_made', 0))
+        packs_remaining = int(data.get('packs_remaining', 0))
+        loose_tablets = int(data.get('loose_tablets', 0))
+        damaged_tablets = int(data.get('damaged_tablets', 0))
+        
+        good_tablets = (displays_made * product['packages_per_display'] * product['tablets_per_package'] + 
+                       packs_remaining * product['tablets_per_package'] + 
+                       loose_tablets)
+        
+        # Insert submission record
+        conn.execute('''
+            INSERT INTO warehouse_submissions 
+            (employee_name, product_name, box_number, bag_number, bag_label_count,
+             displays_made, packs_remaining, loose_tablets, damaged_tablets)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (data['employee_name'], data['product_name'], data.get('box_number'),
+              data.get('bag_number'), data.get('bag_label_count'),
+              displays_made, packs_remaining, loose_tablets, damaged_tablets))
+        
+        # Find open PO lines for this inventory item
+        print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
+        po_lines = conn.execute('''
+            SELECT pl.*, po.closed
+            FROM po_lines pl
+            JOIN purchase_orders po ON pl.po_id = po.id
+            WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
+            ORDER BY po.created_at ASC
+        ''', (product['inventory_item_id'],)).fetchall()
+        
+        print(f"Found {len(po_lines)} matching PO lines")
+        
+        if not po_lines:
+            conn.commit()
+            conn.close()
+            return jsonify({'warning': f'No open PO found for this tablet type (inventory_item_id: {product["inventory_item_id"]})', 'submission_saved': True})
+        
+        # Get the PO we'll assign to (first available line's PO)
+        assigned_po_id = po_lines[0]['po_id'] if po_lines else None
+        
+        # Update submission with assigned PO
+        if assigned_po_id:
+            conn.execute('''
+                UPDATE warehouse_submissions 
+                SET assigned_po_id = ?
+                WHERE rowid = last_insert_rowid()
+            ''', (assigned_po_id,))
+        
+        # Allocate counts to PO lines
+        remaining_good = good_tablets
+        remaining_damaged = damaged_tablets
+        
+        for line in po_lines:
+            if remaining_good <= 0 and remaining_damaged <= 0:
+                break
+                
+            available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
+            if available <= 0:
+                continue
+            
+            # Apply good tablets first
+            apply_good = min(remaining_good, available)
+            available -= apply_good
+            remaining_good -= apply_good
+            
+            # Then damaged tablets
+            apply_damaged = min(remaining_damaged, available)
+            remaining_damaged -= apply_damaged
+            
+            # Update the line
+            conn.execute('''
+                UPDATE po_lines 
+                SET good_count = good_count + ?, damaged_count = damaged_count + ?
+                WHERE id = ?
+            ''', (apply_good, apply_damaged, line['id']))
+            
+            print(f"Updated PO line {line['id']}: +{apply_good} good, +{apply_damaged} damaged")
+        
+        # Update PO header totals and auto-progress internal status
+        updated_pos = set()
+        for line in po_lines:
+            if line['po_id'] not in updated_pos:
+                # Get totals for this PO
+                totals = conn.execute('''
+                    SELECT 
+                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                        COALESCE(SUM(good_count), 0) as total_good,
+                        COALESCE(SUM(damaged_count), 0) as total_damaged
+                    FROM po_lines 
+                    WHERE po_id = ?
+                ''', (line['po_id'],)).fetchone()
+                
+                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+                
+                # Auto-progress internal status based on your workflow
+                current_status = conn.execute(
+                    'SELECT internal_status FROM purchase_orders WHERE id = ?',
+                    (line['po_id'],)
+                ).fetchone()
+                
+                new_internal_status = current_status['internal_status'] if current_status else 'Active'
+                
+                # Auto-progression rules
+                if remaining == 0 and new_internal_status not in ['Complete', 'Reconciled', 'Ready for Payment']:
+                    new_internal_status = 'Complete'
+                    print(f"Auto-progressed PO {line['po_id']} to Complete (remaining = 0)")
+                elif totals['total_good'] > 0 and new_internal_status == 'Active':
+                    new_internal_status = 'Processing'
+                    print(f"Auto-progressed PO {line['po_id']} to Processing (first submission)")
+                
+                print(f"PO {line['po_id']}: Ordered={totals['total_ordered']}, Good={totals['total_good']}, Damaged={totals['total_damaged']}, Remaining={remaining}, Status={new_internal_status}")
+                
+                conn.execute('''
+                    UPDATE purchase_orders 
+                    SET ordered_quantity = ?, current_good_count = ?, 
+                        current_damaged_count = ?, remaining_quantity = ?,
+                        internal_status = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (totals['total_ordered'], totals['total_good'], 
+                      totals['total_damaged'], remaining, new_internal_status, line['po_id']))
+                
+                updated_pos.add(line['po_id'])
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'good_applied': good_tablets - remaining_good,
+            'damaged_applied': damaged_tablets - remaining_damaged,
+            'message': 'Submission processed successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/dashboard')
+def admin_dashboard():
+    """Desktop dashboard for managers/admins"""
+    conn = get_db()
+    
+    # Get active POs (not closed)
+    active_pos = conn.execute('''
+        SELECT po.*, 
+               COUNT(pl.id) as line_count,
+               COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
+               COALESCE(po.internal_status, 'Active') as status_display
+        FROM purchase_orders po
+        LEFT JOIN po_lines pl ON po.id = pl.po_id
+        WHERE po.closed = FALSE
+        GROUP BY po.id
+        ORDER BY po.po_number DESC
+        LIMIT 50
+    ''').fetchall()
+    
+    # Get closed POs for historical reference
+    closed_pos = conn.execute('''
+        SELECT po.*, 
+               COUNT(pl.id) as line_count,
+               COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
+               'Closed' as status_display
+        FROM purchase_orders po
+        LEFT JOIN po_lines pl ON po.id = pl.po_id
+        WHERE po.closed = TRUE
+        GROUP BY po.id
+        ORDER BY po.po_number DESC
+        LIMIT 20
+    ''').fetchall()
+    
+    # Get recent submissions with calculated totals and discrepancy detection
+    submissions = conn.execute('''
+        SELECT ws.*, po.po_number,
+               pd.packages_per_display, pd.tablets_per_package,
+               (
+                   (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                   ws.loose_tablets + ws.damaged_tablets
+               ) as calculated_total,
+               CASE 
+                   WHEN ws.bag_label_count != (
+                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                       ws.loose_tablets + ws.damaged_tablets
+                   ) THEN 1
+                   ELSE 0
+               END as has_discrepancy
+        FROM warehouse_submissions ws
+        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        ORDER BY ws.created_at DESC
+        LIMIT 50
+    ''').fetchall()
+    
+    # Get summary stats using internal status (only count synced POs, not test data)
+    stats = conn.execute('''
+        SELECT 
+            COUNT(CASE WHEN internal_status NOT IN ('Closed', 'Ready for Payment') AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
+            COUNT(CASE WHEN internal_status = 'Closed' AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
+            COUNT(CASE WHEN internal_status = 'Draft' AND zoho_po_id IS NOT NULL THEN 1 END) as draft_pos,
+            COALESCE(SUM(CASE WHEN internal_status NOT IN ('Closed', 'Ready for Payment') AND zoho_po_id IS NOT NULL THEN 
+                (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
+        FROM purchase_orders
+    ''').fetchone()
+    
+    conn.close()
+    return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats)
+
+@app.route('/api/sync_zoho_pos')
+def sync_zoho_pos():
+    """Sync Purchase Orders from Zoho Inventory"""
+    try:
+        conn = get_db()
+        success, message = zoho_api.sync_tablet_pos_to_db(conn)
+        conn.close()
+        
+        if success:
+            return jsonify({'message': message, 'success': True})
+        else:
+            return jsonify({'error': message, 'success': False}), 400
+            
+    except Exception as e:
+        return jsonify({'error': f'Sync failed: {str(e)}', 'success': False}), 500
+
+@app.route('/api/po_lines/<int:po_id>')
+def get_po_lines(po_id):
+    """Get line items for a specific PO"""
+    conn = get_db()
+    lines = conn.execute('''
+        SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
+    ''', (po_id,)).fetchall()
+    conn.close()
+    
+    return jsonify([dict(line) for line in lines])
+
+@app.route('/admin/products')
+def product_mapping():
+    """Show product → tablet mapping and calculation examples"""
+    conn = get_db()
+    
+    # Get all products with their tablet type and calculation details
+    products = conn.execute('''
+        SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id
+        FROM product_details pd
+        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        ORDER BY tt.tablet_type_name, pd.product_name
+    ''').fetchall()
+    
+    # Get tablet types for dropdown
+    tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
+    
+    conn.close()
+    return render_template('product_mapping.html', products=products, tablet_types=tablet_types)
+
+@app.route('/admin/tablet_types')
+def tablet_types_config():
+    """Configuration page for tablet types and their inventory item IDs"""
+    # Check for admin session
+    if not session.get('admin_authenticated'):
+        return redirect('/admin')
+        
+    conn = get_db()
+    
+    # Get all tablet types with their current inventory item IDs
+    tablet_types = conn.execute('''
+        SELECT * FROM tablet_types 
+        ORDER BY tablet_type_name
+    ''').fetchall()
+    
+    conn.close()
+    return render_template('tablet_types_config.html', tablet_types=tablet_types)
+
+@app.route('/admin/shipments')
+def shipments_management():
+    """Shipment tracking management page"""
+    # Check for admin session
+    if not session.get('admin_authenticated'):
+        return redirect('/admin')
+        
+    conn = get_db()
+    
+    # Get all POs with optional shipment info
+    pos_with_shipments = conn.execute('''
+        SELECT po.*, s.tracking_number, s.carrier, s.shipped_date, 
+               s.estimated_delivery, s.actual_delivery, s.notes as shipment_notes
+        FROM purchase_orders po
+        LEFT JOIN shipments s ON po.id = s.po_id
+        WHERE po.zoho_po_id IS NOT NULL
+        ORDER BY po.po_number DESC
+    ''').fetchall()
+    
+    conn.close()
+    return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
+
+@app.route('/api/save_shipment', methods=['POST'])
+def save_shipment():
+    """Save shipment information (supports multiple shipments per PO)"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        
+        # For multiple shipments per PO, always create new unless we're editing a specific shipment
+        shipment_id = data.get('shipment_id')
+        
+        if shipment_id:
+            # Update existing specific shipment
+            conn.execute('''
+                UPDATE shipments 
+                SET tracking_number = ?, carrier = ?, shipped_date = ?,
+                    estimated_delivery = ?, actual_delivery = ?, notes = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (data.get('tracking_number'), data.get('carrier'), data.get('shipped_date'),
+                  data.get('estimated_delivery'), data.get('actual_delivery'), 
+                  data.get('notes'), shipment_id))
+        else:
+            # Create new shipment (allows multiple shipments per PO)
+            conn.execute('''
+                INSERT INTO shipments (po_id, tracking_number, carrier, shipped_date,
+                                     estimated_delivery, actual_delivery, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (data['po_id'], data.get('tracking_number'), data.get('carrier'), 
+                  data.get('shipped_date'), data.get('estimated_delivery'), 
+                  data.get('actual_delivery'), data.get('notes')))
+        
+        # Auto-progress PO to "Shipped" status when tracking info is added
+        if data.get('tracking_number'):
+            current_status = conn.execute(
+                'SELECT internal_status FROM purchase_orders WHERE id = ?',
+                (data['po_id'],)
+            ).fetchone()
+            
+            if current_status and current_status['internal_status'] in ['Draft', 'Issued']:
+                conn.execute('''
+                    UPDATE purchase_orders 
+                    SET internal_status = 'Shipped', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (data['po_id'],))
+                print(f"Auto-progressed PO {data['po_id']} to Shipped (tracking added)")
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Shipment information saved'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/update_tablet_type_inventory', methods=['POST'])
+def update_tablet_type_inventory():
+    """Update a tablet type's inventory item ID"""
+    try:
+        data = request.get_json()
+        tablet_type_id = data.get('tablet_type_id')
+        inventory_item_id = data.get('inventory_item_id', '').strip()
+        
+        conn = get_db()
+        
+        # Clear the inventory_item_id if empty
+        if not inventory_item_id:
+            conn.execute('''
+                UPDATE tablet_types 
+                SET inventory_item_id = NULL
+                WHERE id = ?
+            ''', (tablet_type_id,))
+        else:
+            # Check if this inventory_item_id is already used
+            existing = conn.execute('''
+                SELECT tablet_type_name FROM tablet_types 
+                WHERE inventory_item_id = ? AND id != ?
+            ''', (inventory_item_id, tablet_type_id)).fetchone()
+            
+            if existing:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Inventory ID already used by {existing["tablet_type_name"]}'
+                })
+            
+            conn.execute('''
+                UPDATE tablet_types 
+                SET inventory_item_id = ?
+                WHERE id = ?
+            ''', (inventory_item_id, tablet_type_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Tablet type updated successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/admin')
+def admin_panel():
+    """Admin panel with quick actions and product management"""
+    # Check for admin session
+    if not session.get('admin_authenticated'):
+        return render_template('admin_login.html')
+    return render_template('admin_panel.html')
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    """Handle admin login"""
+    password = request.form.get('password') or request.json.get('password')
+    
+    # Simple password check (you can make this more secure)
+    if password == 'admin123':  # Change this password!
+        session['admin_authenticated'] = True
+        return redirect('/admin') if request.form else jsonify({'success': True})
+    else:
+        if request.form:
+            flash('Invalid password', 'error')
+            return render_template('admin_login.html')
+        else:
+            return jsonify({'success': False, 'error': 'Invalid password'})
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Logout admin"""
+    session.pop('admin_authenticated', None)
+    return redirect('/')
+
+@app.route('/count')
+def count_form():
+    """Manual count form for end-of-period PO close-outs"""
+    conn = get_db()
+    
+    # Get all tablet types for dropdown
+    tablet_types = conn.execute('''
+        SELECT * FROM tablet_types 
+        ORDER BY tablet_type_name
+    ''').fetchall()
+    
+    conn.close()
+    return render_template('count_form.html', tablet_types=tablet_types)
+
+@app.route('/submit_count', methods=['POST'])
+def submit_count():
+    """Process manual count submission for PO close-outs"""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        
+        conn = get_db()
+        
+        # Get tablet type details
+        tablet_type = conn.execute('''
+            SELECT * FROM tablet_types
+            WHERE tablet_type_name = ?
+        ''', (data['tablet_type'],)).fetchone()
+        
+        if not tablet_type:
+            return jsonify({'error': 'Tablet type not found'}), 400
+        
+        actual_count = int(data.get('actual_count', 0))
+        bag_label_count = int(data.get('bag_label_count', 0))
+        
+        # Insert count record
+        conn.execute('''
+            INSERT INTO warehouse_submissions 
+            (employee_name, product_name, box_number, bag_number, bag_label_count,
+             displays_made, packs_remaining, loose_tablets, damaged_tablets)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (data['employee_name'], data['tablet_type'], data.get('box_number'),
+              data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0))
+        
+        # Find open PO lines for this inventory item
+        po_lines = conn.execute('''
+            SELECT pl.*, po.closed
+            FROM po_lines pl
+            JOIN purchase_orders po ON pl.po_id = po.id
+            WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
+            ORDER BY po.created_at ASC
+        ''', (tablet_type['inventory_item_id'],)).fetchall()
+        
+        if not po_lines:
+            conn.commit()
+            conn.close()
+            return jsonify({'warning': 'No open PO found for this tablet type', 'submission_saved': True})
+        
+        # Get the PO we'll assign to (first available line's PO)
+        assigned_po_id = po_lines[0]['po_id'] if po_lines else None
+        
+        # Update submission with assigned PO
+        if assigned_po_id:
+            conn.execute('''
+                UPDATE warehouse_submissions 
+                SET assigned_po_id = ?
+                WHERE rowid = last_insert_rowid()
+            ''', (assigned_po_id,))
+        
+        # Allocate count to first available PO line
+        remaining_count = actual_count
+        
+        for line in po_lines:
+            if remaining_count <= 0:
+                break
+                
+            available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
+            if available <= 0:
+                continue
+            
+            # Apply count as good tablets
+            apply_count = min(remaining_count, available)
+            remaining_count -= apply_count
+            
+            # Update the line
+            conn.execute('''
+                UPDATE po_lines 
+                SET good_count = good_count + ?
+                WHERE id = ?
+            ''', (apply_count, line['id']))
+            
+            print(f"Manual count - Updated PO line {line['id']}: +{apply_count} tablets")
+            
+            if remaining_count <= 0:
+                break
+        
+        # Update PO header totals
+        updated_pos = set()
+        for line in po_lines:
+            if line['po_id'] not in updated_pos:
+                po_id = line['po_id']
+                totals = conn.execute('''
+                    SELECT 
+                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                        COALESCE(SUM(good_count), 0) as total_good,
+                        COALESCE(SUM(damaged_count), 0) as total_damaged
+                    FROM po_lines 
+                    WHERE po_id = ?
+                ''', (po_id,)).fetchone()
+                
+                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+                print(f"Manual count - PO {po_id}: Ordered={totals['total_ordered']}, Good={totals['total_good']}, Damaged={totals['total_damaged']}, Remaining={remaining}")
+                
+                conn.execute('''
+                    UPDATE purchase_orders 
+                    SET ordered_quantity = ?, current_good_count = ?, 
+                        current_damaged_count = ?, remaining_quantity = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (totals['total_ordered'], totals['total_good'], 
+                      totals['total_damaged'], remaining, po_id))
+                
+                updated_pos.add(po_id)
+        
+        conn.commit()
+        conn.close()
+        
+        message = f'Count submitted successfully! Applied {actual_count - remaining_count} tablets to PO'
+        if remaining_count > 0:
+            message += f' ({remaining_count} tablets could not be allocated)'
+        
+        return jsonify({'success': True, 'message': message})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/save_product', methods=['POST'])
+def save_product():
+    """Save or update a product configuration"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        
+        if data.get('id'):
+            # Update existing product
+            conn.execute('''
+                UPDATE product_details 
+                SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?
+                WHERE id = ?
+            ''', (data['product_name'], data['tablet_type_id'], data['packages_per_display'], 
+                  data['tablets_per_package'], data['id']))
+            message = f"Updated {data['product_name']}"
+        else:
+            # Create new product
+            conn.execute('''
+                INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package)
+                VALUES (?, ?, ?, ?)
+            ''', (data['product_name'], data['tablet_type_id'], data['packages_per_display'], data['tablets_per_package']))
+            message = f"Created {data['product_name']}"
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': message})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/delete_product/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    """Delete a product configuration"""
+    try:
+        conn = get_db()
+        
+        # Get product name first
+        product = conn.execute('SELECT product_name FROM product_details WHERE id = ?', (product_id,)).fetchone()
+        if not product:
+            return jsonify({'success': False, 'error': 'Product not found'}), 404
+        
+        conn.execute('DELETE FROM product_details WHERE id = ?', (product_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f"Deleted {product['product_name']}"})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/get_or_create_tablet_type', methods=['POST'])
+def get_or_create_tablet_type():
+    """Get existing tablet type by name or create new one"""
+    try:
+        data = request.get_json()
+        tablet_type_name = data.get('tablet_type_name', '').strip()
+        
+        if not tablet_type_name:
+            return jsonify({'success': False, 'error': 'Tablet type name required'}), 400
+        
+        conn = get_db()
+        
+        # Check if exists
+        existing = conn.execute(
+            'SELECT id FROM tablet_types WHERE tablet_type_name = ?', 
+            (tablet_type_name,)
+        ).fetchone()
+        
+        if existing:
+            tablet_type_id = existing['id']
+        else:
+            # Create new
+            cursor = conn.execute(
+                'INSERT INTO tablet_types (tablet_type_name) VALUES (?)',
+                (tablet_type_name,)
+            )
+            tablet_type_id = cursor.lastrowid
+            conn.commit()
+        
+        conn.close()
+        return jsonify({'success': True, 'tablet_type_id': tablet_type_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/update_tablet_inventory_ids', methods=['POST'])
+def update_tablet_inventory_ids():
+    """Update tablet types with inventory item IDs from PO line items"""
+    try:
+        conn = get_db()
+        
+        # Get all tablet types without inventory_item_id
+        tablet_types = conn.execute('''
+            SELECT id, tablet_type_name 
+            FROM tablet_types 
+            WHERE inventory_item_id IS NULL OR inventory_item_id = ''
+        ''').fetchall()
+        
+        updated_count = 0
+        
+        for tablet_type in tablet_types:
+            print(f"Processing tablet type: {tablet_type['tablet_type_name']}")
+            
+            # Look for PO lines that contain this tablet type name
+            matching_lines = conn.execute('''
+                SELECT DISTINCT inventory_item_id, line_item_name
+                FROM po_lines 
+                WHERE line_item_name LIKE ? OR line_item_name LIKE ?
+                LIMIT 1
+            ''', (f'%{tablet_type["tablet_type_name"]}%', 
+                  f'%{tablet_type["tablet_type_name"].replace(" ", "%")}%')).fetchone()
+            
+            if matching_lines:
+                print(f"Found matching line: {matching_lines['line_item_name']} -> {matching_lines['inventory_item_id']}")
+                
+                # Check if this inventory_item_id is already used by another tablet type
+                existing = conn.execute('''
+                    SELECT tablet_type_name FROM tablet_types 
+                    WHERE inventory_item_id = ? AND id != ?
+                ''', (matching_lines['inventory_item_id'], tablet_type['id'])).fetchone()
+                
+                if existing:
+                    print(f"Inventory ID {matching_lines['inventory_item_id']} already used by {existing['tablet_type_name']}, skipping {tablet_type['tablet_type_name']}")
+                else:
+                    conn.execute('''
+                        UPDATE tablet_types 
+                        SET inventory_item_id = ?
+                        WHERE id = ?
+                    ''', (matching_lines['inventory_item_id'], tablet_type['id']))
+                    updated_count += 1
+            else:
+                print(f"No matching line found for: {tablet_type['tablet_type_name']}")
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Updated {updated_count} tablet types with inventory item IDs'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/add_tablet_type', methods=['POST'])
+def add_tablet_type():
+    """Add a new tablet type"""
+    try:
+        data = request.get_json()
+        tablet_type_name = data.get('tablet_type_name', '').strip()
+        inventory_item_id = data.get('inventory_item_id', '').strip()
+        
+        if not tablet_type_name:
+            return jsonify({'success': False, 'error': 'Tablet type name required'}), 400
+            
+        conn = get_db()
+        
+        # Check if tablet type already exists
+        existing = conn.execute(
+            'SELECT id FROM tablet_types WHERE tablet_type_name = ?', 
+            (tablet_type_name,)
+        ).fetchone()
+        
+        if existing:
+            return jsonify({'success': False, 'error': 'Tablet type already exists'}), 400
+        
+        # Check if inventory_item_id is already used (if provided)
+        if inventory_item_id:
+            existing_id = conn.execute(
+                'SELECT tablet_type_name FROM tablet_types WHERE inventory_item_id = ?',
+                (inventory_item_id,)
+            ).fetchone()
+            
+            if existing_id:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Inventory ID already used by {existing_id["tablet_type_name"]}'
+                }), 400
+        
+        # Insert new tablet type
+        conn.execute('''
+            INSERT INTO tablet_types (tablet_type_name, inventory_item_id)
+            VALUES (?, ?)
+        ''', (tablet_type_name, inventory_item_id if inventory_item_id else None))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Added tablet type: {tablet_type_name}'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/delete_tablet_type/<int:tablet_type_id>', methods=['DELETE'])
+def delete_tablet_type(tablet_type_id):
+    """Delete a tablet type and its associated products"""
+    try:
+        conn = get_db()
+        
+        # Get tablet type name first
+        tablet_type = conn.execute(
+            'SELECT tablet_type_name FROM tablet_types WHERE id = ?', 
+            (tablet_type_id,)
+        ).fetchone()
+        
+        if not tablet_type:
+            return jsonify({'success': False, 'error': 'Tablet type not found'}), 404
+        
+        # Delete associated products first
+        conn.execute('DELETE FROM product_details WHERE tablet_type_id = ?', (tablet_type_id,))
+        
+        # Delete tablet type
+        conn.execute('DELETE FROM tablet_types WHERE id = ?', (tablet_type_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Deleted {tablet_type["tablet_type_name"]} and its products'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/refresh_products', methods=['POST'])
+def refresh_products():
+    """Clear and rebuild products with updated configuration"""
+    try:
+        from setup_db import setup_sample_data
+        
+        conn = get_db()
+        
+        # Clear existing data
+        conn.execute('DELETE FROM warehouse_submissions')
+        conn.execute('DELETE FROM product_details')
+        conn.execute('DELETE FROM tablet_types')
+        conn.commit()
+        conn.close()
+        
+        # Rebuild with new data
+        setup_sample_data()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Products refreshed with updated configuration'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/po_tracking/<int:po_id>')
+def get_po_tracking(po_id):
+    """Get all tracking information for a PO (supports multiple shipments)"""
+    try:
+        conn = get_db()
+        
+        # Get all shipments for this PO
+        shipments = conn.execute('''
+            SELECT id, tracking_number, carrier, shipped_date, estimated_delivery, actual_delivery, notes, created_at
+            FROM shipments 
+            WHERE po_id = ?
+            ORDER BY created_at DESC
+        ''', (po_id,)).fetchall()
+        
+        conn.close()
+        
+        if shipments:
+            # Return all shipments
+            shipments_list = []
+            for shipment in shipments:
+                shipments_list.append({
+                    'id': shipment['id'],
+                    'tracking_number': shipment['tracking_number'],
+                    'carrier': shipment['carrier'],
+                    'shipped_date': shipment['shipped_date'],
+                    'estimated_delivery': shipment['estimated_delivery'],
+                    'actual_delivery': shipment['actual_delivery'],
+                    'notes': shipment['notes']
+                })
+            
+            return jsonify({
+                'shipments': shipments_list,
+                'has_tracking': True
+            })
+        else:
+            return jsonify({
+                'shipments': [],
+                'has_tracking': False
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/find_org_id')
+def find_organization_id():
+    """Help find the correct Zoho Organization ID"""
+    try:
+        # Get token first
+        token = zoho_api.get_access_token()
+        if not token:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to get access token. Check your credentials.'
+            })
+        
+        # Try to get organizations
+        url = 'https://www.zohoapis.com/inventory/v1/organizations'
+        headers = {'Authorization': f'Zoho-oauthtoken {token}'}
+        
+        response = requests.get(url, headers=headers)
+        print(f"Organizations API - Status: {response.status_code}")
+        print(f"Organizations API - Response: {response.text}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            orgs = data.get('organizations', [])
+            return jsonify({
+                'success': True,
+                'organizations': orgs,
+                'message': f'Found {len(orgs)} organizations. Use the organization_id from the one you want.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to get organizations: {response.status_code} - {response.text}'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error finding organizations: {str(e)}'
+        })
+
+@app.route('/api/test_zoho_connection')
+def test_zoho_connection():
+    """Test if Zoho API credentials are working"""
+    try:
+        # Try to get an access token
+        token = zoho_api.get_access_token()
+        if not token:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to get access token. Check your CLIENT_ID, CLIENT_SECRET, and REFRESH_TOKEN in .env file'
+            })
+        
+        # Try to make a simple API call
+        result = zoho_api.make_request('items', method='GET', extra_params={'per_page': 10})
+        if result:
+            item_count = len(result.get('items', []))
+            return jsonify({
+                'success': True,
+                'message': f'✅ Connected to Zoho! Found {item_count} inventory items.',
+                'organization_id': zoho_api.organization_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Got access token but API call failed. Check your ORGANIZATION_ID or check the terminal for detailed error info.'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Connection test failed: {str(e)}'
+        })
+
+@app.route('/api/clear_po_data', methods=['POST'])
+def clear_po_data():
+    """Clear all PO data for fresh sync testing"""
+    try:
+        conn = get_db()
+        
+        # Clear all PO-related data
+        conn.execute('DELETE FROM po_lines')
+        conn.execute('DELETE FROM purchase_orders WHERE zoho_po_id IS NOT NULL')  # Keep sample test POs
+        conn.execute('DELETE FROM warehouse_submissions')
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': '✅ Cleared all synced PO data. Ready for fresh sync!'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Clear failed: {str(e)}'
+        }), 500
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True, port=5001)

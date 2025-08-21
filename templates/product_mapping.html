@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}Product Mapping{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl font-bold text-gray-900 mb-6">📊 Product → Tablet Mapping & Calculations</h2>
+    
+    <!-- Calculation Formula -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+        <h3 class="text-lg font-semibold text-blue-900 mb-4">🧮 Calculation Formula</h3>
+        <div class="space-y-2 text-sm">
+            <div><strong>Good Tablets =</strong></div>
+            <div class="ml-4">
+                (<span class="bg-yellow-100 px-2 py-1 rounded">Displays Made</span> × 
+                <span class="bg-green-100 px-2 py-1 rounded">Packages per Display</span> × 
+                <span class="bg-green-100 px-2 py-1 rounded">Tablets per Package</span>)
+            </div>
+            <div class="ml-4">
+                + (<span class="bg-yellow-100 px-2 py-1 rounded">Packs Remaining</span> × 
+                <span class="bg-green-100 px-2 py-1 rounded">Tablets per Package</span>)
+            </div>
+            <div class="ml-4">
+                + <span class="bg-yellow-100 px-2 py-1 rounded">Loose Tablets</span>
+            </div>
+            <div class="mt-2"><strong>Damaged Tablets =</strong> <span class="bg-red-100 px-2 py-1 rounded">Damaged Tablets</span> (separate count)</div>
+        </div>
+    </div>
+
+    <!-- Product Actions Header -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900">📊 Product Configuration</h3>
+            <button onclick="refreshProductsWithConfirm()" 
+                    class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors text-sm">
+                🔄 Refresh All Products
+            </button>
+        </div>
+    </div>
+
+    <!-- Product Mapping Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">📊 Product Configuration</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Product Name
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tablet Type
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Packages per Display
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tablets per Package
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Inventory Item ID
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Example Calculation
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for product in products %}
+                    <tr class="hover:bg-gray-50" id="product-row-{{ product.id }}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <span class="product-display" id="name-display-{{ product.id }}">{{ product.product_name }}</span>
+                            <input type="text" class="form-input product-edit hidden" id="name-edit-{{ product.id }}" value="{{ product.product_name }}">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="product-display" id="type-display-{{ product.id }}">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {{ product.tablet_type_name }}
+                                </span>
+                            </span>
+                            <input type="text" list="tablet-types-list-edit" class="form-input product-edit hidden text-sm" 
+                                   id="type-edit-{{ product.id }}" value="{{ product.tablet_type_name }}">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="product-display" id="ppd-display-{{ product.id }}">{{ product.packages_per_display }}</span>
+                            <input type="number" class="form-input product-edit hidden" id="ppd-edit-{{ product.id }}" value="{{ product.packages_per_display }}" min="1">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="product-display" id="tpp-display-{{ product.id }}">{{ product.tablets_per_package }}</span>
+                            <input type="number" class="form-input product-edit hidden" id="tpp-edit-{{ product.id }}" value="{{ product.tablets_per_package }}" min="1">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                            {{ product.inventory_item_id or 'Not Set' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-400">
+                            1 display = {{ product.packages_per_display * product.tablets_per_package }} tablets
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div class="product-display" id="actions-display-{{ product.id }}">
+                                <button onclick="editProduct({{ product.id }})" 
+                                        class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+                                <button onclick="deleteProduct({{ product.id }})" 
+                                        class="text-red-600 hover:text-red-900">Delete</button>
+                            </div>
+                            <div class="product-edit hidden" id="actions-edit-{{ product.id }}">
+                                <button onclick="saveProduct({{ product.id }})" 
+                                        class="text-green-600 hover:text-green-900 mr-3">Save</button>
+                                <button onclick="cancelEdit({{ product.id }})" 
+                                        class="text-gray-600 hover:text-gray-900">Cancel</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Example Calculation -->
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">💡 Example: "7OH 4ct" Product</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="font-medium text-gray-700 mb-2">Input from Warehouse Staff:</h4>
+                <ul class="text-sm space-y-1">
+                    <li>• Displays Made: <strong>5</strong></li>
+                    <li>• Packs Remaining: <strong>2</strong></li>
+                    <li>• Loose Tablets: <strong>3</strong></li>
+                    <li>• Damaged Tablets: <strong>1</strong></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium text-gray-700 mb-2">Calculation:</h4>
+                <ul class="text-sm space-y-1">
+                    <li>• Displays: 5 × 6 × 4 = <strong>120 tablets</strong></li>
+                    <li>• Packs: 2 × 4 = <strong>8 tablets</strong></li>
+                    <li>• Loose: <strong>3 tablets</strong></li>
+                    <li>• <strong>Total Good: 131 tablets</strong></li>
+                    <li>• <strong>Total Damaged: 1 tablet</strong></li>
+                </ul>
+            </div>
+        </div>
+            </div>
+    </div>
+
+    <!-- Add New Product (Moved to Bottom) -->
+    <div class="bg-white rounded-lg shadow p-6 mt-8">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">➕ Add New Product</h3>
+        <form id="add-product-form" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <input type="text" id="new-product-name" placeholder="Product Name" class="form-input" required>
+            <input type="text" id="new-tablet-type" list="tablet-types-list" placeholder="Tablet Type" class="form-input" required>
+            <datalist id="tablet-types-list">
+                {% for tt in tablet_types %}
+                    <option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                {% endfor %}
+            </datalist>
+            <input type="number" id="new-ppd" placeholder="Packages/Display" class="form-input" min="1" required>
+            <input type="number" id="new-tpp" placeholder="Tablets/Package" class="form-input" min="1" required>
+            <button type="submit" class="btn-primary">Add Product</button>
+        </form>
+    </div>
+</div>
+
+<!-- Additional datalist for edit fields -->
+<datalist id="tablet-types-list-edit">
+    {% for tt in tablet_types %}
+        <option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+    {% endfor %}
+</datalist>
+
+<script>
+// Add new product
+document.getElementById('add-product-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const tabletTypeName = document.getElementById('new-tablet-type').value.trim();
+    
+    try {
+        // Get or create tablet type
+        const typeResponse = await fetch('/api/get_or_create_tablet_type', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({tablet_type_name: tabletTypeName})
+        });
+        
+        const typeResult = await typeResponse.json();
+        if (!typeResult.success) {
+            showError('Failed to create tablet type: ' + typeResult.error);
+            return;
+        }
+        
+        const data = {
+            product_name: document.getElementById('new-product-name').value,
+            tablet_type_id: typeResult.tablet_type_id,
+            packages_per_display: parseInt(document.getElementById('new-ppd').value),
+            tablets_per_package: parseInt(document.getElementById('new-tpp').value)
+        };
+        
+        const response = await fetch('/api/save_product', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to add product: ' + error.message);
+    }
+});
+
+function editProduct(productId) {
+    // Hide display elements, show edit elements
+    document.querySelectorAll(`#product-row-${productId} .product-display`).forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll(`#product-row-${productId} .product-edit`).forEach(el => el.classList.remove('hidden'));
+}
+
+function cancelEdit(productId) {
+    // Show display elements, hide edit elements
+    document.querySelectorAll(`#product-row-${productId} .product-display`).forEach(el => el.classList.remove('hidden'));
+    document.querySelectorAll(`#product-row-${productId} .product-edit`).forEach(el => el.classList.add('hidden'));
+}
+
+async function saveProduct(productId) {
+    const tabletTypeName = document.getElementById(`type-edit-${productId}`).value.trim();
+    
+    try {
+        // Get or create tablet type
+        const typeResponse = await fetch('/api/get_or_create_tablet_type', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({tablet_type_name: tabletTypeName})
+        });
+        
+        const typeResult = await typeResponse.json();
+        if (!typeResult.success) {
+            showError('Failed to create tablet type: ' + typeResult.error);
+            return;
+        }
+        
+        const data = {
+            id: productId,
+            product_name: document.getElementById(`name-edit-${productId}`).value,
+            tablet_type_id: typeResult.tablet_type_id,
+            packages_per_display: parseInt(document.getElementById(`ppd-edit-${productId}`).value),
+            tablets_per_package: parseInt(document.getElementById(`tpp-edit-${productId}`).value)
+        };
+        
+        const response = await fetch('/api/save_product', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to save product: ' + error.message);
+    }
+}
+
+async function deleteProduct(productId) {
+    const productName = document.getElementById(`name-display-${productId}`).textContent;
+    
+    if (!confirm(`Are you sure you want to delete "${productName}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/delete_product/${productId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            document.getElementById(`product-row-${productId}`).remove();
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to delete product: ' + error.message);
+    }
+}
+
+async function refreshProductsWithConfirm() {
+    // Custom confirmation dialog with strong warning
+    const confirmed = confirm(
+        "⚠️ IMPORTANT WARNING ⚠️\n\n" +
+        "This will DELETE ALL current products and tablet types,\n" +
+        "then rebuild them from the default configuration.\n\n" +
+        "This action CANNOT be undone!\n\n" +
+        "Are you absolutely sure you want to continue?"
+    );
+    
+    if (!confirmed) return;
+    
+    // Second confirmation
+    const doubleConfirmed = confirm(
+        "🚨 FINAL CONFIRMATION 🚨\n\n" +
+        "You are about to PERMANENTLY DELETE all products.\n" +
+        "This will reset to factory defaults.\n\n" +
+        "Type 'YES' to confirm:"
+    );
+    
+    if (!doubleConfirmed) return;
+    
+    try {
+        const response = await fetch('/api/refresh_products', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to refresh products: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

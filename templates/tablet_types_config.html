@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Tablet Types Configuration{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">🧪 Tablet Types & Inventory Mapping</h1>
+        <p class="text-gray-600 mt-2">Map each tablet type to its corresponding Zoho Inventory item ID. One tablet type = one inventory item.</p>
+    </div>
+
+    <!-- Add New Tablet Type -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">➕ Add New Tablet Type</h3>
+        <form id="add-tablet-type-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" id="new-tablet-name" placeholder="Tablet Type Name" class="form-input" required>
+            <input type="text" id="new-inventory-id" placeholder="Inventory Item ID (optional)" class="form-input">
+            <button type="submit" class="btn-primary">Add Tablet Type</button>
+        </form>
+    </div>
+
+    <!-- Tablet Types Configuration -->
+    <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Tablet Types Configuration</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tablet Type
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Inventory Item ID
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for tt in tablet_types %}
+                    <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {{ tt.tablet_type_name }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="tablet-display" id="id-display-{{ tt.id }}">
+                                {% if tt.inventory_item_id %}
+                                    <span class="font-mono bg-green-100 px-2 py-1 rounded">{{ tt.inventory_item_id }}</span>
+                                {% else %}
+                                    <span class="text-gray-400 italic">Not Set</span>
+                                {% endif %}
+                            </span>
+                            <input type="text" class="form-input tablet-edit hidden" id="id-edit-{{ tt.id }}" 
+                                   value="{{ tt.inventory_item_id or '' }}" placeholder="Enter inventory item ID">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div class="tablet-display" id="actions-display-{{ tt.id }}">
+                                <button onclick="editTabletType({{ tt.id }})" 
+                                        class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+                                <button onclick="deleteTabletType({{ tt.id }}, '{{ tt.tablet_type_name }}')" 
+                                        class="text-red-600 hover:text-red-900">Delete</button>
+                            </div>
+                            <div class="tablet-edit hidden" id="actions-edit-{{ tt.id }}">
+                                <button onclick="saveTabletType({{ tt.id }})" 
+                                        class="text-green-600 hover:text-green-900 mr-3">Save</button>
+                                <button onclick="cancelTabletEdit({{ tt.id }})" 
+                                        class="text-gray-600 hover:text-gray-900">Cancel</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+</div>
+
+<script>
+// Add new tablet type
+document.getElementById('add-tablet-type-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const data = {
+        tablet_type_name: document.getElementById('new-tablet-name').value.trim(),
+        inventory_item_id: document.getElementById('new-inventory-id').value.trim() || null
+    };
+    
+    try {
+        const response = await fetch('/api/add_tablet_type', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to add tablet type: ' + error.message);
+    }
+});
+
+function editTabletType(tabletTypeId) {
+    // Hide display elements, show edit elements
+    document.querySelectorAll(`#tablet-row-${tabletTypeId} .tablet-display`).forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll(`#tablet-row-${tabletTypeId} .tablet-edit`).forEach(el => el.classList.remove('hidden'));
+}
+
+function cancelTabletEdit(tabletTypeId) {
+    // Show display elements, hide edit elements
+    document.querySelectorAll(`#tablet-row-${tabletTypeId} .tablet-display`).forEach(el => el.classList.remove('hidden'));
+    document.querySelectorAll(`#tablet-row-${tabletTypeId} .tablet-edit`).forEach(el => el.classList.add('hidden'));
+}
+
+async function saveTabletType(tabletTypeId) {
+    const inventoryItemId = document.getElementById(`id-edit-${tabletTypeId}`).value.trim();
+    
+    try {
+        const response = await fetch('/api/update_tablet_type_inventory', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                tablet_type_id: tabletTypeId,
+                inventory_item_id: inventoryItemId
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to save tablet type: ' + error.message);
+    }
+}
+
+async function deleteTabletType(tabletTypeId, tabletTypeName) {
+    if (!confirm(`Are you sure you want to delete "${tabletTypeName}"?\n\nThis will also delete any products that use this tablet type.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/delete_tablet_type/${tabletTypeId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            document.getElementById(`tablet-row-${tabletTypeId}`).remove();
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('Failed to delete tablet type: ' + error.message);
+    }
+}
+
+function showSuccess(message) {
+    showMessage(message, 'success');
+}
+
+function showError(message) {
+    showMessage(message, 'error');
+}
+
+function showMessage(message, type) {
+    const container = document.body;
+    const alertClass = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+    
+    const alert = document.createElement('div');
+    alert.className = `fixed top-4 right-4 border-l-4 p-4 rounded ${alertClass} shadow-lg z-50 max-w-sm`;
+    alert.innerHTML = `
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <span class="text-lg">${type === 'success' ? '✅' : '❌'}</span>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm">${message}</p>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(alert);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        alert.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
