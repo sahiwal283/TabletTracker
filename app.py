@@ -9,6 +9,7 @@ from functools import wraps
 from config import Config
 from zoho_integration import zoho_api
 from __version__ import __version__, __title__, __description__
+from tracking_service import refresh_shipment_row
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -128,20 +129,38 @@ def init_db():
         FOREIGN KEY (assigned_po_id) REFERENCES purchase_orders (id)
     )''')
     
-    # Shipments table for tracking vendor WhatsApp info
+    # Shipments table (+ tracking columns)
     c.execute('''CREATE TABLE IF NOT EXISTS shipments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         po_id INTEGER,
         tracking_number TEXT,
         carrier TEXT,
+        carrier_code TEXT,
         shipped_date DATE,
         estimated_delivery DATE,
         actual_delivery DATE,
+        tracking_status TEXT,
+        last_checkpoint TEXT,
+        delivered_at DATE,
+        last_checked_at TIMESTAMP,
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
     )''')
+
+    # Add tracking columns if upgrading existing DB
+    for alter in [
+        "ALTER TABLE shipments ADD COLUMN carrier_code TEXT",
+        "ALTER TABLE shipments ADD COLUMN tracking_status TEXT",
+        "ALTER TABLE shipments ADD COLUMN last_checkpoint TEXT",
+        "ALTER TABLE shipments ADD COLUMN delivered_at DATE",
+        "ALTER TABLE shipments ADD COLUMN last_checked_at TIMESTAMP"
+    ]:
+        try:
+            c.execute(alter)
+        except Exception:
+            pass
     
     # Employees table for user authentication
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
@@ -462,6 +481,21 @@ def admin_dashboard():
     conn.close()
     return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats)
 
+@app.route('/shipments')
+def public_shipments():
+    """Read-only shipment status page for staff (no login required)."""
+    conn = get_db()
+    rows = conn.execute('''
+        SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+               s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
+        FROM shipments s
+        JOIN purchase_orders po ON po.id = s.po_id
+        ORDER BY s.updated_at DESC
+        LIMIT 200
+    ''').fetchall()
+    conn.close()
+    return render_template('shipments_public.html', shipments=rows)
+
 @app.route('/api/sync_zoho_pos')
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
@@ -537,8 +571,9 @@ def shipments_management():
     
     # Get all POs with optional shipment info
     pos_with_shipments = conn.execute('''
-        SELECT po.*, s.tracking_number, s.carrier, s.shipped_date, 
-               s.estimated_delivery, s.actual_delivery, s.notes as shipment_notes
+        SELECT po.*, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+               s.last_checkpoint, s.shipped_date, s.estimated_delivery, s.actual_delivery,
+               s.notes as shipment_notes
         FROM purchase_orders po
         LEFT JOIN shipments s ON po.id = s.po_id
         WHERE po.zoho_po_id IS NOT NULL
@@ -547,6 +582,19 @@ def shipments_management():
     
     conn.close()
     return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
+
+@app.route('/api/shipments/<int:shipment_id>/refresh', methods=['POST'])
+def refresh_shipment(shipment_id: int):
+    """Manually refresh a single shipment's tracking status."""
+    try:
+        conn = get_db()
+        result = refresh_shipment_row(conn, shipment_id)
+        conn.close()
+        if result.get('success'):
+            return jsonify(result)
+        return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/save_shipment', methods=['POST'])
 def save_shipment():
@@ -578,6 +626,8 @@ def save_shipment():
             ''', (data['po_id'], data.get('tracking_number'), data.get('carrier'), 
                   data.get('shipped_date'), data.get('estimated_delivery'), 
                   data.get('actual_delivery'), data.get('notes')))
+            # set carrier_code based on carrier
+            conn.execute('UPDATE shipments SET carrier_code = LOWER(?) WHERE rowid = last_insert_rowid()', (data.get('carrier'),))
         
         # Auto-progress PO to "Shipped" status when tracking info is added
         if data.get('tracking_number'):
@@ -595,9 +645,22 @@ def save_shipment():
                 print(f"Auto-progressed PO {data['po_id']} to Shipped (tracking added)")
         
         conn.commit()
+
+        # Trigger immediate UPS refresh when applicable
+        if data.get('tracking_number') and (data.get('carrier', '').lower() in ('ups','fedex','fed ex')):
+            sh = conn.execute('''
+                SELECT id FROM shipments WHERE po_id = ? AND tracking_number = ?
+                ORDER BY updated_at DESC LIMIT 1
+            ''', (data['po_id'], data.get('tracking_number'))).fetchone()
+            if sh:
+                try:
+                    result = refresh_shipment_row(conn, sh['id'])
+                    print('UPS refresh result:', result)
+                except Exception as exc:
+                    print('UPS refresh error:', exc)
+
         conn.close()
-        
-        return jsonify({'success': True, 'message': 'Shipment information saved'})
+        return jsonify({'success': True, 'message': 'Shipment saved; tracking refreshed if supported'})
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
