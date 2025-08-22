@@ -12,10 +12,20 @@
             </h2>
             <p class="text-gray-600 mt-2">PO {{ receiving.po_number }} - {{ receiving.carrier }} {{ receiving.tracking_number }}</p>
         </div>
-        <a href="{{ url_for('receiving_management_v2') }}" class="btn-secondary">
-            <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-arrow-left" /></svg>
-            {{ gettext('Back to Receiving') }}
-        </a>
+        <div class="flex gap-3">
+            <button onclick="editReceiving({{ receiving.id }})" class="btn-primary">
+                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-edit" /></svg>
+                {{ gettext('Edit') }}
+            </button>
+            <button onclick="confirmDeleteReceiving({{ receiving.id }}, '{{ receiving.po_number }}')" class="btn-danger">
+                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-trash" /></svg>
+                {{ gettext('Delete') }}
+            </button>
+            <a href="{{ url_for('receiving_management_v2') }}" class="btn-secondary">
+                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-arrow-left" /></svg>
+                {{ gettext('Back to Receiving') }}
+            </a>
+        </div>
     </div>
 
     <!-- Receiving Summary -->
@@ -113,4 +123,97 @@
         </div>
     </div>
 </div>
+
+<script>
+function editReceiving(receivingId) {
+    // For now, redirect back to receiving management - edit functionality can be added later
+    alert('{{ gettext("Edit functionality coming soon! For now, you can create a new receiving record.") }}');
+}
+
+function confirmDeleteReceiving(receivingId, poNumber) {
+    // Create confirmation modal
+    const confirmModal = document.createElement('div');
+    confirmModal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+    confirmModal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h3 class="text-lg font-semibold text-red-600 mb-4">
+                <svg class="w-6 h-6 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zM8 7a1 1 0 012 0v6a1 1 0 11-2 0V7zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V7z" clip-rule="evenodd"></path>
+                </svg>
+                {{ gettext('Delete Receiving Record') }}
+            </h3>
+            <p class="text-gray-600 mb-4">
+                {{ gettext('You are about to permanently delete the receiving record for PO') }} <strong>${poNumber}</strong>.
+                {{ gettext('This will also delete all associated box and bag data.') }}
+            </p>
+            <p class="text-sm text-red-600 mb-4">
+                {{ gettext('This action cannot be undone!') }}
+            </p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    {{ gettext('Type "delete" to confirm:') }}
+                </label>
+                <input type="text" id="deleteConfirmation" class="form-input w-full" placeholder="delete">
+            </div>
+            <div class="flex gap-3 justify-end">
+                <button onclick="closeDeleteModal()" class="btn-secondary">
+                    {{ gettext('Cancel') }}
+                </button>
+                <button onclick="executeDelete(${receivingId})" class="btn-danger">
+                    {{ gettext('Delete Permanently') }}
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(confirmModal);
+    document.getElementById('deleteConfirmation').focus();
+}
+
+function closeDeleteModal() {
+    const modal = document.querySelector('.fixed.inset-0.bg-black.bg-opacity-50');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function executeDelete(receivingId) {
+    const confirmation = document.getElementById('deleteConfirmation').value.trim();
+    
+    if (!confirmation) {
+        alert('{{ gettext("Please enter confirmation") }}');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/receiving/${receivingId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                confirmation: confirmation
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            window.location.href = '{{ url_for("receiving_management_v2") }}';
+        } else {
+            alert(result.error || '{{ gettext("Failed to delete receiving record") }}');
+        }
+    } catch (error) {
+        alert('{{ gettext("Error:") }} ' + error.message);
+    }
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDeleteModal();
+    }
+});
+</script>
 {% endblock %}

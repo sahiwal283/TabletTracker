@@ -1880,7 +1880,7 @@ def receiving_details(receiving_id):
             SELECT sb.*, 
                    GROUP_CONCAT(b.bag_number ORDER BY b.bag_number) as bag_numbers, 
                    COUNT(b.id) as bag_count,
-                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills' ORDER BY b.bag_number, char(10)) as pill_counts
+                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills' ORDER BY b.bag_number) as pill_counts
             FROM small_boxes sb
             LEFT JOIN bags b ON sb.id = b.small_box_id
             WHERE sb.receiving_id = ?
@@ -1897,6 +1897,54 @@ def receiving_details(receiving_id):
     except Exception as e:
         flash(f'Error loading receiving details: {str(e)}', 'error')
         return redirect(url_for('receiving_management_v2'))
+
+@app.route('/api/receiving/<int:receiving_id>', methods=['DELETE'])
+@admin_required
+def delete_receiving(receiving_id):
+    """Delete a receiving record with confirmation"""
+    try:
+        # Get confirmation password/name from request
+        data = request.get_json() or {}
+        confirmation = data.get('confirmation', '').strip().lower()
+        
+        # Require exact match of "delete" as confirmation
+        if confirmation != 'delete':
+            return jsonify({'error': 'Confirmation required. Type "delete" to confirm.'}), 400
+        
+        conn = get_db()
+        
+        # Check if receiving record exists and get info
+        receiving = conn.execute('''
+            SELECT r.id, po.po_number 
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.id = ?
+        ''', (receiving_id,)).fetchone()
+        
+        if not receiving:
+            conn.close()
+            return jsonify({'error': 'Receiving record not found'}), 404
+        
+        # Delete in correct order due to foreign key constraints
+        # 1. Delete bags first
+        conn.execute('DELETE FROM bags WHERE small_box_id IN (SELECT id FROM small_boxes WHERE receiving_id = ?)', (receiving_id,))
+        
+        # 2. Delete small_boxes
+        conn.execute('DELETE FROM small_boxes WHERE receiving_id = ?', (receiving_id,))
+        
+        # 3. Delete receiving record
+        conn.execute('DELETE FROM receiving WHERE id = ?', (receiving_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted receiving record for PO {receiving["po_number"]}'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete receiving record: {str(e)}'}), 500
 
 @app.route('/api/process_receiving', methods=['POST'])
 @admin_required
