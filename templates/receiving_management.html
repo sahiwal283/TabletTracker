@@ -217,7 +217,13 @@
                         {% for receiving in recent_receiving %}
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-4 font-medium text-gray-900">{{ receiving.po_number }}</td>
-                            <td class="px-4 py-4 text-gray-600">{{ receiving.received_date.strftime('%Y-%m-%d %H:%M') if receiving.received_date else '-' }}</td>
+                            <td class="px-4 py-4 text-gray-600">
+                                {% if receiving.received_date %}
+                                    {{ receiving.received_date[:16] if receiving.received_date is string else receiving.received_date.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-4 text-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     {{ receiving.total_small_boxes }}
