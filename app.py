@@ -2015,13 +2015,24 @@ def get_available_boxes_bags(po_id):
 def create_sample_receiving_data():
     """Create sample PO and shipment data for testing receiving workflow"""
     try:
+        from datetime import datetime
+        import random
+        
         conn = get_db()
+        
+        # Generate unique PO number
+        timestamp = datetime.now().strftime('%m%d-%H%M')
+        po_number = f'TEST-{timestamp}'
+        
+        # Generate unique tracking number
+        tracking_suffix = random.randint(100000, 999999)
+        tracking_number = f'1Z999AA{tracking_suffix}'
         
         # Create sample PO
         po_cursor = conn.execute('''
             INSERT INTO purchase_orders (po_number, tablet_type, zoho_status, ordered_quantity, internal_status)
             VALUES (?, ?, ?, ?, ?)
-        ''', ('TEST-001', 'Test Tablets', 'confirmed', 1000, 'Active'))
+        ''', (po_number, 'Test Tablets', 'confirmed', 1000, 'Active'))
         
         po_id = po_cursor.lastrowid
         
@@ -2029,7 +2040,7 @@ def create_sample_receiving_data():
         shipment_cursor = conn.execute('''
             INSERT INTO shipments (po_id, tracking_number, carrier, tracking_status, delivered_at, created_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ''', (po_id, '1Z999AA1234567890', 'UPS', 'Delivered'))
+        ''', (po_id, tracking_number, 'UPS', 'Delivered'))
         
         shipment_id = shipment_cursor.lastrowid
         
@@ -2038,7 +2049,7 @@ def create_sample_receiving_data():
         
         return jsonify({
             'success': True,
-            'message': f'Created sample PO TEST-001 with delivered UPS shipment. Ready for receiving!',
+            'message': f'Created sample PO {po_number} with delivered UPS shipment. Ready for receiving!',
             'po_id': po_id,
             'shipment_id': shipment_id
         })
