@@ -1878,9 +1878,9 @@ def receiving_details(receiving_id):
         # Get box and bag details
         boxes = conn.execute('''
             SELECT sb.*, 
-                   GROUP_CONCAT(b.bag_number ORDER BY b.bag_number) as bag_numbers, 
+                   GROUP_CONCAT(b.bag_number) as bag_numbers, 
                    COUNT(b.id) as bag_count,
-                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills' ORDER BY b.bag_number) as pill_counts
+                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
             FROM small_boxes sb
             LEFT JOIN bags b ON sb.id = b.small_box_id
             WHERE sb.receiving_id = ?
