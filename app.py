@@ -1845,6 +1845,46 @@ def receiving_management_v2():
         <p><a href="/admin">Back to admin</a></p>
         """
 
+@app.route('/receiving/<int:receiving_id>')
+@admin_required
+def receiving_details(receiving_id):
+    """View detailed information about a specific receiving record"""
+    try:
+        conn = get_db()
+        
+        # Get receiving record with PO and shipment info
+        receiving = conn.execute('''
+            SELECT r.*, po.po_number, s.tracking_number, s.carrier
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN shipments s ON r.shipment_id = s.id
+            WHERE r.id = ?
+        ''', (receiving_id,)).fetchone()
+        
+        if not receiving:
+            flash('Receiving record not found', 'error')
+            return redirect(url_for('receiving_management_v2'))
+        
+        # Get box and bag details
+        boxes = conn.execute('''
+            SELECT sb.*, GROUP_CONCAT(b.bag_number) as bag_numbers, COUNT(b.id) as bag_count
+            FROM small_boxes sb
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            WHERE sb.receiving_id = ?
+            GROUP BY sb.id
+            ORDER BY sb.box_number
+        ''', (receiving_id,)).fetchall()
+        
+        conn.close()
+        
+        return render_template('receiving_details.html', 
+                             receiving=dict(receiving),
+                             boxes=[dict(box) for box in boxes])
+                             
+    except Exception as e:
+        flash(f'Error loading receiving details: {str(e)}', 'error')
+        return redirect(url_for('receiving_management_v2'))
+
 @app.route('/api/process_receiving', methods=['POST'])
 @admin_required
 def process_receiving():

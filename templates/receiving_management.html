@@ -391,5 +391,10 @@ async function createSampleData() {
         showError('{{ gettext("Network error") }}: ' + error.message);
     }
 }
+
+function viewReceivingDetails(receivingId) {
+    // Navigate to the receiving details page
+    window.location.href = `/receiving/${receivingId}`;
+}
 </script>
 {% endblock %}

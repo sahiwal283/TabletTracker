@@ -12,7 +12,7 @@
             </h2>
             <p class="text-gray-600 mt-2">PO {{ receiving.po_number }} - {{ receiving.carrier }} {{ receiving.tracking_number }}</p>
         </div>
-        <a href="{{ url_for('receiving_management') }}" class="btn-secondary">
+        <a href="{{ url_for('receiving_management_v2') }}" class="btn-secondary">
             <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-arrow-left" /></svg>
             {{ gettext('Back to Receiving') }}
         </a>
@@ -36,7 +36,13 @@
             </div>
             <div class="bg-purple-50 p-4 rounded-lg">
                 <div class="text-sm text-purple-600 font-medium">{{ gettext('Received') }}</div>
-                <div class="text-xs text-gray-600">{{ receiving.received_date.strftime('%Y-%m-%d %H:%M') if receiving.received_date else '-' }}</div>
+                <div class="text-xs text-gray-600">
+                    {% if receiving.received_date %}
+                        {{ receiving.received_date[:16] if receiving.received_date is string else receiving.received_date.strftime('%Y-%m-%d %H:%M') }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
                 <div class="text-xs text-gray-600">{{ gettext('by') }} {{ receiving.received_by }}</div>
             </div>
         </div>
