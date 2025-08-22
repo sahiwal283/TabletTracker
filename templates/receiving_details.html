@@ -91,8 +91,15 @@
                 
                 {% if box.bag_numbers %}
                 <div class="mb-2">
-                    <span class="text-sm text-gray-600">{{ gettext('Bag numbers') }}:</span>
+                    <span class="text-sm text-gray-600">{{ gettext('Sequential bag numbers') }}:</span>
                     <span class="text-sm font-mono">{{ box.bag_numbers }}</span>
+                </div>
+                {% endif %}
+                
+                {% if box.pill_counts %}
+                <div class="mb-2">
+                    <span class="text-sm text-gray-600">{{ gettext('Pill counts by bag') }}:</span>
+                    <div class="text-sm font-mono bg-gray-50 p-2 rounded mt-1">{{ box.pill_counts }}</div>
                 </div>
                 {% endif %}
                 

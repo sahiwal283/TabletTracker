@@ -191,6 +191,15 @@ def init_db():
             except Exception:
                 pass
     
+    # Add pill_count column to bags table if it doesn't exist
+    try:
+        c.execute('SELECT pill_count FROM bags LIMIT 1')
+    except Exception:
+        try:
+            c.execute('ALTER TABLE bags ADD COLUMN pill_count INTEGER')
+        except Exception:
+            pass
+    
     # Receiving table - tracks shipment arrival and photos
     c.execute('''CREATE TABLE IF NOT EXISTS receiving (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -219,15 +228,16 @@ def init_db():
     )''')
     
     # Bags table - tracks individual bags within boxes
-    c.execute('''CREATE TABLE IF NOT EXISTS bags (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        small_box_id INTEGER,
-        bag_number INTEGER,
-        bag_label_count INTEGER,
-        status TEXT DEFAULT 'Available',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
-    )''')
+    c.execute('''                CREATE TABLE IF NOT EXISTS bags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    small_box_id INTEGER,
+                    bag_number INTEGER,
+                    bag_label_count INTEGER,
+                    pill_count INTEGER,
+                    status TEXT DEFAULT 'Available',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
+                )''')
 
     # Employees table for user authentication
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
@@ -1867,7 +1877,10 @@ def receiving_details(receiving_id):
         
         # Get box and bag details
         boxes = conn.execute('''
-            SELECT sb.*, GROUP_CONCAT(b.bag_number) as bag_numbers, COUNT(b.id) as bag_count
+            SELECT sb.*, 
+                   GROUP_CONCAT(b.bag_number ORDER BY b.bag_number) as bag_numbers, 
+                   COUNT(b.id) as bag_count,
+                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills' ORDER BY b.bag_number, char(10)) as pill_counts
             FROM small_boxes sb
             LEFT JOIN bags b ON sb.id = b.small_box_id
             WHERE sb.receiving_id = ?
@@ -1938,8 +1951,22 @@ def process_receiving():
         
         receiving_id = receiving_cursor.lastrowid
         
-        # Process box details
+        # Process box details with sequential bag numbering
         total_bags = 0
+        all_bag_data = {}
+        
+        # First, collect all bag data from the form
+        for key in request.form.keys():
+            if key.startswith('bag_') and key.endswith('_pill_count'):
+                # Extract bag number from key like 'bag_3_pill_count'
+                bag_num = int(key.split('_')[1])
+                if bag_num not in all_bag_data:
+                    all_bag_data[bag_num] = {}
+                all_bag_data[bag_num]['pill_count'] = int(request.form[key])
+                all_bag_data[bag_num]['box'] = int(request.form.get(f'bag_{bag_num}_box', 0))
+                all_bag_data[bag_num]['notes'] = request.form.get(f'bag_{bag_num}_notes', '')
+        
+        # Process boxes and their bags with sequential numbering
         for box_num in range(1, total_small_boxes + 1):
             bags_in_box = int(request.form.get(f'box_{box_num}_bags', 0))
             box_notes = request.form.get(f'box_{box_num}_notes', '')
@@ -1952,13 +1979,14 @@ def process_receiving():
             
             small_box_id = box_cursor.lastrowid
             
-            # Create bag records for this box
-            for bag_num in range(1, bags_in_box + 1):
-                conn.execute('''
-                    INSERT INTO bags (small_box_id, bag_number, status)
-                    VALUES (?, ?, 'Available')
-                ''', (small_box_id, bag_num))
-                total_bags += 1
+            # Create bag records for this box using sequential numbering
+            for bag_data_key, bag_data in all_bag_data.items():
+                if bag_data['box'] == box_num:
+                    conn.execute('''
+                        INSERT INTO bags (small_box_id, bag_number, pill_count, status)
+                        VALUES (?, ?, ?, 'Available')
+                    ''', (small_box_id, bag_data_key, bag_data['pill_count']))
+                    total_bags += 1
         
         # Update shipment status to indicate it's been received
         conn.execute('''

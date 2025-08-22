@@ -303,18 +303,21 @@ function generateBoxInputs(totalBoxes) {
     container.innerHTML = '';
     section.classList.remove('hidden');
     
+    let bagCounter = 1; // Sequential bag numbering across all boxes
+    
     for (let i = 1; i <= totalBoxes; i++) {
         const boxDiv = document.createElement('div');
         boxDiv.className = 'p-3 border border-purple-200 rounded-lg bg-white';
         boxDiv.innerHTML = `
             <h5 class="font-medium text-gray-900 mb-2">{{ gettext('Box') }} ${i}</h5>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         {{ gettext('Number of bags in this box') }} *
                     </label>
                     <input type="number" name="box_${i}_bags" required min="1" max="10" 
-                           class="form-input" placeholder="1-2 bags typical">
+                           class="form-input" placeholder="1-2 bags typical"
+                           onchange="updateBagFields(${i}, this.value, ${bagCounter})">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -324,8 +327,85 @@ function generateBoxInputs(totalBoxes) {
                            class="form-input" placeholder="{{ gettext('Condition, damages, etc.') }}">
                 </div>
             </div>
+            <div id="box_${i}_bag_details" class="hidden mt-3 p-2 bg-gray-50 rounded">
+                <!-- Bag details will be generated here -->
+            </div>
         `;
         container.appendChild(boxDiv);
+        
+        // Store the starting bag number for this box
+        boxDiv.dataset.startingBagNumber = bagCounter;
+    }
+}
+
+function updateBagFields(boxNumber, bagCount, startingBagNumber) {
+    const bagDetailsDiv = document.getElementById(`box_${boxNumber}_bag_details`);
+    const bagsCount = parseInt(bagCount) || 0;
+    
+    if (bagsCount === 0) {
+        bagDetailsDiv.classList.add('hidden');
+        bagDetailsDiv.innerHTML = '';
+        return;
+    }
+    
+    bagDetailsDiv.classList.remove('hidden');
+    bagDetailsDiv.innerHTML = `
+        <h6 class="font-medium text-gray-700 mb-2">{{ gettext('Bag Details') }}</h6>
+        <div class="space-y-2">
+            ${Array.from({length: bagsCount}, (_, i) => {
+                const bagNumber = startingBagNumber + i;
+                return `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 p-2 border border-gray-200 rounded">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">
+                                {{ gettext('Bag') }} ${bagNumber} - {{ gettext('Pill Count') }} *
+                            </label>
+                            <input type="number" name="bag_${bagNumber}_pill_count" required min="1" 
+                                   class="form-input text-sm" placeholder="Pills in this bag">
+                            <input type="hidden" name="bag_${bagNumber}_box" value="${boxNumber}">
+                            <input type="hidden" name="bag_${bagNumber}_sequential_number" value="${bagNumber}">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">
+                                {{ gettext('Bag Notes') }}
+                            </label>
+                            <input type="text" name="bag_${bagNumber}_notes" 
+                                   class="form-input text-sm" placeholder="{{ gettext('Label condition, etc.') }}">
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    // Update starting bag number for subsequent boxes
+    updateSubsequentBoxBagNumbers(boxNumber, bagsCount);
+}
+
+function updateSubsequentBoxBagNumbers(changedBoxNumber, newBagCount) {
+    const container = document.getElementById('box-inputs-container');
+    const boxes = container.children;
+    let runningTotal = 1;
+    
+    // Recalculate starting bag numbers for all boxes
+    for (let i = 0; i < boxes.length; i++) {
+        const box = boxes[i];
+        const boxNum = i + 1;
+        const bagsInput = box.querySelector(`input[name="box_${boxNum}_bags"]`);
+        const bagsInThisBox = parseInt(bagsInput.value) || 0;
+        
+        box.dataset.startingBagNumber = runningTotal;
+        
+        // Update onchange handler with new starting bag number
+        bagsInput.setAttribute('onchange', `updateBagFields(${boxNum}, this.value, ${runningTotal})`);
+        
+        // If this box already has bag details, regenerate them with new numbers
+        const bagDetailsDiv = document.getElementById(`box_${boxNum}_bag_details`);
+        if (!bagDetailsDiv.classList.contains('hidden') && bagsInThisBox > 0) {
+            updateBagFields(boxNum, bagsInThisBox, runningTotal);
+        }
+        
+        runningTotal += bagsInThisBox;
     }
 }
 
