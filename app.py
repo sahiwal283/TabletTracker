@@ -371,11 +371,23 @@ def index():
         else:
             # Employee login
             conn = get_db()
-            employee = conn.execute('''
-                SELECT id, username, full_name, password_hash, role, is_active 
-                FROM employees 
-                WHERE username = ? AND is_active = TRUE
-            ''', (username,)).fetchone()
+            try:
+                employee = conn.execute('''
+                    SELECT id, username, full_name, password_hash, role, is_active 
+                    FROM employees 
+                    WHERE username = ? AND is_active = TRUE
+                ''', (username,)).fetchone()
+            except Exception as e:
+                if "no such column: role" in str(e).lower():
+                    # Add role column and retry
+                    conn.execute('ALTER TABLE employees ADD COLUMN role TEXT DEFAULT "warehouse_staff"')
+                    employee = conn.execute('''
+                        SELECT id, username, full_name, password_hash, 'warehouse_staff' as role, is_active 
+                        FROM employees 
+                        WHERE username = ? AND is_active = TRUE
+                    ''', (username,)).fetchone()
+                else:
+                    raise e
             
             conn.close()
             
