@@ -19,9 +19,9 @@
     </div>
 
     <!-- Configuration Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    <div class="flex flex-wrap justify-center gap-6 mb-8 max-w-4xl mx-auto">
         <!-- Employee Management Card -->
-        <div class="card hover-lift">
+        <div class="card hover-lift w-full sm:w-80">
             <div class="p-6">
                 <div class="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-4">
                     <svg class="w-7 h-7 text-primary" aria-hidden="true"><use href="#icon-users" /></svg>
@@ -37,7 +37,7 @@
         </div>
         
         <!-- Product Configuration Card -->
-        <div class="card hover-lift">
+        <div class="card hover-lift w-full sm:w-80">
             <div class="p-6">
                 <div class="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-lg mx-auto mb-4">
                     <svg class="w-7 h-7 text-primary" aria-hidden="true"><use href="#icon-chart" /></svg>
@@ -63,9 +63,9 @@
     </div>
 
     <!-- System Tools -->
-    <div class="card p-6">
+    <div class="card p-6 max-w-2xl mx-auto">
         <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center">🔧 System Tools</h3>
-        <div class="flex justify-center space-x-4">
+        <div class="flex flex-wrap justify-center gap-4">
             <button onclick="testZohoConnection()" 
                     class="btn-primary flex items-center">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plug" /></svg>
