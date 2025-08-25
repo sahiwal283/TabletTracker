@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto text-center">
+    <div class="card p-8">
+        <div class="mb-6">
+            <svg class="w-16 h-16 mx-auto text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h1>
+            <p class="text-gray-600 mb-6">We encountered an unexpected error while processing your request.</p>
+        </div>
+        
+        {% if error_message %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left">
+            <h3 class="text-sm font-medium text-red-800 mb-2">Error Details:</h3>
+            <pre class="text-xs text-red-700 whitespace-pre-wrap">{{ error_message }}</pre>
+        </div>
+        {% endif %}
+        
+        <div class="space-y-3">
+            <a href="{{ url_for('dashboard') }}" class="btn-primary inline-flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                </svg>
+                Go to Dashboard
+            </a>
+            <a href="javascript:history.back()" class="btn-secondary inline-flex items-center ml-4">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Go Back
+            </a>
+        </div>
+        
+        <div class="mt-8 text-sm text-gray-500">
+            <p>If this problem persists, please contact support.</p>
+            <p class="mt-1">Error ID: {{ request.endpoint or 'unknown' }} - {{ moment().format('YYYY-MM-DD HH:mm:ss') if moment else '' }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

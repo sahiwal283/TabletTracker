@@ -725,9 +725,11 @@ def shipping_unified():
                              recent_receives=recent_receives)
                              
     except Exception as e:
-        app.logger.error(f"Error in shipping_unified: {str(e)}")
+        import traceback
+        error_details = traceback.format_exc()
+        app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
         return render_template('error.html', 
-                             error_message=f"Error loading shipping page: {str(e)}"), 500
+                             error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
 
 @app.route('/api/shipments/<int:shipment_id>/refresh', methods=['POST'])
 def refresh_shipment(shipment_id: int):
