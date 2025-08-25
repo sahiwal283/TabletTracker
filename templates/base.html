@@ -339,6 +339,10 @@
                                 {% if session.employee_role %}
                                     <span class="ml-1 text-xs text-white/60">({{ session.employee_role.replace('_', ' ').title() }})</span>
                                 {% endif %}
+                                <!-- DEBUG: Show actual role value -->
+                                <span class="ml-2 px-1 py-0.5 bg-red-500/80 rounded text-xs text-white" title="Debug: Role='{{ session.employee_role }}'">
+                                    ROLE: "{{ session.employee_role }}"
+                                </span>
                             {% else %}
                                 <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg>
                                 <span class="text-white/80">Administrator</span>
