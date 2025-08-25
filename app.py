@@ -658,7 +658,7 @@ def shipments_management():
     return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
 
 @app.route('/shipping')
-@admin_required
+@employee_required
 def shipping_unified():
     """Unified shipping and receiving management page"""
     try:
