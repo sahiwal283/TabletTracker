@@ -423,23 +423,36 @@ def version():
 @employee_required
 def warehouse_form():
     """Mobile-optimized form for warehouse staff"""
-    conn = get_db()
-    
-    # Get product list for dropdown
-    products = conn.execute('''
-        SELECT pd.product_name, tt.tablet_type_name, pd.packages_per_display, pd.tablets_per_package
-        FROM product_details pd
-        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-        ORDER BY pd.product_name
-    ''').fetchall()
-    
-    # Get employee info for display
-    employee = conn.execute('''
-        SELECT full_name FROM employees WHERE id = ?
-    ''', (session.get('employee_id'),)).fetchone()
-    
-    conn.close()
-    return render_template('warehouse_form.html', products=products, employee=employee)
+    try:
+        conn = get_db()
+        
+        # Get product list for dropdown
+        products = conn.execute('''
+            SELECT pd.product_name, tt.tablet_type_name, pd.packages_per_display, pd.tablets_per_package
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            ORDER BY pd.product_name
+        ''').fetchall()
+        
+        # Get employee info for display - with fallback
+        employee = None
+        employee_id = session.get('employee_id')
+        if employee_id:
+            employee = conn.execute('''
+                SELECT full_name FROM employees WHERE id = ?
+            ''', (employee_id,)).fetchone()
+        
+        # Fallback to session name if database lookup fails
+        if not employee and session.get('employee_name'):
+            employee = {'full_name': session.get('employee_name')}
+        
+        conn.close()
+        return render_template('warehouse_form.html', products=products, employee=employee)
+        
+    except Exception as e:
+        app.logger.error(f"Error in warehouse_form: {str(e)}")
+        flash(f'Error loading warehouse form: {str(e)}', 'error')
+        return redirect(url_for('index'))
 
 @app.route('/submit_warehouse', methods=['POST'])
 @employee_required
