@@ -1606,21 +1606,37 @@ def manage_employees():
     """Employee management page"""
     conn = get_db()
     
-    # Check if role column exists, if not, add it
+    # Robust query with multiple fallbacks
     try:
+        # Try with both role and preferred_language columns
         employees = conn.execute('''
             SELECT id, username, full_name, role, is_active, created_at, preferred_language
             FROM employees 
             ORDER BY role, full_name
         ''').fetchall()
-    except:
-        # Role column doesn't exist yet, use default query
-        employees = conn.execute('''
-            SELECT id, username, full_name, 'warehouse_staff' as role, is_active, created_at, 
-                   COALESCE(preferred_language, 'en') as preferred_language
-            FROM employees 
-            ORDER BY full_name
-        ''').fetchall()
+    except sqlite3.OperationalError as e:
+        try:
+            # Try with just role column (no preferred_language)
+            employees = conn.execute('''
+                SELECT id, username, full_name, role, is_active, created_at, 'en' as preferred_language
+                FROM employees 
+                ORDER BY role, full_name
+            ''').fetchall()
+        except sqlite3.OperationalError:
+            try:
+                # Try with just preferred_language column (no role)  
+                employees = conn.execute('''
+                    SELECT id, username, full_name, 'warehouse_staff' as role, is_active, created_at, preferred_language
+                    FROM employees 
+                    ORDER BY full_name
+                ''').fetchall()
+            except sqlite3.OperationalError:
+                # Fallback to basic query with defaults
+                employees = conn.execute('''
+                    SELECT id, username, full_name, 'warehouse_staff' as role, is_active, created_at, 'en' as preferred_language
+                    FROM employees 
+                    ORDER BY full_name
+                ''').fetchall()
     
     conn.close()
     return render_template('employee_management.html', employees=employees)
