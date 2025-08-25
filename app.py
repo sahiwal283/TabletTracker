@@ -448,111 +448,51 @@ def version():
         'description': __description__
     })
 
-@app.route('/force-fix-role')
+@app.route('/role-status')
 @employee_required
-def force_fix_role():
-    """Force sync session role with database role"""
-    conn = get_db()
-    try:
-        # Get current database role
-        user = conn.execute('''
-            SELECT role FROM employees WHERE id = ?
-        ''', (session.get('employee_id'),)).fetchone()
-        
-        if user and user['role']:
-            # Use database role
-            role = user['role'].strip()
-            session['employee_role'] = role
-            flash(f'✅ Role synced! You now have {role} role with proper navigation.', 'success')
-            
-            # Redirect based on role
-            if role in ['manager', 'admin']:
-                return redirect(url_for('admin_dashboard'))
-            else:
-                return redirect(url_for('warehouse_form'))
-        else:
-            # No role in database - set default
-            conn.execute('''
-                UPDATE employees SET role = 'warehouse_staff' 
-                WHERE id = ?
-            ''', (session.get('employee_id'),))
-            conn.commit()
-            session['employee_role'] = 'warehouse_staff'
-            flash('✅ Role fixed! You now have warehouse_staff role.', 'success')
-            return redirect(url_for('warehouse_form'))
-        
-    except Exception as e:
-        flash(f'❌ Error fixing role: {e}', 'error')
-        return redirect(url_for('debug_session'))
-    finally:
-        conn.close()
+def role_status():
+    """Simple role status page"""
+    return render_template('fix_role.html')
 
-@app.route('/debug-session')
+@app.route('/fix-my-role')
 @employee_required  
-def debug_session():
-    """Debug session and role information"""
-    conn = get_db()
-    
-    # Get current session info
-    session_info = {
-        'employee_authenticated': session.get('employee_authenticated'),
-        'employee_id': session.get('employee_id'),
-        'employee_name': session.get('employee_name'),
-        'employee_username': session.get('employee_username'),
-        'employee_role': session.get('employee_role'),
-        'admin_authenticated': session.get('admin_authenticated')
-    }
-    
-    # Get database info for current user
-    db_info = None
-    if session.get('employee_id'):
-        db_info = conn.execute('''
-            SELECT id, username, full_name, role, is_active 
-            FROM employees WHERE id = ?
-        ''', (session.get('employee_id'),)).fetchone()
-    
-    conn.close()
-    
-    # AGGRESSIVE FIX: Force sync session role with database role
-    if session.get('employee_id') and db_info:
-        db_role = db_info.get('role')
-        session_role = session.get('employee_role')
+def fix_my_role():
+    """Simple one-click role fix"""
+    try:
+        conn = get_db()
         
-        if db_role and db_role.strip() != '' and session_role != db_role:
-            # Database has a role but session doesn't match - force sync
-            session['employee_role'] = db_role.strip()
-            flash(f'✅ Fixed session role - synced to: {db_role}', 'success')
-            app.logger.info(f"FORCED SESSION SYNC: {session.get('employee_username')} role {session_role} -> {db_role}")
-        elif not db_role or db_role.strip() == '':
-            # Database role is empty - set default
-            try:
-                conn.execute('''
-                    UPDATE employees SET role = 'warehouse_staff' WHERE id = ?
-                ''', (session.get('employee_id'),))
-                conn.commit()
-                session['employee_role'] = 'warehouse_staff'
-                flash('Fixed empty database role - you now have warehouse_staff role', 'success')
-            except Exception as e:
-                flash(f'Could not fix role: {e}', 'error')
-    
-    return f'''
-    <h2>Session Debug Info</h2>
-    <h3>Session Data:</h3>
-    <pre>{session_info}</pre>
-    
-    <h3>Database Data:</h3>
-    <pre>{dict(db_info) if db_info else "No database record found"}</pre>
-    
-    <h3>Navigation Conditions:</h3>
-    <p>Dashboard/Shipping visible if: session.employee_role in ['manager', 'admin']</p>
-    <p>Current role check: "{session.get('employee_role')}" in ['manager', 'admin'] = {session.get('employee_role') in ['manager', 'admin']}</p>
-    
-    <h3>Quick Actions:</h3>
-    <a href="/force-fix-role" style="background:red;color:white;padding:10px;text-decoration:none;border-radius:5px;">FORCE FIX MY ROLE</a>
-    
-    <br/><br/>
-    <a href="/">← Back to Home</a>
-    '''
+        # Get user from database
+        user = conn.execute('''
+            SELECT username, full_name, role FROM employees WHERE id = ?
+        ''', (session.get('employee_id'),)).fetchone()
+        
+        if not user:
+            return "❌ User not found in database"
+        
+        # Force assign role from database or default
+        db_role = user['role'] if user['role'] and user['role'].strip() else 'warehouse_staff'
+        
+        # Update database if needed
+        if not user['role'] or user['role'].strip() == '':
+            conn.execute('''
+                UPDATE employees SET role = ? WHERE id = ?
+            ''', (db_role, session.get('employee_id')))
+            conn.commit()
+        
+        # FORCE update session
+        session['employee_role'] = db_role
+        session.permanent = True
+        
+        conn.close()
+        
+        # Redirect to appropriate page
+        if db_role in ['manager', 'admin']:
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('warehouse_form'))
+            
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
 
 @app.route('/warehouse')
 @employee_required
