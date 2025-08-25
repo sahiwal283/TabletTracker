@@ -267,6 +267,54 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Role-based access control system
+ROLE_PERMISSIONS = {
+    'warehouse_staff': ['warehouse', 'count'],
+    'supervisor': ['warehouse', 'count', 'dashboard', 'shipping'],
+    'manager': ['warehouse', 'count', 'dashboard', 'shipping', 'reports'],
+    'admin': ['all']  # Special case - admin has access to everything
+}
+
+def get_employee_role(username):
+    """Get the role of an employee"""
+    conn = get_db()
+    try:
+        result = conn.execute(
+            'SELECT role FROM employees WHERE username = ? AND is_active = 1',
+            (username,)
+        ).fetchone()
+        conn.close()
+        return result['role'] if result else None
+    except:
+        conn.close()
+        return None
+
+def has_permission(username, required_permission):
+    """Check if an employee has a specific permission"""
+    role = get_employee_role(username)
+    if not role:
+        return False
+    
+    permissions = ROLE_PERMISSIONS.get(role, [])
+    return 'all' in permissions or required_permission in permissions
+
+def role_required(required_permission):
+    """Decorator that requires a specific permission/role"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not session.get('employee_authenticated') or not session.get('employee_id'):
+                return redirect(url_for('employee_login'))
+            
+            username = session.get('employee_username')
+            if not username or not has_permission(username, required_permission):
+                flash(f'Access denied. You need {required_permission} permission to access this page.', 'error')
+                return redirect(url_for('warehouse_form'))
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 # Helper function to require employee login
 def employee_required(f):
     @wraps(f)
@@ -489,7 +537,7 @@ def submit_warehouse():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
-@admin_required
+@role_required('dashboard')
 def admin_dashboard():
     """Desktop dashboard for managers/admins"""
     conn = get_db()
@@ -658,7 +706,7 @@ def shipments_management():
     return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
 
 @app.route('/shipping')
-@employee_required
+@role_required('shipping')
 def shipping_unified():
     """Unified shipping and receiving management page"""
     try:
@@ -942,7 +990,7 @@ def employee_login_post():
     
     conn = get_db()
     employee = conn.execute('''
-        SELECT id, username, full_name, password_hash, is_active 
+        SELECT id, username, full_name, password_hash, role, is_active 
         FROM employees 
         WHERE username = ? AND is_active = TRUE
     ''', (username,)).fetchone()
@@ -954,6 +1002,7 @@ def employee_login_post():
         session['employee_id'] = employee['id']
         session['employee_name'] = employee['full_name']
         session['employee_username'] = employee['username']
+        session['employee_role'] = employee.get('role', 'warehouse_staff')
         session.permanent = True
         app.permanent_session_lifetime = timedelta(hours=8)
         
@@ -975,6 +1024,7 @@ def employee_logout():
     session.pop('employee_id', None)
     session.pop('employee_name', None)
     session.pop('employee_username', None)
+    session.pop('employee_role', None)
     return redirect(url_for('employee_login'))
 
 @app.route('/count')
@@ -1346,9 +1396,9 @@ def manage_employees():
     """Employee management page"""
     conn = get_db()
     employees = conn.execute('''
-        SELECT id, username, full_name, is_active, created_at
+        SELECT id, username, full_name, role, is_active, created_at
         FROM employees 
-        ORDER BY full_name
+        ORDER BY role, full_name
     ''').fetchall()
     
     conn.close()
@@ -1362,9 +1412,15 @@ def add_employee():
         username = data.get('username', '').strip()
         full_name = data.get('full_name', '').strip()
         password = data.get('password', '').strip()
+        role = data.get('role', 'warehouse_staff').strip()
         
         if not username or not full_name or not password:
             return jsonify({'success': False, 'error': 'Username, full name, and password required'}), 400
+            
+        # Validate role
+        valid_roles = ['warehouse_staff', 'supervisor', 'manager', 'admin']
+        if role not in valid_roles:
+            return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
             
         conn = get_db()
         
@@ -1380,14 +1436,56 @@ def add_employee():
         # Hash password and insert employee
         password_hash = hash_password(password)
         conn.execute('''
-            INSERT INTO employees (username, full_name, password_hash)
-            VALUES (?, ?, ?)
-        ''', (username, full_name, password_hash))
+            INSERT INTO employees (username, full_name, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        ''', (username, full_name, password_hash, role))
         
         conn.commit()
         conn.close()
         
         return jsonify({'success': True, 'message': f'Added employee: {full_name}'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/update_employee_role/<int:employee_id>', methods=['POST'])
+@admin_required
+def update_employee_role(employee_id):
+    """Update an employee's role"""
+    try:
+        data = request.get_json()
+        new_role = data.get('role', '').strip()
+        
+        # Validate role
+        valid_roles = ['warehouse_staff', 'supervisor', 'manager', 'admin']
+        if new_role not in valid_roles:
+            return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
+            
+        conn = get_db()
+        
+        # Check if employee exists
+        employee = conn.execute(
+            'SELECT id, username, full_name FROM employees WHERE id = ?', 
+            (employee_id,)
+        ).fetchone()
+        
+        if not employee:
+            return jsonify({'success': False, 'error': 'Employee not found'}), 404
+            
+        # Update employee role
+        conn.execute('''
+            UPDATE employees 
+            SET role = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (new_role, employee_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Updated {employee["full_name"]} role to {new_role.replace("_", " ").title()}'
+        })
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
