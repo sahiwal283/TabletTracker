@@ -336,7 +336,23 @@ def index():
     # If already logged in, redirect appropriately
     if session.get('employee_authenticated'):
         # Role-based redirect for returning users
-        role = session.get('employee_role', 'warehouse_staff')
+        role = session.get('employee_role')
+        if not role:  # Session missing role - fix it
+            conn = get_db()
+            try:
+                user = conn.execute('''
+                    SELECT role FROM employees WHERE id = ?
+                ''', (session.get('employee_id'),)).fetchone()
+                if user and user['role']:
+                    role = user['role'].strip()
+                else:
+                    role = 'warehouse_staff'
+                session['employee_role'] = role
+                conn.close()
+            except:
+                role = 'warehouse_staff'
+                session['employee_role'] = role
+        
         if role in ['manager', 'admin']:
             return redirect(url_for('admin_dashboard'))
         else:  # warehouse_staff
@@ -394,36 +410,26 @@ def index():
                 session['employee_name'] = employee['full_name']
                 session['employee_username'] = employee['username']
                 
-                # FORCE role assignment - ensure no empty roles
-                role = employee.get('role')
-                app.logger.info(f"Raw role from DB for {employee['username']}: '{role}' (type: {type(role)})")
+                # SIMPLE & DIRECT role assignment
+                role = employee['role']  # Direct access, not .get()
                 
-                # Handle None/null roles specifically  
-                if role is None:
+                # Handle empty/null roles with proper defaults
+                if not role or str(role).strip() == '':
                     role = 'warehouse_staff'
-                    app.logger.info(f"Role was None, setting default 'warehouse_staff' for {employee['username']}")
-                elif not role or str(role).strip() == '':
-                    role = 'warehouse_staff'
-                    app.logger.info(f"Role was empty, setting default 'warehouse_staff' for {employee['username']}")
-                else:
-                    # Role exists and is not empty - use it
-                    role = str(role).strip()
-                    app.logger.info(f"Using existing role '{role}' for {employee['username']}")
-                
-                # Update database if we had to set a default
-                if role == 'warehouse_staff' and (employee.get('role') is None or str(employee.get('role')).strip() == ''):
+                    # Update database with default
                     try:
                         conn.execute('''
                             UPDATE employees SET role = ? WHERE id = ?
                         ''', (role, employee['id']))
                         conn.commit()
-                        app.logger.info(f"Updated DB role for {employee['username']} to '{role}'")
                     except Exception as e:
-                        app.logger.error(f"Failed to update role for employee {employee['id']}: {e}")
+                        app.logger.error(f"Failed to update default role: {e}")
+                else:
+                    # Use existing role, ensure it's a clean string
+                    role = str(role).strip()
                 
-                # CRITICAL: Set session role
+                # DIRECT session assignment - no complex logic
                 session['employee_role'] = role
-                app.logger.info(f"FINAL: Set session role for {employee['username']}: '{role}'")
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
                 
