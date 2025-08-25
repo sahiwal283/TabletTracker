@@ -657,6 +657,78 @@ def shipments_management():
     conn.close()
     return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
 
+@app.route('/shipping')
+@admin_required
+def shipping_unified():
+    """Unified shipping and receiving management page"""
+    try:
+        conn = get_db()
+        current_date = datetime.now().date()
+        
+        # Get all POs with shipment info (for shipments tab)
+        pos_with_shipments = conn.execute('''
+            SELECT po.*, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+                   s.last_checkpoint, s.shipped_date as ship_date, s.estimated_delivery, s.actual_delivery,
+                   s.notes as shipment_notes
+            FROM purchase_orders po
+            LEFT JOIN shipments s ON po.id = s.po_id
+            ORDER BY po.po_number DESC
+        ''').fetchall()
+        
+        # Add current_date and tracking_url to each PO for template compatibility
+        pos_with_shipments_enhanced = []
+        for po in pos_with_shipments:
+            po_dict = dict(po)
+            po_dict['current_date'] = current_date
+            # Generate tracking URL if we have tracking number and carrier
+            if po_dict.get('tracking_number') and po_dict.get('carrier'):
+                if po_dict['carrier'].upper() == 'UPS':
+                    po_dict['tracking_url'] = f"https://www.ups.com/track?track=yes&trackNums={po_dict['tracking_number']}"
+                elif po_dict['carrier'].upper() == 'FEDEX':
+                    po_dict['tracking_url'] = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={po_dict['tracking_number']}"
+                elif po_dict['carrier'].upper() == 'USPS':
+                    po_dict['tracking_url'] = f"https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1={po_dict['tracking_number']}"
+                else:
+                    po_dict['tracking_url'] = None
+            else:
+                po_dict['tracking_url'] = None
+            pos_with_shipments_enhanced.append(po_dict)
+        
+        # Get pending shipments (delivered but not yet received) for receiving tab
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        # Get recent receiving history
+        recent_receives = conn.execute('''
+            SELECT r.*, po.po_number,
+                   COUNT(sb.id) as total_boxes,
+                   SUM(sb.total_bags) as total_bags
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+            LIMIT 10
+        ''').fetchall()
+        
+        conn.close()
+        
+        return render_template('shipping_unified.html', 
+                             pos_with_shipments=pos_with_shipments_enhanced,
+                             pending_shipments=pending_shipments,
+                             recent_receives=recent_receives)
+                             
+    except Exception as e:
+        app.logger.error(f"Error in shipping_unified: {str(e)}")
+        return render_template('error.html', 
+                             error_message=f"Error loading shipping page: {str(e)}"), 500
+
 @app.route('/api/shipments/<int:shipment_id>/refresh', methods=['POST'])
 def refresh_shipment(shipment_id: int):
     """Manually refresh a single shipment's tracking status."""

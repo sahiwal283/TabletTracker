@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Shipping & Receiving{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">
+            <svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-truck" /></svg> 
+            Shipping & Receiving
+        </h1>
+        <p class="text-gray-600 mt-2">Manage outbound shipments and inbound receiving operations</p>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="mb-6">
+        <nav class="flex space-x-1 bg-gray-100 rounded-lg p-1">
+            <button onclick="showTab('shipments')" id="shipments-tab" 
+                    class="tab-button flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center active-tab">
+                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-truck" /></svg>
+                Outbound Shipments
+            </button>
+            <button onclick="showTab('receiving')" id="receiving-tab" 
+                    class="tab-button flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center">
+                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-box" /></svg>
+                Inbound Receiving
+            </button>
+        </nav>
+    </div>
+
+    <!-- Outbound Shipments Tab Content -->
+    <div id="shipments-content" class="tab-content">
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Purchase Orders & Shipments</h3>
+                <p class="text-sm text-gray-600 mt-1">Track vendor shipments and delivery information</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                PO Number
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tablet Type
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tracking #
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Carrier
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Ship Date
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ETA
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for po in pos_with_shipments %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ po.po_number }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ po.tablet_type or 'N/A' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if po.status == 'pending' %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                        📦 Pending
+                                    </span>
+                                {% elif po.status == 'shipped' %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        🚚 Shipped
+                                    </span>
+                                {% elif po.status == 'delivered' %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                        ✅ Delivered
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                        ❓ Unknown
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
+                                {% if po.tracking_number %}
+                                    <div class="flex items-center">
+                                        <span class="mr-2">{{ po.tracking_number }}</span>
+                                        {% if po.tracking_url %}
+                                            <a href="{{ po.tracking_url }}" target="_blank" 
+                                               class="text-blue-600 hover:text-blue-800" title="Track Package">
+                                                <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-external" /></svg>
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-gray-400">No tracking</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {% if po.carrier %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        {% if po.carrier == 'UPS' %}bg-amber-100 text-amber-800{% elif po.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% elif po.carrier == 'USPS' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ po.carrier }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-gray-400">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ po.ship_date.strftime('%m/%d/%y') if po.ship_date else 'N/A' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {% if po.estimated_delivery %}
+                                    {{ po.estimated_delivery.strftime('%m/%d/%y') }}
+                                    {% set days_until = (po.estimated_delivery - po.current_date).days %}
+                                    {% if days_until == 0 %}
+                                        <span class="text-green-600 font-medium">(Today)</span>
+                                    {% elif days_until == 1 %}
+                                        <span class="text-blue-600 font-medium">(Tomorrow)</span>
+                                    {% elif days_until > 1 %}
+                                        <span class="text-gray-600">({{ days_until }} days)</span>
+                                    {% elif days_until < 0 %}
+                                        <span class="text-red-600 font-medium">({{ -days_until }} days overdue)</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-gray-400">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div class="flex space-x-2">
+                                    {% if po.tracking_number and po.carrier in ['UPS', 'FedEx'] %}
+                                        <button onclick="refreshTracking('{{ po.po_number }}')" 
+                                                class="text-blue-600 hover:text-blue-900" title="Refresh Tracking">
+                                            <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-refresh" /></svg>
+                                        </button>
+                                    {% endif %}
+                                    <button onclick="editShipment('{{ po.po_number }}')" 
+                                            class="text-indigo-600 hover:text-indigo-900" title="Edit">
+                                        <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-edit" /></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                {% if not pos_with_shipments %}
+                <div class="text-center py-12">
+                    <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" aria-hidden="true"><use href="#icon-truck" /></svg>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No shipments found</h3>
+                    <p class="text-gray-600">Shipment tracking data will appear here once purchase orders are synced.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Inbound Receiving Tab Content -->
+    <div id="receiving-content" class="tab-content hidden">
+        <!-- Pending Shipments Awaiting Receiving -->
+        <div class="card mb-8">
+            <div class="flex items-center mb-6">
+                <svg class="w-6 h-6 mr-3 text-orange-500" aria-hidden="true"><use href="#icon-truck" /></svg>
+                <h3 class="text-xl font-semibold">{{ gettext('Pending Shipments') }}</h3>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('PO Number') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Tracking') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Carrier') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Status') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% if pending_shipments %}
+                            {% for shipment in pending_shipments %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-4 font-medium text-gray-900">{{ shipment.po_number }}</td>
+                                <td class="px-4 py-4 text-gray-600 font-mono">{{ shipment.tracking_number }}</td>
+                                <td class="px-4 py-4">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        {% if shipment.carrier == 'UPS' %}bg-brown-100 text-brown-800{% elif shipment.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ shipment.carrier }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                        {% if shipment.tracking_status == 'Delivered' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                        {{ shipment.tracking_status or 'In Transit' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4">
+                                    {% if shipment.tracking_status == 'Delivered' %}
+                                        <button onclick="startReceiving('{{ shipment.po_number }}')" 
+                                                class="btn-primary text-xs px-3 py-1">
+                                            {{ gettext('Process Arrival') }}
+                                        </button>
+                                    {% else %}
+                                        <span class="text-gray-400 text-xs">{{ gettext('Awaiting delivery') }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center">
+                                    <div class="text-gray-500">
+                                        <svg class="w-8 h-8 mx-auto mb-2" aria-hidden="true"><use href="#icon-truck" /></svg>
+                                        <p>{{ gettext('No shipments pending receiving') }}</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Receiving Activity -->
+        <div class="card">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 mr-3 text-green-500" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <h3 class="text-xl font-semibold">{{ gettext('Recent Receiving Activity') }}</h3>
+                </div>
+                <a href="{{ url_for('receiving_details_page') }}" class="btn-secondary text-sm">
+                    {{ gettext('View All Details') }}
+                </a>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('PO Number') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Received Date') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Received By') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Boxes/Bags') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Status') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% if recent_receives %}
+                            {% for receive in recent_receives %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-4 font-medium text-gray-900">{{ receive.po_number }}</td>
+                                <td class="px-4 py-4 text-gray-600">{{ receive.received_date.strftime('%m/%d/%y %I:%M %p') }}</td>
+                                <td class="px-4 py-4 text-gray-600">{{ receive.received_by }}</td>
+                                <td class="px-4 py-4 text-gray-600">{{ receive.total_boxes }}</td>
+                                <td class="px-4 py-4">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        {{ gettext('Received') }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center">
+                                    <div class="text-gray-500">
+                                        <svg class="w-8 h-8 mx-auto mb-2" aria-hidden="true"><use href="#icon-check" /></svg>
+                                        <p>{{ gettext('No recent receiving activity') }}</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.tab-button {
+    color: #6b7280;
+    background-color: transparent;
+}
+
+.tab-button.active-tab {
+    color: #1f2937;
+    background-color: #ffffff;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+</style>
+
+<script>
+// Tab functionality
+function showTab(tabName) {
+    // Hide all tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Remove active class from all tabs
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active-tab');
+    });
+    
+    // Show selected tab content
+    document.getElementById(tabName + '-content').classList.remove('hidden');
+    
+    // Add active class to selected tab
+    document.getElementById(tabName + '-tab').classList.add('active-tab');
+}
+
+// Shipment functions
+async function refreshTracking(poNumber) {
+    try {
+        const response = await fetch(`/api/refresh_tracking/${poNumber}`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload(); // Refresh to show updated data
+        } else {
+            alert('Failed to refresh tracking: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error refreshing tracking: ' + error.message);
+    }
+}
+
+function editShipment(poNumber) {
+    // Implement edit shipment functionality
+    alert('Edit shipment functionality for PO: ' + poNumber);
+}
+
+// Receiving functions
+function startReceiving(poNumber) {
+    window.location.href = `/receiving/process/${poNumber}`;
+}
+
+// Initialize with shipments tab active
+document.addEventListener('DOMContentLoaded', function() {
+    showTab('shipments');
+});
+</script>
+{% endblock %}
