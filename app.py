@@ -1819,6 +1819,30 @@ def update_employee_language(employee_id):
         if conn:
             conn.close()
 
+@app.route('/api/set-language', methods=['POST'])
+def set_language():
+    """Set language preference for current session"""
+    try:
+        data = request.get_json()
+        language = data.get('language', '').strip()
+        
+        # Validate language
+        if language not in app.config['LANGUAGES']:
+            return jsonify({'success': False, 'error': 'Invalid language'}), 400
+        
+        # Set session language with manual override flag
+        session['language'] = language
+        session['manual_language_override'] = True
+        session.permanent = True
+        
+        app.logger.info(f"Language manually set to {language} for session")
+        
+        return jsonify({'success': True, 'message': f'Language set to {language}'})
+        
+    except Exception as e:
+        app.logger.error(f"Language setting error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/toggle_employee/<int:employee_id>', methods=['POST'])
 def toggle_employee(employee_id):
     """Toggle employee active status"""
