@@ -270,7 +270,6 @@ def admin_required(f):
 # Role-based access control system
 ROLE_PERMISSIONS = {
     'warehouse_staff': ['warehouse', 'count'],
-    'supervisor': ['warehouse', 'count', 'dashboard', 'shipping'],
     'manager': ['warehouse', 'count', 'dashboard', 'shipping', 'reports'],
     'admin': ['all']  # Special case - admin has access to everything
 }
@@ -340,8 +339,6 @@ def index():
         role = session.get('employee_role', 'warehouse_staff')
         if role in ['manager', 'admin']:
             return redirect(url_for('admin_dashboard'))
-        elif role == 'supervisor':
-            return redirect(url_for('admin_dashboard'))
         else:  # warehouse_staff
             return redirect(url_for('warehouse_form'))
     if session.get('admin_authenticated'):
@@ -403,8 +400,6 @@ def index():
                 # Role-based redirect
                 role = employee.get('role', 'warehouse_staff')
                 if role in ['manager', 'admin']:
-                    return redirect(url_for('admin_dashboard'))
-                elif role == 'supervisor':
                     return redirect(url_for('admin_dashboard'))
                 else:  # warehouse_staff
                     return redirect(url_for('warehouse_form'))
@@ -1509,7 +1504,7 @@ def add_employee():
             return jsonify({'success': False, 'error': 'Username, full name, and password required'}), 400
             
         # Validate role
-        valid_roles = ['warehouse_staff', 'supervisor', 'manager', 'admin']
+        valid_roles = ['warehouse_staff', 'manager', 'admin']
         if role not in valid_roles:
             return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
             
@@ -1559,7 +1554,7 @@ def update_employee_role(employee_id):
         new_role = data.get('role', '').strip()
         
         # Validate role
-        valid_roles = ['warehouse_staff', 'supervisor', 'manager', 'admin']
+        valid_roles = ['warehouse_staff', 'manager', 'admin']
         if new_role not in valid_roles:
             return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
             

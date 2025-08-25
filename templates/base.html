@@ -308,15 +308,15 @@
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-calc" /></svg> Count
                     </a>
                     
-                    <!-- Dashboard - Supervisor+, Manager, Admin -->
-                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] or session.admin_authenticated %}
+                    <!-- Dashboard - Manager, Admin -->
+                    {% if session.employee_role in ['manager', 'admin'] or session.admin_authenticated %}
                     <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
                     {% endif %}
                     
-                    <!-- Shipping - Supervisor+, Manager, Admin -->
-                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] or session.admin_authenticated %}
+                    <!-- Shipping - Manager, Admin -->
+                    {% if session.employee_role in ['manager', 'admin'] or session.admin_authenticated %}
                     <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-truck" /></svg> Shipping
                     </a>
