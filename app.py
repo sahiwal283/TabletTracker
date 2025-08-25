@@ -333,10 +333,15 @@ def verify_password(password, hash):
 
 @app.route('/')
 def index():
-    """Default to employee login for secure access"""
+    """Homepage with login options"""
+    # If already logged in, redirect appropriately
     if session.get('employee_authenticated'):
         return redirect(url_for('warehouse_form'))
-    return redirect(url_for('employee_login'))
+    if session.get('admin_authenticated'):
+        return redirect(url_for('admin_panel'))
+    
+    # Show homepage with login options
+    return render_template('homepage.html')
 
 @app.route('/version')
 def version():
