@@ -26,15 +26,30 @@ app.config['BABEL_DEFAULT_LOCALE'] = 'en'
 app.config['BABEL_DEFAULT_TIMEZONE'] = 'UTC'
 
 def get_locale():
-    # 1. Check if user explicitly chose a language
+    # 1. Check if user explicitly chose a language (override)
     if request.args.get('lang'):
         session['language'] = request.args.get('lang')
     
-    # 2. Use session language if available
+    # 2. Use session language if available (includes employee default and manual changes)
     if 'language' in session and session['language'] in app.config['LANGUAGES']:
         return session['language']
     
-    # 3. Use browser's preferred language if available
+    # 3. Use employee's preferred language if logged in and not set yet
+    if session.get('employee_authenticated') and session.get('employee_id'):
+        try:
+            conn = get_db()
+            employee = conn.execute('''
+                SELECT preferred_language FROM employees WHERE id = ?
+            ''', (session.get('employee_id'),)).fetchone()
+            if employee and employee['preferred_language'] and employee['preferred_language'] in app.config['LANGUAGES']:
+                session['language'] = employee['preferred_language']
+                conn.close()
+                return employee['preferred_language']
+            conn.close()
+        except:
+            pass  # Continue to fallback if database query fails
+    
+    # 4. Use browser's preferred language if available
     return request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or app.config['BABEL_DEFAULT_LOCALE']
 
 babel = Babel()
@@ -246,9 +261,17 @@ def init_db():
         full_name TEXT NOT NULL,
         password_hash TEXT NOT NULL,
         is_active BOOLEAN DEFAULT TRUE,
+        preferred_language TEXT DEFAULT 'en',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
+    
+    # Add preferred_language column if it doesn't exist (migration)
+    try:
+        c.execute('ALTER TABLE employees ADD COLUMN preferred_language TEXT DEFAULT "en"')
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     conn.commit()
     conn.close()
@@ -341,10 +364,15 @@ def index():
             conn = get_db()
             try:
                 user = conn.execute('''
-                    SELECT role FROM employees WHERE id = ?
+                    SELECT role, preferred_language FROM employees WHERE id = ?
                 ''', (session.get('employee_id'),)).fetchone()
                 if user and user['role']:
                     role = user['role'].strip()
+                    # Also set preferred language if not already set
+                    if not session.get('language') and user.get('preferred_language'):
+                        preferred_lang = user['preferred_language']
+                        if preferred_lang in app.config['LANGUAGES']:
+                            session['language'] = preferred_lang
                 else:
                     role = 'warehouse_staff'
                 session['employee_role'] = role
@@ -430,6 +458,12 @@ def index():
                 
                 # DIRECT session assignment - no complex logic
                 session['employee_role'] = role
+                
+                # Set preferred language from employee profile
+                preferred_lang = employee.get('preferred_language', 'en')
+                if preferred_lang and preferred_lang in app.config['LANGUAGES']:
+                    session['language'] = preferred_lang
+                
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
                 
@@ -469,7 +503,7 @@ def fix_my_role():
         
         # Get user from database
         user = conn.execute('''
-            SELECT username, full_name, role FROM employees WHERE id = ?
+            SELECT username, full_name, role, preferred_language FROM employees WHERE id = ?
         ''', (session.get('employee_id'),)).fetchone()
         
         if not user:
@@ -487,6 +521,12 @@ def fix_my_role():
         
         # FORCE update session
         session['employee_role'] = db_role
+        
+        # Also set preferred language
+        preferred_lang = user.get('preferred_language', 'en')
+        if preferred_lang and preferred_lang in app.config['LANGUAGES']:
+            session['language'] = preferred_lang
+            
         session.permanent = True
         
         conn.close()
@@ -1593,6 +1633,7 @@ def add_employee():
         full_name = data.get('full_name', '').strip()
         password = data.get('password', '').strip()
         role = data.get('role', 'warehouse_staff').strip()
+        preferred_language = data.get('preferred_language', 'en').strip()
         
         if not username or not full_name or not password:
             return jsonify({'success': False, 'error': 'Username, full name, and password required'}), 400
@@ -1601,6 +1642,10 @@ def add_employee():
         valid_roles = ['warehouse_staff', 'manager', 'admin']
         if role not in valid_roles:
             return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
+            
+        # Validate language
+        if preferred_language not in app.config['LANGUAGES']:
+            return jsonify({'success': False, 'error': 'Invalid language specified'}), 400
             
         conn = get_db()
         
@@ -1617,9 +1662,9 @@ def add_employee():
         password_hash = hash_password(password)
         try:
             conn.execute('''
-                INSERT INTO employees (username, full_name, password_hash, role)
-                VALUES (?, ?, ?, ?)
-            ''', (username, full_name, password_hash, role))
+                INSERT INTO employees (username, full_name, password_hash, role, preferred_language)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (username, full_name, password_hash, role, preferred_language))
         except Exception as e:
             if "no such column: role" in str(e).lower():
                 # Add role column and retry

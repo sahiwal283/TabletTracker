@@ -1,0 +1,30 @@
+<!-- JavaScript for Employee Language Management -->
+<script>
+// Update employee language
+async function updateEmployeeLanguage(employeeId, newLanguage) {
+    try {
+        const response = await fetch(`/api/employees/${employeeId}/language`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                preferred_language: newLanguage 
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(`✅ Language updated to ${newLanguage === 'en' ? 'English' : 'Español'}`);
+        } else {
+            showError('❌ Failed to update language: ' + result.error);
+            // Revert the dropdown
+            location.reload();
+        }
+    } catch (error) {
+        showError('❌ Error updating language: ' + error.message);
+        location.reload();
+    }
+}
+</script>
