@@ -331,17 +331,62 @@ def hash_password(password):
 def verify_password(password, hash):
     return hashlib.sha256(password.encode()).hexdigest() == hash
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    """Homepage with login options"""
+    """Unified login homepage"""
     # If already logged in, redirect appropriately
     if session.get('employee_authenticated'):
         return redirect(url_for('warehouse_form'))
     if session.get('admin_authenticated'):
         return redirect(url_for('admin_panel'))
     
-    # Show homepage with login options
-    return render_template('homepage.html')
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        login_type = request.form.get('login_type', 'employee')
+        
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return render_template('unified_login.html')
+        
+        if login_type == 'admin':
+            # Admin login
+            admin_password = Config.ADMIN_PASSWORD
+            if password == admin_password and username.lower() == 'admin':
+                session['admin_authenticated'] = True
+                session['login_time'] = datetime.now().isoformat()
+                session.permanent = True
+                app.permanent_session_lifetime = timedelta(hours=8)
+                return redirect(url_for('admin_panel'))
+            else:
+                flash('Invalid admin credentials', 'error')
+                return render_template('unified_login.html')
+        else:
+            # Employee login
+            conn = get_db()
+            employee = conn.execute('''
+                SELECT id, username, full_name, password_hash, role, is_active 
+                FROM employees 
+                WHERE username = ? AND is_active = TRUE
+            ''', (username,)).fetchone()
+            
+            conn.close()
+            
+            if employee and verify_password(password, employee['password_hash']):
+                session['employee_authenticated'] = True
+                session['employee_id'] = employee['id']
+                session['employee_name'] = employee['full_name']
+                session['employee_username'] = employee['username']
+                session['employee_role'] = employee.get('role', 'warehouse_staff')
+                session.permanent = True
+                app.permanent_session_lifetime = timedelta(hours=8)
+                return redirect(url_for('warehouse_form'))
+            else:
+                flash('Invalid employee credentials', 'error')
+                return render_template('unified_login.html')
+    
+    # Show unified login page
+    return render_template('unified_login.html')
 
 @app.route('/version')
 def version():
@@ -971,9 +1016,8 @@ def admin_login():
 
 @app.route('/admin/logout')
 def admin_logout():
-    """Logout admin"""
-    session.pop('admin_authenticated', None)
-    return redirect('/')
+    """Admin logout (redirects to unified logout)"""
+    return redirect(url_for('logout'))
 
 @app.route('/login')
 def employee_login():
@@ -1023,14 +1067,19 @@ def employee_login_post():
             return jsonify({'success': False, 'error': 'Invalid username or password'})
 
 @app.route('/logout')
-def employee_logout():
-    """Employee logout"""
+def logout():
+    """Unified logout for both employees and admin"""
+    # Clear all session data
     session.pop('employee_authenticated', None)
     session.pop('employee_id', None)
     session.pop('employee_name', None)
     session.pop('employee_username', None)
     session.pop('employee_role', None)
-    return redirect(url_for('employee_login'))
+    session.pop('admin_authenticated', None)
+    session.pop('login_time', None)
+    
+    flash('You have been logged out successfully', 'success')
+    return redirect(url_for('index'))
 
 @app.route('/count')
 @employee_required

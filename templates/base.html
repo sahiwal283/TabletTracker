@@ -328,6 +328,31 @@
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg> Admin
                     </a>
                     {% endif %}
+                    <!-- User Info & Logout -->
+                    {% if session.employee_authenticated or session.admin_authenticated %}
+                    <div class="flex items-center ml-4 space-x-4">
+                        <!-- User Info -->
+                        <div class="hidden sm:flex items-center text-sm">
+                            {% if session.employee_authenticated %}
+                                <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-user" /></svg>
+                                <span class="text-white/80">{{ session.employee_name }}</span>
+                                {% if session.employee_role %}
+                                    <span class="ml-1 text-xs text-white/60">({{ session.employee_role.replace('_', ' ').title() }})</span>
+                                {% endif %}
+                            {% else %}
+                                <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg>
+                                <span class="text-white/80">Administrator</span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Logout Button -->
+                        <a href="{{ url_for('logout') }}" class="nav-link hover:text-red-300 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-red-500/20 flex items-center text-sm">
+                            <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
+                            <span class="hidden sm:inline">Logout</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    
                     <!-- Language Toggle -->
                     <div class="relative ml-4">
                         <button onclick="toggleLanguageMenu()" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
