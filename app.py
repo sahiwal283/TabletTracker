@@ -334,7 +334,7 @@ def verify_password(password, hash):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Unified login homepage"""
-        # If already logged in, redirect appropriately
+    # If already logged in, redirect appropriately
     if session.get('employee_authenticated'):
         # Role-based redirect for returning users
         role = session.get('employee_role', 'warehouse_staff')
