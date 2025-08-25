@@ -542,7 +542,7 @@ def submit_warehouse():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
-@role_required('dashboard')
+@admin_required
 def admin_dashboard():
     """Desktop dashboard for managers/admins"""
     conn = get_db()
@@ -711,7 +711,7 @@ def shipments_management():
     return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
 
 @app.route('/shipping')
-@role_required('shipping')
+@admin_required
 def shipping_unified():
     """Unified shipping and receiving management page"""
     try:
@@ -1400,11 +1400,21 @@ def delete_tablet_type(tablet_type_id):
 def manage_employees():
     """Employee management page"""
     conn = get_db()
-    employees = conn.execute('''
-        SELECT id, username, full_name, role, is_active, created_at
-        FROM employees 
-        ORDER BY role, full_name
-    ''').fetchall()
+    
+    # Check if role column exists, if not, add it
+    try:
+        employees = conn.execute('''
+            SELECT id, username, full_name, role, is_active, created_at
+            FROM employees 
+            ORDER BY role, full_name
+        ''').fetchall()
+    except:
+        # Role column doesn't exist yet, use default query
+        employees = conn.execute('''
+            SELECT id, username, full_name, 'warehouse_staff' as role, is_active, created_at
+            FROM employees 
+            ORDER BY full_name
+        ''').fetchall()
     
     conn.close()
     return render_template('employee_management.html', employees=employees)

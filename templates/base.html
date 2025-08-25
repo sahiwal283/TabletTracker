@@ -308,22 +308,22 @@
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-calc" /></svg> Count
                     </a>
                     
-                    <!-- Dashboard - Supervisor+ -->
-                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] %}
+                    <!-- Dashboard - Supervisor+ or Admin session -->
+                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] or session.admin_authenticated %}
                     <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
                     {% endif %}
                     
-                    <!-- Shipping - Supervisor+ -->
-                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] %}
+                    <!-- Shipping - Supervisor+ or Admin session -->
+                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] or session.admin_authenticated %}
                     <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-truck" /></svg> Shipping
                     </a>
                     {% endif %}
                     
-                    <!-- Admin - Admin only -->
-                    {% if session.employee_role == 'admin' %}
+                    <!-- Admin - Admin role or Admin session -->
+                    {% if session.employee_role == 'admin' or session.admin_authenticated %}
                     <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg> Admin
                     </a>
