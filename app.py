@@ -1755,6 +1755,62 @@ def update_employee_role(employee_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/employees/<int:employee_id>/language', methods=['PUT'])
+@admin_required
+def update_employee_language(employee_id):
+    """Update an employee's preferred language"""
+    conn = None
+    try:
+        data = request.get_json()
+        new_language = data.get('preferred_language', '').strip()
+        
+        app.logger.info(f"Updating employee {employee_id} language to {new_language}")
+        
+        # Validate language
+        if new_language not in app.config['LANGUAGES']:
+            return jsonify({'success': False, 'error': 'Invalid language specified'}), 400
+            
+        conn = get_db()
+        
+        # Check if employee exists first
+        employee = conn.execute('SELECT id FROM employees WHERE id = ?', (employee_id,)).fetchone()
+        if not employee:
+            return jsonify({'success': False, 'error': 'Employee not found'}), 404
+        
+        # Ensure preferred_language column exists
+        try:
+            # Test if column exists
+            conn.execute('SELECT preferred_language FROM employees LIMIT 1').fetchone()
+            app.logger.info("preferred_language column exists")
+        except sqlite3.OperationalError:
+            # Add column
+            app.logger.info("Adding preferred_language column")
+            conn.execute('ALTER TABLE employees ADD COLUMN preferred_language TEXT DEFAULT "en"')
+            conn.commit()
+            app.logger.info("Column added successfully")
+        
+        # Update the language
+        result = conn.execute('''
+            UPDATE employees 
+            SET preferred_language = ? 
+            WHERE id = ?
+        ''', (new_language, employee_id))
+        conn.commit()
+        
+        app.logger.info(f"Update result: {result.rowcount} rows affected")
+        
+        if result.rowcount == 0:
+            return jsonify({'success': False, 'error': 'Employee not found'}), 404
+                
+        return jsonify({'success': True, 'message': f'Language updated to {new_language}'})
+        
+    except Exception as e:
+        app.logger.error(f"Language update error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 @app.route('/api/toggle_employee/<int:employee_id>', methods=['POST'])
 def toggle_employee(employee_id):
     """Toggle employee active status"""
