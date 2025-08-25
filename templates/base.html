@@ -362,7 +362,7 @@
                         </button>
                         <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
                             {% for code, name in languages.items() %}
-                            <a href="?lang={{ code }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
+                            <a href="javascript:void(0)" onclick="changeLanguage('{{ code }}')" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
                                 <span class="mr-2">{% if code == 'en' %}🇺🇸{% else %}🇪🇸{% endif %}</span>
                                 {{ name }}
                                 {% if current_language == code %}<span class="float-right">✓</span>{% endif %}
@@ -484,6 +484,37 @@
                 menu.classList.add('hidden');
             }
         });
+
+        // Language change function - persists across pages
+        function changeLanguage(langCode) {
+            // Store language choice in session via API call
+            fetch('/api/set-language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ language: langCode })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload the current page with the new language
+                    window.location.reload();
+                } else {
+                    console.error('Failed to set language:', data.error);
+                    // Fallback to URL parameter method
+                    window.location.href = window.location.pathname + '?lang=' + langCode;
+                }
+            })
+            .catch(error => {
+                console.error('Language change error:', error);
+                // Fallback to URL parameter method
+                window.location.href = window.location.pathname + '?lang=' + langCode;
+            });
+            
+            // Close the menu
+            document.getElementById('language-menu').classList.add('hidden');
+        }
 
         // Add some sparkle effect on page load
         document.addEventListener('DOMContentLoaded', function() {
