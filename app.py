@@ -398,11 +398,20 @@ def index():
                 role = employee.get('role')
                 app.logger.info(f"Raw role from DB for {employee['username']}: '{role}' (type: {type(role)})")
                 
-                # Force default if role is None, empty string, or whitespace
-                if not role or str(role).strip() == '' or role is None:
+                # Handle None/null roles specifically  
+                if role is None:
                     role = 'warehouse_staff'
-                    app.logger.info(f"Setting default role 'warehouse_staff' for {employee['username']}")
-                    # Force update database
+                    app.logger.info(f"Role was None, setting default 'warehouse_staff' for {employee['username']}")
+                elif not role or str(role).strip() == '':
+                    role = 'warehouse_staff'
+                    app.logger.info(f"Role was empty, setting default 'warehouse_staff' for {employee['username']}")
+                else:
+                    # Role exists and is not empty - use it
+                    role = str(role).strip()
+                    app.logger.info(f"Using existing role '{role}' for {employee['username']}")
+                
+                # Update database if we had to set a default
+                if role == 'warehouse_staff' and (employee.get('role') is None or str(employee.get('role')).strip() == ''):
                     try:
                         conn.execute('''
                             UPDATE employees SET role = ? WHERE id = ?
@@ -412,10 +421,9 @@ def index():
                     except Exception as e:
                         app.logger.error(f"Failed to update role for employee {employee['id']}: {e}")
                 
-                # Force string type and strip whitespace
-                role = str(role).strip()
+                # CRITICAL: Set session role
                 session['employee_role'] = role
-                app.logger.info(f"Set session role for {employee['username']}: '{role}'")
+                app.logger.info(f"FINAL: Set session role for {employee['username']}: '{role}'")
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
                 
