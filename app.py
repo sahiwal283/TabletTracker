@@ -1616,7 +1616,8 @@ def manage_employees():
     except:
         # Role column doesn't exist yet, use default query
         employees = conn.execute('''
-            SELECT id, username, full_name, 'warehouse_staff' as role, is_active, created_at
+            SELECT id, username, full_name, 'warehouse_staff' as role, is_active, created_at, 
+                   COALESCE(preferred_language, 'en') as preferred_language
             FROM employees 
             ORDER BY full_name
         ''').fetchall()

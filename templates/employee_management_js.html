@@ -2,6 +2,7 @@
 <script>
 // Update employee language
 async function updateEmployeeLanguage(employeeId, newLanguage) {
+    console.log(`Updating employee ${employeeId} language to ${newLanguage}`);
     try {
         const response = await fetch(`/api/employees/${employeeId}/language`, {
             method: 'PUT',
@@ -13,18 +14,24 @@ async function updateEmployeeLanguage(employeeId, newLanguage) {
             })
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const result = await response.json();
+        console.log('API Response:', result);
         
         if (result.success) {
             showSuccess(`✅ Language updated to ${newLanguage === 'en' ? 'English' : 'Español'}`);
         } else {
             showError('❌ Failed to update language: ' + result.error);
             // Revert the dropdown
-            location.reload();
+            setTimeout(() => location.reload(), 2000);
         }
     } catch (error) {
+        console.error('Language update error:', error);
         showError('❌ Error updating language: ' + error.message);
-        location.reload();
+        setTimeout(() => location.reload(), 2000);
     }
 }
 </script>
