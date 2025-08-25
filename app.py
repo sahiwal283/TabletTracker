@@ -1609,7 +1609,7 @@ def manage_employees():
     # Check if role column exists, if not, add it
     try:
         employees = conn.execute('''
-            SELECT id, username, full_name, role, is_active, created_at
+            SELECT id, username, full_name, role, is_active, created_at, preferred_language
             FROM employees 
             ORDER BY role, full_name
         ''').fetchall()
