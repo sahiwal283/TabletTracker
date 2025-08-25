@@ -334,9 +334,16 @@ def verify_password(password, hash):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Unified login homepage"""
-    # If already logged in, redirect appropriately
+        # If already logged in, redirect appropriately
     if session.get('employee_authenticated'):
-        return redirect(url_for('warehouse_form'))
+        # Role-based redirect for returning users
+        role = session.get('employee_role', 'warehouse_staff')
+        if role in ['manager', 'admin']:
+            return redirect(url_for('admin_dashboard'))
+        elif role == 'supervisor':
+            return redirect(url_for('admin_dashboard'))
+        else:  # warehouse_staff
+            return redirect(url_for('warehouse_form'))
     if session.get('admin_authenticated'):
         return redirect(url_for('admin_panel'))
     
@@ -380,7 +387,15 @@ def index():
                 session['employee_role'] = employee.get('role', 'warehouse_staff')
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
-                return redirect(url_for('warehouse_form'))
+                
+                # Role-based redirect
+                role = employee.get('role', 'warehouse_staff')
+                if role in ['manager', 'admin']:
+                    return redirect(url_for('admin_dashboard'))
+                elif role == 'supervisor':
+                    return redirect(url_for('admin_dashboard'))
+                else:  # warehouse_staff
+                    return redirect(url_for('warehouse_form'))
             else:
                 flash('Invalid employee credentials', 'error')
                 return render_template('unified_login.html')
@@ -587,7 +602,7 @@ def submit_warehouse():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
-@admin_required
+@role_required('dashboard')
 def admin_dashboard():
     """Desktop dashboard for managers/admins"""
     conn = get_db()
@@ -756,7 +771,7 @@ def shipments_management():
     return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
 
 @app.route('/shipping')
-@admin_required
+@role_required('shipping')
 def shipping_unified():
     """Unified shipping and receiving management page"""
     try:
