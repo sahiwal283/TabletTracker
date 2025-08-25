@@ -1450,10 +1450,21 @@ def add_employee():
         
         # Hash password and insert employee
         password_hash = hash_password(password)
-        conn.execute('''
-            INSERT INTO employees (username, full_name, password_hash, role)
-            VALUES (?, ?, ?, ?)
-        ''', (username, full_name, password_hash, role))
+        try:
+            conn.execute('''
+                INSERT INTO employees (username, full_name, password_hash, role)
+                VALUES (?, ?, ?, ?)
+            ''', (username, full_name, password_hash, role))
+        except Exception as e:
+            if "no such column: role" in str(e).lower():
+                # Add role column and retry
+                conn.execute('ALTER TABLE employees ADD COLUMN role TEXT DEFAULT "warehouse_staff"')
+                conn.execute('''
+                    INSERT INTO employees (username, full_name, password_hash, role)
+                    VALUES (?, ?, ?, ?)
+                ''', (username, full_name, password_hash, role))
+            else:
+                raise e
         
         conn.commit()
         conn.close()
@@ -1486,13 +1497,25 @@ def update_employee_role(employee_id):
         
         if not employee:
             return jsonify({'success': False, 'error': 'Employee not found'}), 404
-            
-        # Update employee role
-        conn.execute('''
-            UPDATE employees 
-            SET role = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ''', (new_role, employee_id))
+        
+        # Check if role column exists, if not, add it first
+        try:
+            conn.execute('''
+                UPDATE employees 
+                SET role = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (new_role, employee_id))
+        except Exception as e:
+            if "no such column: role" in str(e).lower():
+                # Add role column and retry
+                conn.execute('ALTER TABLE employees ADD COLUMN role TEXT DEFAULT "warehouse_staff"')
+                conn.execute('''
+                    UPDATE employees 
+                    SET role = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (new_role, employee_id))
+            else:
+                raise e
         
         conn.commit()
         conn.close()
