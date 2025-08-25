@@ -419,6 +419,47 @@ def version():
         'description': __description__
     })
 
+@app.route('/debug-session')
+@employee_required  
+def debug_session():
+    """Debug session and role information"""
+    conn = get_db()
+    
+    # Get current session info
+    session_info = {
+        'employee_authenticated': session.get('employee_authenticated'),
+        'employee_id': session.get('employee_id'),
+        'employee_name': session.get('employee_name'),
+        'employee_username': session.get('employee_username'),
+        'employee_role': session.get('employee_role'),
+        'admin_authenticated': session.get('admin_authenticated')
+    }
+    
+    # Get database info for current user
+    db_info = None
+    if session.get('employee_id'):
+        db_info = conn.execute('''
+            SELECT id, username, full_name, role, is_active 
+            FROM employees WHERE id = ?
+        ''', (session.get('employee_id'),)).fetchone()
+    
+    conn.close()
+    
+    return f'''
+    <h2>Session Debug Info</h2>
+    <h3>Session Data:</h3>
+    <pre>{session_info}</pre>
+    
+    <h3>Database Data:</h3>
+    <pre>{dict(db_info) if db_info else "No database record found"}</pre>
+    
+    <h3>Navigation Conditions:</h3>
+    <p>Dashboard/Shipping visible if: session.employee_role in ['manager', 'admin']</p>
+    <p>Current role check: "{session.get('employee_role')}" in ['manager', 'admin'] = {session.get('employee_role') in ['manager', 'admin']}</p>
+    
+    <a href="/">← Back to Home</a>
+    '''
+
 @app.route('/warehouse')
 @employee_required
 def warehouse_form():
