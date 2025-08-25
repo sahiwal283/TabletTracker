@@ -394,20 +394,28 @@ def index():
                 session['employee_name'] = employee['full_name']
                 session['employee_username'] = employee['username']
                 
-                # Ensure role is properly set (handle empty/null roles)
-                role = employee.get('role') or 'warehouse_staff'
-                if not role or role.strip() == '':
+                # FORCE role assignment - ensure no empty roles
+                role = employee.get('role')
+                app.logger.info(f"Raw role from DB for {employee['username']}: '{role}' (type: {type(role)})")
+                
+                # Force default if role is None, empty string, or whitespace
+                if not role or str(role).strip() == '' or role is None:
                     role = 'warehouse_staff'
-                    # Update database with default role
+                    app.logger.info(f"Setting default role 'warehouse_staff' for {employee['username']}")
+                    # Force update database
                     try:
                         conn.execute('''
                             UPDATE employees SET role = ? WHERE id = ?
                         ''', (role, employee['id']))
                         conn.commit()
+                        app.logger.info(f"Updated DB role for {employee['username']} to '{role}'")
                     except Exception as e:
-                        app.logger.warning(f"Could not update role for employee {employee['id']}: {e}")
+                        app.logger.error(f"Failed to update role for employee {employee['id']}: {e}")
                 
+                # Force string type and strip whitespace
+                role = str(role).strip()
                 session['employee_role'] = role
+                app.logger.info(f"Set session role for {employee['username']}: '{role}'")
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
                 
@@ -431,6 +439,31 @@ def version():
         'title': __title__,
         'description': __description__
     })
+
+@app.route('/force-fix-role')
+@employee_required
+def force_fix_role():
+    """Force fix role for current user"""
+    conn = get_db()
+    try:
+        # Force set role to warehouse_staff
+        conn.execute('''
+            UPDATE employees SET role = 'warehouse_staff' 
+            WHERE id = ?
+        ''', (session.get('employee_id'),))
+        conn.commit()
+        
+        # Update session
+        session['employee_role'] = 'warehouse_staff'
+        
+        flash('✅ Role fixed! You now have warehouse_staff role. Admin can change this to manager in Admin Panel.', 'success')
+        return redirect(url_for('warehouse_form'))
+        
+    except Exception as e:
+        flash(f'❌ Error fixing role: {e}', 'error')
+        return redirect(url_for('debug_session'))
+    finally:
+        conn.close()
 
 @app.route('/debug-session')
 @employee_required  
@@ -458,6 +491,18 @@ def debug_session():
     
     conn.close()
     
+    # Force fix role if empty
+    if session.get('employee_id') and (not session.get('employee_role') or session.get('employee_role').strip() == ''):
+        try:
+            conn.execute('''
+                UPDATE employees SET role = 'warehouse_staff' WHERE id = ? AND (role IS NULL OR role = '')
+            ''', (session.get('employee_id'),))
+            conn.commit()
+            session['employee_role'] = 'warehouse_staff'
+            flash('Fixed empty role - you now have warehouse_staff role', 'success')
+        except Exception as e:
+            flash(f'Could not fix role: {e}', 'error')
+    
     return f'''
     <h2>Session Debug Info</h2>
     <h3>Session Data:</h3>
@@ -470,6 +515,10 @@ def debug_session():
     <p>Dashboard/Shipping visible if: session.employee_role in ['manager', 'admin']</p>
     <p>Current role check: "{session.get('employee_role')}" in ['manager', 'admin'] = {session.get('employee_role') in ['manager', 'admin']}</p>
     
+    <h3>Quick Actions:</h3>
+    <a href="/force-fix-role" style="background:red;color:white;padding:10px;text-decoration:none;border-radius:5px;">FORCE FIX MY ROLE</a>
+    
+    <br/><br/>
     <a href="/">← Back to Home</a>
     '''
 
