@@ -393,12 +393,25 @@ def index():
                 session['employee_id'] = employee['id']
                 session['employee_name'] = employee['full_name']
                 session['employee_username'] = employee['username']
-                session['employee_role'] = employee.get('role', 'warehouse_staff')
+                
+                # Ensure role is properly set (handle empty/null roles)
+                role = employee.get('role') or 'warehouse_staff'
+                if not role or role.strip() == '':
+                    role = 'warehouse_staff'
+                    # Update database with default role
+                    try:
+                        conn.execute('''
+                            UPDATE employees SET role = ? WHERE id = ?
+                        ''', (role, employee['id']))
+                        conn.commit()
+                    except Exception as e:
+                        app.logger.warning(f"Could not update role for employee {employee['id']}: {e}")
+                
+                session['employee_role'] = role
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
                 
                 # Role-based redirect
-                role = employee.get('role', 'warehouse_staff')
                 if role in ['manager', 'admin']:
                     return redirect(url_for('admin_dashboard'))
                 else:  # warehouse_staff
