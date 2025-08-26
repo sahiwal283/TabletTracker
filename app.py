@@ -2201,36 +2201,23 @@ def delete_shipment(shipment_id):
 
 @app.route('/shipments')
 def public_shipments():
-    """Unified shipments page - combines tracking, receiving, and management"""
-    try:
-        conn = get_db()
+    """Unified shipments page - test version"""
+    # Super simple test - no database, no template, just plain HTML
+    return """
+    <html>
+    <head><title>Shipments Test</title></head>
+    <body>
+        <h1>Shipments Page Test</h1>
+        <p>If you see this, the route is working!</p>
+        <p><a href="/">← Back to Home</a></p>
         
-        # Check if shipments table exists first
-        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='shipments'").fetchone()
-        
-        if not tables:
-            # No shipments table yet - just show empty page with message
-            conn.close()
-            return render_template('shipments_public.html', 
-                                 shipments=[], 
-                                 message="No shipments table found. Database needs to be set up.")
-        
-        # Get all shipments with PO info
-        rows = conn.execute('''
-            SELECT s.*, po.po_number, po.tablet_type, po.ordered_quantity
-            FROM shipments s
-            JOIN purchase_orders po ON s.po_id = po.id
-            ORDER BY s.created_at DESC
-        ''').fetchall()
-        
-        shipments = [dict(row) for row in rows]
-        conn.close()
-        
-        return render_template('shipments_public.html', shipments=shipments)
-        
-    except Exception as e:
-        # Safe fallback - show the error for debugging
-        return f"<h1>Shipments Debug</h1><p>Error: {str(e)}</p><p><a href='/'>← Back to Home</a></p>"
+        <h2>Debug Info:</h2>
+        <p>Route: /shipments</p>
+        <p>Function: public_shipments</p>
+        <p>Status: Basic route working</p>
+    </body>
+    </html>
+    """
 
 @app.route('/api/create_sample_receiving_data', methods=['POST'])
 @admin_required  
