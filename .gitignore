@@ -11,12 +11,12 @@ ENV/
 env/
 
 # Environment variables
-.env
-.env.*
+# .env
+# .env.*
 
 # Database
-*.db
-*.sqlite3
+# *.db
+# *.sqlite3
 
 # Flask
 instance/

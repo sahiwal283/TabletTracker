@@ -298,7 +298,7 @@
                         <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
                         <span class="ml-2 text-xs text-gray-300 font-normal">v{{ version() }}</span>
                     </a>
-                </h1>
+            </h1>
                 <div class="hidden md:flex space-x-6">
                     <!-- Always visible for employees -->
                     <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
@@ -308,15 +308,15 @@
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-calc" /></svg> Count
                     </a>
                     
-                    <!-- Dashboard - Supervisor+ -->
-                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] %}
+                    <!-- Dashboard - Manager+ -->
+                    {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
                     {% endif %}
                     
-                    <!-- Shipping - Supervisor+ -->
-                    {% if session.employee_role in ['supervisor', 'manager', 'admin'] %}
+                    <!-- Shipping - Manager+ -->
+                    {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-truck" /></svg> Shipping
                     </a>
@@ -328,6 +328,14 @@
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg> Admin
                     </a>
                     {% endif %}
+                    <!-- Logout Button -->
+                    {% if session.employee_authenticated or session.admin_authenticated %}
+                    <a href="{{ url_for('logout') }}" class="nav-link hover:text-red-300 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-red-500 hover:bg-opacity-20 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
+                        <span class="hidden sm:inline">Logout</span>
+                    </a>
+                    {% endif %}
+                    
                     <!-- Language Toggle -->
                     <div class="relative ml-4">
                         <button onclick="toggleLanguageMenu()" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">

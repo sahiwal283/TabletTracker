@@ -8,7 +8,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-change-in-production'
     
     # Admin authentication
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'TabletTracker2024!'  # Change in production!
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin'  # Change in production!
     
     # Zoho API settings
     ZOHO_CLIENT_ID = os.environ.get('ZOHO_CLIENT_ID')

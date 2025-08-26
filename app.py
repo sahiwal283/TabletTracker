@@ -286,8 +286,10 @@ def get_db():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get('admin_authenticated'):
-            return redirect(url_for('admin_panel'))  # Redirect to admin login
+        # Allow if admin authenticated OR if employee authenticated with admin role
+        if not (session.get('admin_authenticated') or 
+                (session.get('employee_authenticated') and session.get('employee_role') == 'admin')):
+            return redirect(url_for('index'))  # Redirect to unified login
         return f(*args, **kwargs)
     return decorated_function
 
@@ -327,8 +329,13 @@ def role_required(required_permission):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Allow admin users to access any role-based route
+            if session.get('admin_authenticated'):
+                return f(*args, **kwargs)
+                
+            # Check employee authentication and permissions
             if not session.get('employee_authenticated') or not session.get('employee_id'):
-                return redirect(url_for('employee_login'))
+                return redirect(url_for('index'))  # Redirect to unified login
             
             username = session.get('employee_username')
             if not username or not has_permission(username, required_permission):
@@ -343,8 +350,9 @@ def role_required(required_permission):
 def employee_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get('employee_authenticated') or not session.get('employee_id'):
-            return redirect(url_for('employee_login'))
+        # Allow if employee authenticated OR if admin authenticated
+        if not (session.get('employee_authenticated') or session.get('admin_authenticated')):
+            return redirect(url_for('index'))  # Redirect to unified login
         return f(*args, **kwargs)
     return decorated_function
 
@@ -366,7 +374,7 @@ def index():
         # Smart redirect based on role
         role = session.get('employee_role', 'warehouse_staff')
         if role in ['manager', 'admin']:
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('admin_dashboard'))
         else:
             return redirect(url_for('warehouse_form'))
     
@@ -384,6 +392,7 @@ def index():
             admin_password = Config.ADMIN_PASSWORD
             if password == admin_password and username.lower() == 'admin':
                 session['admin_authenticated'] = True
+                session['employee_role'] = 'admin'  # Set admin role for navigation
                 session['login_time'] = datetime.now().isoformat()
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
@@ -416,7 +425,7 @@ def index():
                 role = employee['role'] if employee['role'] else 'warehouse_staff'
                 if role in ['manager', 'admin']:
                     flash(f'Welcome back, {employee["full_name"]}!', 'success')
-                    return redirect(url_for('dashboard'))
+                    return redirect(url_for('admin_dashboard'))
                 else:
                     flash(f'Welcome back, {employee["full_name"]}!', 'success')
                     return redirect(url_for('warehouse_form'))
@@ -1038,6 +1047,7 @@ def admin_login():
     
     if password == admin_password:
         session['admin_authenticated'] = True
+        session['employee_role'] = 'admin'  # Set admin role for navigation
         session['login_time'] = datetime.now().isoformat()
         session.permanent = True  # Make session permanent
         app.permanent_session_lifetime = timedelta(hours=8)  # 8 hour timeout
@@ -2390,6 +2400,7 @@ def get_available_boxes_bags(po_id):
         })
     
     return jsonify({'boxes': boxes})
+
 
 @app.route('/api/create_sample_receiving_data', methods=['POST'])
 @admin_required  
