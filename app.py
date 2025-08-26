@@ -11,11 +11,34 @@ from zoho_integration import zoho_api
 from __version__ import __version__, __title__, __description__
 from tracking_service import refresh_shipment_row
 from report_service import ProductionReportGenerator
+from flask_babel import Babel, gettext, ngettext, lazy_gettext, get_locale
 
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
 
+# Configure Babel for internationalization
+app.config['LANGUAGES'] = {
+    'en': 'English',
+    'es': 'Español'
+}
+app.config['BABEL_DEFAULT_LOCALE'] = 'en'
+app.config['BABEL_DEFAULT_TIMEZONE'] = 'UTC'
+
+def get_locale():
+    # 1. Check if user explicitly chose a language
+    if request.args.get('lang'):
+        session['language'] = request.args.get('lang')
+    
+    # 2. Use session language if available
+    if 'language' in session and session['language'] in app.config['LANGUAGES']:
+        return session['language']
+    
+    # 3. Use browser's preferred language if available
+    return request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or app.config['BABEL_DEFAULT_LOCALE']
+
+babel = Babel()
+babel.init_app(app, locale_selector=get_locale)
 # Configure session settings for production security
 if Config.ENV == 'production':
     app.config['SESSION_COOKIE_SECURE'] = True
@@ -50,7 +73,7 @@ def after_request(response):
 
 # Database setup
 def init_db():
-    conn = sqlite3.connect('tablet_counter.db')
+    conn = sqlite3.connect('tablettracker.db')
     c = conn.cursor()
     
     # Purchase Orders table
@@ -168,6 +191,54 @@ def init_db():
             except Exception:
                 pass
     
+    # Add pill_count column to bags table if it doesn't exist
+    try:
+        c.execute('SELECT pill_count FROM bags LIMIT 1')
+    except Exception:
+        try:
+            c.execute('ALTER TABLE bags ADD COLUMN pill_count INTEGER')
+        except Exception:
+            pass
+    
+    # Receiving table - tracks shipment arrival and photos
+    c.execute('''CREATE TABLE IF NOT EXISTS receiving (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        po_id INTEGER,
+        shipment_id INTEGER,
+        received_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        delivery_photo_path TEXT,
+        delivery_photo_zoho_id TEXT,
+        total_small_boxes INTEGER DEFAULT 0,
+        received_by TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders (id),
+        FOREIGN KEY (shipment_id) REFERENCES shipments (id)
+    )''')
+    
+    # Small boxes table - tracks individual boxes within shipment
+    c.execute('''CREATE TABLE IF NOT EXISTS small_boxes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        receiving_id INTEGER,
+        box_number INTEGER,
+        total_bags INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (receiving_id) REFERENCES receiving (id)
+    )''')
+    
+    # Bags table - tracks individual bags within boxes
+    c.execute('''                CREATE TABLE IF NOT EXISTS bags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    small_box_id INTEGER,
+                    bag_number INTEGER,
+                    bag_label_count INTEGER,
+                    pill_count INTEGER,
+                    status TEXT DEFAULT 'Available',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
+                )''')
+
     # Employees table for user authentication
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,7 +254,7 @@ def init_db():
     conn.close()
 
 def get_db():
-    conn = sqlite3.connect('tablet_counter.db')
+    conn = sqlite3.connect('tablettracker.db')
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -191,7 +262,8 @@ def get_db():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # For now, allow all access - implement authentication later
+        if not session.get('admin_authenticated'):
+            return redirect(url_for('admin_panel'))  # Redirect to admin login
         return f(*args, **kwargs)
     return decorated_function
 
@@ -417,6 +489,7 @@ def submit_warehouse():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
+@admin_required
 def admin_dashboard():
     """Desktop dashboard for managers/admins"""
     conn = get_db()
@@ -503,6 +576,7 @@ def public_shipments():
     return render_template('shipments_public.html', shipments=rows)
 
 @app.route('/api/sync_zoho_pos')
+@admin_required
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
     try:
@@ -530,6 +604,7 @@ def get_po_lines(po_id):
     return jsonify([dict(line) for line in lines])
 
 @app.route('/admin/products')
+@admin_required
 def product_mapping():
     """Show product → tablet mapping and calculation examples"""
     conn = get_db()
@@ -549,12 +624,9 @@ def product_mapping():
     return render_template('product_mapping.html', products=products, tablet_types=tablet_types)
 
 @app.route('/admin/tablet_types')
+@admin_required
 def tablet_types_config():
     """Configuration page for tablet types and their inventory item IDs"""
-    # Check for admin session
-    if not session.get('admin_authenticated'):
-        return redirect('/admin')
-        
     conn = get_db()
     
     # Get all tablet types with their current inventory item IDs
@@ -567,12 +639,9 @@ def tablet_types_config():
     return render_template('tablet_types_config.html', tablet_types=tablet_types)
 
 @app.route('/admin/shipments')
+@admin_required
 def shipments_management():
     """Shipment tracking management page"""
-    # Check for admin session
-    if not session.get('admin_authenticated'):
-        return redirect('/admin')
-        
     conn = get_db()
     
     # Get all POs with optional shipment info
@@ -835,6 +904,7 @@ def employee_logout():
     return redirect(url_for('employee_login'))
 
 @app.route('/count')
+@employee_required
 def count_form():
     """Manual count form for end-of-period PO close-outs"""
     conn = get_db()
@@ -971,6 +1041,7 @@ def submit_count():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/save_product', methods=['POST'])
+@admin_required
 def save_product():
     """Save or update a product configuration"""
     try:
@@ -1196,11 +1267,9 @@ def delete_tablet_type(tablet_type_id):
 
 # Employee Management Routes for Admin
 @app.route('/admin/employees')
+@admin_required
 def manage_employees():
     """Employee management page"""
-    if not session.get('admin_authenticated'):
-        return redirect('/admin')
-        
     conn = get_db()
     employees = conn.execute('''
         SELECT id, username, full_name, is_active, created_at
@@ -1450,6 +1519,7 @@ def test_zoho_connection():
         })
 
 @app.route('/api/clear_po_data', methods=['POST'])
+@admin_required
 def clear_po_data():
     """Clear all PO data for fresh sync testing"""
     try:
@@ -1611,6 +1681,463 @@ def get_po_summary_for_reports():
             'error': f'Failed to get PO summary: {str(e)}'
         }), 500
 
+# ===== RECEIVING MANAGEMENT ROUTES =====
+
+# Temporarily removed force-reload route due to import issues
+
+@app.route('/debug/server-info')
+def server_debug_info():
+    """Debug route to check server state - no auth required"""
+    import os
+    import time
+    import sqlite3
+    
+    try:
+        # Check file timestamps
+        app_py_time = os.path.getmtime('app.py')
+        version_time = os.path.getmtime('__version__.py')
+        
+        # Check if we can read version
+        try:
+            from __version__ import __version__, __title__
+            version_info = f"{__title__} v{__version__}"
+        except:
+            version_info = "Version import failed"
+        
+        # Check current working directory
+        cwd = os.getcwd()
+        
+        # Check if template exists
+        template_exists = os.path.exists('templates/receiving_management.html')
+        
+        # Find database path and check what tables exist
+        db_path = 'tablettracker.db'
+        db_full_path = os.path.abspath(db_path)
+        db_exists = os.path.exists(db_path)
+        
+        # Check what tables actually exist in this database
+        tables_info = "Database not accessible"
+        if db_exists:
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [row[0] for row in cursor.fetchall()]
+                tables_info = f"Tables: {tables}"
+                conn.close()
+            except Exception as e:
+                tables_info = f"Database error: {e}"
+        
+        return f"""
+        <h2>Server Debug Info</h2>
+        <p><strong>Version:</strong> {version_info}</p>
+        <p><strong>Working Directory:</strong> {cwd}</p>
+        <p><strong>App.py Modified:</strong> {time.ctime(app_py_time)}</p>
+        <p><strong>Version.py Modified:</strong> {time.ctime(version_time)}</p>
+        <p><strong>Receiving Template Exists:</strong> {template_exists}</p>
+        <p><strong>Python Path:</strong> {os.sys.path[0]}</p>
+        <hr>
+        <p><strong>Database Path:</strong> {db_full_path}</p>
+        <p><strong>Database Exists:</strong> {db_exists}</p>
+        <p><strong>{tables_info}</strong></p>
+        <hr>
+        <p><a href="/receiving">Test Receiving Route</a></p>
+        <p><a href="/receiving/debug">Test Debug Route</a></p>
+        """
+        
+    except Exception as e:
+        return f"<h2>Server Debug Error</h2><p>{str(e)}</p>"
+
+@app.route('/receiving/debug')
+@admin_required
+def receiving_debug():
+    """Debug route to test receiving functionality"""
+    try:
+        conn = get_db()
+        
+        # Test database connections
+        po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
+        shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
+        receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+        
+        # Test the actual query
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        conn.close()
+        
+        debug_info = {
+            'status': 'success',
+            'database_counts': {
+                'purchase_orders': po_count['count'] if po_count else 0,
+                'shipments': shipment_count['count'] if shipment_count else 0,
+                'receiving': receiving_count['count'] if receiving_count else 0
+            },
+            'pending_shipments': len(pending_shipments),
+            'template_exists': 'receiving_management.html exists',
+            'version': '1.7.1'
+        }
+        
+        return f"""
+        <h2>Receiving Debug Info (v1.7.1)</h2>
+        <pre>{debug_info}</pre>
+        <p><a href="/receiving">Go to actual receiving page</a></p>
+        """
+        
+    except Exception as e:
+        return f"""
+        <h2>Receiving Debug Error</h2>
+        <p>Error: {str(e)}</p>
+        <p><a href="/receiving">Try receiving page anyway</a></p>
+        """
+
+@app.route('/receiving')
+@admin_required  
+def receiving_management_v2():
+    """Receiving management page - REBUILT VERSION"""
+    try:
+        conn = get_db()
+        
+        # Simple query first - just check if we can access receiving table
+        try:
+            test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+            receiving_count = test_query['count'] if test_query else 0
+        except Exception as e:
+            conn.close()
+            return f"""
+            <h2>Database Error (v1.7.6 REBUILT)</h2>
+            <p>Cannot access receiving table: {str(e)}</p>
+            <p><a href="/debug/server-info">Check Database</a></p>
+            """
+        
+        # Get pending shipments (delivered but not yet received)
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        # Get recent receiving history
+        recent_receiving = conn.execute('''
+            SELECT r.*, po.po_number,
+                   COUNT(sb.id) as total_boxes,
+                   SUM(sb.total_bags) as total_bags
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+            LIMIT 20
+        ''').fetchall()
+        
+        conn.close()
+        
+        return render_template('receiving_management.html', 
+                             pending_shipments=pending_shipments,
+                             recent_receiving=recent_receiving)
+                             
+    except Exception as e:
+        # If template fails, return simple HTML with version
+        return f"""
+        <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
+        <p>Template error: {str(e)}</p>
+        <p><a href="/receiving/debug">View debug info</a></p>
+        <p><a href="/debug/server-info">Check Server Info</a></p>
+        <p><a href="/admin">Back to admin</a></p>
+        """
+
+@app.route('/receiving/<int:receiving_id>')
+@admin_required
+def receiving_details(receiving_id):
+    """View detailed information about a specific receiving record"""
+    try:
+        conn = get_db()
+        
+        # Get receiving record with PO and shipment info
+        receiving = conn.execute('''
+            SELECT r.*, po.po_number, s.tracking_number, s.carrier
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN shipments s ON r.shipment_id = s.id
+            WHERE r.id = ?
+        ''', (receiving_id,)).fetchone()
+        
+        if not receiving:
+            flash('Receiving record not found', 'error')
+            return redirect(url_for('receiving_management_v2'))
+        
+        # Get box and bag details
+        boxes = conn.execute('''
+            SELECT sb.*, 
+                   GROUP_CONCAT(b.bag_number) as bag_numbers, 
+                   COUNT(b.id) as bag_count,
+                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
+            FROM small_boxes sb
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            WHERE sb.receiving_id = ?
+            GROUP BY sb.id
+            ORDER BY sb.box_number
+        ''', (receiving_id,)).fetchall()
+        
+        conn.close()
+        
+        return render_template('receiving_details.html', 
+                             receiving=dict(receiving),
+                             boxes=[dict(box) for box in boxes])
+                             
+    except Exception as e:
+        flash(f'Error loading receiving details: {str(e)}', 'error')
+        return redirect(url_for('receiving_management_v2'))
+
+@app.route('/api/receiving/<int:receiving_id>', methods=['DELETE'])
+@admin_required
+def delete_receiving(receiving_id):
+    """Delete a receiving record with confirmation"""
+    try:
+        # Get confirmation password/name from request
+        data = request.get_json() or {}
+        confirmation = data.get('confirmation', '').strip().lower()
+        
+        # Require exact match of "delete" as confirmation
+        if confirmation != 'delete':
+            return jsonify({'error': 'Confirmation required. Type "delete" to confirm.'}), 400
+        
+        conn = get_db()
+        
+        # Check if receiving record exists and get info
+        receiving = conn.execute('''
+            SELECT r.id, po.po_number 
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.id = ?
+        ''', (receiving_id,)).fetchone()
+        
+        if not receiving:
+            conn.close()
+            return jsonify({'error': 'Receiving record not found'}), 404
+        
+        # Delete in correct order due to foreign key constraints
+        # 1. Delete bags first
+        conn.execute('DELETE FROM bags WHERE small_box_id IN (SELECT id FROM small_boxes WHERE receiving_id = ?)', (receiving_id,))
+        
+        # 2. Delete small_boxes
+        conn.execute('DELETE FROM small_boxes WHERE receiving_id = ?', (receiving_id,))
+        
+        # 3. Delete receiving record
+        conn.execute('DELETE FROM receiving WHERE id = ?', (receiving_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted receiving record for PO {receiving["po_number"]}'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete receiving record: {str(e)}'}), 500
+
+@app.route('/api/process_receiving', methods=['POST'])
+@admin_required
+def process_receiving():
+    """Process a new shipment receiving with photos and box/bag tracking"""
+    try:
+        conn = get_db()
+        
+        # Get form data
+        shipment_id = request.form.get('shipment_id')
+        total_small_boxes = int(request.form.get('total_small_boxes', 0))
+        received_by = request.form.get('received_by')
+        notes = request.form.get('notes', '')
+        
+        # Get shipment and PO info
+        shipment = conn.execute('''
+            SELECT s.*, po.po_number, po.id as po_id
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            WHERE s.id = ?
+        ''', (shipment_id,)).fetchone()
+        
+        if not shipment:
+            return jsonify({'error': 'Shipment not found'}), 404
+        
+        # Handle photo upload
+        delivery_photo = request.files.get('delivery_photo')
+        photo_path = None
+        zoho_photo_id = None
+        
+        if delivery_photo and delivery_photo.filename:
+            # Save photo locally
+            import os
+            from werkzeug.utils import secure_filename
+            
+            # Create uploads directory if it doesn't exist
+            upload_dir = 'static/uploads/receiving'
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Generate unique filename
+            filename = f"shipment_{shipment_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            photo_path = os.path.join(upload_dir, filename)
+            delivery_photo.save(photo_path)
+            
+            # TODO: Upload to Zoho (implement after basic workflow is working)
+        
+        # Create receiving record
+        receiving_cursor = conn.execute('''
+            INSERT INTO receiving (po_id, shipment_id, total_small_boxes, received_by, notes, delivery_photo_path, delivery_photo_zoho_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (shipment['po_id'], shipment_id, total_small_boxes, received_by, notes, photo_path, zoho_photo_id))
+        
+        receiving_id = receiving_cursor.lastrowid
+        
+        # Process box details with sequential bag numbering
+        total_bags = 0
+        all_bag_data = {}
+        
+        # First, collect all bag data from the form
+        for key in request.form.keys():
+            if key.startswith('bag_') and key.endswith('_pill_count'):
+                # Extract bag number from key like 'bag_3_pill_count'
+                bag_num = int(key.split('_')[1])
+                if bag_num not in all_bag_data:
+                    all_bag_data[bag_num] = {}
+                all_bag_data[bag_num]['pill_count'] = int(request.form[key])
+                all_bag_data[bag_num]['box'] = int(request.form.get(f'bag_{bag_num}_box', 0))
+                all_bag_data[bag_num]['notes'] = request.form.get(f'bag_{bag_num}_notes', '')
+        
+        # Process boxes and their bags with sequential numbering
+        for box_num in range(1, total_small_boxes + 1):
+            bags_in_box = int(request.form.get(f'box_{box_num}_bags', 0))
+            box_notes = request.form.get(f'box_{box_num}_notes', '')
+            
+            # Create small box record
+            box_cursor = conn.execute('''
+                INSERT INTO small_boxes (receiving_id, box_number, total_bags, notes)
+                VALUES (?, ?, ?, ?)
+            ''', (receiving_id, box_num, bags_in_box, box_notes))
+            
+            small_box_id = box_cursor.lastrowid
+            
+            # Create bag records for this box using sequential numbering
+            for bag_data_key, bag_data in all_bag_data.items():
+                if bag_data['box'] == box_num:
+                    conn.execute('''
+                        INSERT INTO bags (small_box_id, bag_number, pill_count, status)
+                        VALUES (?, ?, ?, 'Available')
+                    ''', (small_box_id, bag_data_key, bag_data['pill_count']))
+                    total_bags += 1
+        
+        # Update shipment status to indicate it's been received
+        conn.execute('''
+            UPDATE shipments SET actual_delivery = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (shipment_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully received shipment for PO {shipment["po_number"]}. Processed {total_small_boxes} boxes with {total_bags} total bags.',
+            'receiving_id': receiving_id
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to process receiving: {str(e)}'}), 500
+
+@app.route('/api/available_boxes_bags/<int:po_id>')
+@employee_required
+def get_available_boxes_bags(po_id):
+    """Get available boxes and bags for a PO (for warehouse form dropdowns)"""
+    conn = get_db()
+    
+    # Get all receiving records for this PO with available bags
+    receiving_data = conn.execute('''
+        SELECT r.id as receiving_id, sb.box_number, b.bag_number, b.id as bag_id, b.bag_label_count
+        FROM receiving r
+        JOIN small_boxes sb ON r.id = sb.receiving_id
+        JOIN bags b ON sb.id = b.small_box_id
+        WHERE r.po_id = ? AND b.status = 'Available'
+        ORDER BY sb.box_number, b.bag_number
+    ''', (po_id,)).fetchall()
+    
+    conn.close()
+    
+    # Structure data for frontend
+    boxes = {}
+    for row in receiving_data:
+        box_num = row['box_number']
+        if box_num not in boxes:
+            boxes[box_num] = []
+        boxes[box_num].append({
+            'bag_number': row['bag_number'],
+            'bag_id': row['bag_id'],
+            'bag_label_count': row['bag_label_count']
+        })
+    
+    return jsonify({'boxes': boxes})
+
+
+
+
+
+
+@app.route('/api/create_sample_receiving_data', methods=['POST'])
+@admin_required  
+def create_sample_receiving_data():
+    """Create sample PO and shipment data for testing receiving workflow"""
+    try:
+        from datetime import datetime
+        import random
+        
+        conn = get_db()
+        
+        # Generate unique PO number
+        timestamp = datetime.now().strftime('%m%d-%H%M')
+        po_number = f'TEST-{timestamp}'
+        
+        # Generate unique tracking number
+        tracking_suffix = random.randint(100000, 999999)
+        tracking_number = f'1Z999AA{tracking_suffix}'
+        
+        # Create sample PO
+        po_cursor = conn.execute('''
+            INSERT INTO purchase_orders (po_number, tablet_type, zoho_status, ordered_quantity, internal_status)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (po_number, 'Test Tablets', 'confirmed', 1000, 'Active'))
+        
+        po_id = po_cursor.lastrowid
+        
+        # Create sample shipment with delivered status
+        shipment_cursor = conn.execute('''
+            INSERT INTO shipments (po_id, tracking_number, carrier, tracking_status, delivered_at, created_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ''', (po_id, tracking_number, 'UPS', 'Delivered'))
+        
+        shipment_id = shipment_cursor.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Created sample PO {po_number} with delivered UPS shipment. Ready for receiving!',
+            'po_id': po_id,
+            'shipment_id': shipment_id
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
+
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
 @app.context_processor
@@ -1619,7 +2146,11 @@ def inject_version():
     return {
         'version': lambda: __version__,
         'app_title': __title__,
-        'app_description': __description__
+        'app_description': __description__,
+        'current_language': get_locale(),
+        'languages': app.config['LANGUAGES'],
+        'gettext': gettext,
+        'ngettext': ngettext
     }
 
 if __name__ == '__main__':
