@@ -408,12 +408,12 @@ def index():
                 session['employee_id'] = employee['id']
                 session['employee_name'] = employee['full_name']
                 session['employee_username'] = employee['username']
-                session['employee_role'] = employee.get('role', 'warehouse_staff')
+                session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
                 session.permanent = True
                 app.permanent_session_lifetime = timedelta(hours=8)
                 
                 # Smart redirect based on role
-                role = employee.get('role', 'warehouse_staff')
+                role = employee['role'] if employee['role'] else 'warehouse_staff'
                 if role in ['manager', 'admin']:
                     flash(f'Welcome back, {employee["full_name"]}!', 'success')
                     return redirect(url_for('dashboard'))
@@ -1090,7 +1090,7 @@ def employee_login_post():
         session['employee_id'] = employee['id']
         session['employee_name'] = employee['full_name']
         session['employee_username'] = employee['username']
-        session['employee_role'] = employee.get('role', 'warehouse_staff')
+        session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
         session.permanent = True
         app.permanent_session_lifetime = timedelta(hours=8)
         
