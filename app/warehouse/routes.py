@@ -246,3 +246,70 @@ def submit_count():
         current_app.logger.error(f"Count submission error: {str(e)}")
         flash(f'Error processing count: {str(e)}', 'error')
         return redirect(url_for('warehouse.count_form'))
+
+@bp.route('/submit_warehouse_json', methods=['POST'])
+@employee_required
+def submit_warehouse_json():
+    """Process warehouse submission via JSON API"""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        
+        # Get employee name from session
+        conn = get_db()
+        employee = conn.execute('''
+            SELECT full_name FROM employees WHERE id = ?
+        ''', (session.get('employee_id'),)).fetchone()
+        
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 400
+        
+        # Override employee name with logged-in user
+        employee_name = employee['full_name']
+        
+        # Get product details
+        product = conn.execute('''
+            SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE pd.product_name = ?
+        ''', (data['product_name'],)).fetchone()
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 400
+        
+        # Calculate tablet counts
+        displays_made = int(data.get('displays_made', 0))
+        packs_remaining = int(data.get('packs_remaining', 0))
+        loose_tablets = int(data.get('loose_tablets', 0))
+        damaged_tablets = int(data.get('damaged_tablets', 0))
+        
+        good_tablets = (displays_made * product['packages_per_display'] * product['tablets_per_package'] + 
+                       packs_remaining * product['tablets_per_package'] + 
+                       loose_tablets)
+        
+        # Insert submission record using logged-in employee name
+        conn.execute('''
+            INSERT INTO warehouse_submissions 
+            (employee_name, product_name, box_number, bag_number, bag_label_count,
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, discrepancy_flag, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (employee_name, data['product_name'], 
+              int(data.get('box_number', 0)), int(data.get('bag_number', 0)), 
+              int(data.get('bag_label_count', 0)), displays_made, packs_remaining, 
+              loose_tablets, damaged_tablets,
+              int(data.get('bag_label_count', 0)) != (good_tablets + damaged_tablets),
+              datetime.now()))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission recorded successfully',
+            'calculated_total': good_tablets + damaged_tablets,
+            'employee_name': employee_name
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"JSON warehouse submission error: {str(e)}")
+        return jsonify({'error': str(e)}), 500

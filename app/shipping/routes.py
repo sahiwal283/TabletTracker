@@ -148,3 +148,8 @@ def public_shipments():
         
     except Exception as e:
         return f"Error loading shipments: {str(e)}", 500
+
+@bp.route('/shipments')
+def public_shipments_alt():
+    """Alternative route for public shipments"""
+    return redirect(url_for('shipping.public_shipments'))

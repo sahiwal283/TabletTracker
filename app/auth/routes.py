@@ -158,3 +158,60 @@ def logout():
 def admin_logout():
     """Admin logout redirect"""
     return redirect(url_for('auth.logout'))
+
+@bp.route('/version')
+def version():
+    """Get application version information"""
+    from ..__version__ import __version__, __title__, __description__
+    return jsonify({
+        'version': __version__,
+        'title': __title__,
+        'description': __description__,
+        'status': 'running'
+    })
+
+@bp.route('/role-status')
+@employee_required
+def role_status():
+    """Check current user role status (for debugging)"""
+    return jsonify({
+        'employee_id': session.get('employee_id'),
+        'employee_name': session.get('employee_name'),
+        'employee_role': session.get('employee_role'),
+        'employee_authenticated': session.get('employee_authenticated'),
+        'admin_authenticated': session.get('admin_authenticated')
+    })
+
+@bp.route('/fix-my-role')
+@employee_required  
+def fix_my_role():
+    """Force-sync user role from database"""
+    try:
+        employee_id = session.get('employee_id')
+        if not employee_id:
+            flash('No employee ID in session', 'error')
+            return redirect(url_for('auth.index'))
+        
+        conn = get_db()
+        employee = conn.execute('''
+            SELECT role FROM employees WHERE id = ? AND is_active = 1
+        ''', (employee_id,)).fetchone()
+        conn.close()
+        
+        if employee and employee['role']:
+            session['employee_role'] = employee['role']
+            flash(f'Role synchronized: {employee["role"]}', 'success')
+        else:
+            session['employee_role'] = 'warehouse_staff'
+            flash('Role reset to warehouse_staff', 'warning')
+        
+        # Redirect based on updated role
+        role = session.get('employee_role')
+        if role in ['manager', 'admin']:
+            return redirect(url_for('dashboard.admin_dashboard'))
+        else:
+            return redirect(url_for('warehouse.warehouse_form'))
+            
+    except Exception as e:
+        flash(f'Error fixing role: {str(e)}', 'error')
+        return redirect(url_for('auth.index'))
