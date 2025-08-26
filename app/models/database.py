@@ -13,8 +13,15 @@ def get_db():
         db_path = current_app.config['DATABASE_URL']
         if db_path.startswith('sqlite:///'):
             db_path = db_path.replace('sqlite:///', '')
-            if not os.path.isabs(db_path):
-                db_path = os.path.join(current_app.instance_path, db_path)
+        
+        # If path is not absolute, make it relative to app root
+        if not os.path.isabs(db_path):
+            # Use the directory where the main app.py is located
+            app_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            db_path = os.path.join(app_root, db_path)
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
         g.db = sqlite3.connect(db_path)
         g.db.row_factory = sqlite3.Row

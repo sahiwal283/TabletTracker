@@ -65,6 +65,9 @@ def create_app(config_class=Config):
     from .shipping import bp as shipping_bp
     app.register_blueprint(shipping_bp, url_prefix='/shipping')
     
+    from .debug import bp as debug_bp
+    app.register_blueprint(debug_bp, url_prefix='/debug')
+    
     # Register error handlers
     setup_error_handlers(app)
     

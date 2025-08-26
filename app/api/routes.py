@@ -485,3 +485,69 @@ def process_receiving():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# Additional missing API routes from original app.py
+
+@bp.route('/shipments/<int:shipment_id>/refresh', methods=['POST'])
+def refresh_shipment(shipment_id: int):
+    """Manually refresh a single shipment's tracking status."""
+    try:
+        from tracking_service import refresh_shipment_row
+        success = refresh_shipment_row(shipment_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Shipment refreshed successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to refresh shipment'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/shipment/<int:shipment_id>', methods=['GET'])
+def get_shipment(shipment_id: int):
+    try:
+        conn = get_db()
+        shipment = conn.execute('''
+            SELECT s.*, po.po_number 
+            FROM shipments s 
+            JOIN purchase_orders po ON s.po_id = po.id 
+            WHERE s.id = ?
+        ''', (shipment_id,)).fetchone()
+        conn.close()
+        
+        if shipment:
+            return jsonify(dict(shipment))
+        else:
+            return jsonify({'error': 'Shipment not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/shipment/<int:shipment_id>', methods=['DELETE'])
+def delete_shipment(shipment_id: int):
+    try:
+        conn = get_db()
+        conn.execute('DELETE FROM shipments WHERE id = ?', (shipment_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Shipment deleted'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/update_tablet_type_inventory', methods=['POST'])
+@admin_required
+def update_tablet_type_inventory():
+    """Update a tablet type's inventory item ID"""
+    try:
+        data = request.get_json()
+        tablet_type_id = data.get('tablet_type_id', type=int)
+        inventory_item_id = data.get('inventory_item_id', '').strip()
+        
+        conn = get_db()
+        conn.execute('''
+            UPDATE tablet_types SET inventory_item_id = ? WHERE id = ?
+        ''', (inventory_item_id, tablet_type_id))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Tablet type updated successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

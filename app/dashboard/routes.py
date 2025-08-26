@@ -83,5 +83,90 @@ def admin_dashboard():
         flash(f'Error loading dashboard: {str(e)}', 'error')
         return redirect(url_for('auth.index'))
 
-# Additional dashboard routes would go here...
-# (Reports, analytics, etc.)
+@bp.route('/reports/production', methods=['POST'])
+@admin_required
+def generate_production_report():
+    """Generate production PDF report"""
+    try:
+        data = request.get_json()
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        if not start_date or not end_date:
+            return jsonify({'success': False, 'error': 'Start and end dates required'}), 400
+        
+        # Import the report service
+        from report_service import ProductionReportGenerator
+        
+        # Generate the report
+        report_generator = ProductionReportGenerator()
+        report_path = report_generator.generate_report(start_date, end_date)
+        
+        if report_path:
+            return jsonify({
+                'success': True, 
+                'message': 'Report generated successfully',
+                'report_path': report_path
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate report'}), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Report generation error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/reports/po-summary')
+@admin_required 
+def get_po_summary_for_reports():
+    """Get PO summary data for reports"""
+    try:
+        conn = get_db()
+        
+        # Get comprehensive PO summary
+        po_summary = conn.execute('''
+            SELECT 
+                po.po_number,
+                po.tablet_type,
+                po.ordered_quantity,
+                po.current_good_count,
+                po.current_damaged_count,
+                po.remaining_quantity,
+                po.internal_status,
+                po.created_at,
+                COUNT(ws.id) as submission_count,
+                COUNT(DISTINCT ws.employee_name) as employee_count,
+                COALESCE(SUM(CASE WHEN ws.discrepancy_flag THEN 1 ELSE 0 END), 0) as discrepancy_count
+            FROM purchase_orders po
+            LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+            GROUP BY po.id
+            ORDER BY po.po_number DESC
+        ''').fetchall()
+        
+        conn.close()
+        
+        # Convert to list of dicts for JSON serialization
+        summary_data = []
+        for po in po_summary:
+            summary_data.append({
+                'po_number': po['po_number'],
+                'tablet_type': po['tablet_type'],
+                'ordered_quantity': po['ordered_quantity'],
+                'current_good_count': po['current_good_count'],
+                'current_damaged_count': po['current_damaged_count'],
+                'remaining_quantity': po['remaining_quantity'],
+                'internal_status': po['internal_status'],
+                'created_at': po['created_at'],
+                'submission_count': po['submission_count'],
+                'employee_count': po['employee_count'],
+                'discrepancy_count': po['discrepancy_count']
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': summary_data,
+            'total_pos': len(summary_data)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"PO summary error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500

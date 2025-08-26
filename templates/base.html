@@ -301,30 +301,30 @@
                 </h1>
                 <div class="hidden md:flex space-x-6">
                     <!-- Always visible for employees -->
-                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('warehouse.warehouse_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Warehouse
                     </a>
-                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('warehouse.count_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-calc" /></svg> Count
                     </a>
                     
                     <!-- Dashboard - Manager, Admin -->
                     {% if session.employee_role in ['manager', 'admin'] or session.admin_authenticated %}
-                    <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('dashboard.admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
                     {% endif %}
                     
                     <!-- Shipping - Manager, Admin -->
                     {% if session.employee_role in ['manager', 'admin'] or session.admin_authenticated %}
-                    <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('shipping.shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-truck" /></svg> Shipping
                     </a>
                     {% endif %}
                     
                     <!-- Admin - Admin role or Admin session -->
                     {% if session.employee_role == 'admin' or session.admin_authenticated %}
-                    <a href="{{ url_for('admin_panel') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('admin.admin_panel') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg> Admin
                     </a>
                     {% endif %}
@@ -347,7 +347,7 @@
                         </div>
                         
                         <!-- Logout Button -->
-                        <a href="{{ url_for('logout') }}" class="nav-link hover:text-red-300 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-red-500/20 flex items-center text-sm">
+                        <a href="{{ url_for('auth.logout') }}" class="nav-link hover:text-red-300 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-red-500/20 flex items-center text-sm">
                             <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
                             <span class="hidden sm:inline">Logout</span>
                         </a>
