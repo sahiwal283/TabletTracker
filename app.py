@@ -29,13 +29,37 @@ def get_locale():
     # 1. Check if user explicitly chose a language
     if request.args.get('lang'):
         session['language'] = request.args.get('lang')
+        session['manual_language_override'] = True
     
-    # 2. Use session language if available
+    # 2. Use session language if manually set
+    if (session.get('manual_language_override') and 
+        'language' in session and session['language'] in app.config['LANGUAGES']):
+        return session['language']
+    
+    # 3. Check employee's preferred language from database (if authenticated)
+    if (session.get('employee_authenticated') and session.get('employee_id') and 
+        not session.get('manual_language_override')):
+        try:
+            conn = get_db()
+            employee = conn.execute('''
+                SELECT preferred_language FROM employees WHERE id = ?
+            ''', (session.get('employee_id'),)).fetchone()
+            if employee and employee['preferred_language'] and employee['preferred_language'] in app.config['LANGUAGES']:
+                session['language'] = employee['preferred_language']
+                conn.close()
+                return employee['preferred_language']
+            conn.close()
+        except:
+            pass  # Continue to fallback if database query fails
+    
+    # 4. Use session language if available
     if 'language' in session and session['language'] in app.config['LANGUAGES']:
         return session['language']
     
-    # 3. Use browser's preferred language if available
-    return request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or app.config['BABEL_DEFAULT_LOCALE']
+    # 5. Use browser's preferred language if available
+    fallback_lang = request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or app.config['BABEL_DEFAULT_LOCALE']
+    session['language'] = fallback_lang
+    return fallback_lang
 
 babel = Babel()
 babel.init_app(app, locale_selector=get_locale)
@@ -1615,6 +1639,46 @@ def delete_employee(employee_id):
         return jsonify({'success': True, 'message': f'Deleted employee: {employee["full_name"]}'})
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/set-language', methods=['POST'])
+def set_language():
+    """Set language preference for current session and save to employee profile"""
+    try:
+        data = request.get_json()
+        language = data.get('language', '').strip()
+        
+        # Validate language
+        if language not in app.config['LANGUAGES']:
+            return jsonify({'success': False, 'error': 'Invalid language'}), 400
+        
+        # Set session language with manual override flag
+        session['language'] = language
+        session['manual_language_override'] = True
+        session.permanent = True
+        
+        # Save to employee profile if authenticated
+        if session.get('employee_authenticated') and session.get('employee_id'):
+            try:
+                conn = get_db()
+                conn.execute('''
+                    UPDATE employees 
+                    SET preferred_language = ? 
+                    WHERE id = ?
+                ''', (language, session.get('employee_id')))
+                conn.commit()
+                conn.close()
+                app.logger.info(f"Language preference saved to database: {language} for employee {session.get('employee_id')}")
+            except Exception as e:
+                app.logger.error(f"Failed to save language preference to database: {str(e)}")
+                # Continue without database save - session is still set
+        
+        app.logger.info(f"Language manually set to {language} for session")
+        
+        return jsonify({'success': True, 'message': f'Language set to {language}'})
+        
+    except Exception as e:
+        app.logger.error(f"Language setting error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/refresh_products', methods=['POST'])
