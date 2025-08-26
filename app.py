@@ -2199,25 +2199,6 @@ def delete_shipment(shipment_id):
     except Exception as e:
         return jsonify({'error': f'Failed to delete shipment: {str(e)}'}), 500
 
-@app.route('/shipments')
-def public_shipments():
-    """Unified shipments page - test version"""
-    # Super simple test - no database, no template, just plain HTML
-    return """
-    <html>
-    <head><title>Shipments Test</title></head>
-    <body>
-        <h1>Shipments Page Test</h1>
-        <p>If you see this, the route is working!</p>
-        <p><a href="/">← Back to Home</a></p>
-        
-        <h2>Debug Info:</h2>
-        <p>Route: /shipments</p>
-        <p>Function: public_shipments</p>
-        <p>Status: Basic route working</p>
-    </body>
-    </html>
-    """
 
 @app.route('/api/create_sample_receiving_data', methods=['POST'])
 @admin_required  
