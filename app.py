@@ -2205,6 +2205,16 @@ def public_shipments():
     try:
         conn = get_db()
         
+        # Check if shipments table exists first
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='shipments'").fetchone()
+        
+        if not tables:
+            # No shipments table yet - just show empty page with message
+            conn.close()
+            return render_template('shipments_public.html', 
+                                 shipments=[], 
+                                 message="No shipments table found. Database needs to be set up.")
+        
         # Get all shipments with PO info
         rows = conn.execute('''
             SELECT s.*, po.po_number, po.tablet_type, po.ordered_quantity
@@ -2219,8 +2229,8 @@ def public_shipments():
         return render_template('shipments_public.html', shipments=shipments)
         
     except Exception as e:
-        flash(f'Error loading shipments: {str(e)}', 'error')
-        return render_template('shipments_public.html', shipments=[])
+        # Safe fallback - show the error for debugging
+        return f"<h1>Shipments Debug</h1><p>Error: {str(e)}</p><p><a href='/'>← Back to Home</a></p>"
 
 @app.route('/api/create_sample_receiving_data', methods=['POST'])
 @admin_required  
