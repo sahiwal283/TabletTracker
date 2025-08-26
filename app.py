@@ -2086,6 +2086,142 @@ def get_available_boxes_bags(po_id):
     
     return jsonify({'boxes': boxes})
 
+@app.route('/shipments')
+def public_shipments():
+    """Public shipments page for tracking shipments"""
+    try:
+        conn = get_db()
+        
+        # Get all shipments with PO info
+        rows = conn.execute('''
+            SELECT s.*, po.po_number, po.tablet_type, po.ordered_quantity
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            ORDER BY s.created_at DESC
+        ''').fetchall()
+        
+        shipments = [dict(row) for row in rows]
+        conn.close()
+        
+        return render_template('shipments_public.html', shipments=shipments)
+        
+    except Exception as e:
+        flash(f'Error loading shipments: {str(e)}', 'error')
+        return render_template('shipments_public.html', shipments=[])
+
+@app.route('/admin/shipments')
+@admin_required
+def shipments_management():
+    """Admin shipments management page"""
+    try:
+        conn = get_db()
+        
+        # Get all shipments with PO info for admin management
+        rows = conn.execute('''
+            SELECT s.*, po.po_number, po.tablet_type, po.ordered_quantity
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            ORDER BY s.created_at DESC
+        ''').fetchall()
+        
+        shipments = [dict(row) for row in rows]
+        
+        # Get POs for creating new shipments
+        po_rows = conn.execute('''
+            SELECT id, po_number, tablet_type, ordered_quantity
+            FROM purchase_orders
+            WHERE internal_status = 'Active'
+            ORDER BY po_number
+        ''').fetchall()
+        
+        pos = [dict(row) for row in po_rows]
+        conn.close()
+        
+        return render_template('shipments_management.html', shipments=shipments, pos=pos)
+        
+    except Exception as e:
+        flash(f'Error loading shipments management: {str(e)}', 'error')
+        return render_template('shipments_management.html', shipments=[], pos=[])
+
+@app.route('/api/shipment', methods=['POST'])
+@admin_required
+def create_shipment():
+    """Create a new shipment"""
+    try:
+        data = request.json
+        po_id = data.get('po_id')
+        tracking_number = data.get('tracking_number')
+        carrier = data.get('carrier')
+        
+        if not all([po_id, tracking_number, carrier]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        conn = get_db()
+        
+        # Check if tracking number already exists
+        existing = conn.execute('SELECT id FROM shipments WHERE tracking_number = ?', (tracking_number,)).fetchone()
+        if existing:
+            return jsonify({'error': 'Tracking number already exists'}), 400
+        
+        # Create shipment
+        conn.execute('''
+            INSERT INTO shipments (po_id, tracking_number, carrier, tracking_status, created_at)
+            VALUES (?, ?, ?, 'Pending', CURRENT_TIMESTAMP)
+        ''', (po_id, tracking_number, carrier))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Shipment created successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to create shipment: {str(e)}'}), 500
+
+@app.route('/api/shipment/<int:shipment_id>', methods=['DELETE'])
+@admin_required
+def delete_shipment(shipment_id):
+    """Delete a shipment"""
+    try:
+        conn = get_db()
+        
+        # Check if shipment exists
+        shipment = conn.execute('SELECT tracking_number FROM shipments WHERE id = ?', (shipment_id,)).fetchone()
+        if not shipment:
+            return jsonify({'error': 'Shipment not found'}), 404
+        
+        # Delete shipment
+        conn.execute('DELETE FROM shipments WHERE id = ?', (shipment_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Shipment {shipment["tracking_number"]} deleted successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete shipment: {str(e)}'}), 500
+
+@app.route('/shipments')
+def public_shipments():
+    """Unified shipments page - combines tracking, receiving, and management"""
+    try:
+        conn = get_db()
+        
+        # Get all shipments with PO info
+        rows = conn.execute('''
+            SELECT s.*, po.po_number, po.tablet_type, po.ordered_quantity
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            ORDER BY s.created_at DESC
+        ''').fetchall()
+        
+        shipments = [dict(row) for row in rows]
+        conn.close()
+        
+        return render_template('shipments_public.html', shipments=shipments)
+        
+    except Exception as e:
+        flash(f'Error loading shipments: {str(e)}', 'error')
+        return render_template('shipments_public.html', shipments=[])
+
 @app.route('/api/create_sample_receiving_data', methods=['POST'])
 @admin_required  
 def create_sample_receiving_data():
