@@ -228,7 +228,7 @@
                         Damaged
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Remaining
+                        Remaining/Overs
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Progress
@@ -256,8 +256,12 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
                         {{ "{:,}".format(po.current_damaged_count) if po.current_damaged_count else '0' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
-                        {{ "{:,}".format(po.remaining_quantity) if po.remaining_quantity else '0' }}
+                    <td class="px-6 py-4 whitespace-nowrap text-sm {% if po.remaining_quantity < 0 %}text-purple-600{% else %}text-blue-600{% endif %}">
+                        {% if po.remaining_quantity < 0 %}
+                            +{{ "{:,}".format(po.remaining_quantity|abs) }} over
+                        {% else %}
+                            {{ "{:,}".format(po.remaining_quantity) if po.remaining_quantity else '0' }}
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                         {% set total_received = (po.current_good_count or 0) + (po.current_damaged_count or 0) %}
@@ -650,6 +654,10 @@ async function togglePODetails(poId, button) {
                     const remaining = line.quantity_ordered - line.good_count - line.damaged_count;
                     const received = line.good_count + line.damaged_count;
                     const progressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
+                    const isOver = remaining < 0;
+                    const displayValue = Math.abs(remaining);
+                    const labelText = isOver ? 'Overs:' : 'Remaining:';
+                    const labelColor = isOver ? 'text-purple-600' : 'text-blue-600';
                     
                 html += `
                     <div class="bg-white border border-gray-200 rounded-lg p-3 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
@@ -663,7 +671,7 @@ async function togglePODetails(poId, button) {
                                 <!-- Progress bar for this line item -->
                                 <div class="mt-2 flex items-center">
                                     <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
-                                        <div class="bg-blue-600 h-2 rounded-full" style="width: ${progressPercent}%"></div>
+                                        <div class="bg-blue-600 h-2 rounded-full" style="width: ${Math.min(progressPercent, 100)}%"></div>
                                     </div>
                                     <span class="text-xs font-medium text-gray-700">${progressPercent}%</span>
                                 </div>
@@ -679,8 +687,8 @@ async function togglePODetails(poId, button) {
                                     <span class="text-red-600">Damaged:</span> ${line.damaged_count.toLocaleString()}
                                 </div>
                                 <div class="text-sm">
-                                    <span class="text-blue-600">Remaining:</span> 
-                                    <span class="font-medium">${remaining.toLocaleString()}</span>
+                                    <span class="${labelColor}">${labelText}</span> 
+                                    <span class="font-medium">${displayValue.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -1521,6 +1529,10 @@ async function viewPODetailsModal(poId, poNumber) {
                 const remaining = line.quantity_ordered - line.good_count - line.damaged_count;
                 const received = line.good_count + line.damaged_count;
                 const progressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
+                const isOver = remaining < 0;
+                const displayValue = Math.abs(remaining);
+                const labelText = isOver ? 'Overs' : 'Remaining';
+                const labelColor = isOver ? 'text-purple-600' : 'text-blue-600';
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
@@ -1538,7 +1550,7 @@ async function viewPODetailsModal(poId, poNumber) {
                                         <span class="font-semibold">${progressPercent}%</span>
                                     </div>
                                     <div class="w-full bg-gray-200 rounded-full h-3">
-                                        <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: ${progressPercent}%"></div>
+                                        <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: ${Math.min(progressPercent, 100)}%"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1557,8 +1569,8 @@ async function viewPODetailsModal(poId, poNumber) {
                                     <div class="text-lg font-bold text-red-600">${line.damaged_count.toLocaleString()}</div>
                                 </div>
                                 <div class="text-center">
-                                    <div class="text-xs text-blue-600 font-medium">Remaining</div>
-                                    <div class="text-lg font-bold text-blue-600">${remaining.toLocaleString()}</div>
+                                    <div class="text-xs ${labelColor} font-medium">${labelText}</div>
+                                    <div class="text-lg font-bold ${labelColor}">${displayValue.toLocaleString()}</div>
                                 </div>
                             </div>
                         </div>
@@ -1694,8 +1706,16 @@ async function openReassignModal(submissionId, currentPO, productName) {
                                 <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
                             </div>
                             <div>
-                                <div class="text-xs text-blue-600">Remaining</div>
-                                <div class="font-medium text-blue-600">${po.remaining.toLocaleString()}</div>
+                                ${(() => {
+                                    const isOver = po.remaining < 0;
+                                    const displayValue = Math.abs(po.remaining);
+                                    const labelText = isOver ? 'Overs' : 'Remaining';
+                                    const labelColor = isOver ? 'text-purple-600' : 'text-blue-600';
+                                    return `
+                                        <div class="text-xs ${labelColor}">${labelText}</div>
+                                        <div class="font-medium ${labelColor}">${displayValue.toLocaleString()}</div>
+                                    `;
+                                })()}
                             </div>
                         </div>
                     </div>
