@@ -2558,6 +2558,10 @@ def reassign_all_submissions():
         matched_count = 0
         updated_pos = set()
         
+        # Track running totals for each PO line during reassignment
+        # This helps us know when to move to the next PO (when current one has enough)
+        po_line_running_totals = {}  # {line_id: {'good': count, 'damaged': count}}
+        
         # Step 3: Reassign each submission using correct PO order
         for submission in all_submissions:
             try:
@@ -2615,8 +2619,25 @@ def reassign_all_submissions():
                               submission.get('loose_tablets', 0))
                 damaged_tablets = submission.get('damaged_tablets', 0)
                 
-                # Assign to first OPEN PO (oldest open PO number)
-                assigned_po_id = po_lines[0]['po_id']
+                # Find the first PO that hasn't reached its ordered quantity yet
+                # This allows sequential filling: complete PO-127, then PO-131, then PO-135, etc.
+                # But final counts can still exceed ordered quantities (no artificial cap)
+                assigned_po_id = None
+                for line in po_lines:
+                    # Initialize running total if first time seeing this line
+                    if line['id'] not in po_line_running_totals:
+                        po_line_running_totals[line['id']] = {'good': 0, 'damaged': 0, 'quantity_ordered': line['quantity_ordered']}
+                    
+                    # Check if this PO line still needs more tablets
+                    current_total = po_line_running_totals[line['id']]['good'] + po_line_running_totals[line['id']]['damaged']
+                    if current_total < line['quantity_ordered']:
+                        # This PO still has room, assign to it
+                        assigned_po_id = line['po_id']
+                        break
+                
+                # If all POs are at or above their ordered quantities, assign to the last (newest) PO
+                if assigned_po_id is None and po_lines:
+                    assigned_po_id = po_lines[-1]['po_id']
                 conn.execute('''
                     UPDATE warehouse_submissions 
                     SET assigned_po_id = ?
@@ -2643,6 +2664,9 @@ def reassign_all_submissions():
                             SET good_count = good_count + ?
                             WHERE id = ?
                         ''', (remaining_good, line['id']))
+                        # Update running total
+                        if line['id'] in po_line_running_totals:
+                            po_line_running_totals[line['id']]['good'] += remaining_good
                         remaining_good = 0
                     
                     # Apply all remaining damaged count to this line
@@ -2652,6 +2676,9 @@ def reassign_all_submissions():
                             SET damaged_count = damaged_count + ?
                             WHERE id = ?
                         ''', (remaining_damaged, line['id']))
+                        # Update running total
+                        if line['id'] in po_line_running_totals:
+                            po_line_running_totals[line['id']]['damaged'] += remaining_damaged
                         remaining_damaged = 0
                     
                     updated_pos.add(line['po_id'])
