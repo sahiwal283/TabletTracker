@@ -36,6 +36,23 @@
             <svg class="w-8 h-8 mr-4" aria-hidden="true"><use href="#icon-bolt" /></svg>
             <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Data Management</h3>
         </div>
+        
+        <!-- Important Notice -->
+        <div class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
+            <div class="flex items-start">
+                <svg class="w-6 h-6 text-blue-500 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                    <h4 class="text-sm font-bold text-blue-900 mb-1">📋 Important: Zoho PO Setup Required</h4>
+                    <p class="text-sm text-blue-800">
+                        For POs to appear in this app, they <strong>must be marked as "Tablets"</strong> in Zoho Inventory. 
+                        Check the <strong class="bg-blue-100 px-2 py-0.5 rounded">☑ Tablets?</strong> checkbox on each Purchase Order in Zoho before syncing.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
         <div class="space-y-4">
             <button id="sync-pos-btn" onclick="syncZohoPOs()" 
                     class="btn-success w-full py-4 text-lg font-bold shadow-2xl transform transition-all duration-500 hover:scale-105">
