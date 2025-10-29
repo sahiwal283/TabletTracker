@@ -2894,23 +2894,51 @@ def get_po_submissions(po_id):
             conn.close()
             return jsonify({'error': 'PO not found'}), 404
         
+        # Check if submission_date column exists
+        has_submission_date = False
+        try:
+            conn.execute('SELECT submission_date FROM warehouse_submissions LIMIT 1')
+            has_submission_date = True
+        except:
+            pass
+        
         # Get all submissions for this PO
-        submissions = conn.execute('''
-            SELECT 
-                ws.id,
-                ws.product_name,
-                ws.displays_made,
-                ws.packs_remaining,
-                ws.loose_tablets,
-                ws.damaged_tablets,
-                ws.created_at,
-                ws.submission_date,
-                e.name as employee_name
-            FROM warehouse_submissions ws
-            LEFT JOIN employees e ON ws.employee_id = e.id
-            WHERE ws.assigned_po_id = ?
-            ORDER BY ws.created_at DESC
-        ''', (po_id,)).fetchall()
+        if has_submission_date:
+            submissions_query = '''
+                SELECT 
+                    ws.id,
+                    ws.product_name,
+                    ws.displays_made,
+                    ws.packs_remaining,
+                    ws.loose_tablets,
+                    ws.damaged_tablets,
+                    ws.created_at,
+                    ws.submission_date,
+                    e.name as employee_name
+                FROM warehouse_submissions ws
+                LEFT JOIN employees e ON ws.employee_id = e.id
+                WHERE ws.assigned_po_id = ?
+                ORDER BY ws.created_at DESC
+            '''
+        else:
+            submissions_query = '''
+                SELECT 
+                    ws.id,
+                    ws.product_name,
+                    ws.displays_made,
+                    ws.packs_remaining,
+                    ws.loose_tablets,
+                    ws.damaged_tablets,
+                    ws.created_at,
+                    ws.created_at as submission_date,
+                    e.name as employee_name
+                FROM warehouse_submissions ws
+                LEFT JOIN employees e ON ws.employee_id = e.id
+                WHERE ws.assigned_po_id = ?
+                ORDER BY ws.created_at DESC
+            '''
+        
+        submissions = conn.execute(submissions_query, (po_id,)).fetchall()
         
         conn.close()
         
