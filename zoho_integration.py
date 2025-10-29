@@ -23,10 +23,23 @@ class ZohoInventoryAPI:
             'grant_type': 'refresh_token'
         }
         
+        # Validate credentials are present
+        if not Config.ZOHO_CLIENT_ID or not Config.ZOHO_CLIENT_SECRET or not Config.ZOHO_REFRESH_TOKEN:
+            error_msg = "Zoho API credentials not configured. Please set ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, and ZOHO_REFRESH_TOKEN in .env file."
+            print(error_msg)
+            raise ValueError(error_msg)
+        
         try:
             response = requests.post(url, data=data)
             response.raise_for_status()
             token_data = response.json()
+            
+            # Check if access_token is in response
+            if 'access_token' not in token_data:
+                error_details = token_data.get('error', 'Unknown error')
+                error_msg = f"Zoho API did not return access_token. Response: {error_details}"
+                print(error_msg)
+                raise ValueError(error_msg)
             
             self.access_token = token_data['access_token']
             # Tokens typically expire in 1 hour, set expiry a bit earlier for safety
@@ -35,8 +48,10 @@ class ZohoInventoryAPI:
             return self.access_token
             
         except requests.exceptions.RequestException as e:
-            print(f"Error getting access token: {e}")
-            return None
+            print(f"Error getting access token from Zoho: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response body: {e.response.text}")
+            raise
     
     def make_request(self, endpoint, method='GET', data=None, extra_params=None):
         """Make authenticated request to Zoho Inventory API"""
