@@ -2863,6 +2863,59 @@ def resync_unassigned_submissions():
         print(error_trace)
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
+@app.route('/api/po/<int:po_id>/submissions', methods=['GET'])
+@admin_required
+def get_po_submissions(po_id):
+    """Get all submissions assigned to a specific PO"""
+    try:
+        conn = get_db()
+        
+        # Get PO details
+        po = conn.execute('''
+            SELECT po_number, tablet_type, ordered_quantity, 
+                   current_good_count, current_damaged_count, remaining_quantity
+            FROM purchase_orders
+            WHERE id = ?
+        ''', (po_id,)).fetchone()
+        
+        if not po:
+            conn.close()
+            return jsonify({'error': 'PO not found'}), 404
+        
+        # Get all submissions for this PO
+        submissions = conn.execute('''
+            SELECT 
+                ws.id,
+                ws.product_name,
+                ws.displays_made,
+                ws.packs_remaining,
+                ws.loose_tablets,
+                ws.damaged_tablets,
+                ws.created_at,
+                ws.submission_date,
+                e.name as employee_name
+            FROM warehouse_submissions ws
+            LEFT JOIN employees e ON ws.employee_id = e.id
+            WHERE ws.assigned_po_id = ?
+            ORDER BY ws.created_at DESC
+        ''', (po_id,)).fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'po': dict(po),
+            'submissions': [dict(s) for s in submissions],
+            'count': len(submissions)
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Error fetching PO submissions: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e)}), 500
+
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
 @app.context_processor

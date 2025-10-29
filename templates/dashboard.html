@@ -652,40 +652,42 @@ async function togglePODetails(poId, button) {
                     const received = line.good_count + line.damaged_count;
                     const progressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
                     
-                    html += `
-                        <div class="bg-white border border-gray-200 rounded-lg p-3">
-                            <div class="flex justify-between items-start">
-                                <div class="flex-1">
-                                    <div class="font-medium text-gray-900">${line.line_item_name}</div>
-                                    <div class="text-xs text-gray-500 font-mono">ID: ${line.inventory_item_id}</div>
-                                    
-                                    <!-- Progress bar for this line item -->
-                                    <div class="mt-2 flex items-center">
-                                        <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
-                                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${progressPercent}%"></div>
-                                        </div>
-                                        <span class="text-xs font-medium text-gray-700">${progressPercent}%</span>
-                                    </div>
-                                </div>
+                html += `
+                    <div class="bg-white border border-gray-200 rounded-lg p-3 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
+                         onclick="viewPOSubmissions(${poId}, '${line.line_item_name}')"
+                         title="Click to view submissions for this PO">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-900">${line.line_item_name}</div>
+                                <div class="text-xs text-gray-500 font-mono">ID: ${line.inventory_item_id}</div>
                                 
-                                <div class="text-right ml-4">
-                                    <div class="text-sm">
-                                        <span class="text-gray-600">Ordered:</span> 
-                                        <span class="font-medium">${line.quantity_ordered.toLocaleString()}</span>
+                                <!-- Progress bar for this line item -->
+                                <div class="mt-2 flex items-center">
+                                    <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+                                        <div class="bg-blue-600 h-2 rounded-full" style="width: ${progressPercent}%"></div>
                                     </div>
-                                    <div class="text-sm">
-                                        <span class="text-green-600">Good:</span> ${line.good_count.toLocaleString()} | 
-                                        <span class="text-red-600">Damaged:</span> ${line.damaged_count.toLocaleString()}
-                                    </div>
-                                    <div class="text-sm">
-                                        <span class="text-blue-600">Remaining:</span> 
-                                        <span class="font-medium">${remaining.toLocaleString()}</span>
-                                    </div>
+                                    <span class="text-xs font-medium text-gray-700">${progressPercent}%</span>
                                 </div>
                             </div>
-                                                                </div>
-                                    `;
-                                });
+                            
+                            <div class="text-right ml-4">
+                                <div class="text-sm">
+                                    <span class="text-gray-600">Ordered:</span> 
+                                    <span class="font-medium">${line.quantity_ordered.toLocaleString()}</span>
+                                </div>
+                                <div class="text-sm">
+                                    <span class="text-green-600">Good:</span> ${line.good_count.toLocaleString()} | 
+                                    <span class="text-red-600">Damaged:</span> ${line.damaged_count.toLocaleString()}
+                                </div>
+                                <div class="text-sm">
+                                    <span class="text-blue-600">Remaining:</span> 
+                                    <span class="font-medium">${remaining.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
                                 
                                                 // Add inline tracking info section
                 html += `
@@ -1301,6 +1303,118 @@ async function generateAllPOsReport() {
         // Restore button state
         button.disabled = false;
         button.innerHTML = originalText;
+    }
+}
+
+// View submissions for a specific PO
+async function viewPOSubmissions(poId, poName) {
+    try {
+        const response = await fetch(`/api/po/${poId}/submissions`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            showError(data.error || 'Failed to load submissions');
+            return;
+        }
+        
+        // Build modal content
+        let modalContent = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeSubmissionsModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="text-xl font-bold">📋 Submissions for PO-${data.po.po_number}</h3>
+                                <p class="text-sm text-blue-100 mt-1">${data.count} submission(s) found</p>
+                            </div>
+                            <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        `;
+        
+        if (data.submissions.length === 0) {
+            modalContent += `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No submissions found for this PO</p>
+                </div>
+            `;
+        } else {
+            modalContent += '<div class="space-y-4">';
+            
+            data.submissions.forEach(sub => {
+                const submissionDate = new Date(sub.submission_date || sub.created_at);
+                const createdDate = new Date(sub.created_at);
+                
+                modalContent += `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
+                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'}</p>
+                            </div>
+                            <div class="text-right text-sm">
+                                <div class="text-gray-600">📅 ${submissionDate.toLocaleDateString()}</div>
+                                <div class="text-xs text-gray-400">Created: ${createdDate.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
+                            <div>
+                                <div class="text-xs text-gray-500">Displays Made</div>
+                                <div class="font-medium text-blue-600">${sub.displays_made || 0}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Packs Remaining</div>
+                                <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Loose Tablets</div>
+                                <div class="font-medium text-blue-600">${sub.loose_tablets || 0}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Damaged Tablets</div>
+                                <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            modalContent += '</div>';
+        }
+        
+        modalContent += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'submissions-modal';
+        modalDiv.innerHTML = modalContent;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading submissions:', error);
+        showError('Failed to load submissions: ' + error.message);
+    }
+}
+
+function closeSubmissionsModal(event) {
+    // Close if clicked outside the modal or on close button
+    if (!event || event.target === event.currentTarget || !event) {
+        const modal = document.getElementById('submissions-modal');
+        if (modal) {
+            modal.remove();
+        }
     }
 }
 </script>
