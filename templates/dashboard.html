@@ -106,25 +106,6 @@
             </p>
         </div>
     </div>
-    
-    <!-- Recent Activity -->
-    <div class="card hover-lift p-8">
-        <div class="flex items-center mb-6">
-            <svg class="w-8 h-8 mr-4" aria-hidden="true"><use href="#icon-clock" /></svg>
-            <h3 class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Recent Activity</h3>
-        </div>
-        <div class="text-sm space-y-2">
-            {% for submission in submissions[:5] %}
-                <div class="border-l-2 border-blue-200 pl-3">
-                    <div class="font-medium">{{ submission.product_name }}</div>
-                    <div class="text-gray-600">{{ submission.employee_name }}</div>
-                    <div class="text-xs text-gray-500">
-                        {{ submission.created_at.split('.')[0] if submission.created_at else 'Unknown time' }}
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-    </div>
 </div>
 
 <!-- Production Report Section -->
