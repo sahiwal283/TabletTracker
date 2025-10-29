@@ -162,7 +162,14 @@
                                 {% endif %}
                             </div>
                         {% else %}
-                            <span class="text-gray-400 italic">Unassigned</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400 italic">Unassigned</span>
+                                <button onclick="openReassignModal({{ sub.id }}, null, '{{ sub.product_name }}')" 
+                                        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                                        title="Assign to PO">
+                                    📋 Assign
+                                </button>
+                            </div>
                         {% endif %}
                     </td>
                 </tr>
@@ -291,7 +298,8 @@ async function approveSubmission(submissionId) {
 // Reassignment functions
 async function openReassignModal(submissionId, currentPO, productName) {
     try {
-        document.getElementById('reassign-modal-subtitle').textContent = `Product: ${productName} | Current: ${currentPO}`;
+        const currentText = currentPO ? `Current: ${currentPO}` : 'Currently Unassigned';
+        document.getElementById('reassign-modal-subtitle').textContent = `Product: ${productName} | ${currentText}`;
         document.getElementById('reassign-modal').classList.remove('hidden');
         
         // Fetch available POs for this submission
