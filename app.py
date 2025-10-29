@@ -539,11 +539,13 @@ def submit_warehouse():
         # Find open PO lines for this inventory item
         print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
         # Order by PO number (oldest PO numbers first) since they represent issue order
+        # Exclude Draft POs - only assign to Issued/Active POs
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+            AND COALESCE(po.internal_status, '') != 'Draft'
             AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
             ORDER BY po.po_number ASC
         ''', (product['inventory_item_id'],)).fetchall()
@@ -1203,11 +1205,13 @@ def submit_count():
         
         # Find open PO lines for this inventory item
         # Order by PO number (oldest PO numbers first) since they represent issue order
+        # Exclude Draft POs - only assign to Issued/Active POs
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+            AND COALESCE(po.internal_status, '') != 'Draft'
             AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
             ORDER BY po.po_number ASC
         ''', (tablet_type['inventory_item_id'],)).fetchall()
@@ -2569,11 +2573,13 @@ def reassign_all_submissions():
                     continue
                 
                 # Find open PO lines - ORDER BY PO NUMBER
+                # Exclude Draft POs - only assign to Issued/Active POs
                 po_lines_rows = conn.execute('''
                     SELECT pl.*, po.closed
                     FROM po_lines pl
                     JOIN purchase_orders po ON pl.po_id = po.id
                     WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+                    AND COALESCE(po.internal_status, '') != 'Draft'
                     AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                     ORDER BY po.po_number ASC
                 ''', (inventory_item_id,)).fetchall()
@@ -2744,11 +2750,13 @@ def resync_unassigned_submissions():
             
             # Find open PO lines for this inventory item
             # Order by PO number (oldest PO numbers first) since they represent issue order
+            # Exclude Draft POs - only assign to Issued/Active POs
             po_lines_rows = conn.execute('''
                 SELECT pl.*, po.closed
                 FROM po_lines pl
                 JOIN purchase_orders po ON pl.po_id = po.id
                 WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+                AND COALESCE(po.internal_status, '') != 'Draft'
                 AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                 ORDER BY po.po_number ASC
             ''', (inventory_item_id,)).fetchall()
