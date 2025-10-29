@@ -2889,9 +2889,9 @@ def reassign_all_submissions():
     try:
         conn = get_db()
         
-        # Step 1: Clear all PO assignments and counts
+        # Step 1: Clear all PO assignments and counts (soft reassign - reset verification)
         print("Clearing all PO assignments and counts...")
-        conn.execute('UPDATE warehouse_submissions SET assigned_po_id = NULL')
+        conn.execute('UPDATE warehouse_submissions SET assigned_po_id = NULL, po_assignment_verified = FALSE')
         conn.execute('UPDATE po_lines SET good_count = 0, damaged_count = 0')
         conn.execute('UPDATE purchase_orders SET current_good_count = 0, current_damaged_count = 0, remaining_quantity = ordered_quantity')
         conn.commit()
@@ -2945,11 +2945,10 @@ def reassign_all_submissions():
                 if not inventory_item_id:
                     continue
                 
-                # Find ALL PO lines (open AND closed) - ORDER BY PO NUMBER
-                # During reassignment, consider ALL POs for historical accuracy
-                # This allows fixing historical data by assigning to older (possibly closed) POs
-                # Once data is correct, future submissions will use normal "oldest open PO" logic
-                # Exclude Draft POs - only assign to Issued/Active POs
+                # Find OPEN PO lines only - ORDER BY PO NUMBER
+                # Automatic bulk reassignment assigns to open POs only
+                # Managers can still manually reassign to closed POs via "Change" button
+                # Exclude Draft POs - only assign to Active/Issued open POs
                 # Note: We do NOT filter by available quantity - POs can receive more than ordered
                 po_lines_rows = conn.execute('''
                     SELECT pl.*, po.closed, po.po_number
@@ -2957,6 +2956,7 @@ def reassign_all_submissions():
                     JOIN purchase_orders po ON pl.po_id = po.id
                     WHERE pl.inventory_item_id = ?
                     AND COALESCE(po.internal_status, '') != 'Draft'
+                    AND po.closed = FALSE
                     ORDER BY po.po_number ASC
                 ''', (inventory_item_id,)).fetchall()
                 
