@@ -740,8 +740,15 @@ def admin_dashboard():
         FROM purchase_orders
     ''').fetchone()
     
+    # Count submissions needing verification (submissions from last 7 days)
+    verification_count = conn.execute('''
+        SELECT COUNT(*) as count
+        FROM warehouse_submissions
+        WHERE datetime(created_at) >= datetime('now', '-7 days')
+    ''').fetchone()['count']
+    
     conn.close()
-    return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats)
+    return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count)
 
 @app.route('/submissions')
 @role_required('dashboard')
