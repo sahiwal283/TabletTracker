@@ -2533,7 +2533,7 @@ def resync_unassigned_submissions():
         for submission in unassigned:
             # Get the product's details including inventory_item_id
             product = conn.execute('''
-                SELECT tt.inventory_item_id, pd.packs_per_display, pd.tablets_per_pack
+                SELECT tt.inventory_item_id, pd.packages_per_display, pd.tablets_per_package
                 FROM tablet_types tt
                 LEFT JOIN product_details pd ON tt.tablet_type_name = pd.product_name
                 WHERE tt.tablet_type_name = ?
@@ -2556,10 +2556,10 @@ def resync_unassigned_submissions():
                 continue
             
             # Calculate good and damaged counts
-            packs_per_display = product['packs_per_display'] if product['packs_per_display'] else 0
-            tablets_per_pack = product['tablets_per_pack'] if product['tablets_per_pack'] else 0
-            good_tablets = (submission['displays_made'] * packs_per_display * tablets_per_pack + 
-                          submission['packs_remaining'] * tablets_per_pack + 
+            packages_per_display = product['packages_per_display'] if product['packages_per_display'] else 0
+            tablets_per_package = product['tablets_per_package'] if product['tablets_per_package'] else 0
+            good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
+                          submission['packs_remaining'] * tablets_per_package + 
                           submission['loose_tablets'])
             damaged_tablets = submission['damaged_tablets']
             
