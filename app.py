@@ -2514,14 +2514,17 @@ def resync_unassigned_submissions():
     try:
         conn = get_db()
         
-        # Get all unassigned submissions
-        unassigned = conn.execute('''
+        # Get all unassigned submissions - convert to dicts immediately
+        unassigned_rows = conn.execute('''
             SELECT ws.rowid, ws.product_name, ws.displays_made, 
                    ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets
             FROM warehouse_submissions ws
             WHERE ws.assigned_po_id IS NULL
             ORDER BY ws.created_at DESC
         ''').fetchall()
+        
+        # Convert Row objects to dicts to avoid key access issues
+        unassigned = [dict(row) for row in unassigned_rows]
         
         if not unassigned:
             conn.close()
@@ -2535,48 +2538,38 @@ def resync_unassigned_submissions():
                 # Get the product's details including inventory_item_id
                 # submission['product_name'] matches product_details.product_name
                 # then join to tablet_types to get inventory_item_id
-                product = conn.execute('''
+                product_row = conn.execute('''
                     SELECT tt.inventory_item_id, pd.packages_per_display, pd.tablets_per_package
                     FROM product_details pd
                     JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                     WHERE pd.product_name = ?
                 ''', (submission['product_name'],)).fetchone()
                 
-                if not product:
+                if not product_row:
                     # Try direct tablet_type match if no product_details entry
-                    product = conn.execute('''
+                    product_row = conn.execute('''
                         SELECT inventory_item_id, 0 as packages_per_display, 0 as tablets_per_package
                         FROM tablet_types
                         WHERE tablet_type_name = ?
                     ''', (submission['product_name'],)).fetchone()
                 
-                if not product:
+                if not product_row:
                     print(f"⚠️  No product config found for: {submission['product_name']}")
                     continue
                 
-                # Access inventory_item_id with fallback
-                inventory_item_id = None
-                try:
-                    inventory_item_id = product['inventory_item_id']
-                except (KeyError, TypeError):
-                    try:
-                        inventory_item_id = product[0]  # Try positional access
-                    except (KeyError, TypeError, IndexError):
-                        pass
+                # Convert to dict for safe access
+                product = dict(product_row)
+                inventory_item_id = product.get('inventory_item_id')
                 
                 if not inventory_item_id:
                     print(f"⚠️  No inventory_item_id for: {submission['product_name']}")
                     continue
             except Exception as e:
-                try:
-                    sub_id = submission['rowid']
-                except:
-                    sub_id = 'unknown'
-                print(f"❌ Error processing submission {sub_id}: {e}")
+                print(f"❌ Error processing submission {submission.get('rowid', 'unknown')}: {e}")
                 continue
             
             # Find open PO lines for this inventory item
-            po_lines = conn.execute('''
+            po_lines_rows = conn.execute('''
                 SELECT pl.*, po.closed
                 FROM po_lines pl
                 JOIN purchase_orders po ON pl.po_id = po.id
@@ -2585,33 +2578,20 @@ def resync_unassigned_submissions():
                 ORDER BY po.created_at ASC
             ''', (inventory_item_id,)).fetchall()
             
+            # Convert to dicts
+            po_lines = [dict(row) for row in po_lines_rows]
+            
             if not po_lines:
                 continue
             
             # Calculate good and damaged counts
-            packages_per_display = 0
-            tablets_per_package = 0
+            packages_per_display = product.get('packages_per_display') or 0
+            tablets_per_package = product.get('tablets_per_package') or 0
             
-            try:
-                packages_per_display = product['packages_per_display'] or 0
-            except (KeyError, TypeError):
-                try:
-                    packages_per_display = product[1] or 0  # Try positional
-                except (KeyError, TypeError, IndexError):
-                    pass
-            
-            try:
-                tablets_per_package = product['tablets_per_package'] or 0
-            except (KeyError, TypeError):
-                try:
-                    tablets_per_package = product[2] or 0  # Try positional
-                except (KeyError, TypeError, IndexError):
-                    pass
-            
-            good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                          submission['packs_remaining'] * tablets_per_package + 
-                          submission['loose_tablets'])
-            damaged_tablets = submission['damaged_tablets']
+            good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                          submission.get('packs_remaining', 0) * tablets_per_package + 
+                          submission.get('loose_tablets', 0))
+            damaged_tablets = submission.get('damaged_tablets', 0)
             
             # Assign to first available PO
             assigned_po_id = po_lines[0]['po_id']
@@ -2660,7 +2640,7 @@ def resync_unassigned_submissions():
         
         # Update PO header totals for all affected POs
         for po_id in updated_pos:
-            totals = conn.execute('''
+            totals_row = conn.execute('''
                 SELECT 
                     COALESCE(SUM(quantity_ordered), 0) as total_ordered,
                     COALESCE(SUM(good_count), 0) as total_good,
@@ -2669,7 +2649,9 @@ def resync_unassigned_submissions():
                 WHERE po_id = ?
             ''', (po_id,)).fetchone()
             
-            remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+            # Convert to dict
+            totals = dict(totals_row)
+            remaining = totals.get('total_ordered', 0) - totals.get('total_good', 0) - totals.get('total_damaged', 0)
             
             conn.execute('''
                 UPDATE purchase_orders 
@@ -2677,8 +2659,8 @@ def resync_unassigned_submissions():
                     current_damaged_count = ?, remaining_quantity = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (totals['total_ordered'], totals['total_good'], 
-                  totals['total_damaged'], remaining, po_id))
+            ''', (totals.get('total_ordered', 0), totals.get('total_good', 0), 
+                  totals.get('total_damaged', 0), remaining, po_id))
         
         conn.commit()
         conn.close()
