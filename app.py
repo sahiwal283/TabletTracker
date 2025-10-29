@@ -557,7 +557,7 @@ def submit_warehouse():
             conn.close()
             return jsonify({'warning': f'No open PO found for this tablet type (inventory_item_id: {product["inventory_item_id"]})', 'submission_saved': True})
         
-        # Get the PO we'll assign to (first available line's PO)
+        # Get the PO we'll assign to (first available line's PO - oldest PO number)
         assigned_po_id = po_lines[0]['po_id'] if po_lines else None
         
         # Update submission with assigned PO
@@ -568,11 +568,15 @@ def submit_warehouse():
                 WHERE rowid = last_insert_rowid()
             ''', (assigned_po_id,))
         
-        # Allocate counts to PO lines
+        # IMPORTANT: Only allocate counts to lines from the ASSIGNED PO
+        # This ensures older POs are completely filled before newer ones receive submissions
+        assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
+        
+        # Allocate counts to PO lines from the assigned PO only
         remaining_good = good_tablets
         remaining_damaged = damaged_tablets
         
-        for line in po_lines:
+        for line in assigned_po_lines:
             if remaining_good <= 0 and remaining_damaged <= 0:
                 break
                 
@@ -600,7 +604,7 @@ def submit_warehouse():
         
         # Update PO header totals and auto-progress internal status
         updated_pos = set()
-        for line in po_lines:
+        for line in assigned_po_lines:
             if line['po_id'] not in updated_pos:
                 # Get totals for this PO
                 totals = conn.execute('''
@@ -1221,7 +1225,7 @@ def submit_count():
             conn.close()
             return jsonify({'warning': 'No open PO found for this tablet type', 'submission_saved': True})
         
-        # Get the PO we'll assign to (first available line's PO)
+        # Get the PO we'll assign to (first available line's PO - oldest PO number)
         assigned_po_id = po_lines[0]['po_id'] if po_lines else None
         
         # Update submission with assigned PO
@@ -1232,10 +1236,14 @@ def submit_count():
                 WHERE rowid = last_insert_rowid()
             ''', (assigned_po_id,))
         
-        # Allocate count to first available PO line
+        # IMPORTANT: Only allocate counts to lines from the ASSIGNED PO
+        # This ensures older POs are completely filled before newer ones receive submissions
+        assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
+        
+        # Allocate count to PO lines from the assigned PO only
         remaining_count = actual_count
         
-        for line in po_lines:
+        for line in assigned_po_lines:
             if remaining_count <= 0:
                 break
                 
@@ -1261,7 +1269,7 @@ def submit_count():
         
         # Update PO header totals
         updated_pos = set()
-        for line in po_lines:
+        for line in assigned_po_lines:
             if line['po_id'] not in updated_pos:
                 po_id = line['po_id']
                 totals = conn.execute('''
@@ -2599,7 +2607,7 @@ def reassign_all_submissions():
                               submission.get('loose_tablets', 0))
                 damaged_tablets = submission.get('damaged_tablets', 0)
                 
-                # Assign to first available PO
+                # Assign to first available PO (oldest PO number with capacity)
                 assigned_po_id = po_lines[0]['po_id']
                 conn.execute('''
                     UPDATE warehouse_submissions 
@@ -2607,11 +2615,15 @@ def reassign_all_submissions():
                     WHERE id = ?
                 ''', (assigned_po_id, submission['id']))
                 
-                # Allocate counts to PO lines
+                # IMPORTANT: Only allocate counts to lines from the ASSIGNED PO
+                # This ensures older POs are completely filled before newer ones receive submissions
+                assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
+                
+                # Allocate counts to PO lines from the assigned PO only
                 remaining_good = good_tablets
                 remaining_damaged = damaged_tablets
                 
-                for line in po_lines:
+                for line in assigned_po_lines:
                     if remaining_good <= 0 and remaining_damaged <= 0:
                         break
                         
