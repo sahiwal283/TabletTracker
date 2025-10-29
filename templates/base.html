@@ -322,6 +322,13 @@
                     </a>
                     {% endif %}
                     
+                    <!-- Purchase Orders - Manager+ -->
+                    {% if session.employee_role in ['manager', 'admin'] %}
+                    <a href="{{ url_for('all_purchase_orders') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders
+                    </a>
+                    {% endif %}
+                    
                     <!-- Shipping - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
@@ -376,6 +383,7 @@
                 {% if session.employee_role in ['manager', 'admin'] %}
                 <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
                 <a href="{{ url_for('all_submissions') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Submissions</a>
+                <a href="{{ url_for('all_purchase_orders') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders</a>
                 <a href="{{ url_for('admin_panel') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-gear" /></svg> Admin</a>
                 {% endif %}
             </div>

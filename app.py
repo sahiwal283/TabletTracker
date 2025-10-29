@@ -650,33 +650,25 @@ def admin_dashboard():
     """Desktop dashboard for managers/admins"""
     conn = get_db()
     
-    # Get active POs (not closed)
+    # Get active POs that have submissions assigned (last 10)
     active_pos = conn.execute('''
         SELECT po.*, 
-               COUNT(pl.id) as line_count,
+               COUNT(DISTINCT pl.id) as line_count,
                COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
-               COALESCE(po.internal_status, 'Active') as status_display
+               COALESCE(po.internal_status, 'Active') as status_display,
+               COUNT(DISTINCT ws.id) as submission_count
         FROM purchase_orders po
         LEFT JOIN po_lines pl ON po.id = pl.po_id
+        INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
         WHERE po.closed = FALSE
         GROUP BY po.id
+        HAVING submission_count > 0
         ORDER BY po.po_number DESC
-        LIMIT 50
+        LIMIT 10
     ''').fetchall()
     
-    # Get closed POs for historical reference
-    closed_pos = conn.execute('''
-        SELECT po.*, 
-               COUNT(pl.id) as line_count,
-               COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
-               'Closed' as status_display
-        FROM purchase_orders po
-        LEFT JOIN po_lines pl ON po.id = pl.po_id
-        WHERE po.closed = TRUE
-        GROUP BY po.id
-        ORDER BY po.po_number DESC
-        LIMIT 20
-    ''').fetchall()
+    # Get closed POs for historical reference (removed from dashboard)
+    closed_pos = []
     
     # Get recent submissions with calculated totals and running bag totals
     submissions_raw = conn.execute('''
@@ -818,6 +810,29 @@ def all_submissions():
     
     conn.close()
     return render_template('submissions.html', submissions=submissions)
+
+@app.route('/purchase_orders')
+@role_required('dashboard')
+def all_purchase_orders():
+    """Full purchase orders page showing all POs with filtering"""
+    conn = get_db()
+    
+    # Get ALL POs with line counts and submission counts
+    all_pos = conn.execute('''
+        SELECT po.*, 
+               COUNT(DISTINCT pl.id) as line_count,
+               COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
+               COALESCE(po.internal_status, 'Active') as status_display,
+               COUNT(DISTINCT ws.id) as submission_count
+        FROM purchase_orders po
+        LEFT JOIN po_lines pl ON po.id = pl.po_id
+        LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+        GROUP BY po.id
+        ORDER BY po.po_number DESC
+    ''').fetchall()
+    
+    conn.close()
+    return render_template('purchase_orders.html', purchase_orders=all_pos)
 
 @app.route('/shipments')
 def public_shipments():
