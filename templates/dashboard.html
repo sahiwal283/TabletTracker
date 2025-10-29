@@ -368,6 +368,9 @@
                         Time
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Submission Date
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Employee
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -401,6 +404,13 @@
                 <tr class="submissions-row {% if sub.has_discrepancy %}bg-yellow-50 border-l-4 border-yellow-400{% else %}hover:bg-gray-50{% endif %}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ sub.created_at.split('.')[0] if sub.created_at else 'N/A' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <input type="date" 
+                               value="{{ sub.submission_date or sub.created_at.split(' ')[0] if sub.created_at else '' }}"
+                               onchange="updateSubmissionDate({{ sub.id }}, this.value)"
+                               class="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               title="Click to edit submission date">
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {{ sub.employee_name }}
@@ -443,6 +453,13 @@
                 <tr class="submissions-row submissions-row-hidden hidden {% if sub.has_discrepancy %}bg-yellow-50 border-l-4 border-yellow-400{% else %}hover:bg-gray-50{% endif %}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ sub.created_at.split('.')[0] if sub.created_at else 'N/A' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <input type="date" 
+                               value="{{ sub.submission_date or sub.created_at.split(' ')[0] if sub.created_at else '' }}"
+                               onchange="updateSubmissionDate({{ sub.id }}, this.value)"
+                               class="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               title="Click to edit submission date">
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {{ sub.employee_name }}
@@ -872,6 +889,31 @@ async function resyncUnassignedSubmissions() {
             event.target.disabled = false;
             event.target.textContent = '🔗 Resync Unassigned Submissions';
         }
+    }
+}
+
+async function updateSubmissionDate(submissionId, newDate) {
+    try {
+        const response = await fetch('/api/update_submission_date', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                submission_id: submissionId,
+                submission_date: newDate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('Submission date updated successfully');
+        } else {
+            showError(result.error || 'Failed to update submission date');
+        }
+    } catch (error) {
+        showError('Failed to update submission date: ' + error.message);
     }
 }
 

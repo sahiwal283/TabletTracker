@@ -2475,6 +2475,38 @@ def create_sample_receiving_data():
     except Exception as e:
         return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
 
+@app.route('/api/update_submission_date', methods=['POST'])
+@admin_required
+def update_submission_date():
+    """Update the submission date for an existing submission"""
+    try:
+        data = request.get_json()
+        submission_id = data.get('submission_id')
+        submission_date = data.get('submission_date')
+        
+        if not submission_id or not submission_date:
+            return jsonify({'error': 'Missing submission_id or submission_date'}), 400
+        
+        conn = get_db()
+        
+        # Update the submission date
+        conn.execute('''
+            UPDATE warehouse_submissions 
+            SET submission_date = ?
+            WHERE id = ?
+        ''', (submission_date, submission_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Submission date updated to {submission_date}'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
 @admin_required
 def resync_unassigned_submissions():
