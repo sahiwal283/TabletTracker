@@ -59,6 +59,16 @@
                    class="form-input" min="0" placeholder="Count on the bag label">
         </div>
         
+        <!-- Submission Date -->
+        <div>
+            <label for="submission_date" class="block text-sm font-medium text-gray-700 mb-1">
+                Submission Date *
+            </label>
+            <input type="date" id="submission_date" name="submission_date" required
+                   class="form-input" value="{{ today_date }}">
+            <p class="text-xs text-gray-500 mt-1">Change this if submitting for a different date</p>
+        </div>
+        
         <!-- Actual Count -->
         <div class="bg-accent p-4 rounded-md border border-accent">
             <h3 class="font-medium text-primary mb-3">Manual Count</h3>

@@ -197,6 +197,18 @@ def init_db():
         FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
     )''')
 
+    # Add submission_date column to warehouse_submissions if upgrading existing DB
+    c.execute('PRAGMA table_info(warehouse_submissions)')
+    existing_ws_cols = [row[1] for row in c.fetchall()]
+    if 'submission_date' not in existing_ws_cols:
+        try:
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN submission_date DATE')
+            # Backfill existing records with date from created_at
+            c.execute('UPDATE warehouse_submissions SET submission_date = DATE(created_at) WHERE submission_date IS NULL')
+            print("Added submission_date column to warehouse_submissions table")
+        except Exception:
+            pass
+    
     # Add tracking columns if upgrading existing DB
     # Safe ALTERs to backfill missing columns
     c.execute('PRAGMA table_info(shipments)')
@@ -465,7 +477,11 @@ def warehouse_form():
     ''', (session.get('employee_id'),)).fetchone()
     
     conn.close()
-    return render_template('warehouse_form.html', products=products, employee=employee)
+    
+    # Get today's date for the date picker
+    today_date = datetime.now().date().isoformat()
+    
+    return render_template('warehouse_form.html', products=products, employee=employee, today_date=today_date)
 
 @app.route('/submit_warehouse', methods=['POST'])
 @employee_required
@@ -507,15 +523,18 @@ def submit_warehouse():
                        packs_remaining * product['tablets_per_package'] + 
                        loose_tablets)
         
+        # Get submission_date (defaults to today if not provided)
+        submission_date = data.get('submission_date', datetime.now().date().isoformat())
+        
         # Insert submission record using logged-in employee name
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (employee_name, data['product_name'], data.get('box_number'),
               data.get('bag_number'), data.get('bag_label_count'),
-              displays_made, packs_remaining, loose_tablets, damaged_tablets))
+              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date))
         
         # Find open PO lines for this inventory item
         print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
@@ -1143,7 +1162,11 @@ def count_form():
     ''').fetchall()
     
     conn.close()
-    return render_template('count_form.html', tablet_types=tablet_types)
+    
+    # Get today's date for the date picker
+    today_date = datetime.now().date().isoformat()
+    
+    return render_template('count_form.html', tablet_types=tablet_types, today_date=today_date)
 
 @app.route('/submit_count', methods=['POST'])
 def submit_count():
@@ -1165,14 +1188,17 @@ def submit_count():
         actual_count = int(data.get('actual_count', 0))
         bag_label_count = int(data.get('bag_label_count', 0))
         
+        # Get submission_date (defaults to today if not provided)
+        submission_date = data.get('submission_date', datetime.now().date().isoformat())
+        
         # Insert count record
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (data['employee_name'], data['tablet_type'], data.get('box_number'),
-              data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0))
+              data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date))
         
         # Find open PO lines for this inventory item
         po_lines = conn.execute('''
