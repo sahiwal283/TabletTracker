@@ -2572,23 +2572,18 @@ def reassign_all_submissions():
                 if not inventory_item_id:
                     continue
                 
-                # Find PO lines (including closed if submission was created before closure)
-                # ORDER BY PO NUMBER, prioritizing those that were open when submission was made
+                # Find ALL PO lines (open or closed) - ORDER BY PO NUMBER
+                # This allows historical submissions to be assigned to their correct POs even if now closed
                 # Exclude Draft POs - only assign to Issued/Active POs
-                submission_time = submission.get('created_at')
                 po_lines_rows = conn.execute('''
-                    SELECT pl.*, po.closed, po.closed_at
+                    SELECT pl.*, po.closed
                     FROM po_lines pl
                     JOIN purchase_orders po ON pl.po_id = po.id
                     WHERE pl.inventory_item_id = ?
                     AND COALESCE(po.internal_status, '') != 'Draft'
-                    AND (
-                        po.closed = FALSE 
-                        OR (po.closed = TRUE AND po.closed_at >= ?)
-                    )
                     AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                     ORDER BY po.po_number ASC
-                ''', (inventory_item_id, submission_time)).fetchall()
+                ''', (inventory_item_id,)).fetchall()
                 
                 po_lines = [dict(row) for row in po_lines_rows]
                 
