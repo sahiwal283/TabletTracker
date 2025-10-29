@@ -694,29 +694,61 @@ def admin_dashboard():
         LIMIT 20
     ''').fetchall()
     
-    # Get recent submissions with calculated totals and discrepancy detection
-    submissions = conn.execute('''
+    # Get recent submissions with calculated totals and running bag totals
+    submissions_raw = conn.execute('''
         SELECT ws.*, po.po_number, po.closed as po_closed,
                pd.packages_per_display, pd.tablets_per_package,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                    (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
                    ws.loose_tablets + ws.damaged_tablets
-               ) as calculated_total,
-               CASE 
-                   WHEN ws.bag_label_count != (
-                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
-                       ws.loose_tablets + ws.damaged_tablets
-                   ) THEN 1
-                   ELSE 0
-               END as has_discrepancy
+               ) as calculated_total
         FROM warehouse_submissions ws
         LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-        ORDER BY ws.created_at DESC
-        LIMIT 50
+        ORDER BY ws.created_at ASC
     ''').fetchall()
+    
+    # Calculate running totals by bag (product_name + box_bag_number)
+    bag_running_totals = {}  # Key: (product_name, box_bag_number), Value: running_total
+    submissions_processed = []
+    
+    for sub in submissions_raw:
+        sub_dict = dict(sub)
+        bag_key = (sub_dict['product_name'], sub_dict.get('box_bag_number', ''))
+        
+        # Individual calculation for this submission
+        individual_calc = sub_dict.get('calculated_total', 0) or 0
+        
+        # Update running total for this bag
+        if bag_key not in bag_running_totals:
+            bag_running_totals[bag_key] = 0
+        bag_running_totals[bag_key] += individual_calc
+        
+        # Add running total and comparison fields
+        sub_dict['individual_calc'] = individual_calc
+        sub_dict['running_total'] = bag_running_totals[bag_key]
+        
+        # Compare running total to bag label count
+        bag_count = sub_dict.get('bag_label_count', 0) or 0
+        running_total = bag_running_totals[bag_key]
+        
+        # Determine status
+        if bag_count == 0:
+            sub_dict['count_status'] = 'no_bag'
+        elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+            sub_dict['count_status'] = 'match'
+        elif running_total < bag_count:
+            sub_dict['count_status'] = 'under'
+        else:
+            sub_dict['count_status'] = 'over'
+        
+        sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+        
+        submissions_processed.append(sub_dict)
+    
+    # Reverse to show newest first in UI
+    submissions = list(reversed(submissions_processed[-50:]))  # Last 50, newest first
     
     # Get summary stats using internal status (only count synced POs, not test data)
     stats = conn.execute('''
@@ -2920,7 +2952,7 @@ def get_po_submissions(po_id):
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ?
-                ORDER BY ws.created_at DESC
+                ORDER BY ws.created_at ASC
             '''
         else:
             submissions_query = '''
@@ -2939,30 +2971,55 @@ def get_po_submissions(po_id):
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ?
-                ORDER BY ws.created_at DESC
+                ORDER BY ws.created_at ASC
             '''
         
         submissions_raw = conn.execute(submissions_query, (po_id,)).fetchall()
         
-        # Calculate total tablets for each submission
+        # Calculate total tablets and running bag totals for each submission
+        bag_running_totals = {}
         submissions = []
+        
         for sub in submissions_raw:
             sub_dict = dict(sub)
-            # Calculate total tablets
+            
+            # Calculate total tablets for this submission
             displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
             package_tablets = (sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
             loose_tablets = sub_dict.get('loose_tablets', 0) or 0
             damaged_tablets = sub_dict.get('damaged_tablets', 0) or 0
             total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
             sub_dict['total_tablets'] = total_tablets
+            
+            # Calculate running total by bag
+            bag_key = (sub_dict.get('product_name', ''), sub_dict.get('box_bag_number', ''))
+            if bag_key not in bag_running_totals:
+                bag_running_totals[bag_key] = 0
+            bag_running_totals[bag_key] += total_tablets
+            sub_dict['running_total'] = bag_running_totals[bag_key]
+            
+            # Determine count status
+            bag_count = sub_dict.get('bag_label_count', 0) or 0
+            if bag_count == 0:
+                sub_dict['count_status'] = 'no_bag'
+            elif abs(bag_running_totals[bag_key] - bag_count) <= 5:
+                sub_dict['count_status'] = 'match'
+            elif bag_running_totals[bag_key] < bag_count:
+                sub_dict['count_status'] = 'under'
+            else:
+                sub_dict['count_status'] = 'over'
+            
             submissions.append(sub_dict)
+        
+        # Reverse to show newest first in modal
+        submissions.reverse()
         
         conn.close()
         
         return jsonify({
             'success': True,
             'po': dict(po),
-            'submissions': [dict(s) for s in submissions],
+            'submissions': submissions,
             'count': len(submissions)
         })
         

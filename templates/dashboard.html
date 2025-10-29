@@ -431,14 +431,21 @@
                         {{ sub.damaged_tablets }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        {% if sub.has_discrepancy %}
-                            <div class="text-orange-600 font-medium">
-                                <div class="text-xs">Calc: {{ sub.calculated_total }}</div>
-                                <div class="text-xs">Bag: {{ sub.bag_label_count }}</div>
-                                <div class="text-xs font-bold">⚠️ Mismatch</div>
-                            </div>
+                        {% if sub.count_status == 'no_bag' %}
+                            <span class="text-gray-400 text-xs">No Bag Label</span>
                         {% else %}
-                            <span class="text-green-600 text-xs">✅ Match</span>
+                            <div class="{% if sub.count_status == 'match' %}text-green-600{% elif sub.count_status == 'under' %}text-yellow-600{% else %}text-red-600{% endif %} font-medium">
+                                <div class="text-xs">This: {{ sub.individual_calc }}</div>
+                                <div class="text-xs font-semibold">Total: {{ sub.running_total }}</div>
+                                <div class="text-xs">Bag: {{ sub.bag_label_count }}</div>
+                                {% if sub.count_status == 'match' %}
+                                    <div class="text-xs font-bold">✓ Match</div>
+                                {% elif sub.count_status == 'under' %}
+                                    <div class="text-xs font-bold">⚠️ Under</div>
+                                {% else %}
+                                    <div class="text-xs font-bold">❌ Over</div>
+                                {% endif %}
+                            </div>
                         {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
@@ -1395,7 +1402,7 @@ async function viewPOSubmissions(poId, poName) {
                         <div class="flex justify-between items-start mb-3">
                             <div>
                                 <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
-                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'}</p>
+                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_bag_number || 'N/A'}</p>
                             </div>
                             <div class="text-right text-sm">
                                 <div class="text-gray-600">📅 ${submissionDate.toLocaleDateString()}</div>
@@ -1403,9 +1410,22 @@ async function viewPOSubmissions(poId, poName) {
                             </div>
                         </div>
                         
-                        <!-- Total Tablets Badge -->
-                        <div class="mb-3 inline-block bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
-                            <span class="font-semibold text-lg">${(sub.total_tablets || 0).toLocaleString()} tablets</span>
+                        <!-- Tablet Count Summary -->
+                        <div class="mb-3 flex gap-2 items-center flex-wrap">
+                            <div class="inline-block bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
+                                <span class="font-semibold text-sm">This: ${(sub.total_tablets || 0).toLocaleString()}</span>
+                            </div>
+                            <div class="inline-block bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
+                                <span class="font-semibold text-sm">Running: ${(sub.running_total || 0).toLocaleString()}</span>
+                            </div>
+                            ${sub.bag_label_count ? `
+                                <div class="inline-block bg-gray-100 text-gray-800 px-3 py-1 rounded-full">
+                                    <span class="font-semibold text-sm">Bag: ${(sub.bag_label_count || 0).toLocaleString()}</span>
+                                </div>
+                                ${sub.count_status === 'match' ? '<span class="text-green-600 font-bold text-sm">✓ Match</span>' : ''}
+                                ${sub.count_status === 'under' ? '<span class="text-yellow-600 font-bold text-sm">⚠️ Under</span>' : ''}
+                                ${sub.count_status === 'over' ? '<span class="text-red-600 font-bold text-sm">❌ Over</span>' : ''}
+                            ` : ''}
                         </div>
                         
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
