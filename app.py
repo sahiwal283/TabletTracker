@@ -709,15 +709,16 @@ def admin_dashboard():
         ORDER BY ws.created_at ASC
     ''').fetchall()
     
-    # Calculate running totals by bag (product_name + box/bag combination)
-    bag_running_totals = {}  # Key: (product_name, "box/bag"), Value: running_total
+    # Calculate running totals by bag PER PO (each PO has its own physical bags)
+    bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
     submissions_processed = []
     
     for sub in submissions_raw:
         sub_dict = dict(sub)
         # Create bag identifier from box_number/bag_number
         bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-        bag_key = (sub_dict['product_name'], bag_identifier)
+        # Key includes PO ID so each PO tracks its own bag totals independently
+        bag_key = (sub_dict.get('assigned_po_id'), sub_dict['product_name'], bag_identifier)
         
         # Individual calculation for this submission
         individual_calc = sub_dict.get('calculated_total', 0) or 0
@@ -2993,9 +2994,10 @@ def get_po_submissions(po_id):
             total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
             sub_dict['total_tablets'] = total_tablets
             
-            # Calculate running total by bag
+            # Calculate running total by bag PER PO
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-            bag_key = (sub_dict.get('product_name', ''), bag_identifier)
+            # Key includes PO ID so each PO tracks its own bag totals independently
+            bag_key = (po_id, sub_dict.get('product_name', ''), bag_identifier)
             if bag_key not in bag_running_totals:
                 bag_running_totals[bag_key] = 0
             bag_running_totals[bag_key] += total_tablets
