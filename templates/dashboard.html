@@ -1403,6 +1403,11 @@ async function viewPOSubmissions(poId, poName) {
                             </div>
                         </div>
                         
+                        <!-- Total Tablets Badge -->
+                        <div class="mb-3 inline-block bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
+                            <span class="font-semibold text-lg">${(sub.total_tablets || 0).toLocaleString()} tablets</span>
+                        </div>
+                        
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
                             <div>
                                 <div class="text-xs text-gray-500">Displays Made</div>

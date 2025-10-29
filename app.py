@@ -2902,7 +2902,7 @@ def get_po_submissions(po_id):
         except:
             pass
         
-        # Get all submissions for this PO
+        # Get all submissions for this PO with product details for calculating total tablets
         if has_submission_date:
             submissions_query = '''
                 SELECT 
@@ -2914,8 +2914,11 @@ def get_po_submissions(po_id):
                     ws.loose_tablets,
                     ws.damaged_tablets,
                     ws.created_at,
-                    ws.submission_date
+                    ws.submission_date,
+                    pd.packages_per_display,
+                    pd.tablets_per_package
                 FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ?
                 ORDER BY ws.created_at DESC
             '''
@@ -2930,13 +2933,29 @@ def get_po_submissions(po_id):
                     ws.loose_tablets,
                     ws.damaged_tablets,
                     ws.created_at,
-                    ws.created_at as submission_date
+                    ws.created_at as submission_date,
+                    pd.packages_per_display,
+                    pd.tablets_per_package
                 FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ?
                 ORDER BY ws.created_at DESC
             '''
         
-        submissions = conn.execute(submissions_query, (po_id,)).fetchall()
+        submissions_raw = conn.execute(submissions_query, (po_id,)).fetchall()
+        
+        # Calculate total tablets for each submission
+        submissions = []
+        for sub in submissions_raw:
+            sub_dict = dict(sub)
+            # Calculate total tablets
+            displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
+            package_tablets = (sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
+            loose_tablets = sub_dict.get('loose_tablets', 0) or 0
+            damaged_tablets = sub_dict.get('damaged_tablets', 0) or 0
+            total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
+            sub_dict['total_tablets'] = total_tablets
+            submissions.append(sub_dict)
         
         conn.close()
         
