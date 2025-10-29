@@ -538,13 +538,14 @@ def submit_warehouse():
         
         # Find open PO lines for this inventory item
         print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
+        # Order by PO number (oldest PO numbers first) since they represent issue order
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
-            ORDER BY po.created_at ASC
+            ORDER BY po.po_number ASC
         ''', (product['inventory_item_id'],)).fetchall()
         
         print(f"Found {len(po_lines)} matching PO lines")
@@ -1201,13 +1202,14 @@ def submit_count():
               data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date))
         
         # Find open PO lines for this inventory item
+        # Order by PO number (oldest PO numbers first) since they represent issue order
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
-            ORDER BY po.created_at ASC
+            ORDER BY po.po_number ASC
         ''', (tablet_type['inventory_item_id'],)).fetchall()
         
         if not po_lines:
@@ -2570,13 +2572,14 @@ def resync_unassigned_submissions():
                 continue
             
             # Find open PO lines for this inventory item
+            # Order by PO number (oldest PO numbers first) since they represent issue order
             po_lines_rows = conn.execute('''
                 SELECT pl.*, po.closed
                 FROM po_lines pl
                 JOIN purchase_orders po ON pl.po_id = po.id
                 WHERE pl.inventory_item_id = ? AND po.closed = FALSE
                 AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
-                ORDER BY po.created_at ASC
+                ORDER BY po.po_number ASC
             ''', (inventory_item_id,)).fetchall()
             
             # Convert to dicts
