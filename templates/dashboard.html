@@ -237,7 +237,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for po in active_pos %}
-                <tr class="hover:bg-gray-50 po-row" data-po-index="{{ loop.index }}" data-po-id="{{ po.id }}">
+                <tr class="hover:bg-gray-100 cursor-pointer po-row" data-po-index="{{ loop.index }}" data-po-id="{{ po.id }}" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {{ po.po_number }}
                     </td>
@@ -318,20 +318,13 @@
                             </span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="togglePODetails({{ po.id }}, this)" 
-                                class="text-blue-600 hover:text-blue-900 font-medium">
-                            ▼ View Details
-                        </button>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 italic">
+                        Click row for details
                     </td>
                 </tr>
-                <!-- Expandable details row -->
-                <tr id="details-{{ po.id }}" class="hidden bg-gray-50 po-details-row" data-po-index="{{ loop.index }}" style="display: none;">
-                    <td colspan="9" class="px-6 py-4">
-                        <div id="details-content-{{ po.id }}" class="text-sm">
-                            <div class="animate-pulse">Loading line items...</div>
-                        </div>
-                    </td>
+                <!-- Details row - will be shown in modal -->
+                <tr id="details-{{ po.id }}" class="hidden" style="display: none;">
+                    <td colspan="9"></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -1485,6 +1478,121 @@ function closeSubmissionsModal(event) {
     // Close if clicked outside the modal or on close button
     if (!event || event.target === event.currentTarget || !event) {
         const modal = document.getElementById('submissions-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+}
+
+async function viewPODetailsModal(poId, poNumber) {
+    try {
+        const response = await fetch(`/api/po_lines/${poId}`);
+        const lines = await response.json();
+        
+        // Build modal content
+        let modalContent = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closePODetailsModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="text-xl font-bold">📦 Purchase Order: ${poNumber}</h3>
+                                <p class="text-sm text-blue-100 mt-1">${lines.length} line item(s)</p>
+                            </div>
+                            <button onclick="closePODetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        `;
+        
+        if (lines.length === 0) {
+            modalContent += `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No line items found for this PO</p>
+                </div>
+            `;
+        } else {
+            modalContent += '<div class="grid grid-cols-1 gap-4">';
+            
+            lines.forEach(line => {
+                const remaining = line.quantity_ordered - line.good_count - line.damaged_count;
+                const received = line.good_count + line.damaged_count;
+                const progressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
+                
+                modalContent += `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
+                         onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${line.line_item_name}');"
+                         title="Click to view submissions">
+                        <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                            <div class="flex-1">
+                                <div class="font-bold text-lg text-gray-900">${line.line_item_name}</div>
+                                <div class="text-sm text-gray-500 font-mono mt-1">ID: ${line.inventory_item_id}</div>
+                                
+                                <!-- Progress bar -->
+                                <div class="mt-3">
+                                    <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                        <span>Progress</span>
+                                        <span class="font-semibold">${progressPercent}%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: ${progressPercent}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                                <div class="text-center">
+                                    <div class="text-xs text-gray-500 font-medium">Ordered</div>
+                                    <div class="text-lg font-bold text-gray-900">${line.quantity_ordered.toLocaleString()}</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-xs text-green-600 font-medium">Good</div>
+                                    <div class="text-lg font-bold text-green-600">${line.good_count.toLocaleString()}</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-xs text-red-600 font-medium">Damaged</div>
+                                    <div class="text-lg font-bold text-red-600">${line.damaged_count.toLocaleString()}</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-xs text-blue-600 font-medium">Remaining</div>
+                                    <div class="text-lg font-bold text-blue-600">${remaining.toLocaleString()}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            modalContent += '</div>';
+        }
+        
+        modalContent += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'po-details-modal';
+        modalDiv.innerHTML = modalContent;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading PO details:', error);
+        showError('Failed to load PO details: ' + error.message);
+    }
+}
+
+function closePODetailsModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('po-details-modal');
         if (modal) {
             modal.remove();
         }
