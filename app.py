@@ -209,6 +209,15 @@ def init_db():
         except Exception:
             pass
     
+    # Add po_assignment_verified column to warehouse_submissions for approval workflow
+    if 'po_assignment_verified' not in existing_ws_cols:
+        try:
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN po_assignment_verified BOOLEAN DEFAULT FALSE')
+            # All existing submissions default to unverified (need manager approval)
+            print("Added po_assignment_verified column to warehouse_submissions table")
+        except Exception:
+            pass
+    
     # Add tracking columns if upgrading existing DB
     # Safe ALTERs to backfill missing columns
     c.execute('PRAGMA table_info(shipments)')
@@ -674,6 +683,7 @@ def admin_dashboard():
     submissions_raw = conn.execute('''
         SELECT ws.*, po.po_number, po.closed as po_closed,
                pd.packages_per_display, pd.tablets_per_package,
+               COALESCE(ws.po_assignment_verified, 0) as po_verified,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                    (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -740,11 +750,12 @@ def admin_dashboard():
         FROM purchase_orders
     ''').fetchone()
     
-    # Count submissions needing verification (submissions from last 7 days)
+    # Count submissions needing verification (unverified submissions from last 7 days)
     verification_count = conn.execute('''
         SELECT COUNT(*) as count
         FROM warehouse_submissions
         WHERE datetime(created_at) >= datetime('now', '-7 days')
+        AND COALESCE(po_assignment_verified, 0) = 0
     ''').fetchone()['count']
     
     conn.close()
@@ -760,6 +771,7 @@ def all_submissions():
     submissions_raw = conn.execute('''
         SELECT ws.*, po.po_number, po.closed as po_closed,
                pd.packages_per_display, pd.tablets_per_package,
+               COALESCE(ws.po_assignment_verified, 0) as po_verified,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                    (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -2679,6 +2691,50 @@ def get_available_pos_for_submission(submission_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/submission/<int:submission_id>/approve', methods=['POST'])
+@admin_required
+def approve_submission_assignment(submission_id):
+    """Approve and lock the current PO assignment for a submission"""
+    try:
+        conn = get_db()
+        
+        # Check if submission exists and isn't already verified
+        submission = conn.execute('''
+            SELECT id, assigned_po_id, po_assignment_verified
+            FROM warehouse_submissions
+            WHERE id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            conn.close()
+            return jsonify({'error': 'Submission not found'}), 404
+        
+        if submission['po_assignment_verified']:
+            conn.close()
+            return jsonify({'error': 'Submission already verified and locked'}), 400
+        
+        if not submission['assigned_po_id']:
+            conn.close()
+            return jsonify({'error': 'Cannot approve unassigned submission'}), 400
+        
+        # Mark as verified/locked
+        conn.execute('''
+            UPDATE warehouse_submissions 
+            SET po_assignment_verified = TRUE
+            WHERE id = ?
+        ''', (submission_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'PO assignment approved and locked'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/submission/<int:submission_id>/reassign', methods=['POST'])
 @admin_required
 def reassign_submission_to_po(submission_id):
@@ -2704,6 +2760,11 @@ def reassign_submission_to_po(submission_id):
         if not submission:
             conn.close()
             return jsonify({'error': 'Submission not found'}), 404
+        
+        # Check if already verified/locked
+        if submission['po_assignment_verified']:
+            conn.close()
+            return jsonify({'error': 'Cannot reassign: PO assignment is already verified and locked'}), 403
         
         old_po_id = submission['assigned_po_id']
         inventory_item_id = submission['inventory_item_id']
@@ -2799,10 +2860,10 @@ def reassign_submission_to_po(submission_id):
             ''', (new_totals['total_ordered'], new_totals['total_good'], 
                   new_totals['total_damaged'], remaining, new_po_id))
         
-        # Update submission assignment
+        # Update submission assignment and mark as verified (locked)
         conn.execute('''
             UPDATE warehouse_submissions 
-            SET assigned_po_id = ?
+            SET assigned_po_id = ?, po_assignment_verified = TRUE
             WHERE id = ?
         ''', (new_po_id, submission_id))
         
@@ -2814,7 +2875,7 @@ def reassign_submission_to_po(submission_id):
         
         return jsonify({
             'success': True,
-            'message': f'Submission reassigned to PO-{new_po["po_number"]}',
+            'message': f'Submission reassigned to PO-{new_po["po_number"]} and locked',
             'new_po_number': new_po['po_number']
         })
         

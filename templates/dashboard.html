@@ -482,11 +482,22 @@
                                         ✓ Open
                                     </span>
                                 {% endif %}
-                                <button onclick="openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
-                                        class="text-xs text-blue-600 hover:text-blue-800 underline"
-                                        title="Change PO assignment">
-                                    Change
-                                </button>
+                                {% if sub.po_verified %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-600 text-white" title="PO assignment verified and locked">
+                                        ✓ Verified
+                                    </span>
+                                {% else %}
+                                    <button onclick="approveSubmission({{ sub.id }})" 
+                                            class="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"
+                                            title="Approve this PO assignment">
+                                        ✓ Approve
+                                    </button>
+                                    <button onclick="openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
+                                            class="text-xs text-blue-600 hover:text-blue-800 underline"
+                                            title="Change PO assignment">
+                                        Change
+                                    </button>
+                                {% endif %}
                             </div>
                         {% else %}
                             <span class="text-gray-400 italic">Unassigned</span>
@@ -1604,6 +1615,32 @@ function closePODetailsModal(event) {
         if (modal) {
             modal.remove();
         }
+    }
+}
+
+// Approval function
+async function approveSubmission(submissionId) {
+    if (!confirm('Approve this PO assignment? Once approved, it cannot be changed.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/approve`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.error || 'Failed to approve submission');
+        }
+    } catch (error) {
+        console.error('Error approving submission:', error);
+        showError('Failed to approve submission: ' + error.message);
     }
 }
 
