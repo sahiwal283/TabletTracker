@@ -333,7 +333,7 @@
             <div class="flex items-center cursor-pointer hover:bg-gray-50" onclick="toggleRecentSubmissions()">
                 <span class="text-3xl mr-4">📝</span>
                 <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Recent Submissions</h3>
-                <span class="ml-3 text-sm text-gray-500">({{ submissions|length }} total)</span>
+                <span class="ml-3 text-sm text-gray-500">(last {{ submissions|length }})</span>
                 <span id="submissions-toggle-icon" class="ml-3 text-gray-500 transform transition-transform rotate-90">▶</span>
             </div>
             <div class="flex items-center gap-4">
@@ -341,6 +341,9 @@
                     <input type="checkbox" id="show-closed-submissions" onchange="toggleClosedSubmissions()" class="mr-2">
                     <span class="text-sm text-gray-600">Show Closed POs</span>
                 </label>
+                <a href="/submissions" class="btn-primary px-4 py-2 text-sm font-medium">
+                    📋 View All Submissions
+                </a>
             </div>
         </div>
     </div>

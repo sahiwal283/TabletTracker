@@ -734,8 +734,8 @@ def admin_dashboard():
         
         submissions_processed.append(sub_dict)
     
-    # Reverse to show newest first in UI
-    submissions = list(reversed(submissions_processed[-50:]))  # Last 50, newest first
+    # Show only last 10 most recent submissions on dashboard
+    submissions = list(reversed(submissions_processed[-10:]))  # Last 10, newest first
     
     # Get summary stats using internal status (only count synced POs, not test data)
     stats = conn.execute('''
@@ -750,6 +750,74 @@ def admin_dashboard():
     
     conn.close()
     return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats)
+
+@app.route('/submissions')
+@role_required('dashboard')
+def all_submissions():
+    """Full submissions page showing all submissions"""
+    conn = get_db()
+    
+    # Get ALL submissions with calculated totals and running bag totals
+    submissions_raw = conn.execute('''
+        SELECT ws.*, po.po_number, po.closed as po_closed,
+               pd.packages_per_display, pd.tablets_per_package,
+               (
+                   (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                   ws.loose_tablets + ws.damaged_tablets
+               ) as calculated_total
+        FROM warehouse_submissions ws
+        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        ORDER BY ws.created_at ASC
+    ''').fetchall()
+    
+    # Calculate running totals by bag PER PO (each PO has its own physical bags)
+    bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+    submissions_processed = []
+    
+    for sub in submissions_raw:
+        sub_dict = dict(sub)
+        # Create bag identifier from box_number/bag_number
+        bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+        # Key includes PO ID so each PO tracks its own bag totals independently
+        bag_key = (sub_dict.get('assigned_po_id'), sub_dict['product_name'], bag_identifier)
+        
+        # Individual calculation for this submission
+        individual_calc = sub_dict.get('calculated_total', 0) or 0
+        
+        # Update running total for this bag
+        if bag_key not in bag_running_totals:
+            bag_running_totals[bag_key] = 0
+        bag_running_totals[bag_key] += individual_calc
+        
+        # Add running total and comparison fields
+        sub_dict['individual_calc'] = individual_calc
+        sub_dict['running_total'] = bag_running_totals[bag_key]
+        
+        # Compare running total to bag label count
+        bag_count = sub_dict.get('bag_label_count', 0) or 0
+        running_total = bag_running_totals[bag_key]
+        
+        # Determine status
+        if bag_count == 0:
+            sub_dict['count_status'] = 'no_bag'
+        elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+            sub_dict['count_status'] = 'match'
+        elif running_total < bag_count:
+            sub_dict['count_status'] = 'under'
+        else:
+            sub_dict['count_status'] = 'over'
+        
+        sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+        
+        submissions_processed.append(sub_dict)
+    
+    # Reverse to show newest first in UI
+    submissions = list(reversed(submissions_processed))  # All submissions, newest first
+    
+    conn.close()
+    return render_template('submissions.html', submissions=submissions)
 
 @app.route('/shipments')
 def public_shipments():
