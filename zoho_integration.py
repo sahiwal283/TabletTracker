@@ -231,30 +231,50 @@ class ZohoInventoryAPI:
                         ''', (po_id, po['purchaseorder_number'], line['item_id'], 
                               line['name'], line['quantity']))
                     
-                    # Extract tablet type from line item name
-                    item_name = line.get('name', '').lower()
-                    if 'fix' in item_name:
-                        if 'energy' in item_name:
-                            tablet_types_found.append('FIX Energy')
-                        elif 'focus' in item_name:
-                            tablet_types_found.append('FIX Focus')
-                        elif 'relax' in item_name:
-                            tablet_types_found.append('FIX Relax')
-                    elif '7oh' in item_name or '7-oh' in item_name:
-                        if 'xl' in item_name:
-                            tablet_types_found.append('XL 7OH')
+                    # Extract tablet type using inventory_item_id from configured tablet types
+                    item_id = line.get('item_id', '')
+                    matched_this_line = False
+                    
+                    if item_id:
+                        # Look up the tablet type by inventory_item_id
+                        tablet_type_match = db_conn.execute('''
+                            SELECT tablet_type_name 
+                            FROM tablet_types 
+                            WHERE inventory_item_id = ?
+                        ''', (item_id,)).fetchone()
+                        
+                        if tablet_type_match:
+                            tablet_types_found.append(tablet_type_match['tablet_type_name'])
+                            matched_this_line = True
+                            print(f"✅ Matched line item '{line['name']}' (ID: {item_id}) to tablet type: {tablet_type_match['tablet_type_name']}")
                         else:
-                            tablet_types_found.append('7OH')
-                    elif 'pseudo' in item_name:
-                        if 'xl' in item_name:
-                            tablet_types_found.append('XL Pseudo')  
-                        else:
-                            tablet_types_found.append('Pseudo')
-                    elif 'hybrid' in item_name:
-                        if 'xl' in item_name:
-                            tablet_types_found.append('XL Hybrid')
-                        else:
-                            tablet_types_found.append('Hybrid')
+                            print(f"⚠️  Line item '{line['name']}' (ID: {item_id}) has no matching tablet type in config")
+                    
+                    # Fallback: Extract tablet type from line item name if no ID match for this specific line
+                    if not matched_this_line:
+                        item_name = line.get('name', '').lower()
+                        if 'fix' in item_name:
+                            if 'energy' in item_name:
+                                tablet_types_found.append('FIX Energy')
+                            elif 'focus' in item_name:
+                                tablet_types_found.append('FIX Focus')
+                            elif 'relax' in item_name:
+                                tablet_types_found.append('FIX Relax')
+                        elif '7oh' in item_name or '7-oh' in item_name:
+                            if 'xl' in item_name:
+                                tablet_types_found.append('XL 7OH')
+                            else:
+                                tablet_types_found.append('7OH')
+                        elif 'pseudo' in item_name:
+                            if 'xl' in item_name:
+                                tablet_types_found.append('XL Pseudo')  
+                            else:
+                                tablet_types_found.append('Pseudo')
+                        elif 'hybrid' in item_name:
+                            if 'xl' in item_name:
+                                tablet_types_found.append('XL Hybrid')
+                            else:
+                                tablet_types_found.append('Hybrid')
             
             # Auto-progress internal status based on Zoho actions
             current_internal = db_conn.execute(
