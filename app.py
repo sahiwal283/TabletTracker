@@ -2515,8 +2515,9 @@ def resync_unassigned_submissions():
         conn = get_db()
         
         # Get all unassigned submissions - convert to dicts immediately
+        # Note: Use 'id' instead of 'rowid' for better compatibility
         unassigned_rows = conn.execute('''
-            SELECT ws.rowid, ws.product_name, ws.displays_made, 
+            SELECT ws.id, ws.product_name, ws.displays_made, 
                    ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets
             FROM warehouse_submissions ws
             WHERE ws.assigned_po_id IS NULL
@@ -2565,7 +2566,7 @@ def resync_unassigned_submissions():
                     print(f"⚠️  No inventory_item_id for: {submission['product_name']}")
                     continue
             except Exception as e:
-                print(f"❌ Error processing submission {submission.get('rowid', 'unknown')}: {e}")
+                print(f"❌ Error processing submission {submission.get('id', 'unknown')}: {e}")
                 continue
             
             # Find open PO lines for this inventory item
@@ -2598,8 +2599,8 @@ def resync_unassigned_submissions():
             conn.execute('''
                 UPDATE warehouse_submissions 
                 SET assigned_po_id = ?
-                WHERE rowid = ?
-            ''', (assigned_po_id, submission['rowid']))
+                WHERE id = ?
+            ''', (assigned_po_id, submission['id']))
             
             # Allocate counts to PO lines
             remaining_good = good_tablets
