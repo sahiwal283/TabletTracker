@@ -256,28 +256,38 @@ class ProductionReportGenerator:
             'total_packages': 0,
             'total_loose': 0,
             'total_damaged': 0,
+            'total_tablets': 0,
             'by_product': {},
             'by_employee': {},
             'production_timeline': []
         }
         
         for sub in submissions:
+            # Calculate total tablets for this submission first
+            displays_tablets = (sub['displays_made'] or 0) * (sub['packages_per_display'] or 0) * (sub['tablets_per_package'] or 0)
+            package_tablets = (sub['packs_remaining'] or 0) * (sub['tablets_per_package'] or 0)
+            loose_tablets = sub['loose_tablets'] or 0
+            damaged_tablets = sub['damaged_tablets'] or 0
+            total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
+            
             # Overall totals
             breakdown['total_displays'] += sub['displays_made'] or 0
             breakdown['total_packages'] += sub['packs_remaining'] or 0
             breakdown['total_loose'] += sub['loose_tablets'] or 0
             breakdown['total_damaged'] += sub['damaged_tablets'] or 0
+            breakdown['total_tablets'] += total_tablets
             
             # By product
             product = sub['product_name']
             if product not in breakdown['by_product']:
                 breakdown['by_product'][product] = {
-                    'displays': 0, 'packages': 0, 'loose': 0, 'damaged': 0
+                    'displays': 0, 'packages': 0, 'loose': 0, 'damaged': 0, 'total_tablets': 0
                 }
             breakdown['by_product'][product]['displays'] += sub['displays_made'] or 0
             breakdown['by_product'][product]['packages'] += sub['packs_remaining'] or 0
             breakdown['by_product'][product]['loose'] += sub['loose_tablets'] or 0
             breakdown['by_product'][product]['damaged'] += sub['damaged_tablets'] or 0
+            breakdown['by_product'][product]['total_tablets'] += total_tablets
             
             # By employee
             employee = sub['employee_name']
@@ -287,13 +297,6 @@ class ProductionReportGenerator:
                 }
             breakdown['by_employee'][employee]['submissions'] += 1
             breakdown['by_employee'][employee]['displays'] += sub['displays_made'] or 0
-            
-            # Calculate total tablets for this submission
-            displays_tablets = (sub['displays_made'] or 0) * (sub['packages_per_display'] or 0) * (sub['tablets_per_package'] or 0)
-            package_tablets = (sub['packs_remaining'] or 0) * (sub['tablets_per_package'] or 0)
-            loose_tablets = sub['loose_tablets'] or 0
-            total_tablets = displays_tablets + package_tablets + loose_tablets
-            
             breakdown['by_employee'][employee]['total_tablets'] += total_tablets
             
             # Timeline entry
@@ -449,6 +452,7 @@ class ProductionReportGenerator:
                 ['Packages Remaining', f"{breakdown['total_packages']:,}"],
                 ['Loose Tablets', f"{breakdown['total_loose']:,}"],
                 ['Damaged Tablets', f"{breakdown['total_damaged']:,}"],
+                ['Total Tablets', f"{breakdown['total_tablets']:,}"],
                 ['Total Submissions', f"{len(po_data['submissions']):,}"]
             ]
             
@@ -470,17 +474,18 @@ class ProductionReportGenerator:
             if breakdown['by_product']:
                 story.append(Paragraph("Production by Product", self.styles['Heading4']))
                 
-                product_data = [['Product', 'Displays', 'Packages', 'Loose', 'Damaged']]
+                product_data = [['Product', 'Displays', 'Packages', 'Loose', 'Damaged', 'Total Tablets']]
                 for product, data in breakdown['by_product'].items():
                     product_data.append([
                         product,
                         str(data['displays']),
                         str(data['packages']), 
                         str(data['loose']),
-                        str(data['damaged'])
+                        str(data['damaged']),
+                        f"{data['total_tablets']:,}"
                     ])
                 
-                product_table = Table(product_data, colWidths=[2*inch, 1*inch, 1*inch, 1*inch, 1*inch])
+                product_table = Table(product_data, colWidths=[1.5*inch, 0.8*inch, 0.8*inch, 0.7*inch, 0.7*inch, 1*inch])
                 product_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#93B1B5')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
