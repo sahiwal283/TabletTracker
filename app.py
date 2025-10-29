@@ -2950,6 +2950,9 @@ def get_po_submissions(po_id):
                     ws.damaged_tablets,
                     ws.created_at,
                     ws.submission_date,
+                    ws.box_number,
+                    ws.bag_number,
+                    ws.bag_label_count,
                     pd.packages_per_display,
                     pd.tablets_per_package
                 FROM warehouse_submissions ws
@@ -2969,6 +2972,9 @@ def get_po_submissions(po_id):
                     ws.damaged_tablets,
                     ws.created_at,
                     ws.created_at as submission_date,
+                    ws.box_number,
+                    ws.bag_number,
+                    ws.bag_label_count,
                     pd.packages_per_display,
                     pd.tablets_per_package
                 FROM warehouse_submissions ws

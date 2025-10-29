@@ -1416,11 +1416,8 @@ async function viewPOSubmissions(poId, poName) {
                             </div>
                         </div>
                         
-                        <!-- Tablet Count Summary -->
+                        <!-- Running Total and Bag Check -->
                         <div class="mb-3 flex gap-2 items-center flex-wrap">
-                            <div class="inline-block bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
-                                <span class="font-semibold text-sm">Total: ${(sub.total_tablets || 0).toLocaleString()}</span>
-                            </div>
                             <div class="inline-block bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
                                 <span class="font-semibold text-sm">Running: ${(sub.running_total || 0).toLocaleString()}</span>
                             </div>
@@ -1450,6 +1447,13 @@ async function viewPOSubmissions(poId, poName) {
                             <div>
                                 <div class="text-xs text-gray-500">Damaged Tablets</div>
                                 <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submission Total -->
+                        <div class="mt-3 flex justify-center">
+                            <div class="inline-block bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full">
+                                <span class="font-semibold text-base">Total: ${(sub.total_tablets || 0).toLocaleString()} tablets</span>
                             </div>
                         </div>
                     </div>
