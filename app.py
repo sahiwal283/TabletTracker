@@ -2691,7 +2691,11 @@ def resync_unassigned_submissions():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌❌❌ RESYNC ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
