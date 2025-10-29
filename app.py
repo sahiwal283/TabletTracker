@@ -2908,15 +2908,14 @@ def get_po_submissions(po_id):
                 SELECT 
                     ws.id,
                     ws.product_name,
+                    ws.employee_name,
                     ws.displays_made,
                     ws.packs_remaining,
                     ws.loose_tablets,
                     ws.damaged_tablets,
                     ws.created_at,
-                    ws.submission_date,
-                    e.name as employee_name
+                    ws.submission_date
                 FROM warehouse_submissions ws
-                LEFT JOIN employees e ON ws.employee_id = e.id
                 WHERE ws.assigned_po_id = ?
                 ORDER BY ws.created_at DESC
             '''
@@ -2925,15 +2924,14 @@ def get_po_submissions(po_id):
                 SELECT 
                     ws.id,
                     ws.product_name,
+                    ws.employee_name,
                     ws.displays_made,
                     ws.packs_remaining,
                     ws.loose_tablets,
                     ws.damaged_tablets,
                     ws.created_at,
-                    ws.created_at as submission_date,
-                    e.name as employee_name
+                    ws.created_at as submission_date
                 FROM warehouse_submissions ws
-                LEFT JOIN employees e ON ws.employee_id = e.id
                 WHERE ws.assigned_po_id = ?
                 ORDER BY ws.created_at DESC
             '''
