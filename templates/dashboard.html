@@ -230,9 +230,6 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                    </th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -318,13 +315,10 @@
                             </span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 italic">
-                        Click row for details
-                    </td>
                 </tr>
                 <!-- Details row - will be shown in modal -->
                 <tr id="details-{{ po.id }}" class="hidden" style="display: none;">
-                    <td colspan="9"></td>
+                    <td colspan="8"></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -487,12 +481,11 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ordered</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for po in closed_pos %}
-                    <tr class="hover:bg-gray-50 opacity-75">
+                    <tr class="hover:bg-gray-100 cursor-pointer opacity-75" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ po.po_number }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ po.tablet_type or 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ "{:,}".format(po.ordered_quantity) if po.ordered_quantity else '0' }}</td>
@@ -502,16 +495,10 @@
                                 🔒 Closed
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button onclick="togglePODetails({{ po.id }}, this)" 
-                                    class="text-blue-600 hover:text-blue-900 font-medium">
-                                ▼ View Details
-                            </button>
-                        </td>
                     </tr>
                     <!-- Expandable details row for closed POs -->
                     <tr id="details-{{ po.id }}" class="hidden bg-gray-50" style="display: none;">
-                        <td colspan="6" class="px-6 py-4">
+                        <td colspan="5" class="px-6 py-4">
                             <div id="details-content-{{ po.id }}" class="text-sm">
                                 <div class="animate-pulse">Loading line items...</div>
                             </div>
