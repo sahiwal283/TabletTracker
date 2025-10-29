@@ -2911,6 +2911,7 @@ def get_po_submissions(po_id):
             pass
         
         # Get all submissions for this PO with product details for calculating total tablets
+        # Include inventory_item_id for matching with PO line items
         if has_submission_date:
             submissions_query = '''
                 SELECT 
@@ -2927,9 +2928,11 @@ def get_po_submissions(po_id):
                     ws.bag_number,
                     ws.bag_label_count,
                     pd.packages_per_display,
-                    pd.tablets_per_package
+                    pd.tablets_per_package,
+                    tt.inventory_item_id
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE ws.assigned_po_id = ?
                 ORDER BY ws.created_at ASC
             '''
@@ -2949,9 +2952,11 @@ def get_po_submissions(po_id):
                     ws.bag_number,
                     ws.bag_label_count,
                     pd.packages_per_display,
-                    pd.tablets_per_package
+                    pd.tablets_per_package,
+                    tt.inventory_item_id
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE ws.assigned_po_id = ?
                 ORDER BY ws.created_at ASC
             '''
