@@ -2587,8 +2587,9 @@ def reassign_all_submissions():
                     continue
                 
                 # Find ALL PO lines (open AND closed) - ORDER BY PO NUMBER
-                # During reassignment, we need to consider ALL POs to maintain historical accuracy
-                # Old submissions should go to old (possibly closed) POs, new ones to open POs
+                # During reassignment, consider ALL POs for historical accuracy
+                # This allows fixing historical data by assigning to older (possibly closed) POs
+                # Once data is correct, future submissions will use normal "oldest open PO" logic
                 # Exclude Draft POs - only assign to Issued/Active POs
                 # Note: We do NOT filter by available quantity - POs can receive more than ordered
                 po_lines_rows = conn.execute('''
@@ -2614,7 +2615,7 @@ def reassign_all_submissions():
                               submission.get('loose_tablets', 0))
                 damaged_tablets = submission.get('damaged_tablets', 0)
                 
-                # Assign to first available PO (oldest PO number with capacity)
+                # Assign to first OPEN PO (oldest open PO number)
                 assigned_po_id = po_lines[0]['po_id']
                 conn.execute('''
                     UPDATE warehouse_submissions 
