@@ -2586,8 +2586,8 @@ def reassign_all_submissions():
                 if not inventory_item_id:
                     continue
                 
-                # Find ALL PO lines (open or closed) - ORDER BY PO NUMBER
-                # This allows historical submissions to be assigned to their correct POs even if now closed
+                # Find OPEN PO lines - ORDER BY PO NUMBER
+                # Only assign to open POs (closed POs should not receive new assignments)
                 # Exclude Draft POs - only assign to Issued/Active POs
                 # Note: We do NOT filter by available quantity - POs can receive more than ordered
                 po_lines_rows = conn.execute('''
@@ -2595,6 +2595,7 @@ def reassign_all_submissions():
                     FROM po_lines pl
                     JOIN purchase_orders po ON pl.po_id = po.id
                     WHERE pl.inventory_item_id = ?
+                    AND po.closed = FALSE
                     AND COALESCE(po.internal_status, '') != 'Draft'
                     ORDER BY po.po_number ASC
                 ''', (inventory_item_id,)).fetchall()
