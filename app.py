@@ -750,12 +750,11 @@ def admin_dashboard():
         FROM purchase_orders
     ''').fetchone()
     
-    # Count submissions needing verification (unverified submissions from last 7 days)
+    # Count ALL submissions needing verification (not verified yet)
     verification_count = conn.execute('''
         SELECT COUNT(*) as count
         FROM warehouse_submissions
-        WHERE datetime(created_at) >= datetime('now', '-7 days')
-        AND COALESCE(po_assignment_verified, 0) = 0
+        WHERE COALESCE(po_assignment_verified, 0) = 0
     ''').fetchone()['count']
     
     conn.close()
