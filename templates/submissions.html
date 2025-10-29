@@ -25,7 +25,7 @@
             <div class="flex items-center">
                 <span class="text-3xl mr-4">📋</span>
                 <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Submissions History</h3>
-                <span class="ml-3 text-sm text-gray-500">({{ submissions|length }} total)</span>
+                <span class="ml-3 text-sm text-gray-500">({{ pagination.total }} total, showing {{ submissions|length }})</span>
             </div>
             <div class="flex items-center gap-4">
                 <label class="flex items-center cursor-pointer">
@@ -177,6 +177,63 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Pagination Controls -->
+    {% if pagination.total_pages > 1 %}
+    <div class="px-8 py-6 border-t border-gray-200 bg-gray-50">
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-700">
+                Showing <span class="font-medium">{{ (pagination.page - 1) * pagination.per_page + 1 }}</span> to 
+                <span class="font-medium">{{ [(pagination.page * pagination.per_page), pagination.total]|min }}</span> of 
+                <span class="font-medium">{{ pagination.total }}</span> submissions
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <!-- Previous Button -->
+                {% if pagination.has_prev %}
+                <a href="?page={{ pagination.prev_page }}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    ← Previous
+                </a>
+                {% else %}
+                <span class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                    ← Previous
+                </span>
+                {% endif %}
+                
+                <!-- Page Numbers -->
+                <div class="flex items-center gap-1">
+                    {% for page_num in range(1, pagination.total_pages + 1) %}
+                        {% if page_num == pagination.page %}
+                            <span class="inline-flex items-center px-4 py-2 border border-blue-500 text-sm font-medium rounded-md text-white bg-blue-600">
+                                {{ page_num }}
+                            </span>
+                        {% elif page_num == 1 or page_num == pagination.total_pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
+                            <a href="?page={{ page_num }}" 
+                               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                                {{ page_num }}
+                            </a>
+                        {% elif page_num == pagination.page - 3 or page_num == pagination.page + 3 %}
+                            <span class="inline-flex items-center px-2 py-2 text-sm text-gray-500">...</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <!-- Next Button -->
+                {% if pagination.has_next %}
+                <a href="?page={{ pagination.next_page }}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    Next →
+                </a>
+                {% else %}
+                <span class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                    Next →
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Reassign Modal -->

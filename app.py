@@ -824,10 +824,35 @@ def all_submissions():
         submissions_processed.append(sub_dict)
     
     # Reverse to show newest first in UI
-    submissions = list(reversed(submissions_processed))  # All submissions, newest first
+    all_submissions = list(reversed(submissions_processed))  # All submissions, newest first
+    
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 15
+    total_submissions = len(all_submissions)
+    total_pages = (total_submissions + per_page - 1) // per_page  # Ceiling division
+    
+    # Calculate start and end indices
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    
+    # Get submissions for current page
+    submissions = all_submissions[start_idx:end_idx]
+    
+    # Pagination info
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total': total_submissions,
+        'total_pages': total_pages,
+        'has_prev': page > 1,
+        'has_next': page < total_pages,
+        'prev_page': page - 1 if page > 1 else None,
+        'next_page': page + 1 if page < total_pages else None
+    }
     
     conn.close()
-    return render_template('submissions.html', submissions=submissions)
+    return render_template('submissions.html', submissions=submissions, pagination=pagination)
 
 @app.route('/purchase_orders')
 @role_required('dashboard')
