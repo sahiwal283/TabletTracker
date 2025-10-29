@@ -2532,12 +2532,22 @@ def resync_unassigned_submissions():
         
         for submission in unassigned:
             # Get the product's details including inventory_item_id
+            # submission['product_name'] matches product_details.product_name
+            # then join to tablet_types to get inventory_item_id
             product = conn.execute('''
                 SELECT tt.inventory_item_id, pd.packages_per_display, pd.tablets_per_package
-                FROM tablet_types tt
-                LEFT JOIN product_details pd ON tt.tablet_type_name = pd.product_name
-                WHERE tt.tablet_type_name = ?
+                FROM product_details pd
+                JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                WHERE pd.product_name = ?
             ''', (submission['product_name'],)).fetchone()
+            
+            if not product:
+                # Try direct tablet_type match if no product_details entry
+                product = conn.execute('''
+                    SELECT inventory_item_id, NULL as packages_per_display, NULL as tablets_per_package
+                    FROM tablet_types
+                    WHERE tablet_type_name = ?
+                ''', (submission['product_name'],)).fetchone()
             
             if not product or not product['inventory_item_id']:
                 continue
@@ -2556,8 +2566,14 @@ def resync_unassigned_submissions():
                 continue
             
             # Calculate good and damaged counts
-            packages_per_display = product['packages_per_display'] if product['packages_per_display'] else 0
-            tablets_per_package = product['tablets_per_package'] if product['tablets_per_package'] else 0
+            try:
+                packages_per_display = product['packages_per_display'] if product['packages_per_display'] else 0
+                tablets_per_package = product['tablets_per_package'] if product['tablets_per_package'] else 0
+            except KeyError:
+                # Fallback if columns don't exist
+                packages_per_display = 0
+                tablets_per_package = 0
+            
             good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
                           submission['packs_remaining'] * tablets_per_package + 
                           submission['loose_tablets'])
