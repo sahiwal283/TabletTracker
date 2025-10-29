@@ -540,13 +540,13 @@ def submit_warehouse():
         print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
         # Order by PO number (oldest PO numbers first) since they represent issue order
         # Exclude Draft POs - only assign to Issued/Active POs
+        # Note: We do NOT filter by available quantity - POs can receive more than ordered
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND COALESCE(po.internal_status, '') != 'Draft'
-            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
             ORDER BY po.po_number ASC
         ''', (product['inventory_item_id'],)).fetchall()
         
@@ -573,34 +573,18 @@ def submit_warehouse():
         assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
         
         # Allocate counts to PO lines from the assigned PO only
-        remaining_good = good_tablets
-        remaining_damaged = damaged_tablets
-        
-        for line in assigned_po_lines:
-            if remaining_good <= 0 and remaining_damaged <= 0:
-                break
-                
-            available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
-            if available <= 0:
-                continue
+        # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
+        if assigned_po_lines:
+            line = assigned_po_lines[0]  # Apply to first line from this PO
             
-            # Apply good tablets first
-            apply_good = min(remaining_good, available)
-            available -= apply_good
-            remaining_good -= apply_good
-            
-            # Then damaged tablets
-            apply_damaged = min(remaining_damaged, available)
-            remaining_damaged -= apply_damaged
-            
-            # Update the line
+            # Update the line with all counts from this submission
             conn.execute('''
                 UPDATE po_lines 
                 SET good_count = good_count + ?, damaged_count = damaged_count + ?
                 WHERE id = ?
-            ''', (apply_good, apply_damaged, line['id']))
+            ''', (good_tablets, damaged_tablets, line['id']))
             
-            print(f"Updated PO line {line['id']}: +{apply_good} good, +{apply_damaged} damaged")
+            print(f"Updated PO line {line['id']}: +{good_tablets} good, +{damaged_tablets} damaged")
         
         # Update PO header totals and auto-progress internal status
         updated_pos = set()
@@ -1245,13 +1229,13 @@ def submit_count():
         # Find open PO lines for this inventory item
         # Order by PO number (oldest PO numbers first) since they represent issue order
         # Exclude Draft POs - only assign to Issued/Active POs
+        # Note: We do NOT filter by available quantity - POs can receive more than ordered
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND COALESCE(po.internal_status, '') != 'Draft'
-            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
             ORDER BY po.po_number ASC
         ''', (tablet_type['inventory_item_id'],)).fetchall()
         
@@ -1276,31 +1260,18 @@ def submit_count():
         assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
         
         # Allocate count to PO lines from the assigned PO only
-        remaining_count = actual_count
-        
-        for line in assigned_po_lines:
-            if remaining_count <= 0:
-                break
-                
-            available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
-            if available <= 0:
-                continue
+        # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
+        if assigned_po_lines:
+            line = assigned_po_lines[0]  # Apply to first line from this PO
             
-            # Apply count as good tablets
-            apply_count = min(remaining_count, available)
-            remaining_count -= apply_count
-            
-            # Update the line
+            # Update the line with all counts from this submission
             conn.execute('''
                 UPDATE po_lines 
                 SET good_count = good_count + ?
                 WHERE id = ?
-            ''', (apply_count, line['id']))
+            ''', (actual_count, line['id']))
             
-            print(f"Manual count - Updated PO line {line['id']}: +{apply_count} tablets")
-            
-            if remaining_count <= 0:
-                break
+            print(f"Manual count - Updated PO line {line['id']}: +{actual_count} tablets")
         
         # Update PO header totals
         updated_pos = set()
@@ -2618,13 +2589,13 @@ def reassign_all_submissions():
                 # Find ALL PO lines (open or closed) - ORDER BY PO NUMBER
                 # This allows historical submissions to be assigned to their correct POs even if now closed
                 # Exclude Draft POs - only assign to Issued/Active POs
+                # Note: We do NOT filter by available quantity - POs can receive more than ordered
                 po_lines_rows = conn.execute('''
                     SELECT pl.*, po.closed
                     FROM po_lines pl
                     JOIN purchase_orders po ON pl.po_id = po.id
                     WHERE pl.inventory_item_id = ?
                     AND COALESCE(po.internal_status, '') != 'Draft'
-                    AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                     ORDER BY po.po_number ASC
                 ''', (inventory_item_id,)).fetchall()
                 
@@ -2655,39 +2626,34 @@ def reassign_all_submissions():
                 assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
                 
                 # Allocate counts to PO lines from the assigned PO only
+                # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
                 remaining_good = good_tablets
                 remaining_damaged = damaged_tablets
                 
                 for line in assigned_po_lines:
                     if remaining_good <= 0 and remaining_damaged <= 0:
                         break
-                        
-                    available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
-                    if available <= 0:
-                        continue
                     
-                    # Apply good count
+                    # Apply all remaining good count to this line
                     if remaining_good > 0:
-                        apply_good = min(remaining_good, available)
-                        remaining_good -= apply_good
                         conn.execute('''
                             UPDATE po_lines 
                             SET good_count = good_count + ?
                             WHERE id = ?
-                        ''', (apply_good, line['id']))
-                        available -= apply_good
+                        ''', (remaining_good, line['id']))
+                        remaining_good = 0
                     
-                    # Apply damaged count
-                    if remaining_damaged > 0 and available > 0:
-                        apply_damaged = min(remaining_damaged, available)
-                        remaining_damaged -= apply_damaged
+                    # Apply all remaining damaged count to this line
+                    if remaining_damaged > 0:
                         conn.execute('''
                             UPDATE po_lines 
                             SET damaged_count = damaged_count + ?
                             WHERE id = ?
-                        ''', (apply_damaged, line['id']))
+                        ''', (remaining_damaged, line['id']))
+                        remaining_damaged = 0
                     
                     updated_pos.add(line['po_id'])
+                    break  # All counts applied to first line
                 
                 matched_count += 1
             except Exception as e:
@@ -2799,13 +2765,13 @@ def resync_unassigned_submissions():
             # Find open PO lines for this inventory item
             # Order by PO number (oldest PO numbers first) since they represent issue order
             # Exclude Draft POs - only assign to Issued/Active POs
+            # Note: We do NOT filter by available quantity - POs can receive more than ordered
             po_lines_rows = conn.execute('''
                 SELECT pl.*, po.closed
                 FROM po_lines pl
                 JOIN purchase_orders po ON pl.po_id = po.id
                 WHERE pl.inventory_item_id = ? AND po.closed = FALSE
                 AND COALESCE(po.internal_status, '') != 'Draft'
-                AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                 ORDER BY po.po_number ASC
             ''', (inventory_item_id,)).fetchall()
             
@@ -2833,39 +2799,17 @@ def resync_unassigned_submissions():
             ''', (assigned_po_id, submission['id']))
             
             # Allocate counts to PO lines
-            remaining_good = good_tablets
-            remaining_damaged = damaged_tablets
+            # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
+            line = po_lines[0]
             
-            for line in po_lines:
-                if remaining_good <= 0 and remaining_damaged <= 0:
-                    break
-                    
-                available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
-                if available <= 0:
-                    continue
-                
-                # Apply good count
-                if remaining_good > 0:
-                    apply_good = min(remaining_good, available)
-                    remaining_good -= apply_good
-                    conn.execute('''
-                        UPDATE po_lines 
-                        SET good_count = good_count + ?
-                        WHERE id = ?
-                    ''', (apply_good, line['id']))
-                    available -= apply_good
-                
-                # Apply damaged count
-                if remaining_damaged > 0 and available > 0:
-                    apply_damaged = min(remaining_damaged, available)
-                    remaining_damaged -= apply_damaged
-                    conn.execute('''
-                        UPDATE po_lines 
-                        SET damaged_count = damaged_count + ?
-                        WHERE id = ?
-                    ''', (apply_damaged, line['id']))
-                
-                updated_pos.add(line['po_id'])
+            # Apply all counts to the first line
+            conn.execute('''
+                UPDATE po_lines 
+                SET good_count = good_count + ?, damaged_count = damaged_count + ?
+                WHERE id = ?
+            ''', (good_tablets, damaged_tablets, line['id']))
+            
+            updated_pos.add(line['po_id'])
             
             matched_count += 1
         
