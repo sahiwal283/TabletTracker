@@ -1408,7 +1408,7 @@ async function viewPOSubmissions(poId, poName) {
                         <div class="flex justify-between items-start mb-3">
                             <div>
                                 <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
-                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_bag_number || 'N/A'}</p>
+                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
                             </div>
                             <div class="text-right text-sm">
                                 <div class="text-gray-600">📅 ${submissionDate.toLocaleDateString()}</div>
@@ -1419,7 +1419,7 @@ async function viewPOSubmissions(poId, poName) {
                         <!-- Tablet Count Summary -->
                         <div class="mb-3 flex gap-2 items-center flex-wrap">
                             <div class="inline-block bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
-                                <span class="font-semibold text-sm">This: ${(sub.total_tablets || 0).toLocaleString()}</span>
+                                <span class="font-semibold text-sm">Total: ${(sub.total_tablets || 0).toLocaleString()}</span>
                             </div>
                             <div class="inline-block bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
                                 <span class="font-semibold text-sm">Running: ${(sub.running_total || 0).toLocaleString()}</span>
