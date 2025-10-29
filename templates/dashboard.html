@@ -44,6 +44,14 @@
                     SYNC ZOHO POs
                 </span>
             </button>
+            <button onclick="resyncUnassignedSubmissions()" 
+                    class="btn-primary w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                    title="Re-match unassigned submissions to POs after updating item IDs">
+                <span class="flex items-center justify-center">
+                    <span class="text-lg mr-2">🔗</span>
+                    Resync Unassigned Submissions
+                </span>
+            </button>
             <button onclick="clearPOData()" 
                     class="btn-warning w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
                     title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
@@ -325,13 +333,17 @@
 
 <!-- Recent Submissions Table -->
 <div class="card hover-lift mt-10">
-    <div class="px-8 py-6 border-b border-gray-200">
-        <div class="flex items-center">
-            <span class="text-3xl mr-4">📝</span>
-            <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Recent Submissions</h3>
+    <div class="px-8 py-6 border-b border-gray-200 cursor-pointer hover:bg-gray-50" onclick="toggleRecentSubmissions()">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center">
+                <span class="text-3xl mr-4">📝</span>
+                <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Recent Submissions</h3>
+                <span class="ml-3 text-sm text-gray-500">({{ submissions|length }} total)</span>
+            </div>
+            <span id="submissions-toggle-icon" class="text-gray-500 transform transition-transform rotate-90">▶</span>
         </div>
     </div>
-    <div class="overflow-x-auto">
+    <div id="recent-submissions-content" class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -368,8 +380,50 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                {% for sub in submissions %}
-                <tr class="{% if sub.has_discrepancy %}bg-yellow-50 border-l-4 border-yellow-400{% else %}hover:bg-gray-50{% endif %}">
+                {% for sub in submissions[:5] %}
+                <tr class="submissions-row {% if sub.has_discrepancy %}bg-yellow-50 border-l-4 border-yellow-400{% else %}hover:bg-gray-50{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.created_at.split('.')[0] if sub.created_at else 'N/A' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ sub.employee_name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.product_name }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.box_number }}/{{ sub.bag_number }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.displays_made }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.packs_remaining }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.loose_tablets }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                        {{ sub.damaged_tablets }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% if sub.has_discrepancy %}
+                            <div class="text-orange-600 font-medium">
+                                <div class="text-xs">Calc: {{ sub.calculated_total }}</div>
+                                <div class="text-xs">Bag: {{ sub.bag_label_count }}</div>
+                                <div class="text-xs font-bold">⚠️ Mismatch</div>
+                            </div>
+                        {% else %}
+                            <span class="text-green-600 text-xs">✅ Match</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ sub.po_number or 'Unassigned' }}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% for sub in submissions[5:] %}
+                <tr class="submissions-row submissions-row-hidden hidden {% if sub.has_discrepancy %}bg-yellow-50 border-l-4 border-yellow-400{% else %}hover:bg-gray-50{% endif %}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ sub.created_at.split('.')[0] if sub.created_at else 'N/A' }}
                     </td>
@@ -412,6 +466,13 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% if submissions|length > 5 %}
+        <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center">
+            <button onclick="toggleAllSubmissions()" id="show-all-submissions-btn" class="text-blue-600 hover:text-blue-800 font-medium text-sm">
+                Show All ({{ submissions|length - 5 }} more)
+            </button>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -765,6 +826,38 @@ async function clearPOData() {
     }
 }
 
+async function resyncUnassignedSubmissions() {
+    if (!confirm('This will re-match unassigned submissions to POs based on current item IDs. Continue?')) {
+        return;
+    }
+    
+    try {
+        const button = event.target;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '🔗 Resyncing...';
+        
+        const response = await fetch('/api/resync_unassigned_submissions', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error);
+        }
+        
+        button.disabled = false;
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Resync failed: ' + error.message);
+        if (event.target) {
+            event.target.disabled = false;
+            event.target.textContent = '🔗 Resync Unassigned Submissions';
+        }
+    }
+}
+
 async function refreshProducts() {
     if (!confirm('This will refresh all products with the updated configuration. Continue?')) {
         return;
@@ -972,6 +1065,36 @@ function toggleClosedPOs() {
         content.classList.add('hidden');
         icon.textContent = '▶';
         icon.style.transform = 'rotate(-90deg)';
+    }
+}
+
+function toggleRecentSubmissions() {
+    const content = document.getElementById('recent-submissions-content');
+    const icon = document.getElementById('submissions-toggle-icon');
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.classList.add('rotate-90');
+    } else {
+        content.classList.add('hidden');
+        icon.classList.remove('rotate-90');
+    }
+}
+
+function toggleAllSubmissions() {
+    const hiddenRows = document.querySelectorAll('.submissions-row-hidden');
+    const btn = document.getElementById('show-all-submissions-btn');
+    
+    hiddenRows.forEach(row => {
+        row.classList.toggle('hidden');
+    });
+    
+    if (btn.textContent.includes('Show All')) {
+        btn.textContent = 'Show Less';
+    } else {
+        const totalCount = document.querySelectorAll('.submissions-row').length;
+        const hiddenCount = totalCount - 5;
+        btn.textContent = `Show All (${hiddenCount} more)`;
     }
 }
 

@@ -2449,6 +2449,140 @@ def create_sample_receiving_data():
     except Exception as e:
         return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
 
+@app.route('/api/resync_unassigned_submissions', methods=['POST'])
+@admin_required
+def resync_unassigned_submissions():
+    """Resync unassigned submissions to try matching them with POs based on updated item IDs"""
+    try:
+        conn = get_db()
+        
+        # Get all unassigned submissions
+        unassigned = conn.execute('''
+            SELECT ws.rowid, ws.product_name, ws.displays_made, 
+                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets
+            FROM warehouse_submissions ws
+            WHERE ws.assigned_po_id IS NULL
+            ORDER BY ws.created_at DESC
+        ''').fetchall()
+        
+        if not unassigned:
+            conn.close()
+            return jsonify({'success': True, 'message': 'No unassigned submissions found'})
+        
+        matched_count = 0
+        updated_pos = set()
+        
+        for submission in unassigned:
+            # Get the product's current inventory_item_id
+            product = conn.execute('''
+                SELECT inventory_item_id FROM tablet_types
+                WHERE tablet_type_name = ?
+            ''', (submission['product_name'],)).fetchone()
+            
+            if not product or not product['inventory_item_id']:
+                continue
+            
+            # Find open PO lines for this inventory item
+            po_lines = conn.execute('''
+                SELECT pl.*, po.closed
+                FROM po_lines pl
+                JOIN purchase_orders po ON pl.po_id = po.id
+                WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+                AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
+                ORDER BY po.created_at ASC
+            ''', (product['inventory_item_id'],)).fetchall()
+            
+            if not po_lines:
+                continue
+            
+            # Calculate good and damaged counts
+            packs_per_display = product.get('packs_per_display', 0) or 0
+            tablets_per_pack = product.get('tablets_per_pack', 0) or 0
+            good_tablets = (submission['displays_made'] * packs_per_display * tablets_per_pack + 
+                          submission['packs_remaining'] * tablets_per_pack + 
+                          submission['loose_tablets'])
+            damaged_tablets = submission['damaged_tablets']
+            
+            # Assign to first available PO
+            assigned_po_id = po_lines[0]['po_id']
+            conn.execute('''
+                UPDATE warehouse_submissions 
+                SET assigned_po_id = ?
+                WHERE rowid = ?
+            ''', (assigned_po_id, submission['rowid']))
+            
+            # Allocate counts to PO lines
+            remaining_good = good_tablets
+            remaining_damaged = damaged_tablets
+            
+            for line in po_lines:
+                if remaining_good <= 0 and remaining_damaged <= 0:
+                    break
+                    
+                available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
+                if available <= 0:
+                    continue
+                
+                # Apply good count
+                if remaining_good > 0:
+                    apply_good = min(remaining_good, available)
+                    remaining_good -= apply_good
+                    conn.execute('''
+                        UPDATE po_lines 
+                        SET good_count = good_count + ?
+                        WHERE id = ?
+                    ''', (apply_good, line['id']))
+                    available -= apply_good
+                
+                # Apply damaged count
+                if remaining_damaged > 0 and available > 0:
+                    apply_damaged = min(remaining_damaged, available)
+                    remaining_damaged -= apply_damaged
+                    conn.execute('''
+                        UPDATE po_lines 
+                        SET damaged_count = damaged_count + ?
+                        WHERE id = ?
+                    ''', (apply_damaged, line['id']))
+                
+                updated_pos.add(line['po_id'])
+            
+            matched_count += 1
+        
+        # Update PO header totals for all affected POs
+        for po_id in updated_pos:
+            totals = conn.execute('''
+                SELECT 
+                    COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                    COALESCE(SUM(good_count), 0) as total_good,
+                    COALESCE(SUM(damaged_count), 0) as total_damaged
+                FROM po_lines 
+                WHERE po_id = ?
+            ''', (po_id,)).fetchone()
+            
+            remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+            
+            conn.execute('''
+                UPDATE purchase_orders 
+                SET ordered_quantity = ?, current_good_count = ?, 
+                    current_damaged_count = ?, remaining_quantity = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (totals['total_ordered'], totals['total_good'], 
+                  totals['total_damaged'], remaining, po_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Successfully matched {matched_count} of {len(unassigned)} unassigned submissions to POs',
+            'matched': matched_count,
+            'total_unassigned': len(unassigned)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
 @app.context_processor
