@@ -326,7 +326,7 @@
                     </td>
                 </tr>
                 <!-- Expandable details row -->
-                <tr id="details-{{ po.id }}" class="hidden bg-gray-50 po-details-row" data-po-index="{{ loop.index }}">
+                <tr id="details-{{ po.id }}" class="hidden bg-gray-50 po-details-row" data-po-index="{{ loop.index }}" style="display: none;">
                     <td colspan="9" class="px-6 py-4">
                         <div id="details-content-{{ po.id }}" class="text-sm">
                             <div class="animate-pulse">Loading line items...</div>
@@ -486,7 +486,7 @@
                         </td>
                     </tr>
                     <!-- Expandable details row for closed POs -->
-                    <tr id="details-{{ po.id }}" class="hidden bg-gray-50">
+                    <tr id="details-{{ po.id }}" class="hidden bg-gray-50" style="display: none;">
                         <td colspan="6" class="px-6 py-4">
                             <div id="details-content-{{ po.id }}" class="text-sm">
                                 <div class="animate-pulse">Loading line items...</div>
@@ -631,10 +631,11 @@ async function togglePODetails(poId, button) {
     const detailsRow = document.getElementById(`details-${poId}`);
     const detailsContent = document.getElementById(`details-content-${poId}`);
     
-    if (detailsRow.classList.contains('hidden')) {
+    if (detailsRow.classList.contains('hidden') || detailsRow.style.display === 'none') {
         // Show details
         button.textContent = '▲ Hide Details';
         detailsRow.classList.remove('hidden');
+        detailsRow.style.display = '';
         
         try {
             const response = await fetch(`/api/po_lines/${poId}`);
@@ -736,6 +737,7 @@ async function togglePODetails(poId, button) {
         // Hide details
         button.textContent = '▼ View Details';
         detailsRow.classList.add('hidden');
+        detailsRow.style.display = 'none';
     }
 }
 
