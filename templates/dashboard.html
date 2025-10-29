@@ -1338,7 +1338,7 @@ async function generateAllPOsReport() {
 }
 
 // View submissions for a specific PO
-async function viewPOSubmissions(poId, poName) {
+async function viewPOSubmissions(poId, poName, lineItemName = null) {
     try {
         const response = await fetch(`/api/po/${poId}/submissions`);
         const data = await response.json();
@@ -1347,6 +1347,11 @@ async function viewPOSubmissions(poId, poName) {
             showError(data.error || 'Failed to load submissions');
             return;
         }
+        
+        // Filter submissions by line item if specified
+        const filteredSubmissions = lineItemName 
+            ? data.submissions.filter(sub => sub.product_name === lineItemName)
+            : data.submissions;
         
         // Build modal content
         let modalContent = `
@@ -1357,7 +1362,8 @@ async function viewPOSubmissions(poId, poName) {
                         <div class="flex justify-between items-center">
                             <div>
                                 <h3 class="text-xl font-bold">📋 Submissions for PO-${data.po.po_number}</h3>
-                                <p class="text-sm text-blue-100 mt-1">${data.count} submission(s) found</p>
+                                ${lineItemName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${lineItemName}</p>` : ''}
+                                <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s) found</p>
                             </div>
                             <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
                                 ✕
@@ -1366,20 +1372,20 @@ async function viewPOSubmissions(poId, poName) {
                     </div>
                     
                     <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
         `;
         
-        if (data.submissions.length === 0) {
+        if (filteredSubmissions.length === 0) {
             modalContent += `
                 <div class="text-center py-12 text-gray-500">
                     <div class="text-6xl mb-4">📭</div>
-                    <p class="text-lg">No submissions found for this PO</p>
+                    <p class="text-lg">No submissions found${lineItemName ? ' for this product' : ''}</p>
                 </div>
             `;
         } else {
             modalContent += '<div class="space-y-4">';
             
-            data.submissions.forEach(sub => {
+            filteredSubmissions.forEach(sub => {
                 const submissionDate = new Date(sub.submission_date || sub.created_at);
                 const createdDate = new Date(sub.created_at);
                 
@@ -1441,6 +1447,18 @@ async function viewPOSubmissions(poId, poName) {
             });
             
             modalContent += '</div>';
+        }
+        
+        // Add "View All Submissions" button if viewing filtered results
+        if (lineItemName && data.submissions.length > filteredSubmissions.length) {
+            modalContent += `
+                <div class="mt-6 flex justify-center border-t pt-4">
+                    <button onclick="closeSubmissionsModal(); viewPOSubmissions(${poId}, '${poName}', null);" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-lg transition-colors">
+                        📋 View All Submissions for this PO (${data.submissions.length} total)
+                    </button>
+                </div>
+            `;
         }
         
         modalContent += `
@@ -1514,8 +1532,8 @@ async function viewPODetailsModal(poId, poNumber) {
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
-                         onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${line.line_item_name}');"
-                         title="Click to view submissions">
+                         onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${poNumber}', '${line.line_item_name}');"
+                         title="Click to view submissions for this product">
                         <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                             <div class="flex-1">
                                 <div class="font-bold text-lg text-gray-900">${line.line_item_name}</div>
@@ -1558,6 +1576,16 @@ async function viewPODetailsModal(poId, poNumber) {
             
             modalContent += '</div>';
         }
+        
+        // Add "View All Submissions" button at the bottom
+        modalContent += `
+            <div class="mt-6 flex justify-center border-t pt-4">
+                <button onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${poNumber}', null);" 
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-colors">
+                    📋 View All Submissions for this PO
+                </button>
+            </div>
+        `;
         
         modalContent += `
                     </div>
