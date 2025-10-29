@@ -2531,25 +2531,48 @@ def resync_unassigned_submissions():
         updated_pos = set()
         
         for submission in unassigned:
-            # Get the product's details including inventory_item_id
-            # submission['product_name'] matches product_details.product_name
-            # then join to tablet_types to get inventory_item_id
-            product = conn.execute('''
-                SELECT tt.inventory_item_id, pd.packages_per_display, pd.tablets_per_package
-                FROM product_details pd
-                JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE pd.product_name = ?
-            ''', (submission['product_name'],)).fetchone()
-            
-            if not product:
-                # Try direct tablet_type match if no product_details entry
+            try:
+                # Get the product's details including inventory_item_id
+                # submission['product_name'] matches product_details.product_name
+                # then join to tablet_types to get inventory_item_id
                 product = conn.execute('''
-                    SELECT inventory_item_id, NULL as packages_per_display, NULL as tablets_per_package
-                    FROM tablet_types
-                    WHERE tablet_type_name = ?
+                    SELECT tt.inventory_item_id, pd.packages_per_display, pd.tablets_per_package
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name = ?
                 ''', (submission['product_name'],)).fetchone()
-            
-            if not product or not product['inventory_item_id']:
+                
+                if not product:
+                    # Try direct tablet_type match if no product_details entry
+                    product = conn.execute('''
+                        SELECT inventory_item_id, 0 as packages_per_display, 0 as tablets_per_package
+                        FROM tablet_types
+                        WHERE tablet_type_name = ?
+                    ''', (submission['product_name'],)).fetchone()
+                
+                if not product:
+                    print(f"⚠️  No product config found for: {submission['product_name']}")
+                    continue
+                
+                # Access inventory_item_id with fallback
+                inventory_item_id = None
+                try:
+                    inventory_item_id = product['inventory_item_id']
+                except (KeyError, TypeError):
+                    try:
+                        inventory_item_id = product[0]  # Try positional access
+                    except (KeyError, TypeError, IndexError):
+                        pass
+                
+                if not inventory_item_id:
+                    print(f"⚠️  No inventory_item_id for: {submission['product_name']}")
+                    continue
+            except Exception as e:
+                try:
+                    sub_id = submission['rowid']
+                except:
+                    sub_id = 'unknown'
+                print(f"❌ Error processing submission {sub_id}: {e}")
                 continue
             
             # Find open PO lines for this inventory item
@@ -2560,19 +2583,30 @@ def resync_unassigned_submissions():
                 WHERE pl.inventory_item_id = ? AND po.closed = FALSE
                 AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                 ORDER BY po.created_at ASC
-            ''', (product['inventory_item_id'],)).fetchall()
+            ''', (inventory_item_id,)).fetchall()
             
             if not po_lines:
                 continue
             
             # Calculate good and damaged counts
+            packages_per_display = 0
+            tablets_per_package = 0
+            
             try:
-                packages_per_display = product['packages_per_display'] if product['packages_per_display'] else 0
-                tablets_per_package = product['tablets_per_package'] if product['tablets_per_package'] else 0
-            except KeyError:
-                # Fallback if columns don't exist
-                packages_per_display = 0
-                tablets_per_package = 0
+                packages_per_display = product['packages_per_display'] or 0
+            except (KeyError, TypeError):
+                try:
+                    packages_per_display = product[1] or 0  # Try positional
+                except (KeyError, TypeError, IndexError):
+                    pass
+            
+            try:
+                tablets_per_package = product['tablets_per_package'] or 0
+            except (KeyError, TypeError):
+                try:
+                    tablets_per_package = product[2] or 0  # Try positional
+                except (KeyError, TypeError, IndexError):
+                    pass
             
             good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
                           submission['packs_remaining'] * tablets_per_package + 
