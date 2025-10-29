@@ -2509,6 +2509,177 @@ def update_submission_date():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/reassign_all_submissions', methods=['POST'])
+@admin_required
+def reassign_all_submissions():
+    """Reassign ALL submissions to POs using correct PO order (by PO number, not created_at)"""
+    try:
+        conn = get_db()
+        
+        # Step 1: Clear all PO assignments and counts
+        print("Clearing all PO assignments and counts...")
+        conn.execute('UPDATE warehouse_submissions SET assigned_po_id = NULL')
+        conn.execute('UPDATE po_lines SET good_count = 0, damaged_count = 0')
+        conn.execute('UPDATE purchase_orders SET current_good_count = 0, current_damaged_count = 0, remaining_quantity = ordered_quantity')
+        conn.commit()
+        
+        # Step 2: Get all submissions in order
+        all_submissions_rows = conn.execute('''
+            SELECT ws.id, ws.product_name, ws.displays_made, 
+                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets
+            FROM warehouse_submissions ws
+            ORDER BY ws.created_at ASC
+        ''').fetchall()
+        
+        all_submissions = [dict(row) for row in all_submissions_rows]
+        
+        if not all_submissions:
+            conn.close()
+            return jsonify({'success': True, 'message': 'No submissions found'})
+        
+        matched_count = 0
+        updated_pos = set()
+        
+        # Step 3: Reassign each submission using correct PO order
+        for submission in all_submissions:
+            try:
+                # Get product details
+                product_row = conn.execute('''
+                    SELECT tt.inventory_item_id, pd.packages_per_display, pd.tablets_per_package
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name = ?
+                ''', (submission['product_name'],)).fetchone()
+                
+                if not product_row:
+                    # Try direct tablet_type match
+                    product_row = conn.execute('''
+                        SELECT inventory_item_id, 0 as packages_per_display, 0 as tablets_per_package
+                        FROM tablet_types
+                        WHERE tablet_type_name = ?
+                    ''', (submission['product_name'],)).fetchone()
+                
+                if not product_row:
+                    continue
+                
+                product = dict(product_row)
+                inventory_item_id = product.get('inventory_item_id')
+                
+                if not inventory_item_id:
+                    continue
+                
+                # Find open PO lines - ORDER BY PO NUMBER
+                po_lines_rows = conn.execute('''
+                    SELECT pl.*, po.closed
+                    FROM po_lines pl
+                    JOIN purchase_orders po ON pl.po_id = po.id
+                    WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+                    AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
+                    ORDER BY po.po_number ASC
+                ''', (inventory_item_id,)).fetchall()
+                
+                po_lines = [dict(row) for row in po_lines_rows]
+                
+                if not po_lines:
+                    continue
+                
+                # Calculate good and damaged counts
+                packages_per_display = product.get('packages_per_display') or 0
+                tablets_per_package = product.get('tablets_per_package') or 0
+                
+                good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                              submission.get('packs_remaining', 0) * tablets_per_package + 
+                              submission.get('loose_tablets', 0))
+                damaged_tablets = submission.get('damaged_tablets', 0)
+                
+                # Assign to first available PO
+                assigned_po_id = po_lines[0]['po_id']
+                conn.execute('''
+                    UPDATE warehouse_submissions 
+                    SET assigned_po_id = ?
+                    WHERE id = ?
+                ''', (assigned_po_id, submission['id']))
+                
+                # Allocate counts to PO lines
+                remaining_good = good_tablets
+                remaining_damaged = damaged_tablets
+                
+                for line in po_lines:
+                    if remaining_good <= 0 and remaining_damaged <= 0:
+                        break
+                        
+                    available = line['quantity_ordered'] - line['good_count'] - line['damaged_count']
+                    if available <= 0:
+                        continue
+                    
+                    # Apply good count
+                    if remaining_good > 0:
+                        apply_good = min(remaining_good, available)
+                        remaining_good -= apply_good
+                        conn.execute('''
+                            UPDATE po_lines 
+                            SET good_count = good_count + ?
+                            WHERE id = ?
+                        ''', (apply_good, line['id']))
+                        available -= apply_good
+                    
+                    # Apply damaged count
+                    if remaining_damaged > 0 and available > 0:
+                        apply_damaged = min(remaining_damaged, available)
+                        remaining_damaged -= apply_damaged
+                        conn.execute('''
+                            UPDATE po_lines 
+                            SET damaged_count = damaged_count + ?
+                            WHERE id = ?
+                        ''', (apply_damaged, line['id']))
+                    
+                    updated_pos.add(line['po_id'])
+                
+                matched_count += 1
+            except Exception as e:
+                print(f"Error processing submission {submission.get('id')}: {e}")
+                continue
+        
+        # Step 4: Update PO header totals
+        for po_id in updated_pos:
+            totals_row = conn.execute('''
+                SELECT 
+                    COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                    COALESCE(SUM(good_count), 0) as total_good,
+                    COALESCE(SUM(damaged_count), 0) as total_damaged
+                FROM po_lines 
+                WHERE po_id = ?
+            ''', (po_id,)).fetchone()
+            
+            totals = dict(totals_row)
+            remaining = totals.get('total_ordered', 0) - totals.get('total_good', 0) - totals.get('total_damaged', 0)
+            
+            conn.execute('''
+                UPDATE purchase_orders 
+                SET ordered_quantity = ?, current_good_count = ?, 
+                    current_damaged_count = ?, remaining_quantity = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (totals.get('total_ordered', 0), totals.get('total_good', 0), 
+                  totals.get('total_damaged', 0), remaining, po_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'✅ Reassigned all {matched_count} submissions to POs using correct order (by PO number)',
+            'matched': matched_count,
+            'total_submissions': len(all_submissions)
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌❌❌ REASSIGN ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e), 'trace': error_trace}), 500
+
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
 @admin_required
 def resync_unassigned_submissions():

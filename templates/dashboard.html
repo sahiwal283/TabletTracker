@@ -61,6 +61,14 @@
                     SYNC ZOHO POs
                 </span>
             </button>
+            <button onclick="reassignAllSubmissions()" 
+                    class="btn-success w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                    title="Reassign ALL submissions to POs using correct order (by PO number). This will clear all current assignments and recalculate.">
+                <span class="flex items-center justify-center">
+                    <span class="text-lg mr-2">🔄</span>
+                    Reassign All Submissions
+                </span>
+            </button>
             <button onclick="resyncUnassignedSubmissions()" 
                     class="btn-primary w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
                     title="Re-match unassigned submissions to POs after updating item IDs">
@@ -793,6 +801,47 @@ async function clearPOData() {
         }
     } catch (error) {
         showError('Failed to clear data: ' + error.message);
+    }
+}
+
+async function reassignAllSubmissions() {
+    if (!confirm('This will clear ALL current PO assignments and reassign all submissions using the correct PO order (by PO number). This cannot be undone. Continue?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.textContent = '⏳ Reassigning...';
+        
+        const response = await fetch('/api/reassign_all_submissions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            // Reload page to show updated data
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error || 'Reassignment failed - check terminal for details');
+        }
+        
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Reassignment failed: ' + error.message);
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
     }
 }
 
