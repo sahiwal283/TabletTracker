@@ -696,7 +696,7 @@ def admin_dashboard():
     
     # Get recent submissions with calculated totals and discrepancy detection
     submissions = conn.execute('''
-        SELECT ws.*, po.po_number,
+        SELECT ws.*, po.po_number, po.closed as po_closed,
                pd.packages_per_display, pd.tablets_per_package,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
