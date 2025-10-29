@@ -2527,10 +2527,10 @@ def reassign_all_submissions():
         conn.execute('UPDATE purchase_orders SET current_good_count = 0, current_damaged_count = 0, remaining_quantity = ordered_quantity')
         conn.commit()
         
-        # Step 2: Get all submissions in order
+        # Step 2: Get all submissions in order with their creation timestamp
         all_submissions_rows = conn.execute('''
             SELECT ws.id, ws.product_name, ws.displays_made, 
-                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets
+                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets, ws.created_at
             FROM warehouse_submissions ws
             ORDER BY ws.created_at ASC
         ''').fetchall()
@@ -2572,17 +2572,23 @@ def reassign_all_submissions():
                 if not inventory_item_id:
                     continue
                 
-                # Find open PO lines - ORDER BY PO NUMBER
+                # Find PO lines (including closed if submission was created before closure)
+                # ORDER BY PO NUMBER, prioritizing those that were open when submission was made
                 # Exclude Draft POs - only assign to Issued/Active POs
+                submission_time = submission.get('created_at')
                 po_lines_rows = conn.execute('''
-                    SELECT pl.*, po.closed
+                    SELECT pl.*, po.closed, po.closed_at
                     FROM po_lines pl
                     JOIN purchase_orders po ON pl.po_id = po.id
-                    WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+                    WHERE pl.inventory_item_id = ?
                     AND COALESCE(po.internal_status, '') != 'Draft'
+                    AND (
+                        po.closed = FALSE 
+                        OR (po.closed = TRUE AND po.closed_at >= ?)
+                    )
                     AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) > 0
                     ORDER BY po.po_number ASC
-                ''', (inventory_item_id,)).fetchall()
+                ''', (inventory_item_id, submission_time)).fetchall()
                 
                 po_lines = [dict(row) for row in po_lines_rows]
                 
