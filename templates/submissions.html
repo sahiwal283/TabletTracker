@@ -151,6 +151,11 @@
                                         ✓ Open
                                     </span>
                                 {% endif %}
+                                <button onclick="openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
+                                        class="text-xs text-blue-600 hover:text-blue-800 underline"
+                                        title="Change PO assignment">
+                                    Change
+                                </button>
                             </div>
                         {% else %}
                             <span class="text-gray-400 italic">Unassigned</span>
@@ -163,7 +168,150 @@
     </div>
 </div>
 
+<!-- Reassign Modal -->
+<div id="reassign-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReassignModal(event)">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold">🔄 Reassign Submission to PO</h3>
+                    <p class="text-sm text-blue-100 mt-1" id="reassign-modal-subtitle"></p>
+                </div>
+                <button onclick="closeReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                    ✕
+                </button>
+            </div>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-6">
+            <div class="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                <p class="text-sm text-yellow-800">
+                    <strong>⚠️ Manager Verification:</strong> Select the correct PO for this submission. 
+                    Only POs containing this product are shown. Counts will be automatically updated.
+                </p>
+            </div>
+            
+            <div id="reassign-pos-list" class="space-y-2 max-h-96 overflow-y-auto">
+                <!-- PO list will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// Reassignment functions
+async function openReassignModal(submissionId, currentPO, productName) {
+    try {
+        document.getElementById('reassign-modal-subtitle').textContent = `Product: ${productName} | Current: ${currentPO}`;
+        document.getElementById('reassign-modal').classList.remove('hidden');
+        
+        // Fetch available POs for this submission
+        const response = await fetch(`/api/submission/${submissionId}/available_pos`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            showError(data.error || 'Failed to load available POs');
+            return;
+        }
+        
+        // Build PO list
+        const posList = document.getElementById('reassign-pos-list');
+        posList.innerHTML = '';
+        
+        if (data.available_pos.length === 0) {
+            posList.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <p>No POs found for this product</p>
+                </div>
+            `;
+            return;
+        }
+        
+        data.available_pos.forEach(po => {
+            const isCurrent = po.id === data.current_po_id;
+            const statusColor = po.closed ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-700';
+            const statusLabel = po.closed ? '🔒 Closed' : '✓ Open';
+            
+            const poDiv = document.createElement('div');
+            poDiv.className = `border rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors ${isCurrent ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`;
+            poDiv.onclick = () => reassignSubmission(submissionId, po.id);
+            
+            poDiv.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-bold text-lg text-gray-900">PO-${po.po_number}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColor}">
+                                ${statusLabel}
+                            </span>
+                            ${isCurrent ? '<span class="text-xs text-blue-600 font-bold">CURRENT</span>' : ''}
+                        </div>
+                        <div class="grid grid-cols-4 gap-3 text-sm">
+                            <div>
+                                <div class="text-xs text-gray-500">Ordered</div>
+                                <div class="font-medium">${po.ordered.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-green-600">Good</div>
+                                <div class="font-medium text-green-600">${po.good.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-red-600">Damaged</div>
+                                <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-blue-600">Remaining</div>
+                                <div class="font-medium text-blue-600">${po.remaining.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${!isCurrent ? '<div class="text-2xl">→</div>' : ''}
+                </div>
+            `;
+            
+            posList.appendChild(poDiv);
+        });
+        
+    } catch (error) {
+        console.error('Error loading available POs:', error);
+        showError('Failed to load available POs: ' + error.message);
+    }
+}
+
+function closeReassignModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        document.getElementById('reassign-modal').classList.add('hidden');
+    }
+}
+
+async function reassignSubmission(submissionId, newPoId) {
+    if (!confirm('Are you sure you want to reassign this submission to a different PO? Counts will be automatically updated.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/reassign`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({new_po_id: newPoId})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.error || 'Failed to reassign submission');
+        }
+    } catch (error) {
+        console.error('Error reassigning submission:', error);
+        showError('Failed to reassign submission: ' + error.message);
+    }
+}
+
 // Date editing functions
 function toggleDateEdit(submissionId) {
     const display = document.getElementById(`time-display-${submissionId}`);
