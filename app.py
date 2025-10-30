@@ -2090,7 +2090,7 @@ def clear_po_data():
 # ===== PRODUCTION REPORT ENDPOINTS =====
 
 @app.route('/api/reports/production', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def generate_production_report():
     """Generate comprehensive production report PDF"""
     try:
@@ -2141,7 +2141,7 @@ def generate_production_report():
         }), 500
 
 @app.route('/api/reports/po-summary')
-@admin_required 
+@role_required('dashboard')
 def get_po_summary_for_reports():
     """Get summary of POs available for reporting"""
     try:
