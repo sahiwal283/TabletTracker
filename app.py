@@ -3292,6 +3292,148 @@ def recalculate_po_counts():
         print(error_trace)
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
+@app.route('/api/submission/<int:submission_id>/details', methods=['GET'])
+@admin_required
+def get_submission_details(submission_id):
+    """Get full details of a submission for editing (Admin only)"""
+    try:
+        conn = get_db()
+        
+        submission = conn.execute('''
+            SELECT * FROM warehouse_submissions
+            WHERE id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'submission': dict(submission)
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ GET SUBMISSION ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/submission/<int:submission_id>/edit', methods=['POST'])
+@admin_required
+def edit_submission(submission_id):
+    """Edit a submission and recalculate PO counts (Admin only)"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        
+        # Get the submission's current PO assignment
+        submission = conn.execute('''
+            SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
+                   loose_tablets, damaged_tablets, inventory_item_id
+            FROM warehouse_submissions
+            WHERE id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        old_po_id = submission['assigned_po_id']
+        inventory_item_id = submission['inventory_item_id']
+        
+        # Get product details for calculations
+        product = conn.execute('''
+            SELECT pd.packages_per_display, pd.tablets_per_package
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE pd.product_name = ?
+        ''', (submission['product_name'],)).fetchone()
+        
+        if not product:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
+        
+        # Calculate old totals to subtract
+        old_good = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
+                   submission['packs_remaining'] * product['tablets_per_package'] +
+                   submission['loose_tablets'])
+        old_damaged = submission['damaged_tablets']
+        
+        # Calculate new totals
+        new_good = (data['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
+                   data['packs_remaining'] * product['tablets_per_package'] +
+                   data['loose_tablets'])
+        new_damaged = data['damaged_tablets']
+        
+        # Update the submission
+        conn.execute('''
+            UPDATE warehouse_submissions
+            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
+                damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?
+            WHERE id = ?
+        ''', (data['displays_made'], data['packs_remaining'], data['loose_tablets'],
+              data['damaged_tablets'], data.get('box_number'), data.get('bag_number'),
+              data.get('bag_label_count'), submission_id))
+        
+        # Update PO line counts if assigned to a PO
+        if old_po_id and inventory_item_id:
+            # Find the PO line
+            po_line = conn.execute('''
+                SELECT id FROM po_lines
+                WHERE po_id = ? AND inventory_item_id = ?
+                LIMIT 1
+            ''', (old_po_id, inventory_item_id)).fetchone()
+            
+            if po_line:
+                # Calculate the difference and update
+                good_diff = new_good - old_good
+                damaged_diff = new_damaged - old_damaged
+                
+                conn.execute('''
+                    UPDATE po_lines
+                    SET good_count = good_count + ?, damaged_count = damaged_count + ?
+                    WHERE id = ?
+                ''', (good_diff, damaged_diff, po_line['id']))
+                
+                # Update PO header totals
+                totals = conn.execute('''
+                    SELECT 
+                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                        COALESCE(SUM(good_count), 0) as total_good,
+                        COALESCE(SUM(damaged_count), 0) as total_damaged
+                    FROM po_lines 
+                    WHERE po_id = ?
+                ''', (old_po_id,)).fetchone()
+                
+                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+                conn.execute('''
+                    UPDATE purchase_orders 
+                    SET ordered_quantity = ?, current_good_count = ?, 
+                        current_damaged_count = ?, remaining_quantity = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (totals['total_ordered'], totals['total_good'], 
+                      totals['total_damaged'], remaining, old_po_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission updated successfully'
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ EDIT SUBMISSION ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
 @admin_required
 def resync_unassigned_submissions():
