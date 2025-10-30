@@ -32,8 +32,8 @@ class ProductionReportGenerator:
         self.styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30,
+            fontSize=18,
+            spaceAfter=12,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#0B2E33')
         ))
@@ -41,23 +41,23 @@ class ProductionReportGenerator:
         self.styles.add(ParagraphStyle(
             name='SectionHeader',
             parent=self.styles['Heading2'],
-            fontSize=16,
-            spaceBefore=20,
-            spaceAfter=10,
+            fontSize=13,
+            spaceBefore=10,
+            spaceAfter=6,
             textColor=colors.HexColor('#4F7C82')
         ))
         
         self.styles.add(ParagraphStyle(
             name='MetricLabel',
             parent=self.styles['Normal'],
-            fontSize=10,
+            fontSize=9,
             textColor=colors.HexColor('#666666')
         ))
         
         self.styles.add(ParagraphStyle(
             name='MetricValue',
             parent=self.styles['Normal'],
-            fontSize=12,
+            fontSize=10,
             fontName='Helvetica-Bold',
             textColor=colors.HexColor('#0B2E33')
         ))
@@ -81,12 +81,12 @@ class ProductionReportGenerator:
             bytes: PDF content
         """
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, 
-                              topMargin=72, bottomMargin=18)
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
+                              topMargin=40, bottomMargin=30)
         
         story = []
         
-        # Report header
+        # Report header (more compact)
         story.append(Paragraph("Production Cycle Report", self.styles['CustomTitle']))
         story.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", self.styles['Normal']))
         
@@ -94,7 +94,7 @@ class ProductionReportGenerator:
             date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
             story.append(Paragraph(date_range, self.styles['Normal']))
         
-        story.append(Spacer(1, 20))
+        story.append(Spacer(1, 10))
         
         # Get report data
         report_data = self._get_report_data(start_date, end_date, po_numbers)
@@ -413,20 +413,23 @@ class ProductionReportGenerator:
             ['Average Pack Time', f"{summary['average_pack_time']:.1f} days" if summary['average_pack_time'] else "N/A"]
         ]
         
-        summary_table = Table(summary_data, colWidths=[3*inch, 2*inch])
+        summary_table = Table(summary_data, colWidths=[2.5*inch, 1.8*inch])
         summary_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
         story.append(summary_table)
-        story.append(Spacer(1, 20))
+        story.append(Spacer(1, 10))
         
         # Product Breakdown Table
         if summary.get('product_breakdown'):
@@ -450,15 +453,17 @@ class ProductionReportGenerator:
                 f"{summary['total_damaged']:,}"
             ])
             
-            product_table = Table(product_data, colWidths=[2.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+            product_table = Table(product_data, colWidths=[3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
             product_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                 ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
                 # Totals row styling
                 ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#93B1B5')),
@@ -468,7 +473,7 @@ class ProductionReportGenerator:
             ]))
             
             story.append(product_table)
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, 10))
         
         return story
 
@@ -496,16 +501,19 @@ class ProductionReportGenerator:
         if po_data.get('pack_time_days'):
             po_info_data.append(['Pack Time', f"{po_data['pack_time_days']} days"])
         
-        po_info_table = Table(po_info_data, colWidths=[2*inch, 3*inch])
+        po_info_table = Table(po_info_data, colWidths=[1.8*inch, 2.5*inch])
         po_info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#B8E3E9')),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
         story.append(po_info_table)
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 8))
         
         # Shipment Information
         if po_data.get('shipment'):
@@ -521,16 +529,19 @@ class ProductionReportGenerator:
                 ['Tracking Status', shipment.get('tracking_status', 'N/A')]
             ]
             
-            shipment_table = Table(shipment_data, colWidths=[2*inch, 3*inch])
+            shipment_table = Table(shipment_data, colWidths=[1.8*inch, 2.5*inch])
             shipment_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#93B1B5')),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
             story.append(shipment_table)
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 8))
         
         # Production Breakdown
         if po_data.get('production_breakdown'):
@@ -547,19 +558,22 @@ class ProductionReportGenerator:
                 ['Total Submissions', f"{len(po_data['submissions']):,}"]
             ]
             
-            breakdown_table = Table(breakdown_data, colWidths=[2.5*inch, 2.5*inch])
+            breakdown_table = Table(breakdown_data, colWidths=[2.2*inch, 2*inch])
             breakdown_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
             story.append(breakdown_table)
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 8))
             
             # By Product breakdown
             if breakdown['by_product']:
@@ -582,13 +596,15 @@ class ProductionReportGenerator:
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
                 
                 story.append(product_table)
-                story.append(Spacer(1, 15))
+                story.append(Spacer(1, 6))
             
             # By Employee breakdown  
             if breakdown['by_employee']:
@@ -609,13 +625,15 @@ class ProductionReportGenerator:
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
                 
                 story.append(employee_table)
-                story.append(Spacer(1, 15))
+                story.append(Spacer(1, 6))
         
         return story
 
@@ -663,18 +681,21 @@ class ProductionReportGenerator:
                 ['Median Pack Time', f"{sorted(pack_times)[len(pack_times)//2]:.1f} days"]
             ]
             
-            pack_time_table = Table(pack_time_data, colWidths=[3*inch, 2*inch])
+            pack_time_table = Table(pack_time_data, colWidths=[2.5*inch, 1.8*inch])
             pack_time_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
             story.append(pack_time_table)
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 8))
         
         # Top performing employees
         if all_employees:
@@ -698,13 +719,15 @@ class ProductionReportGenerator:
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
             story.append(emp_table)
-            story.append(Spacer(1, 15))
+            story.append(Spacer(1, 8))
         
         # Product performance summary
         if all_products:
@@ -726,7 +749,9 @@ class ProductionReportGenerator:
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
