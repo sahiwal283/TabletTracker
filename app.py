@@ -3667,7 +3667,7 @@ def resync_unassigned_submissions():
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/api/po/<int:po_id>/submissions', methods=['GET'])
-@admin_required
+@role_required('dashboard')
 def get_po_submissions(po_id):
     """Get all submissions assigned to a specific PO"""
     try:
