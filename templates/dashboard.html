@@ -68,46 +68,6 @@
             </div>
         </div>
     </div>
-    
-    <!-- Data Management -->
-    <div class="card hover-lift p-8">
-        <div class="flex items-center mb-6">
-            <svg class="w-8 h-8 mr-4" aria-hidden="true"><use href="#icon-bolt" /></svg>
-            <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Data Management</h3>
-        </div>
-        
-        <div class="space-y-4">
-            <button id="sync-pos-btn" onclick="syncZohoPOs()" 
-                    class="btn-success w-full py-4 text-lg font-bold shadow-2xl transform transition-all duration-500 hover:scale-105">
-                <span class="flex items-center justify-center">
-                    <span class="text-2xl mr-3">🔄</span>
-                    SYNC ZOHO POs
-                </span>
-            </button>
-            <button onclick="reassignAllSubmissions()" 
-                    class="btn-success w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
-                    title="Reassign ALL submissions to POs using correct order (by PO number). This will clear all current assignments and recalculate.">
-                <span class="flex items-center justify-center">
-                    <span class="text-lg mr-2">🔄</span>
-                    Reassign All Submissions
-                </span>
-            </button>
-            <button onclick="clearPOData()" 
-                    class="btn-warning w-full py-3 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
-                    title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
-                <span class="flex items-center justify-center">
-                    <span class="text-lg mr-2">🗑️</span>
-                    Clear PO Data
-                </span>
-            </button>
-            <p class="text-xs text-gray-500 mt-1">
-                <strong>Clear PO Data use cases:</strong><br>
-                • Start fresh testing<br>
-                • Fix corrupted sync data<br>
-                • Reset all counts to zero
-            </p>
-        </div>
-    </div>
 </div>
 
 <!-- Production Report Section -->
@@ -457,6 +417,43 @@
 </div>
 
 <!-- Closed POs removed - view all POs on dedicated page -->
+
+<!-- Data Management (moved to bottom) -->
+<div class="card hover-lift p-5 mt-8 max-w-3xl mx-auto">
+    <div class="flex items-center mb-4">
+        <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-bolt" /></svg>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Data Management</h3>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <button id="sync-pos-btn" onclick="syncZohoPOs()" 
+                class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105">
+            <span class="flex items-center justify-center">
+                <span class="text-lg mr-2">🔄</span>
+                SYNC ZOHO POs
+            </span>
+        </button>
+        <button onclick="reassignAllSubmissions()" 
+                class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                title="Reassign ALL submissions to POs using correct order (by PO number). This will clear all current assignments and recalculate.">
+            <span class="flex items-center justify-center">
+                <span class="text-base mr-1">🔄</span>
+                Reassign All
+            </span>
+        </button>
+        <button onclick="clearPOData()" 
+                class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
+            <span class="flex items-center justify-center">
+                <span class="text-base mr-1">🗑️</span>
+                Clear PO Data
+            </span>
+        </button>
+    </div>
+    <p class="text-xs text-gray-500 mt-3 text-center">
+        <strong>Clear PO Data:</strong> Start fresh testing • Fix corrupted sync data • Reset all counts to zero
+    </p>
+</div>
 
 <!-- Small Shipments Link -->
 <div class="mt-6 text-center">
