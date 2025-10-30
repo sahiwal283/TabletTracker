@@ -184,22 +184,40 @@ class ZohoInventoryAPI:
             
             print(f"PO {po['purchaseorder_number']}: Final closed status = {is_closed}")
             
+            # Get PO creation date from Zoho (they use 'date' field for PO date)
+            po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
+            
             if existing:
                 # Update existing PO with proper status and tablet type
                 print(f"Updating existing PO {po['purchaseorder_number']}: zoho_status='{zoho_status}', closed={is_closed}")
-                db_conn.execute('''
-                    UPDATE purchase_orders 
-                    SET po_number = ?, zoho_status = ?, closed = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE zoho_po_id = ?
-                ''', (po['purchaseorder_number'], zoho_status, is_closed, po['purchaseorder_id']))
+                # Update created_at only if we have a date from Zoho and current created_at is different
+                if po_date and po_date != existing.get('created_at', '')[:10]:
+                    db_conn.execute('''
+                        UPDATE purchase_orders 
+                        SET po_number = ?, zoho_status = ?, closed = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE zoho_po_id = ?
+                    ''', (po['purchaseorder_number'], zoho_status, is_closed, po_date, po['purchaseorder_id']))
+                else:
+                    db_conn.execute('''
+                        UPDATE purchase_orders 
+                        SET po_number = ?, zoho_status = ?, closed = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE zoho_po_id = ?
+                    ''', (po['purchaseorder_number'], zoho_status, is_closed, po['purchaseorder_id']))
                 po_id = existing['id']
             else:
-                # Insert new PO with proper status
-                cursor = db_conn.execute('''
-                    INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed)
-                    VALUES (?, ?, ?, ?)
-                ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                      zoho_status, is_closed))
+                # Insert new PO with proper status and creation date
+                if po_date:
+                    cursor = db_conn.execute('''
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
+                          zoho_status, is_closed, po_date))
+                else:
+                    cursor = db_conn.execute('''
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed)
+                        VALUES (?, ?, ?, ?)
+                    ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
+                          zoho_status, is_closed))
                 po_id = cursor.lastrowid
             
             # Determine actual tablet type from line items  
