@@ -218,6 +218,26 @@ def init_db():
         except Exception:
             pass
     
+    # Add inventory_item_id column to warehouse_submissions for reliable product matching
+    if 'inventory_item_id' not in existing_ws_cols:
+        try:
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN inventory_item_id TEXT')
+            # Backfill existing submissions with inventory_item_id from product_details
+            c.execute('''
+                UPDATE warehouse_submissions 
+                SET inventory_item_id = (
+                    SELECT tt.inventory_item_id 
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name = warehouse_submissions.product_name
+                )
+                WHERE inventory_item_id IS NULL
+            ''')
+            rows_updated = c.execute('SELECT changes()').fetchone()[0]
+            print(f"Added inventory_item_id column to warehouse_submissions and backfilled {rows_updated} existing records")
+        except Exception as e:
+            print(f"Note: inventory_item_id column migration: {e}")
+    
     # Add tracking columns if upgrading existing DB
     # Safe ALTERs to backfill missing columns
     c.execute('PRAGMA table_info(shipments)')
@@ -535,13 +555,13 @@ def submit_warehouse():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-        # Insert submission record using logged-in employee name
+        # Insert submission record using logged-in employee name WITH inventory_item_id
         conn.execute('''
             INSERT INTO warehouse_submissions 
-            (employee_name, product_name, box_number, bag_number, bag_label_count,
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (employee_name, data['product_name'], data.get('box_number'),
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (employee_name, data['product_name'], product['inventory_item_id'], data.get('box_number'),
               data.get('bag_number'), data.get('bag_label_count'),
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date))
         
@@ -1343,13 +1363,13 @@ def submit_count():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-        # Insert count record
+        # Insert count record WITH inventory_item_id
         conn.execute('''
             INSERT INTO warehouse_submissions 
-            (employee_name, product_name, box_number, bag_number, bag_label_count,
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (data['employee_name'], data['tablet_type'], data.get('box_number'),
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (data['employee_name'], data['tablet_type'], tablet_type['inventory_item_id'], data.get('box_number'),
               data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date))
         
         # Find open PO lines for this inventory item
@@ -3124,18 +3144,21 @@ def recalculate_po_counts():
         conn.execute('UPDATE po_lines SET good_count = 0, damaged_count = 0')
         conn.commit()
         
-        # Step 2: Get all submissions grouped by their assigned PO and line
+        # Step 2: Get all submissions with inventory_item_id (now stored directly!)
+        # Use COALESCE to fallback to JOIN for old submissions without inventory_item_id
         submissions = conn.execute('''
             SELECT 
+                ws.id as submission_id,
                 ws.assigned_po_id,
                 ws.product_name,
                 ws.displays_made,
                 ws.packs_remaining,
                 ws.loose_tablets,
                 ws.damaged_tablets,
+                ws.created_at,
                 pd.packages_per_display,
                 pd.tablets_per_package,
-                tt.inventory_item_id
+                COALESCE(ws.inventory_item_id, tt.inventory_item_id) as inventory_item_id
             FROM warehouse_submissions ws
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
@@ -3160,11 +3183,14 @@ def recalculate_po_counts():
                     (sub['loose_tablets'] or 0)
                 )
                 skipped_submissions.append({
+                    'submission_id': sub['submission_id'],
                     'product_name': sub['product_name'],
                     'good_tablets': good_tablets,
-                    'damaged_tablets': sub['damaged_tablets'] or 0
+                    'damaged_tablets': sub['damaged_tablets'] or 0,
+                    'created_at': sub['created_at'],
+                    'po_id': sub['assigned_po_id']
                 })
-                print(f"⚠️ Skipped submission: {sub['product_name']} - {good_tablets} tablets (no inventory_item_id)")
+                print(f"⚠️ Skipped submission ID {sub['submission_id']}: {sub['product_name']} - {good_tablets} tablets (no inventory_item_id)")
                 continue
             
             # Calculate good and damaged counts

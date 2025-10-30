@@ -227,16 +227,18 @@ class ProductionReportGenerator:
             params.extend(po_numbers)
         
         # Query to get ordered quantities by product from PO lines
+        # Group by inventory_item_id to match how counts are calculated/stored
         query = f"""
         SELECT 
             COALESCE(pl.line_item_name, 'Unknown') as product_name,
+            pl.inventory_item_id,
             SUM(pl.quantity_ordered) as ordered,
             SUM(pl.good_count) as produced,
             SUM(pl.damaged_count) as damaged
         FROM po_lines pl
         JOIN purchase_orders po ON pl.po_id = po.id
         WHERE 1=1 {date_filter} {po_filter}
-        GROUP BY pl.line_item_name
+        GROUP BY pl.inventory_item_id, pl.line_item_name
         ORDER BY ordered DESC
         """
         
