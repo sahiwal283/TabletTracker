@@ -3263,9 +3263,10 @@ def recalculate_po_counts():
         
         # Build response message
         message = f'Successfully recalculated counts for {updated_count} PO lines. No assignments were changed.'
+        skipped_by_product = {}
+        
         if skipped_submissions:
             # Group skipped by product
-            skipped_by_product = {}
             for skip in skipped_submissions:
                 product = skip['product_name']
                 if product not in skipped_by_product:
@@ -3282,7 +3283,7 @@ def recalculate_po_counts():
             'success': True,
             'message': message,
             'skipped_count': len(skipped_submissions),
-            'skipped_details': skipped_by_product if skipped_submissions else {}
+            'skipped_details': skipped_by_product
         })
         
     except Exception as e:
