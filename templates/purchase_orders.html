@@ -71,32 +71,38 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for po in purchase_orders %}
-                <tr class="hover:bg-gray-100 cursor-pointer po-row" 
-                    data-po-status="{{ 'draft' if po.internal_status == 'Draft' else ('closed' if po.closed else 'open') }}"
-                    onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr class="hover:bg-gray-100 po-row" 
+                    data-po-status="{{ 'draft' if po.internal_status == 'Draft' else ('closed' if po.closed else 'open') }}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {{ po.po_number }}
+                        {% if session.get('role') == 'admin' %}
+                            <button onclick="event.stopPropagation(); deletePO({{ po.id }}, '{{ po.po_number }}')" 
+                                    class="ml-2 text-xs text-red-600 hover:text-red-800"
+                                    title="Delete PO (Admin only)">
+                                🗑️
+                            </button>
+                        {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {{ po.tablet_type or 'Multiple' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {{ "{:,}".format(po.ordered_quantity) if po.ordered_quantity else '0' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {{ "{:,}".format(po.current_good_count) if po.current_good_count else '0' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {{ "{:,}".format(po.current_damaged_count) if po.current_damaged_count else '0' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {% if po.remaining_quantity < 0 %}text-purple-600{% else %}text-gray-900{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {% if po.remaining_quantity < 0 %}text-purple-600{% else %}text-gray-900{% endif %} cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {% if po.remaining_quantity < 0 %}
                             +{{ "{:,}".format(po.remaining_quantity|abs) }} over
                         {% else %}
                             {{ "{:,}".format(po.remaining_quantity) if po.remaining_quantity else '0' }}
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-6 py-4 whitespace-nowrap cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {% set received = (po.current_good_count or 0) + (po.current_damaged_count or 0) %}
                         {% set total = po.ordered_quantity or 1 %}
                         {% set progress = ((received / total * 100)|int) if total > 0 else 0 %}
@@ -107,7 +113,7 @@
                             <span class="text-sm font-medium text-gray-700">{{ progress }}%</span>
                         </div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-6 py-4 whitespace-nowrap cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
                         {% if po.internal_status == 'Draft' %}
                             <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-lg">
                                 📝 Draft
@@ -315,6 +321,31 @@ function closePODetailsModal(event) {
 
 async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
     window.location.href = `/submissions?po_id=${poId}` + (inventoryItemId ? `&item_id=${inventoryItemId}` : '');
+}
+
+async function deletePO(poId, poNumber) {
+    if (!confirm(`⚠️ WARNING: Delete ${poNumber}?\n\nThis will:\n- Delete the PO and all its line items\n- Unassign all submissions (submissions won't be deleted)\n- Delete related shipments\n\nThis action cannot be undone. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/po/${poId}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message + '\n\nRefreshing page...');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to delete PO'));
+        }
+    } catch (error) {
+        console.error('Error deleting PO:', error);
+        alert('Failed to delete PO: ' + error.message);
+    }
 }
 </script>
 {% endblock %}

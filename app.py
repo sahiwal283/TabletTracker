@@ -3434,6 +3434,48 @@ def edit_submission(submission_id):
         print(error_trace)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/po/<int:po_id>/delete', methods=['POST'])
+@admin_required
+def delete_po(po_id):
+    """Delete a PO and all its related data (Admin only)"""
+    try:
+        conn = get_db()
+        
+        # Get PO details first
+        po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (po_id,)).fetchone()
+        
+        if not po:
+            conn.close()
+            return jsonify({'success': False, 'error': 'PO not found'}), 404
+        
+        # Delete related data
+        # 1. Unassign all submissions (don't delete submissions, just unassign them)
+        conn.execute('UPDATE warehouse_submissions SET assigned_po_id = NULL WHERE assigned_po_id = ?', (po_id,))
+        
+        # 2. Delete shipments
+        conn.execute('DELETE FROM shipments WHERE po_id = ?', (po_id,))
+        
+        # 3. Delete PO lines
+        conn.execute('DELETE FROM po_lines WHERE po_id = ?', (po_id,))
+        
+        # 4. Delete the PO itself
+        conn.execute('DELETE FROM purchase_orders WHERE id = ?', (po_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted {po["po_number"]} and all related data'
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ DELETE PO ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
 @admin_required
 def resync_unassigned_submissions():
