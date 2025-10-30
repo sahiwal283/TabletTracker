@@ -424,9 +424,17 @@
                 SYNC ZOHO POs
             </span>
         </button>
+        <button onclick="recalculatePOCounts()" 
+                class="btn-primary py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                title="Recalculate PO counts from current submissions WITHOUT changing any assignments. Safe to run anytime!">
+            <span class="flex items-center justify-center">
+                <span class="text-base mr-1">🔢</span>
+                Recalculate Counts
+            </span>
+        </button>
         <button onclick="reassignAllSubmissions()" 
-                class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
-                title="Reassign ALL submissions to POs using correct order (by PO number). This will clear all current assignments and recalculate.">
+                class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                title="⚠️ WARNING: Reassign ALL submissions to POs using correct order. This will clear all current assignments!">
             <span class="flex items-center justify-center">
                 <span class="text-base mr-1">🔄</span>
                 Reassign All
@@ -747,8 +755,49 @@ async function clearPOData() {
     }
 }
 
+async function recalculatePOCounts() {
+    if (!confirm('This will recalculate all PO counts based on currently assigned submissions. No assignments will be changed. Continue?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.textContent = '⏳ Recalculating...';
+        
+        const response = await fetch('/api/recalculate_po_counts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            // Reload page to show updated counts
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showError(result.error || 'Recalculation failed - check terminal for details');
+        }
+        
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    } catch (error) {
+        showError('Failed to recalculate counts: ' + error.message);
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    }
+}
+
 async function reassignAllSubmissions() {
-    if (!confirm('This will clear ALL current PO assignments and reassign all submissions using the correct PO order (by PO number). This cannot be undone. Continue?')) {
+    if (!confirm('⚠️ WARNING: This will clear ALL current PO assignments and reassign all submissions using the correct PO order (by PO number). This cannot be undone. Continue?')) {
         return;
     }
     

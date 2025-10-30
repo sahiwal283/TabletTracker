@@ -3108,6 +3108,131 @@ def reassign_all_submissions():
         print(error_trace)
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
+@app.route('/api/recalculate_po_counts', methods=['POST'])
+@admin_required
+def recalculate_po_counts():
+    """
+    Recalculate PO line counts based on currently assigned submissions.
+    Does NOT change any PO assignments - just fixes the counts to match actual submissions.
+    """
+    try:
+        conn = get_db()
+        
+        print("🔄 Recalculating PO counts without changing assignments...")
+        
+        # Step 1: Reset all PO line counts to zero
+        conn.execute('UPDATE po_lines SET good_count = 0, damaged_count = 0')
+        conn.commit()
+        
+        # Step 2: Get all submissions grouped by their assigned PO and line
+        submissions = conn.execute('''
+            SELECT 
+                ws.assigned_po_id,
+                ws.product_name,
+                ws.displays_made,
+                ws.packs_remaining,
+                ws.loose_tablets,
+                ws.damaged_tablets,
+                pd.packages_per_display,
+                pd.tablets_per_package,
+                tt.inventory_item_id
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE ws.assigned_po_id IS NOT NULL
+            ORDER BY ws.created_at ASC
+        ''').fetchall()
+        
+        # Group submissions by PO and inventory_item_id
+        po_line_totals = {}  # {(po_id, inventory_item_id): {'good': X, 'damaged': Y}}
+        
+        for sub in submissions:
+            po_id = sub['assigned_po_id']
+            inventory_item_id = sub['inventory_item_id']
+            
+            if not inventory_item_id:
+                print(f"⚠️ Submission for {sub['product_name']} has no inventory_item_id, skipping...")
+                continue
+            
+            # Calculate good and damaged counts
+            packages_per_display = sub['packages_per_display'] or 0
+            tablets_per_package = sub['tablets_per_package'] or 0
+            
+            good_tablets = (
+                (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                (sub['packs_remaining'] or 0) * tablets_per_package +
+                (sub['loose_tablets'] or 0)
+            )
+            damaged_tablets = sub['damaged_tablets'] or 0
+            
+            # Add to running total for this PO line
+            key = (po_id, inventory_item_id)
+            if key not in po_line_totals:
+                po_line_totals[key] = {'good': 0, 'damaged': 0}
+            
+            po_line_totals[key]['good'] += good_tablets
+            po_line_totals[key]['damaged'] += damaged_tablets
+        
+        # Step 3: Update each PO line with the calculated totals
+        updated_count = 0
+        for (po_id, inventory_item_id), totals in po_line_totals.items():
+            # Find the PO line for this PO and inventory item
+            line = conn.execute('''
+                SELECT id FROM po_lines
+                WHERE po_id = ? AND inventory_item_id = ?
+                LIMIT 1
+            ''', (po_id, inventory_item_id)).fetchone()
+            
+            if line:
+                conn.execute('''
+                    UPDATE po_lines
+                    SET good_count = ?, damaged_count = ?
+                    WHERE id = ?
+                ''', (totals['good'], totals['damaged'], line['id']))
+                updated_count += 1
+                print(f"✅ Updated PO line {line['id']}: {totals['good']} good, {totals['damaged']} damaged")
+        
+        # Step 4: Update PO header totals from line totals
+        conn.execute('''
+            UPDATE purchase_orders
+            SET 
+                ordered_quantity = (
+                    SELECT COALESCE(SUM(quantity_ordered), 0)
+                    FROM po_lines
+                    WHERE po_lines.po_id = purchase_orders.id
+                ),
+                current_good_count = (
+                    SELECT COALESCE(SUM(good_count), 0)
+                    FROM po_lines
+                    WHERE po_lines.po_id = purchase_orders.id
+                ),
+                current_damaged_count = (
+                    SELECT COALESCE(SUM(damaged_count), 0)
+                    FROM po_lines
+                    WHERE po_lines.po_id = purchase_orders.id
+                ),
+                remaining_quantity = (
+                    SELECT COALESCE(SUM(quantity_ordered), 0) - COALESCE(SUM(good_count), 0) - COALESCE(SUM(damaged_count), 0)
+                    FROM po_lines
+                    WHERE po_lines.po_id = purchase_orders.id
+                ),
+                updated_at = CURRENT_TIMESTAMP
+        ''')
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully recalculated counts for {updated_count} PO lines. No assignments were changed.'
+        })
+        
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"❌ RECALCULATE ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'error': str(e), 'trace': error_trace}), 500
+
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
 @admin_required
 def resync_unassigned_submissions():
