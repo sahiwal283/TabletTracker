@@ -949,7 +949,7 @@ def public_shipments():
     return render_template('shipments_public.html', shipments=rows)
 
 @app.route('/api/sync_zoho_pos')
-@admin_required
+@role_required('dashboard')
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
     try:
@@ -2678,7 +2678,7 @@ def create_sample_receiving_data():
         return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
 
 @app.route('/api/update_submission_date', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def update_submission_date():
     """Update the submission date for an existing submission"""
     try:
@@ -2710,7 +2710,7 @@ def update_submission_date():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/available_pos', methods=['GET'])
-@admin_required
+@role_required('dashboard')
 def get_available_pos_for_submission(submission_id):
     """Get list of POs that can accept this submission (filtered by product/inventory_item_id)"""
     try:
@@ -2772,7 +2772,7 @@ def get_available_pos_for_submission(submission_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/approve', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def approve_submission_assignment(submission_id):
     """Approve and lock the current PO assignment for a submission"""
     try:
@@ -2816,7 +2816,7 @@ def approve_submission_assignment(submission_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/reassign', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def reassign_submission_to_po(submission_id):
     """Reassign a submission to a different PO (manager verification/correction)"""
     try:
@@ -2963,7 +2963,7 @@ def reassign_submission_to_po(submission_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reassign_all_submissions', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def reassign_all_submissions():
     """Reassign ALL submissions to POs using correct PO order (by PO number, not created_at)"""
     try:
@@ -3165,7 +3165,7 @@ def reassign_all_submissions():
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/api/recalculate_po_counts', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def recalculate_po_counts():
     """
     Recalculate PO line counts based on currently assigned submissions.
@@ -3513,7 +3513,7 @@ def delete_po(po_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
-@admin_required
+@role_required('dashboard')
 def resync_unassigned_submissions():
     """Resync unassigned submissions to try matching them with POs based on updated item IDs"""
     try:
