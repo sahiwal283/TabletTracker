@@ -201,8 +201,57 @@ class ProductionReportGenerator:
             total_processed = report_data['summary']['total_produced'] + report_data['summary']['total_damaged']
             report_data['summary']['efficiency_rate'] = (report_data['summary']['total_produced'] / total_processed * 100) if total_processed > 0 else 0
         
+        # Get product breakdown
+        report_data['summary']['product_breakdown'] = self._get_product_breakdown(conn, start_date, end_date, po_numbers)
+        
         conn.close()
         return report_data
+
+    def _get_product_breakdown(self, conn: sqlite3.Connection, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> List[Dict]:
+        """Get breakdown of ordered/produced/damaged by product/tablet type"""
+        # Build filters
+        date_filter = ""
+        params = []
+        
+        if start_date:
+            date_filter += " AND po.created_at >= ?"
+            params.append(start_date)
+        if end_date:
+            date_filter += " AND po.created_at <= ?"
+            params.append(end_date + " 23:59:59")
+        
+        po_filter = ""
+        if po_numbers:
+            placeholders = ",".join(["?" for _ in po_numbers])
+            po_filter = f" AND po.po_number IN ({placeholders})"
+            params.extend(po_numbers)
+        
+        # Query to get ordered quantities by product from PO lines
+        query = f"""
+        SELECT 
+            COALESCE(pl.line_item_name, 'Unknown') as product_name,
+            SUM(pl.quantity_ordered) as ordered,
+            SUM(pl.good_count) as produced,
+            SUM(pl.damaged_count) as damaged
+        FROM po_lines pl
+        JOIN purchase_orders po ON pl.po_id = po.id
+        WHERE 1=1 {date_filter} {po_filter}
+        GROUP BY pl.line_item_name
+        ORDER BY ordered DESC
+        """
+        
+        results = conn.execute(query, params).fetchall()
+        
+        breakdown = []
+        for row in results:
+            breakdown.append({
+                'product_name': row['product_name'],
+                'ordered': row['ordered'] or 0,
+                'produced': row['produced'] or 0,
+                'damaged': row['damaged'] or 0
+            })
+        
+        return breakdown
 
     def _get_detailed_po_data(self, conn: sqlite3.Connection, po_id: int) -> Dict:
         """Get detailed data for a specific PO"""
@@ -378,6 +427,48 @@ class ProductionReportGenerator:
         
         story.append(summary_table)
         story.append(Spacer(1, 20))
+        
+        # Product Breakdown Table
+        if summary.get('product_breakdown'):
+            story.append(Paragraph("Production Breakdown by Product", self.styles['SectionHeader']))
+            
+            product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
+            
+            for product in summary['product_breakdown']:
+                product_data.append([
+                    product['product_name'],
+                    f"{product['ordered']:,}",
+                    f"{product['produced']:,}",
+                    f"{product['damaged']:,}"
+                ])
+            
+            # Add totals row
+            product_data.append([
+                'TOTAL',
+                f"{summary['total_ordered']:,}",
+                f"{summary['total_produced']:,}",
+                f"{summary['total_damaged']:,}"
+            ])
+            
+            product_table = Table(product_data, colWidths=[2.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+            product_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                # Totals row styling
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#93B1B5')),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                ('LINEABOVE', (0, -1), (-1, -1), 2, colors.black),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(product_table)
+            story.append(Spacer(1, 20))
         
         return story
 
