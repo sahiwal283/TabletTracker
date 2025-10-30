@@ -3145,13 +3145,26 @@ def recalculate_po_counts():
         
         # Group submissions by PO and inventory_item_id
         po_line_totals = {}  # {(po_id, inventory_item_id): {'good': X, 'damaged': Y}}
+        skipped_submissions = []
         
         for sub in submissions:
             po_id = sub['assigned_po_id']
             inventory_item_id = sub['inventory_item_id']
             
             if not inventory_item_id:
-                print(f"⚠️ Submission for {sub['product_name']} has no inventory_item_id, skipping...")
+                packages_per_display = sub['packages_per_display'] or 0
+                tablets_per_package = sub['tablets_per_package'] or 0
+                good_tablets = (
+                    (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                    (sub['packs_remaining'] or 0) * tablets_per_package +
+                    (sub['loose_tablets'] or 0)
+                )
+                skipped_submissions.append({
+                    'product_name': sub['product_name'],
+                    'good_tablets': good_tablets,
+                    'damaged_tablets': sub['damaged_tablets'] or 0
+                })
+                print(f"⚠️ Skipped submission: {sub['product_name']} - {good_tablets} tablets (no inventory_item_id)")
                 continue
             
             # Calculate good and damaged counts
@@ -3222,9 +3235,28 @@ def recalculate_po_counts():
         conn.commit()
         conn.close()
         
+        # Build response message
+        message = f'Successfully recalculated counts for {updated_count} PO lines. No assignments were changed.'
+        if skipped_submissions:
+            # Group skipped by product
+            skipped_by_product = {}
+            for skip in skipped_submissions:
+                product = skip['product_name']
+                if product not in skipped_by_product:
+                    skipped_by_product[product] = {'good': 0, 'damaged': 0}
+                skipped_by_product[product]['good'] += skip['good_tablets']
+                skipped_by_product[product]['damaged'] += skip['damaged_tablets']
+            
+            message += f'\n\n⚠️ WARNING: {len(skipped_submissions)} submissions were skipped (missing product configuration):\n'
+            for product, totals in skipped_by_product.items():
+                message += f'\n• {product}: {totals["good"]} tablets (damaged: {totals["damaged"]})'
+            message += '\n\nTo fix: Go to "Manage Products" and ensure each product is linked to a tablet type with an inventory_item_id.'
+        
         return jsonify({
             'success': True,
-            'message': f'Successfully recalculated counts for {updated_count} PO lines. No assignments were changed.'
+            'message': message,
+            'skipped_count': len(skipped_submissions),
+            'skipped_details': skipped_by_product if skipped_submissions else {}
         })
         
     except Exception as e:
