@@ -2963,7 +2963,7 @@ def reassign_submission_to_po(submission_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reassign_all_submissions', methods=['POST'])
-@role_required('dashboard')
+@admin_required
 def reassign_all_submissions():
     """Reassign ALL submissions to POs using correct PO order (by PO number, not created_at)"""
     try:
@@ -3165,7 +3165,7 @@ def reassign_all_submissions():
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/api/recalculate_po_counts', methods=['POST'])
-@role_required('dashboard')
+@admin_required
 def recalculate_po_counts():
     """
     Recalculate PO line counts based on currently assigned submissions.
@@ -3513,7 +3513,7 @@ def delete_po(po_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
-@role_required('dashboard')
+@admin_required
 def resync_unassigned_submissions():
     """Resync unassigned submissions to try matching them with POs based on updated item IDs"""
     try:
