@@ -786,10 +786,15 @@ def all_submissions():
     """Full submissions page showing all submissions"""
     conn = get_db()
     
-    # Get ALL submissions with calculated totals and running bag totals
-    submissions_raw = conn.execute('''
-        SELECT ws.*, po.po_number, po.closed as po_closed,
+    # Get filter parameters from query string
+    filter_po_id = request.args.get('po_id', type=int)
+    filter_item_id = request.args.get('item_id', type=str)
+    
+    # Build query with optional filters
+    query = '''
+        SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter,
                pd.packages_per_display, pd.tablets_per_package,
+               tt.inventory_item_id,
                COALESCE(ws.po_assignment_verified, 0) as po_verified,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -799,8 +804,25 @@ def all_submissions():
         FROM warehouse_submissions ws
         LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-        ORDER BY ws.created_at ASC
-    ''').fetchall()
+        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        WHERE 1=1
+    '''
+    
+    params = []
+    
+    # Apply PO filter if provided
+    if filter_po_id:
+        query += ' AND ws.assigned_po_id = ?'
+        params.append(filter_po_id)
+    
+    # Apply item filter if provided
+    if filter_item_id:
+        query += ' AND tt.inventory_item_id = ?'
+        params.append(filter_item_id)
+    
+    query += ' ORDER BY ws.created_at ASC'
+    
+    submissions_raw = conn.execute(query, params).fetchall()
     
     # Calculate running totals by bag PER PO (each PO has its own physical bags)
     bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
@@ -871,8 +893,22 @@ def all_submissions():
         'next_page': page + 1 if page < total_pages else None
     }
     
+    # Get filter info for display
+    filter_info = {}
+    if filter_po_id:
+        po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
+        if po_info:
+            filter_info['po_number'] = po_info['po_number']
+            filter_info['po_id'] = filter_po_id
+    
+    if filter_item_id:
+        item_info = conn.execute('SELECT line_item_name FROM po_lines WHERE inventory_item_id = ? LIMIT 1', (filter_item_id,)).fetchone()
+        if item_info:
+            filter_info['item_name'] = item_info['line_item_name']
+            filter_info['item_id'] = filter_item_id
+    
     conn.close()
-    return render_template('submissions.html', submissions=submissions, pagination=pagination)
+    return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info)
 
 @app.route('/purchase_orders')
 @role_required('dashboard')

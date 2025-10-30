@@ -18,6 +18,35 @@
     </div>
 </div>
 
+<!-- Active Filters -->
+{% if filter_info %}
+<div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow-md">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <span class="text-2xl mr-3">🔍</span>
+            <div>
+                <h3 class="font-bold text-blue-900 text-lg">Active Filters</h3>
+                <div class="flex gap-3 mt-2">
+                    {% if filter_info.po_number %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                            📦 PO: {{ filter_info.po_number }}
+                        </span>
+                    {% endif %}
+                    {% if filter_info.item_name %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                            💊 {{ filter_info.item_name }}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <a href="/submissions" class="btn-secondary px-4 py-2 text-sm">
+            ✖️ Clear Filters
+        </a>
+    </div>
+</div>
+{% endif %}
+
 <!-- Submissions Table -->
 <div class="card hover-lift">
     <div class="px-8 py-6 border-b border-gray-200">
