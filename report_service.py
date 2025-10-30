@@ -575,37 +575,6 @@ class ProductionReportGenerator:
             story.append(breakdown_table)
             story.append(Spacer(1, 8))
             
-            # By Product breakdown
-            if breakdown['by_product']:
-                story.append(Paragraph("Production by Product", self.styles['Heading4']))
-                
-                product_data = [['Product', 'Displays', 'Packages', 'Loose', 'Damaged', 'Total Tablets']]
-                for product, data in breakdown['by_product'].items():
-                    product_data.append([
-                        product,
-                        str(data['displays']),
-                        str(data['packages']), 
-                        str(data['loose']),
-                        str(data['damaged']),
-                        f"{data['total_tablets']:,}"
-                    ])
-                
-                product_table = Table(product_data, colWidths=[1.5*inch, 0.8*inch, 0.8*inch, 0.7*inch, 0.7*inch, 1*inch])
-                product_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#93B1B5')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 8),
-                    ('TOPPADDING', (0, 0), (-1, -1), 2),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
-                
-                story.append(product_table)
-                story.append(Spacer(1, 6))
-            
             # By Employee breakdown  
             if breakdown['by_employee']:
                 story.append(Paragraph("Production by Employee", self.styles['Heading4']))
