@@ -49,17 +49,24 @@
 
 <!-- Submissions Table -->
 <div class="card hover-lift">
-    <div class="px-8 py-6 border-b border-gray-200">
+    <div class="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
         <div class="flex justify-between items-center">
             <div class="flex items-center">
                 <span class="text-3xl mr-4">📋</span>
-                <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Submissions History</h3>
-                <span class="ml-3 text-sm text-gray-500">({{ pagination.total }} total, showing {{ submissions|length }})</span>
-                {% if unverified_count > 0 %}
-                <span class="ml-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800 border border-orange-300">
-                    ⚠️ {{ unverified_count }} unverified
-                </span>
-                {% endif %}
+                <div>
+                    <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Submissions History</h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-xs text-gray-500">({{ pagination.total }} total, showing {{ submissions|length }})</span>
+                        {% if unverified_count > 0 %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-gradient-to-r from-orange-50 to-yellow-50 text-orange-700 border border-orange-200 shadow-sm">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                            <span>{{ unverified_count }} need{{ 's' if unverified_count != 1 else '' }} verification</span>
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
     </div>
