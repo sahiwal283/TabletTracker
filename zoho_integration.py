@@ -225,6 +225,9 @@ class ZohoInventoryAPI:
                 print(f"📋 Overs PO {po_number} linked to parent PO: {parent_po_number}")
             
             if existing:
+                # Convert Row to dict for .get() method access
+                existing = dict(existing)
+                
                 # Check if PO status changed from open to closed
                 was_closed = bool(existing.get('closed', False))
                 is_now_closed = is_closed
@@ -336,6 +339,9 @@ class ZohoInventoryAPI:
                     ).fetchone()
                     
                     if existing_line:
+                        # Convert Row to dict
+                        existing_line = dict(existing_line)
+                        
                         # Update existing line
                         db_conn.execute('''
                             UPDATE po_lines 
@@ -365,6 +371,8 @@ class ZohoInventoryAPI:
                         ''', (item_id,)).fetchone()
                         
                         if tablet_type_match:
+                            # Convert Row to dict
+                            tablet_type_match = dict(tablet_type_match)
                             tablet_types_found.append(tablet_type_match['tablet_type_name'])
                             matched_this_line = True
                             print(f"✅ Matched line item '{line['name']}' (ID: {item_id}) to tablet type: {tablet_type_match['tablet_type_name']}")
@@ -400,6 +408,9 @@ class ZohoInventoryAPI:
                 'SELECT internal_status FROM purchase_orders WHERE id = ?', 
                 (po_id,)
             ).fetchone()
+            
+            if current_internal:
+                current_internal = dict(current_internal)
             
             current_status = current_internal['internal_status'] if current_internal else 'Draft'
             new_internal_status = current_status
