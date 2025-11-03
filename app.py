@@ -972,9 +972,23 @@ def get_po_lines(po_id):
     lines = conn.execute('''
         SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
     ''', (po_id,)).fetchall()
+    
+    # Count unverified submissions for this PO
+    unverified_count = conn.execute('''
+        SELECT COUNT(*) as count
+        FROM warehouse_submissions
+        WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
+    ''', (po_id,)).fetchone()
+    
     conn.close()
     
-    return jsonify([dict(line) for line in lines])
+    result = {
+        'lines': [dict(line) for line in lines],
+        'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
+        'unverified_count': unverified_count['count'] if unverified_count else 0
+    }
+    
+    return jsonify(result)
 
 @app.route('/admin/products')
 @admin_required
