@@ -3470,6 +3470,102 @@ def edit_submission(submission_id):
         print(error_trace)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/submission/<int:submission_id>/delete', methods=['POST'])
+@admin_required
+def delete_submission(submission_id):
+    """Delete a submission and remove its counts from PO (Admin only)"""
+    try:
+        conn = get_db()
+        
+        # Get the submission details
+        submission = conn.execute('''
+            SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
+                   loose_tablets, damaged_tablets, inventory_item_id
+            FROM warehouse_submissions
+            WHERE id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        old_po_id = submission['assigned_po_id']
+        inventory_item_id = submission['inventory_item_id']
+        
+        # Get product details for calculations
+        product = conn.execute('''
+            SELECT pd.packages_per_display, pd.tablets_per_package
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE pd.product_name = ?
+        ''', (submission['product_name'],)).fetchone()
+        
+        if not product:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
+        
+        # Calculate counts to remove
+        good_tablets = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
+                       submission['packs_remaining'] * product['tablets_per_package'] +
+                       submission['loose_tablets'])
+        damaged_tablets = submission['damaged_tablets']
+        
+        # Remove counts from PO line if assigned
+        if old_po_id and inventory_item_id:
+            # Find the PO line
+            po_line = conn.execute('''
+                SELECT id FROM po_lines
+                WHERE po_id = ? AND inventory_item_id = ?
+                LIMIT 1
+            ''', (old_po_id, inventory_item_id)).fetchone()
+            
+            if po_line:
+                # Remove counts from PO line
+                conn.execute('''
+                    UPDATE po_lines
+                    SET good_count = MAX(0, good_count - ?), 
+                        damaged_count = MAX(0, damaged_count - ?)
+                    WHERE id = ?
+                ''', (good_tablets, damaged_tablets, po_line['id']))
+                
+                # Update PO header totals
+                totals = conn.execute('''
+                    SELECT 
+                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                        COALESCE(SUM(good_count), 0) as total_good,
+                        COALESCE(SUM(damaged_count), 0) as total_damaged
+                    FROM po_lines 
+                    WHERE po_id = ?
+                ''', (old_po_id,)).fetchone()
+                
+                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+                conn.execute('''
+                    UPDATE purchase_orders 
+                    SET ordered_quantity = ?, current_good_count = ?, 
+                        current_damaged_count = ?, remaining_quantity = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (totals['total_ordered'], totals['total_good'], 
+                      totals['total_damaged'], remaining, old_po_id))
+        
+        # Delete the submission
+        conn.execute('DELETE FROM warehouse_submissions WHERE id = ?', (submission_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission deleted successfully'
+        })
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ DELETE SUBMISSION ERROR: {str(e)}")
+        print(error_trace)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/po/<int:po_id>/delete', methods=['POST'])
 @admin_required
 def delete_po(po_id):
