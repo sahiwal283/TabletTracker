@@ -62,37 +62,37 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Time (click to edit date)
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Employee
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Product
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Box/Bag
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Displays
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Packs
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Loose
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Damaged
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Total
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Bag Check
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         PO
                     </th>
                 </tr>
@@ -100,7 +100,7 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for sub in submissions %}
                 <tr class="{% if not sub.po_verified %}bg-orange-50 border-l-4 border-orange-400{% else %}hover:bg-gray-50{% endif %}">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 group cursor-pointer" onclick="toggleDateEdit({{ sub.id }})">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500 group cursor-pointer" onclick="toggleDateEdit({{ sub.id }})">
                         <span id="time-display-{{ sub.id }}" class="group-hover:text-blue-600">
                             {{ sub.created_at.split('.')[0] if sub.created_at else 'N/A' }}
                         </span>
@@ -109,82 +109,82 @@
                                value="{{ sub.submission_date or sub.created_at.split(' ')[0] if sub.created_at else '' }}"
                                onchange="updateSubmissionDate({{ sub.id }}, this.value)"
                                onblur="hideDateEdit({{ sub.id }})"
-                               class="hidden text-sm border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               class="hidden text-base border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                title="Edit submission date">
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-900">
                         {{ sub.employee_name }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.product_name }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.box_number }}/{{ sub.bag_number }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.displays_made }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.packs_remaining }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.loose_tablets }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-red-600">
                         {{ sub.damaged_tablets }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                    <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
                         {{ sub.individual_calc }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <td class="px-6 py-4 whitespace-nowrap text-base">
                         {% if sub.count_status == 'no_bag' %}
-                            <span class="text-gray-400 text-xs">No Bag Label</span>
+                            <span class="text-gray-400 text-sm">No Bag Label</span>
                         {% else %}
                             <div class="flex flex-col gap-1">
-                                <div class="text-xs text-gray-600">
+                                <div class="text-sm text-gray-600">
                                     🏷️ {{ sub.box_number }}/{{ sub.bag_number }}
                                 </div>
-                                <div class="text-xs font-medium">
+                                <div class="text-sm font-medium">
                                     Bag: <span class="text-blue-600">{{ "{:,}".format(sub.bag_label_count) if sub.bag_label_count else '0' }}</span>
                                 </div>
-                                <div class="text-xs font-medium">
+                                <div class="text-sm font-medium">
                                     Running: <span class="text-purple-600">{{ "{:,}".format(sub.running_total) if sub.running_total else '0' }}</span>
                                 </div>
                                 {% if sub.count_status == 'match' %}
-                                    <span class="text-green-600 font-bold text-xs">✓ Match</span>
+                                    <span class="text-green-600 font-bold text-sm">✓ Match</span>
                                 {% elif sub.count_status == 'under' %}
-                                    <span class="text-yellow-600 font-bold text-xs">⚠️ Under</span>
+                                    <span class="text-yellow-600 font-bold text-sm">⚠️ Under</span>
                                 {% elif sub.count_status == 'over' %}
-                                    <span class="text-red-600 font-bold text-xs">❌ Over</span>
+                                    <span class="text-red-600 font-bold text-sm">❌ Over</span>
                                 {% endif %}
                             </div>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <td class="px-6 py-4 whitespace-nowrap text-base">
                         {% if sub.po_number %}
                             <div class="flex items-center gap-2">
                                 <span class="font-medium text-blue-600">{{ sub.po_number }}</span>
                                 {% if sub.po_closed %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
                                         🔒 Closed
                                     </span>
                                 {% else %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-green-100 text-green-700">
                                         ✓ Open
                                     </span>
                                 {% endif %}
                                 {% if sub.po_verified %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-600 text-white" title="PO assignment verified and locked">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-green-600 text-white" title="PO assignment verified and locked">
                                         ✓ Verified
                                     </span>
                                 {% else %}
                                     <button onclick="approveSubmission({{ sub.id }})" 
-                                            class="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"
+                                            class="text-sm bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"
                                             title="Approve this PO assignment">
                                         ✓ Approve
                                     </button>
                                     <button onclick="openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
-                                            class="text-xs text-blue-600 hover:text-blue-800 underline"
+                                            class="text-sm text-blue-600 hover:text-blue-800 underline"
                                             title="Change PO assignment">
                                         Change
                                     </button>
@@ -192,12 +192,12 @@
                                 <!-- Admin-only Edit button -->
                                 {% if session.get('employee_role') == 'admin' %}
                                     <button onclick="openEditSubmissionModal({{ sub.id }})" 
-                                            class="text-xs text-purple-600 hover:text-purple-800 underline ml-2"
+                                            class="text-sm text-purple-600 hover:text-purple-800 underline ml-2"
                                             title="Edit submission details (Admin only)">
                                         ✏️ Edit
                                     </button>
                                     <button onclick="deleteSubmission({{ sub.id }})" 
-                                            class="text-xs text-red-600 hover:text-red-800 underline ml-2"
+                                            class="text-sm text-red-600 hover:text-red-800 underline ml-2"
                                             title="Delete submission (Admin only)">
                                         🗑️ Delete
                                     </button>
@@ -207,19 +207,19 @@
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-400 italic">Unassigned</span>
                                 <button onclick="openReassignModal({{ sub.id }}, null, '{{ sub.product_name }}')" 
-                                        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                                        class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
                                         title="Assign to PO">
                                     📋 Assign
                                 </button>
                                 <!-- Admin-only Edit button -->
                                 {% if session.get('employee_role') == 'admin' %}
                                     <button onclick="openEditSubmissionModal({{ sub.id }})" 
-                                            class="text-xs text-purple-600 hover:text-purple-800 underline ml-2"
+                                            class="text-sm text-purple-600 hover:text-purple-800 underline ml-2"
                                             title="Edit submission details (Admin only)">
                                         ✏️ Edit
                                     </button>
                                     <button onclick="deleteSubmission({{ sub.id }})" 
-                                            class="text-xs text-red-600 hover:text-red-800 underline ml-2"
+                                            class="text-sm text-red-600 hover:text-red-800 underline ml-2"
                                             title="Delete submission (Admin only)">
                                         🗑️ Delete
                                     </button>
