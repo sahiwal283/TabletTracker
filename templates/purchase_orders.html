@@ -419,8 +419,33 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
             modalContent += '<div class="space-y-4">';
             
             filteredSubmissions.forEach(sub => {
-                const submissionDate = new Date(sub.submission_date || sub.created_at);
-                const createdDate = new Date(sub.created_at);
+                // Parse dates - if they're date-only strings (YYYY-MM-DD), treat as local date
+                // If they're datetime strings, parse them properly
+                let submissionDateStr = sub.submission_date || sub.created_at;
+                let createdDateStr = sub.created_at;
+                
+                // Format dates in EST/EDT timezone
+                const formatDateEST = (dateStr) => {
+                    if (!dateStr) return 'N/A';
+                    // If it's just a date (YYYY-MM-DD), format it directly without timezone conversion
+                    // This avoids timezone issues since it's a date-only field
+                    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const [year, month, day] = dateStr.split('-');
+                        return `${month}/${day}/${year}`;
+                    }
+                    // If it's a datetime string, parse it and convert to EST
+                    const date = new Date(dateStr);
+                    if (isNaN(date.getTime())) return 'N/A';
+                    return date.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', year: 'numeric' });
+                };
+                
+                const formatDateTimeEST = (dateStr) => {
+                    if (!dateStr) return 'N/A';
+                    // Parse datetime and convert to EST/EDT timezone
+                    const date = new Date(dateStr);
+                    if (isNaN(date.getTime())) return 'N/A';
+                    return date.toLocaleString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                };
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -430,8 +455,8 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                 <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
                             </div>
                             <div class="text-right text-sm">
-                                <div class="text-gray-600">📅 ${submissionDate.toLocaleDateString()}</div>
-                                <div class="text-xs text-gray-400">Created: ${createdDate.toLocaleString()}</div>
+                                <div class="text-gray-600">📅 ${formatDateEST(submissionDateStr)}</div>
+                                <div class="text-xs text-gray-400">Created: ${formatDateTimeEST(createdDateStr)}</div>
                             </div>
                         </div>
                         
