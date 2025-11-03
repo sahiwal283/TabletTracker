@@ -899,6 +899,25 @@ def all_submissions():
     # Get submissions for current page
     submissions = all_submissions[start_idx:end_idx]
     
+    # Count unverified submissions (respecting current filters)
+    unverified_query = '''
+        SELECT COUNT(*) as count
+        FROM warehouse_submissions ws
+        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        WHERE COALESCE(ws.po_assignment_verified, 0) = 0
+    '''
+    unverified_params = []
+    if filter_po_id:
+        unverified_query += ' AND ws.assigned_po_id = ?'
+        unverified_params.append(filter_po_id)
+    if filter_item_id:
+        unverified_query += ' AND tt.inventory_item_id = ?'
+        unverified_params.append(filter_item_id)
+    
+    unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
+    
     # Pagination info
     pagination = {
         'page': page,
@@ -926,7 +945,7 @@ def all_submissions():
             filter_info['item_id'] = filter_item_id
     
     conn.close()
-    return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info)
+    return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count)
 
 @app.route('/purchase_orders')
 @role_required('dashboard')
