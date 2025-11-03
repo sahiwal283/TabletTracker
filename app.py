@@ -2982,7 +2982,7 @@ def get_available_pos_for_submission(submission_id):
             return jsonify({'error': 'Could not determine product inventory_item_id'}), 400
         
         # Get all POs (open and closed) that have this inventory_item_id
-        # Exclude Draft POs
+        # Exclude Draft POs, order newest first (DESC) for less scrolling
         pos = conn.execute('''
             SELECT DISTINCT po.id, po.po_number, po.closed, po.internal_status,
                    po.ordered_quantity, po.current_good_count, po.current_damaged_count
@@ -2990,7 +2990,7 @@ def get_available_pos_for_submission(submission_id):
             INNER JOIN po_lines pl ON po.id = pl.po_id
             WHERE pl.inventory_item_id = ?
             AND COALESCE(po.internal_status, '') != 'Draft'
-            ORDER BY po.po_number ASC
+            ORDER BY po.po_number DESC
         ''', (inventory_item_id,)).fetchall()
         
         conn.close()
