@@ -1200,6 +1200,20 @@ def get_po_lines(po_id):
         else:
             po_status = 'Open'
     
+    # Check if there's an overs PO linked to this parent PO
+    overs_po = None
+    if current_po_number:
+        overs_po_record = conn.execute('''
+            SELECT id, po_number 
+            FROM purchase_orders 
+            WHERE parent_po_number = ?
+        ''', (current_po_number,)).fetchone()
+        if overs_po_record:
+            overs_po = {
+                'id': overs_po_record['id'],
+                'po_number': overs_po_record['po_number']
+            }
+    
     # Calculate round numbers for each line item
     lines_with_rounds = []
     for line in lines:
@@ -1231,7 +1245,8 @@ def get_po_lines(po_id):
         'lines': lines_with_rounds,
         'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
         'unverified_count': unverified_count['count'] if unverified_count else 0,
-        'po_status': po_status
+        'po_status': po_status,
+        'overs_po': overs_po
     }
     
     return jsonify(result)
