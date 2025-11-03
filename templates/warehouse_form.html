@@ -79,16 +79,6 @@
                    class="form-input" min="0" placeholder="{{ gettext('Count on the bag label') }}">
         </div>
         
-        <!-- Submission Date -->
-        <div>
-            <label for="submission_date" class="block text-sm font-medium text-gray-700 mb-1">
-                {{ gettext('Submission Date') }} *
-            </label>
-            <input type="date" id="submission_date" name="submission_date" required
-                   class="form-input" value="{{ today_date }}">
-            <p class="text-xs text-gray-500 mt-1">{{ gettext('Change this if submitting for a different date') }}</p>
-        </div>
-        
         <!-- Production Counts -->
         <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-indigo-100 space-y-4">
             <div class="flex items-center mb-4">
@@ -129,7 +119,15 @@
             </div>
         </div>
         
-
+        <!-- Submission Date -->
+        <div>
+            <label for="submission_date" class="block text-sm font-medium text-gray-700 mb-1">
+                {{ gettext('Submission Date') }} *
+            </label>
+            <input type="date" id="submission_date" name="submission_date" required
+                   class="form-input" value="{{ today_date }}">
+            <p class="text-xs text-gray-500 mt-1">{{ gettext('Change this if submitting for a different date') }}</p>
+        </div>
         
         <!-- Submit Button -->
         <button type="submit" class="w-full py-4 px-6 text-lg font-bold btn-primary mt-8 transform transition-all duration-300 hover:scale-105 flex items-center justify-center">
