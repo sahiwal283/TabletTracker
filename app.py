@@ -771,13 +771,13 @@ def admin_dashboard():
     # Show only last 10 most recent submissions on dashboard
     submissions = list(reversed(submissions_processed[-10:]))  # Last 10, newest first
     
-    # Get summary stats using internal status (only count synced POs, not test data)
+    # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
     stats = conn.execute('''
         SELECT 
-            COUNT(CASE WHEN internal_status NOT IN ('Closed', 'Ready for Payment') AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
-            COUNT(CASE WHEN internal_status = 'Closed' AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
+            COUNT(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
+            COUNT(CASE WHEN closed = TRUE AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
             COUNT(CASE WHEN internal_status = 'Draft' AND zoho_po_id IS NOT NULL THEN 1 END) as draft_pos,
-            COALESCE(SUM(CASE WHEN internal_status NOT IN ('Closed', 'Ready for Payment') AND zoho_po_id IS NOT NULL THEN 
+            COALESCE(SUM(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 
                 (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
         FROM purchase_orders
     ''').fetchone()

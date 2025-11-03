@@ -206,8 +206,14 @@ class ZohoInventoryAPI:
             po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
             
             if existing:
+                # Check if PO status changed from open to closed
+                was_closed = bool(existing.get('closed', False))
+                is_now_closed = is_closed
+                po_id = existing['id']
+                
                 # Update existing PO with proper status and tablet type
                 print(f"Updating existing PO {po['purchaseorder_number']}: zoho_status='{zoho_status}', closed={is_closed}")
+                
                 # Update created_at only if we have a date from Zoho and current created_at is different
                 if po_date and po_date != existing.get('created_at', '')[:10]:
                     db_conn.execute('''
@@ -222,8 +228,52 @@ class ZohoInventoryAPI:
                         SET po_number = ?, zoho_status = ?, closed = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
                     ''', (po['purchaseorder_number'], zoho_status, is_closed, po['purchaseorder_id']))
-                    print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_closed} (was: {existing.get('closed', False)})")
-                po_id = existing['id']
+                
+                # If PO just became closed, unassign any submissions that were assigned to it
+                # This handles cases where submissions were assigned before we detected the PO was closed
+                if was_closed != is_now_closed:
+                    if is_now_closed and not was_closed:
+                        print(f"✅ PO {po['purchaseorder_number']} changed from OPEN to CLOSED")
+                        
+                        unassigned_count = db_conn.execute('''
+                            SELECT COUNT(*) as count
+                            FROM warehouse_submissions
+                            WHERE assigned_po_id = ?
+                        ''', (po_id,)).fetchone()['count']
+                        
+                        if unassigned_count > 0:
+                            # Remove counts from PO lines
+                            db_conn.execute('''
+                                UPDATE po_lines
+                                SET good_count = 0, damaged_count = 0
+                                WHERE po_id = ?
+                            ''', (po_id,))
+                            
+                            # Update PO header totals
+                            db_conn.execute('''
+                                UPDATE purchase_orders
+                                SET current_good_count = 0,
+                                    current_damaged_count = 0,
+                                    remaining_quantity = ordered_quantity
+                                WHERE id = ?
+                            ''', (po_id,))
+                            
+                            # Unassign submissions
+                            db_conn.execute('''
+                                UPDATE warehouse_submissions
+                                SET assigned_po_id = NULL,
+                                    po_assignment_verified = 0
+                                WHERE assigned_po_id = ?
+                            ''', (po_id,))
+                            
+                            print(f"⚠️  Unassigned {unassigned_count} submission(s) from closed PO {po['purchaseorder_number']}")
+                    else:
+                        print(f"✅ PO {po['purchaseorder_number']} changed from CLOSED to OPEN")
+                elif was_closed == is_now_closed:
+                    if is_now_closed:
+                        print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_closed} (already closed)")
+                    else:
+                        print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_closed} (still open)")
             else:
                 # Insert new PO with proper status and creation date
                 if po_date:
