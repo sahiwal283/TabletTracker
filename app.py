@@ -665,8 +665,8 @@ def submit_warehouse():
         
         return jsonify({
             'success': True, 
-            'good_applied': good_tablets - remaining_good,
-            'damaged_applied': damaged_tablets - remaining_damaged,
+            'good_applied': good_tablets,
+            'damaged_applied': damaged_tablets,
             'message': 'Submission processed successfully'
         })
         
