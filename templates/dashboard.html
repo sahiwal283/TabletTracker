@@ -1127,7 +1127,46 @@ function toggleClosedSubmissions() {
 // Hide closed PO submissions by default on page load
 document.addEventListener('DOMContentLoaded', function() {
     toggleClosedSubmissions();
+    
+    // Auto-sync Zoho POs on page load to ensure closed status is up to date
+    // This prevents submissions from being assigned to closed POs
+    syncZohoPOsOnLoad();
 });
+
+// Auto-sync Zoho POs silently in the background (only once per session)
+async function syncZohoPOsOnLoad() {
+    // Check if we've already synced in this session
+    const lastSync = sessionStorage.getItem('lastZohoSync');
+    const now = Date.now();
+    
+    // Only sync if it's been more than 5 minutes since last sync
+    if (lastSync && (now - parseInt(lastSync)) < 300000) {
+        console.log('Skipping auto-sync - synced recently');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/sync_zoho_pos');
+        const result = await response.json();
+        
+        if (result.success) {
+            // Mark that we've synced
+            sessionStorage.setItem('lastZohoSync', now.toString());
+            
+            // Only reload if there might be status changes (not on every page load)
+            // Check if result message mentions status updates
+            if (result.message && (result.message.includes('closed') || result.message.includes('Updated'))) {
+                setTimeout(() => location.reload(), 1000);
+            }
+        } else {
+            console.warn('Auto-sync failed:', result.error);
+            // Don't show error to user - it's a background sync
+        }
+    } catch (error) {
+        console.warn('Auto-sync error:', error);
+        // Don't show error to user - it's a background sync
+    }
+}
 
 // toggleAllSubmissions function removed - Recent Submissions now uses scrolling instead of expand/collapse
 

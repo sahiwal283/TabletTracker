@@ -141,9 +141,9 @@ class ZohoInventoryAPI:
                 
             # We'll sync closed POs too, but mark them properly for separate display
                 
-            # Check if PO already exists
+            # Check if PO already exists - get current closed status too
             existing = db_conn.execute(
-                'SELECT id FROM purchase_orders WHERE zoho_po_id = ?', 
+                'SELECT id, closed FROM purchase_orders WHERE zoho_po_id = ?', 
                 (po['purchaseorder_id'],)
             ).fetchone()
             
@@ -175,14 +175,32 @@ class ZohoInventoryAPI:
             current_sub_status = po.get('current_sub_status', '').upper()
             billed_status = po.get('billed_status', '').upper()
             
-            # CLOSED in Zoho UI = order_status or current_sub_status = "closed"
+            # Also check the main status field (it might be "closed" directly)
+            main_status = po.get('status', '').upper()
+            
+            # CLOSED in Zoho UI can be indicated by:
+            # 1. order_status = "CLOSED"
+            # 2. current_sub_status = "CLOSED"
+            # 3. billed_status = "BILLED"
+            # 4. main status = "CLOSED"
+            # 5. Any status containing "CLOSED" or "CLOSE"
             is_closed = (order_status == 'CLOSED' or 
                         current_sub_status == 'CLOSED' or
-                        billed_status == 'BILLED')
+                        billed_status == 'BILLED' or
+                        main_status == 'CLOSED' or
+                        'CLOSED' in main_status or
+                        'CLOSED' in order_status or
+                        'CLOSED' in current_sub_status or
+                        (is_billed and bill_count > 0))
             
+            # Additional check: if status contains "close" or "closed" anywhere
+            if not is_closed:
+                status_str = f"{main_status} {order_status} {current_sub_status} {billed_status}".upper()
+                if 'CLOSE' in status_str or 'CLOSED' in status_str:
+                    is_closed = True
+            
+            print(f"PO {po['purchaseorder_number']}: status='{main_status}', order_status='{order_status}', current_sub_status='{current_sub_status}', billed_status='{billed_status}'")
             print(f"Final closed determination: {is_closed}")
-            
-            print(f"PO {po['purchaseorder_number']}: Final closed status = {is_closed}")
             
             # Get PO creation date from Zoho (they use 'date' field for PO date)
             po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
@@ -198,11 +216,13 @@ class ZohoInventoryAPI:
                         WHERE zoho_po_id = ?
                     ''', (po['purchaseorder_number'], zoho_status, is_closed, po_date, po['purchaseorder_id']))
                 else:
+                    # Always update closed status - this is critical for preventing assignments
                     db_conn.execute('''
                         UPDATE purchase_orders 
                         SET po_number = ?, zoho_status = ?, closed = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
                     ''', (po['purchaseorder_number'], zoho_status, is_closed, po['purchaseorder_id']))
+                    print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_closed} (was: {existing.get('closed', False)})")
                 po_id = existing['id']
             else:
                 # Insert new PO with proper status and creation date
