@@ -1382,6 +1382,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                 <h3 class="text-xl font-bold">📋 Submissions for ${data.po.po_number}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s) found</p>
+                                ${totals ? `<p class="text-sm text-blue-100 mt-1 font-semibold">📊 Total Tablets: ${totals.total_tablets.toLocaleString()}</p>` : ''}
                             </div>
                             <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
                                 ✕
@@ -1392,40 +1393,6 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                     <!-- Content -->
                     <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
         `;
-        
-        // Add totals summary if viewing a specific product
-        if (totals) {
-            modalContent += `
-                <div class="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-lg p-5 shadow-sm">
-                    <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <span class="text-2xl mr-2">📊</span>
-                        Total Summary for ${displayProductName}
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
-                            <div class="text-xs text-gray-500 font-medium mb-1">Displays Made</div>
-                            <div class="text-xl font-bold text-blue-600">${totals.displays_made.toLocaleString()}</div>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
-                            <div class="text-xs text-gray-500 font-medium mb-1">Packs Remaining</div>
-                            <div class="text-xl font-bold text-blue-600">${totals.packs_remaining.toLocaleString()}</div>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
-                            <div class="text-xs text-gray-500 font-medium mb-1">Loose Tablets</div>
-                            <div class="text-xl font-bold text-blue-600">${totals.loose_tablets.toLocaleString()}</div>
-                        </div>
-                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
-                            <div class="text-xs text-gray-500 font-medium mb-1">Damaged Tablets</div>
-                            <div class="text-xl font-bold text-red-600">${totals.damaged_tablets.toLocaleString()}</div>
-                        </div>
-                        <div class="bg-indigo-100 rounded-lg p-3 shadow-sm text-center border-2 border-indigo-300">
-                            <div class="text-xs text-indigo-700 font-medium mb-1">Total Tablets</div>
-                            <div class="text-2xl font-bold text-indigo-800">${totals.total_tablets.toLocaleString()}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
         
         if (filteredSubmissions.length === 0) {
             modalContent += `
