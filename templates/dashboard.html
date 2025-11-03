@@ -1379,7 +1379,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                 </button>
                             ` : '<div></div>'}
                             <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📋 Submissions for PO-${data.po.po_number}</h3>
+                                <h3 class="text-xl font-bold">📋 Submissions for ${data.po.po_number}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s) found</p>
                             </div>
