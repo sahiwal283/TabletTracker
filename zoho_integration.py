@@ -111,6 +111,11 @@ class ZohoInventoryAPI:
         params = {'per_page': per_page}
         return self.make_request(endpoint, extra_params=params)
     
+    def create_purchase_order(self, po_data):
+        """Create a purchase order in Zoho Inventory"""
+        endpoint = 'purchaseorders'
+        return self.make_request(endpoint, method='POST', data=po_data)
+    
     def sync_tablet_pos_to_db(self, db_conn):
         """Sync ONLY tablet POs from Zoho to local database"""
         # Get all POs (open, closed, draft, etc.)

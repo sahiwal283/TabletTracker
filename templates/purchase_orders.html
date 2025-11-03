@@ -662,8 +662,12 @@ async function showOversPOCreationInfo(poId, poNumber) {
                                 Close
                             </button>
                             <button onclick="copyOversPOInfo('${data.overs_po_number}', '${JSON.stringify(data).replace(/'/g, "\\'")}')" 
-                                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-                                📋 Copy Details
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                📋 Copy Details (Manual)
+                            </button>
+                            <button onclick="createOversPOInZoho(${poId}, '${data.overs_po_number}')" 
+                                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold">
+                                ✨ Create in Zoho
                             </button>
                         </div>
                     </div>
@@ -715,6 +719,39 @@ Instructions: Create this PO in Zoho and mark it with the tablets custom field, 
     } catch (error) {
         console.error('Error parsing data:', error);
         alert('Failed to copy details');
+    }
+}
+
+async function createOversPOInZoho(poId, oversPONumber) {
+    if (!confirm(`Create overs PO "${oversPONumber}" in Zoho?\n\nThis will create a draft PO in Zoho with the overs quantities. You can review and issue it from Zoho.`)) {
+        return;
+    }
+    
+    try {
+        alert('Creating overs PO in Zoho...');
+        
+        const response = await fetch(`/api/create_overs_po/${poId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message + ' You can now sync POs to import it into the app.');
+            closeOversPOModal();
+            // Optionally reload or refresh
+            setTimeout(() => {
+                if (confirm('Would you like to sync POs now to import the newly created overs PO?')) {
+                    location.reload(); // Refresh to show sync option
+                }
+            }, 2000);
+        } else {
+            alert('Error: ' + (result.error || 'Failed to create overs PO in Zoho'));
+        }
+    } catch (error) {
+        console.error('Error creating overs PO:', error);
+        alert('Failed to create overs PO: ' + error.message);
     }
 }
 </script>
