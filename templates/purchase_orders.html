@@ -71,9 +71,12 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for po in purchase_orders %}
-                <tr class="hover:bg-gray-100 po-row" 
+                <tr class="hover:bg-gray-100 po-row {% if po.is_overs %}bg-blue-50{% endif %}" 
                     data-po-status="{{ 'draft' if po.internal_status == 'Draft' else ('closed' if po.closed else 'open') }}">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer {% if po.is_overs %}pl-16 pr-6{% else %}px-6{% endif %}" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                        {% if po.is_overs %}
+                            <span class="text-blue-600 mr-2">↳</span>
+                        {% endif %}
                         {{ po.po_number }}
                         {% if session.get('employee_role') == 'admin' %}
                             <button onclick="event.stopPropagation(); deletePO({{ po.id }}, '{{ po.po_number }}')" 
