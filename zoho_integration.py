@@ -293,14 +293,27 @@ class ZohoInventoryAPI:
             # Determine actual tablet type from line items  
             tablet_types_found = []
             
-            # Sync line items
+            # Sync line items - ONLY sync tablet line items (filter out non-tablet items)
             po_details = self.get_purchase_order_details(po['purchaseorder_id'])
             if po_details and 'purchaseorder' in po_details:
+                # Get all configured tablet inventory_item_ids to filter line items
+                tablet_item_ids = db_conn.execute('''
+                    SELECT inventory_item_id FROM tablet_types WHERE inventory_item_id IS NOT NULL AND inventory_item_id != ''
+                ''').fetchall()
+                tablet_item_ids_set = {row['inventory_item_id'] for row in tablet_item_ids}
+                
                 for line in po_details['purchaseorder'].get('line_items', []):
+                    item_id = line.get('item_id', '')
+                    
+                    # Only sync line items that match configured tablet types
+                    if item_id and item_id not in tablet_item_ids_set:
+                        print(f"⏭️  Skipping non-tablet line item '{line['name']}' (ID: {item_id}) - not in tablet_types")
+                        continue
+                    
                     # Check if line item already exists
                     existing_line = db_conn.execute(
                         'SELECT id FROM po_lines WHERE po_id = ? AND inventory_item_id = ?',
-                        (po_id, line['item_id'])
+                        (po_id, item_id)
                     ).fetchone()
                     
                     if existing_line:
@@ -311,16 +324,17 @@ class ZohoInventoryAPI:
                             WHERE id = ?
                         ''', (line['name'], line['quantity'], existing_line['id']))
                     else:
-                        # Insert new line
+                        # Insert new line (only tablet items reach here)
                         db_conn.execute('''
                             INSERT INTO po_lines 
                             (po_id, po_number, inventory_item_id, line_item_name, quantity_ordered)
                             VALUES (?, ?, ?, ?, ?)
-                        ''', (po_id, po['purchaseorder_number'], line['item_id'], 
+                        ''', (po_id, po['purchaseorder_number'], item_id, 
                               line['name'], line['quantity']))
+                        print(f"✅ Synced tablet line item '{line['name']}' (ID: {item_id})")
                     
                     # Extract tablet type using inventory_item_id from configured tablet types
-                    item_id = line.get('item_id', '')
+                    # (Only tablet items reach this point due to filtering above)
                     matched_this_line = False
                     
                     if item_id:
@@ -335,8 +349,6 @@ class ZohoInventoryAPI:
                             tablet_types_found.append(tablet_type_match['tablet_type_name'])
                             matched_this_line = True
                             print(f"✅ Matched line item '{line['name']}' (ID: {item_id}) to tablet type: {tablet_type_match['tablet_type_name']}")
-                        else:
-                            print(f"⚠️  Line item '{line['name']}' (ID: {item_id}) has no matching tablet type in config")
                     
                     # Fallback: Extract tablet type from line item name if no ID match for this specific line
                     if not matched_this_line:
