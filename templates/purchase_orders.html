@@ -224,6 +224,13 @@ async function viewPODetailsModal(poId, poNumber) {
                                 <p class="text-sm text-blue-100 mt-1">${lines.length} line item(s)</p>
                             </div>
                             <div class="flex items-center gap-2">
+                                ${data.parent_po ? `
+                                    <button onclick="closePODetailsModal(); setTimeout(() => viewPODetailsModal(${data.parent_po.id}, '${data.parent_po.po_number}'), 100);" 
+                                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                                            title="Back to parent PO">
+                                        ← Back to Parent PO
+                                    </button>
+                                ` : ''}
                                 ${data.overs_po ? `
                                     <button onclick="closePODetailsModal(); setTimeout(() => viewPODetailsModal(${data.overs_po.id}, '${data.overs_po.po_number}'), 100);" 
                                             class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
