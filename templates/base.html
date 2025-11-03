@@ -252,6 +252,9 @@
         <symbol id="icon-truck" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 3h12v8h4l2 3v6h-2a3 3 0 0 1-6 0H9a3 3 0 0 1-6 0H1V5a2 2 0 0 1 2-2Zm3 16a1 1 0 1 0 1 1 1 1 0 0 0-1-1Zm10 0a1 1 0 1 0 1 1 1 1 0 0 0-1-1Z"/>
         </symbol>
+        <symbol id="icon-cart" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM5.656 4.172A1 1 0 0 1 6.586 4h14.828a1 1 0 0 1 .97 1.243l-2.5 10A1 1 0 0 1 19.914 16H7.5l-.258 1.03A1 1 0 0 1 6.273 18H3v-2h2.273l2.313-9.253a1 1 0 0 1 .07-.575ZM8.414 6l-1.8 7.2h11.471l1.875-7.5H8.414Z"/>
+        </symbol>
         <symbol id="icon-plug" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7 2h2v6h6V2h2v6h3v2H4V8h3V2Z"/>
         </symbol>
@@ -315,7 +318,7 @@
                     <!-- Submissions - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('all_submissions') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Submissions
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-list" /></svg> Submissions
                     </a>
                     {% endif %}
                     
@@ -378,7 +381,7 @@
                 <a href="{{ url_for('production_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
                 {% if session.employee_role in ['manager', 'admin'] %}
                 <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
-                <a href="{{ url_for('all_submissions') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Submissions</a>
+                <a href="{{ url_for('all_submissions') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-list" /></svg> Submissions</a>
                 <a href="{{ url_for('all_purchase_orders') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders</a>
                 <a href="{{ url_for('admin_panel') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-gear" /></svg> Admin</a>
                 {% endif %}
