@@ -301,11 +301,8 @@
             </h1>
                 <div class="hidden md:flex space-x-6">
                     <!-- Always visible for employees -->
-                    <a href="{{ url_for('warehouse_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Warehouse
-                    </a>
-                    <a href="{{ url_for('count_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-calc" /></svg> End of Month Count
+                    <a href="{{ url_for('production_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Production
                     </a>
                     
                     <!-- Dashboard - Manager+ -->
@@ -378,8 +375,7 @@
             </div>
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="{{ url_for('warehouse_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Warehouse Form</a>
-                <a href="{{ url_for('count_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-calc" /></svg> End of Month Count</a>
+                <a href="{{ url_for('production_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
                 {% if session.employee_role in ['manager', 'admin'] %}
                 <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
                 <a href="{{ url_for('all_submissions') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Submissions</a>

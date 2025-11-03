@@ -486,10 +486,10 @@ def version():
         'description': __description__
     })
 
-@app.route('/warehouse')
+@app.route('/production')
 @employee_required
-def warehouse_form():
-    """Mobile-optimized form for warehouse staff"""
+def production_form():
+    """Combined production submission and bag count form"""
     conn = get_db()
     
     # Get product list for dropdown
@@ -498,6 +498,12 @@ def warehouse_form():
         FROM product_details pd
         JOIN tablet_types tt ON pd.tablet_type_id = tt.id
         ORDER BY pd.product_name
+    ''').fetchall()
+    
+    # Get all tablet types for bag count dropdown
+    tablet_types = conn.execute('''
+        SELECT * FROM tablet_types 
+        ORDER BY tablet_type_name
     ''').fetchall()
     
     # Get employee info for display
@@ -510,7 +516,13 @@ def warehouse_form():
     # Get today's date for the date picker
     today_date = datetime.now().date().isoformat()
     
-    return render_template('warehouse_form.html', products=products, employee=employee, today_date=today_date)
+    return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date)
+
+@app.route('/warehouse')
+@employee_required
+def warehouse_form():
+    """Legacy route - redirects to production page"""
+    return redirect(url_for('production_form'))
 
 @app.route('/submit_warehouse', methods=['POST'])
 @employee_required
@@ -1403,21 +1415,8 @@ def logout():
 @app.route('/count')
 @employee_required
 def count_form():
-    """Manual count form for end-of-period PO close-outs"""
-    conn = get_db()
-    
-    # Get all tablet types for dropdown
-    tablet_types = conn.execute('''
-        SELECT * FROM tablet_types 
-        ORDER BY tablet_type_name
-    ''').fetchall()
-    
-    conn.close()
-    
-    # Get today's date for the date picker
-    today_date = datetime.now().date().isoformat()
-    
-    return render_template('count_form.html', tablet_types=tablet_types, today_date=today_date)
+    """Legacy route - redirects to production page"""
+    return redirect(url_for('production_form'))
 
 @app.route('/submit_count', methods=['POST'])
 def submit_count():

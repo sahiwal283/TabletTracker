@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}Production{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <!-- Form Toggle Buttons -->
+    <div class="flex justify-center mb-6 gap-2">
+        <button id="toggle-production-submission" onclick="switchForm('submission')" 
+                class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:shadow-xl">
+            Production Submission
+        </button>
+        <button id="toggle-bag-count" onclick="switchForm('bag-count')" 
+                class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+            Bag Count
+        </button>
+    </div>
+
+    <!-- Production Submission Form (Default) -->
+    <div id="production-submission-form" class="card hover-lift p-8">
+        <div class="text-center mb-8">
+            <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-box" /></svg></div>
+            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">{{ gettext('Production Submission') }}</h2>
+            {% if employee %}
+            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
+                <p class="text-green-800 font-semibold flex items-center justify-center">
+                    <span class="text-2xl mr-3">👷</span>
+                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                </p>
+            </div>
+            {% endif %}
+            <p class="text-gray-600">{{ gettext('Enter your production counts below') }}</p>
+            
+            <!-- Logout button -->
+            <div class="mt-4">
+                <a href="/logout" class="text-sm text-red-600 hover:text-red-800 underline inline-flex items-center">
+                    <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
+                    {{ gettext('Logout') }}
+                </a>
+            </div>
+        </div>
+        
+        <form id="warehouse-form" class="space-y-4">
+            
+            <!-- Product Selection with Count -->
+            <div class="grid grid-cols-1 gap-3">
+                <div>
+                    <label for="product_base" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Product Type') }} *
+                    </label>
+                    <select id="product_base" name="product_base" required class="form-input">
+                        <option value="">{{ gettext('Select product type...') }}</option>
+                    </select>
+                </div>
+                
+                <div id="count-selection" class="hidden">
+                    <label for="product_count" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Count') }} *
+                    </label>
+                    <select id="product_count" name="product_count" class="form-input">
+                        <option value="">{{ gettext('Select count...') }}</option>
+                    </select>
+                </div>
+                
+                <!-- Hidden field for the actual product name -->
+                <input type="hidden" id="product_name" name="product_name">
+            </div>
+            
+            <!-- Box Number -->
+            <div>
+                <label for="box_number" class="block text-sm font-medium text-gray-700 mb-1">
+                    {{ gettext('Box #') }} *
+                </label>
+                <input type="number" id="box_number" name="box_number" required
+                       class="form-input" min="1" max="999" placeholder="{{ gettext('Box #') }}">
+            </div>
+            
+            <!-- Bag Number -->
+            <div>
+                <label for="bag_number" class="block text-sm font-medium text-gray-700 mb-1">
+                    {{ gettext('Bag #') }} *
+                </label>
+                <input type="number" id="bag_number" name="bag_number" required
+                       class="form-input" min="1" max="999" placeholder="{{ gettext('Bag #') }}">
+            </div>
+            
+            <!-- Bag Label Count -->
+            <div>
+                <label for="bag_label_count" class="block text-sm font-medium text-gray-700 mb-1">
+                    {{ gettext('Bag Label Count') }} *
+                </label>
+                <input type="number" id="bag_label_count" name="bag_label_count" required
+                       class="form-input" min="0" placeholder="{{ gettext('Count on the bag label') }}">
+            </div>
+            
+            <!-- Production Counts -->
+            <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-indigo-100 space-y-4">
+                <div class="flex items-center mb-4">
+                    <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-gear" /></svg>
+                    <h3 class="text-lg font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">{{ gettext('Production Details') }}</h3>
+                </div>
+                
+                <div>
+                    <label for="displays_made" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Displays Made') }} *
+                    </label>
+                    <input type="number" id="displays_made" name="displays_made" required
+                           class="form-input" min="0" value="0">
+                </div>
+                
+                <div>
+                    <label for="packs_remaining" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Single Packs Remaining') }} *
+                    </label>
+                    <input type="number" id="packs_remaining" name="packs_remaining" required
+                           class="form-input" min="0" value="0">
+                </div>
+                
+                <div>
+                    <label for="loose_tablets" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Loose Tablets') }} *
+                    </label>
+                    <input type="number" id="loose_tablets" name="loose_tablets" required
+                           class="form-input" min="0" value="0">
+                </div>
+                
+                <div>
+                    <label for="damaged_tablets" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ gettext('Damaged Tablets') }} *
+                    </label>
+                    <input type="number" id="damaged_tablets" name="damaged_tablets" required
+                           class="form-input" min="0" value="0">
+                </div>
+            </div>
+            
+            <!-- Submission Date -->
+            <div>
+                <label for="submission_date" class="block text-sm font-medium text-gray-700 mb-1">
+                    {{ gettext('Submission Date') }} *
+                </label>
+                <input type="date" id="submission_date" name="submission_date" required
+                       class="form-input" value="{{ today_date }}">
+                <p class="text-xs text-gray-500 mt-1">{{ gettext('Change this if submitting for a different date') }}</p>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="w-full py-4 px-6 text-lg font-bold btn-primary mt-8 transform transition-all duration-300 hover:scale-105 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
+                {{ gettext('Submit Production Count') }}
+            </button>
+        </form>
+        
+        <!-- Success/Error Messages -->
+        <div id="form-messages" class="mt-4"></div>
+    </div>
+
+    <!-- Bag Count Form (Hidden by default) -->
+    <div id="bag-count-form" class="bg-white rounded-lg shadow-md p-6 hidden">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">📋 Bag Count</h2>
+        <p class="text-sm text-gray-600 mb-6 text-center">For end-of-period PO close-outs with vendors</p>
+        
+        <form id="count-form" class="space-y-4">
+            <!-- Employee Name -->
+            <div>
+                <label for="count_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Employee Name *
+                </label>
+                <input type="text" id="count_employee_name" name="employee_name" required
+                       class="form-input" placeholder="Enter your name">
+            </div>
+            
+            <!-- Tablet Type Selection -->
+            <div>
+                <label for="tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
+                    Tablet Type *
+                </label>
+                <select id="tablet_type" name="tablet_type" required class="form-input">
+                    <option value="">Select tablet type...</option>
+                    {% for tablet_type in tablet_types %}
+                        <option value="{{ tablet_type.tablet_type_name }}">
+                            {{ tablet_type.tablet_type_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Box Number -->
+            <div>
+                <label for="count_box_number" class="block text-sm font-medium text-gray-700 mb-1">
+                    Box # *
+                </label>
+                <input type="number" id="count_box_number" name="box_number" required
+                       class="form-input" min="1" max="999" placeholder="Box #">
+            </div>
+            
+            <!-- Bag Number -->
+            <div>
+                <label for="count_bag_number" class="block text-sm font-medium text-gray-700 mb-1">
+                    Bag # *
+                </label>
+                <input type="number" id="count_bag_number" name="bag_number" required
+                       class="form-input" min="1" max="999" placeholder="Bag #">
+            </div>
+            
+            <!-- Bag Label Count -->
+            <div>
+                <label for="count_bag_label_count" class="block text-sm font-medium text-gray-700 mb-1">
+                    Bag Label Count *
+                </label>
+                <input type="number" id="count_bag_label_count" name="bag_label_count" required
+                       class="form-input" min="0" placeholder="Count on the bag label">
+            </div>
+            
+            <!-- Submission Date -->
+            <div>
+                <label for="count_submission_date" class="block text-sm font-medium text-gray-700 mb-1">
+                    Submission Date *
+                </label>
+                <input type="date" id="count_submission_date" name="submission_date" required
+                       class="form-input" value="{{ today_date }}">
+                <p class="text-xs text-gray-500 mt-1">Change this if submitting for a different date</p>
+            </div>
+            
+            <!-- Actual Count -->
+            <div class="bg-accent p-4 rounded-md border border-accent">
+                <h3 class="font-medium text-primary mb-3">Manual Count</h3>
+                <div>
+                    <input type="number" id="actual_count" name="actual_count" required
+                           class="form-input text-2xl py-4 text-center font-bold" min="0" placeholder="Your actual count">
+                    <p class="text-xs text-primary mt-2 text-center">Enter the actual count of tablets you counted</p>
+                </div>
+            </div>
+            
+            <!-- Count Comparison -->
+            <div id="count-comparison" class="bg-gray-50 p-4 rounded-md hidden">
+                <h3 class="font-medium text-gray-900 mb-2">Count Comparison</h3>
+                <div class="text-sm space-y-1">
+                    <div>Bag Label: <span id="label-display" class="font-medium">0</span></div>
+                    <div>Actual Count: <span id="actual-display" class="font-medium">0</span></div>
+                    <div id="variance-display" class="font-medium"></div>
+                </div>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="w-full py-4 px-6 text-lg font-semibold text-white btn-primary rounded-lg shadow-md hover:shadow-lg transition-colors duration-200 focus:outline-none">
+                Submit Count
+            </button>
+        </form>
+        
+        <!-- Success/Error Messages -->
+        <div id="count-form-messages" class="mt-4"></div>
+    </div>
+</div>
+
+<script>
+// Form switching function
+function switchForm(formType) {
+    const submissionForm = document.getElementById('production-submission-form');
+    const bagCountForm = document.getElementById('bag-count-form');
+    const submissionBtn = document.getElementById('toggle-production-submission');
+    const bagCountBtn = document.getElementById('toggle-bag-count');
+    
+    if (formType === 'submission') {
+        submissionForm.classList.remove('hidden');
+        bagCountForm.classList.add('hidden');
+        submissionBtn.classList.remove('bg-gray-200', 'text-gray-700');
+        submissionBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+        bagCountBtn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+        bagCountBtn.classList.add('bg-gray-200', 'text-gray-700');
+    } else {
+        submissionForm.classList.add('hidden');
+        bagCountForm.classList.remove('hidden');
+        bagCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
+        bagCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+        submissionBtn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+        submissionBtn.classList.add('bg-gray-200', 'text-gray-700');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Production Submission Form
+    const warehouseForm = document.getElementById('warehouse-form');
+    const productBaseSelect = document.getElementById('product_base');
+    const productCountSelect = document.getElementById('product_count');
+    const countSelection = document.getElementById('count-selection');
+    const productNameHidden = document.getElementById('product_name');
+    
+    // Product data from server
+    const products = [
+        {% for product in products %}
+        {
+            name: "{{ product.product_name }}",
+            ppd: {{ product.packages_per_display }},
+            tpp: {{ product.tablets_per_package }},
+            tabletType: "{{ product.tablet_type_name }}"
+        },
+        {% endfor %}
+    ];
+    
+    // Group products by base type (remove count suffix)
+    const productGroups = {};
+    products.forEach(product => {
+        const baseName = product.name.replace(/\s+(1ct|4ct|5ct|7ct|12ct)$/i, '');
+        const countMatch = product.name.match(/(\d+)ct$/i);
+        const count = countMatch ? countMatch[1] : null;
+        
+        if (!productGroups[baseName]) {
+            productGroups[baseName] = [];
+        }
+        productGroups[baseName].push({
+            ...product,
+            count: count
+        });
+    });
+    
+    // Populate base product dropdown
+    Object.keys(productGroups).sort().forEach(baseName => {
+        const option = document.createElement('option');
+        option.value = baseName;
+        option.textContent = baseName;
+        productBaseSelect.appendChild(option);
+    });
+    
+    // Handle base product selection
+    productBaseSelect.addEventListener('change', function() {
+        productCountSelect.innerHTML = '<option value="">Select count...</option>';
+        countSelection.classList.add('hidden');
+        productNameHidden.value = '';
+        
+        if (this.value) {
+            const availableCounts = productGroups[this.value] || [];
+            availableCounts.sort((a, b) => parseInt(a.count || 0) - parseInt(b.count || 0));
+            
+            availableCounts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.name;
+                option.textContent = product.count ? `${product.count}ct` : product.name;
+                option.dataset.ppd = product.ppd;
+                option.dataset.tpp = product.tpp;
+                option.dataset.tabletType = product.tabletType;
+                productCountSelect.appendChild(option);
+            });
+            
+            countSelection.classList.remove('hidden');
+        }
+    });
+    
+    // Handle count selection
+    productCountSelect.addEventListener('change', function() {
+        productNameHidden.value = this.value;
+    });
+    
+    // Production Submission Form submission
+    warehouseForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(warehouseForm);
+        const data = Object.fromEntries(formData.entries());
+        
+        const submitBtn = warehouseForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        
+        try {
+            const response = await fetch('/submit_warehouse', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showSuccess(result.message || 'Submission processed successfully!');
+                warehouseForm.reset();
+                countSelection.classList.add('hidden');
+            } else {
+                showError(result.error || 'Submission failed');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+
+    // Bag Count Form
+    const countForm = document.getElementById('count-form');
+    const bagLabelInput = document.getElementById('count_bag_label_count');
+    const actualCountInput = document.getElementById('actual_count');
+    const countComparison = document.getElementById('count-comparison');
+    
+    // Update comparison when counts change
+    function updateComparison() {
+        const bagLabel = parseInt(bagLabelInput.value) || 0;
+        const actualCount = parseInt(actualCountInput.value) || 0;
+        
+        if (bagLabel > 0 || actualCount > 0) {
+            document.getElementById('label-display').textContent = bagLabel;
+            document.getElementById('actual-display').textContent = actualCount;
+            
+            const variance = actualCount - bagLabel;
+            const varianceDisplay = document.getElementById('variance-display');
+            
+            if (variance === 0) {
+                varianceDisplay.textContent = 'Variance: Perfect match ✅';
+                varianceDisplay.className = 'font-medium text-green-600';
+            } else if (variance > 0) {
+                varianceDisplay.textContent = `Variance: +${variance} (over count)`;
+                varianceDisplay.className = 'font-medium text-orange-600';
+            } else {
+                varianceDisplay.textContent = `Variance: ${variance} (under count)`;
+                varianceDisplay.className = 'font-medium text-red-600';
+            }
+            
+            countComparison.classList.remove('hidden');
+        } else {
+            countComparison.classList.add('hidden');
+        }
+    }
+    
+    bagLabelInput.addEventListener('input', updateComparison);
+    actualCountInput.addEventListener('input', updateComparison);
+    
+    // Bag Count Form submission
+    countForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(countForm);
+        const data = Object.fromEntries(formData.entries());
+        
+        const submitBtn = countForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        
+        try {
+            const response = await fetch('/submit_count', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showSuccess(result.message || result.warning || 'Count submitted successfully!');
+                countForm.reset();
+                countComparison.classList.add('hidden');
+            } else {
+                showError(result.error || 'Submission failed');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+});
+</script>
+{% endblock %}
+
