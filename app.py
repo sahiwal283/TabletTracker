@@ -980,10 +980,39 @@ def get_po_lines(po_id):
         WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
     ''', (po_id,)).fetchone()
     
+    # Get current PO number for round calculation
+    current_po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (po_id,)).fetchone()
+    current_po_number = current_po['po_number'] if current_po else None
+    
+    # Calculate round numbers for each line item
+    lines_with_rounds = []
+    for line in lines:
+        line_dict = dict(line)
+        round_number = None
+        
+        if line_dict.get('inventory_item_id') and current_po_number:
+            # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
+            pos_with_item = conn.execute('''
+                SELECT DISTINCT po.po_number, po.id
+                FROM purchase_orders po
+                JOIN po_lines pl ON po.id = pl.po_id
+                WHERE pl.inventory_item_id = ?
+                ORDER BY po.po_number ASC
+            ''', (line_dict['inventory_item_id'],)).fetchall()
+            
+            # Find the position of current PO in this list (1-indexed = round number)
+            for idx, po_row in enumerate(pos_with_item, start=1):
+                if po_row['po_number'] == current_po_number:
+                    round_number = idx
+                    break
+        
+        line_dict['round_number'] = round_number
+        lines_with_rounds.append(line_dict)
+    
     conn.close()
     
     result = {
-        'lines': [dict(line) for line in lines],
+        'lines': lines_with_rounds,
         'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
         'unverified_count': unverified_count['count'] if unverified_count else 0
     }

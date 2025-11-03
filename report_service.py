@@ -288,6 +288,31 @@ class ProductionReportGenerator:
         shipment_dict = dict(shipment) if shipment else None
         submissions_list = [dict(sub) for sub in submissions] if submissions else []
         
+        # Calculate round numbers for each line item
+        current_po_number = po_dict.get('po_number') if po_dict else None
+        if current_po_number:
+            for line in lines_list:
+                round_number = None
+                inventory_item_id = line.get('inventory_item_id')
+                
+                if inventory_item_id:
+                    # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
+                    pos_with_item = conn.execute('''
+                        SELECT DISTINCT po.po_number, po.id
+                        FROM purchase_orders po
+                        JOIN po_lines pl ON po.id = pl.po_id
+                        WHERE pl.inventory_item_id = ?
+                        ORDER BY po.po_number ASC
+                    ''', (inventory_item_id,)).fetchall()
+                    
+                    # Find the position of current PO in this list (1-indexed = round number)
+                    for idx, po_row in enumerate(pos_with_item, start=1):
+                        if po_row['po_number'] == current_po_number:
+                            round_number = idx
+                            break
+                
+                line['round_number'] = round_number
+        
         # Calculate production breakdown
         production_breakdown = self._calculate_production_breakdown(submissions_list)
         
@@ -516,6 +541,41 @@ class ProductionReportGenerator:
         
         story.append(po_info_table)
         story.append(Spacer(1, 8))
+        
+        # Line Items with Round Numbers
+        if po_data.get('lines'):
+            story.append(Paragraph("Line Items", self.styles['Heading3']))
+            
+            line_items_data = [['Product Name', 'Round', 'Ordered', 'Good', 'Damaged', 'Remaining']]
+            for line in po_data['lines']:
+                remaining = (line.get('quantity_ordered', 0) or 0) - (line.get('good_count', 0) or 0) - (line.get('damaged_count', 0) or 0)
+                round_text = f"Round {line.get('round_number', 'N/A')}" if line.get('round_number') else 'N/A'
+                line_items_data.append([
+                    line.get('line_item_name', 'Unknown'),
+                    round_text,
+                    f"{(line.get('quantity_ordered', 0) or 0):,}",
+                    f"{(line.get('good_count', 0) or 0):,}",
+                    f"{(line.get('damaged_count', 0) or 0):,}",
+                    f"{remaining:,}"
+                ])
+            
+            line_items_table = Table(line_items_data, colWidths=[2.5*inch, 0.8*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch])
+            line_items_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers and round
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(line_items_table)
+            story.append(Spacer(1, 8))
         
         # Shipment Information
         if po_data.get('shipment'):
