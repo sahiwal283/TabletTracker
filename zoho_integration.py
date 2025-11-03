@@ -125,18 +125,25 @@ class ZohoInventoryAPI:
         for po in pos_data['purchaseorders']:
             # Check if it's a tablet PO AND not closed
             is_tablet_po = False
+            po_number = po.get('purchaseorder_number', '')
+            is_overs_po = po_number.upper().endswith('-OVERS')
             
             # Check the tablets custom field (the one you just marked in Zoho)
             if po.get('cf_tablets_unformatted') in [True, 'true', 'True', 1, '1']:
                 is_tablet_po = True
-                print(f"✅ Tablet PO found: {po['purchaseorder_number']} (cf_tablets_unformatted = {po.get('cf_tablets_unformatted')})")
+                print(f"✅ Tablet PO found: {po_number} (cf_tablets_unformatted = {po.get('cf_tablets_unformatted')})")
             elif po.get('cf_tablets') in [True, 'true', 'True', 1, '1']:
                 is_tablet_po = True  
-                print(f"✅ Tablet PO found: {po['purchaseorder_number']} (cf_tablets = {po.get('cf_tablets')})")
+                print(f"✅ Tablet PO found: {po_number} (cf_tablets = {po.get('cf_tablets')})")
+            
+            # Also check if it's an overs PO (ends with -OVERS)
+            if is_overs_po:
+                is_tablet_po = True
+                print(f"✅ Overs PO detected: {po_number}")
             
             if not is_tablet_po:
                 skipped_count += 1
-                print(f"⏭️  Skipping non-tablet PO: {po['purchaseorder_number']} (tablets field not marked)")
+                print(f"⏭️  Skipping non-tablet PO: {po_number} (tablets field not marked)")
                 continue
                 
             # We'll sync closed POs too, but mark them properly for separate display
@@ -205,6 +212,13 @@ class ZohoInventoryAPI:
             # Get PO creation date from Zoho (they use 'date' field for PO date)
             po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
             
+            # Detect parent PO for overs POs (e.g., PO-00127-OVERS -> PO-00127)
+            parent_po_number = None
+            if is_overs_po and po_number:
+                # Extract parent PO number by removing "-OVERS" suffix
+                parent_po_number = po_number[:-6]  # Remove "-OVERS" (6 characters)
+                print(f"📋 Overs PO {po_number} linked to parent PO: {parent_po_number}")
+            
             if existing:
                 # Check if PO status changed from open to closed
                 was_closed = bool(existing.get('closed', False))
@@ -218,16 +232,16 @@ class ZohoInventoryAPI:
                 if po_date and po_date != existing.get('created_at', '')[:10]:
                     db_conn.execute('''
                         UPDATE purchase_orders 
-                        SET po_number = ?, zoho_status = ?, closed = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
+                        SET po_number = ?, zoho_status = ?, closed = ?, parent_po_number = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
-                    ''', (po['purchaseorder_number'], zoho_status, is_closed, po_date, po['purchaseorder_id']))
+                    ''', (po['purchaseorder_number'], zoho_status, is_closed, parent_po_number, po_date, po['purchaseorder_id']))
                 else:
                     # Always update closed status - this is critical for preventing assignments
                     db_conn.execute('''
                         UPDATE purchase_orders 
-                        SET po_number = ?, zoho_status = ?, closed = ?, updated_at = CURRENT_TIMESTAMP
+                        SET po_number = ?, zoho_status = ?, closed = ?, parent_po_number = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
-                    ''', (po['purchaseorder_number'], zoho_status, is_closed, po['purchaseorder_id']))
+                    ''', (po['purchaseorder_number'], zoho_status, is_closed, parent_po_number, po['purchaseorder_id']))
                 
                 # If PO just became closed, unassign any submissions that were assigned to it
                 # This handles cases where submissions were assigned before we detected the PO was closed
@@ -278,16 +292,16 @@ class ZohoInventoryAPI:
                 # Insert new PO with proper status and creation date
                 if po_date:
                     cursor = db_conn.execute('''
-                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, created_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, parent_po_number, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                          zoho_status, is_closed, po_date))
+                          zoho_status, is_closed, parent_po_number, po_date))
                 else:
                     cursor = db_conn.execute('''
-                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed)
-                        VALUES (?, ?, ?, ?)
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, parent_po_number)
+                        VALUES (?, ?, ?, ?, ?)
                     ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                          zoho_status, is_closed))
+                          zoho_status, is_closed, parent_po_number))
                 po_id = cursor.lastrowid
             
             # Determine actual tablet type from line items  

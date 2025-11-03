@@ -128,6 +128,12 @@ def init_db():
     except:
         pass  # Column already exists
     
+    # Add parent_po_number column for tracking overs POs linked to parent POs
+    try:
+        c.execute('ALTER TABLE purchase_orders ADD COLUMN parent_po_number TEXT')
+    except:
+        pass  # Column already exists
+    
     # PO Line Items table
     c.execute('''CREATE TABLE IF NOT EXISTS po_lines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -976,6 +982,68 @@ def sync_zoho_pos():
             
     except Exception as e:
         return jsonify({'error': f'Sync failed: {str(e)}', 'success': False}), 500
+
+@app.route('/api/create_overs_po_info/<int:po_id>')
+@role_required('dashboard')
+def get_overs_po_info(po_id):
+    """Get information needed to create an overs PO for a parent PO"""
+    try:
+        conn = get_db()
+        
+        # Get parent PO details
+        parent_po = conn.execute('''
+            SELECT po_number, tablet_type, ordered_quantity, current_good_count, 
+                   current_damaged_count, remaining_quantity
+            FROM purchase_orders
+            WHERE id = ?
+        ''', (po_id,)).fetchone()
+        
+        if not parent_po:
+            conn.close()
+            return jsonify({'error': 'Parent PO not found'}), 404
+        
+        # Calculate overs (negative remaining_quantity means overs)
+        overs_quantity = abs(min(0, parent_po['remaining_quantity']))
+        
+        # Get line items with overs (negative remaining means overs)
+        lines_with_overs = conn.execute('''
+            SELECT pl.*, 
+                   (pl.quantity_ordered - pl.good_count - pl.damaged_count) as line_remaining
+            FROM po_lines pl
+            WHERE pl.po_id = ? 
+            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) < 0
+        ''', (po_id,)).fetchall()
+        
+        conn.close()
+        
+        # Generate overs PO number
+        overs_po_number = f"{parent_po['po_number']}-OVERS"
+        
+        # Prepare line items for overs PO
+        overs_line_items = []
+        total_overs = 0
+        for line in lines_with_overs:
+            line_overs = abs(line['line_remaining'])
+            total_overs += line_overs
+            overs_line_items.append({
+                'inventory_item_id': line['inventory_item_id'],
+                'line_item_name': line['line_item_name'],
+                'overs_quantity': line_overs,
+                'original_ordered': line['quantity_ordered']
+            })
+        
+        return jsonify({
+            'success': True,
+            'parent_po_number': parent_po['po_number'],
+            'overs_po_number': overs_po_number,
+            'tablet_type': parent_po['tablet_type'],
+            'total_overs': overs_quantity,
+            'line_items': overs_line_items,
+            'instructions': f'Create a new PO in Zoho with number "{overs_po_number}" and mark it with the tablets custom field. Then sync POs to import it into the app.'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/po_lines/<int:po_id>')
 def get_po_lines(po_id):
