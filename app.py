@@ -1182,9 +1182,23 @@ def get_po_lines(po_id):
         WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
     ''', (po_id,)).fetchone()
     
-    # Get current PO number for round calculation
-    current_po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (po_id,)).fetchone()
+    # Get current PO details including status
+    current_po = conn.execute('''
+        SELECT po_number, closed, internal_status, zoho_status 
+        FROM purchase_orders WHERE id = ?
+    ''', (po_id,)).fetchone()
     current_po_number = current_po['po_number'] if current_po else None
+    po_status = None
+    if current_po:
+        # Determine status: closed takes priority, then internal_status, then zoho_status
+        if current_po['closed']:
+            po_status = 'Closed'
+        elif current_po['internal_status']:
+            po_status = current_po['internal_status']
+        elif current_po['zoho_status']:
+            po_status = current_po['zoho_status']
+        else:
+            po_status = 'Open'
     
     # Calculate round numbers for each line item
     lines_with_rounds = []
@@ -1216,7 +1230,8 @@ def get_po_lines(po_id):
     result = {
         'lines': lines_with_rounds,
         'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
-        'unverified_count': unverified_count['count'] if unverified_count else 0
+        'unverified_count': unverified_count['count'] if unverified_count else 0,
+        'po_status': po_status
     }
     
     return jsonify(result)
