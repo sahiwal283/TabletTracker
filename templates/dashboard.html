@@ -1344,6 +1344,26 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
         // Get product name for display from first submission or from filtered list
         const displayProductName = filteredSubmissions.length > 0 ? filteredSubmissions[0].product_name : '';
         
+        // Calculate totals for the filtered submissions (when viewing a specific product)
+        let totals = null;
+        if (inventoryItemId && filteredSubmissions.length > 0) {
+            totals = {
+                displays_made: 0,
+                packs_remaining: 0,
+                loose_tablets: 0,
+                damaged_tablets: 0,
+                total_tablets: 0
+            };
+            
+            filteredSubmissions.forEach(sub => {
+                totals.displays_made += sub.displays_made || 0;
+                totals.packs_remaining += sub.packs_remaining || 0;
+                totals.loose_tablets += sub.loose_tablets || 0;
+                totals.damaged_tablets += sub.damaged_tablets || 0;
+                totals.total_tablets += sub.total_tablets || 0;
+            });
+        }
+        
         // Build modal content
         let modalContent = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeSubmissionsModal(event)">
@@ -1373,11 +1393,45 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                     <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
         `;
         
+        // Add totals summary if viewing a specific product
+        if (totals) {
+            modalContent += `
+                <div class="mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-lg p-5 shadow-sm">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <span class="text-2xl mr-2">📊</span>
+                        Total Summary for ${displayProductName}
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
+                            <div class="text-xs text-gray-500 font-medium mb-1">Displays Made</div>
+                            <div class="text-xl font-bold text-blue-600">${totals.displays_made.toLocaleString()}</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
+                            <div class="text-xs text-gray-500 font-medium mb-1">Packs Remaining</div>
+                            <div class="text-xl font-bold text-blue-600">${totals.packs_remaining.toLocaleString()}</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
+                            <div class="text-xs text-gray-500 font-medium mb-1">Loose Tablets</div>
+                            <div class="text-xl font-bold text-blue-600">${totals.loose_tablets.toLocaleString()}</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-3 shadow-sm text-center">
+                            <div class="text-xs text-gray-500 font-medium mb-1">Damaged Tablets</div>
+                            <div class="text-xl font-bold text-red-600">${totals.damaged_tablets.toLocaleString()}</div>
+                        </div>
+                        <div class="bg-indigo-100 rounded-lg p-3 shadow-sm text-center border-2 border-indigo-300">
+                            <div class="text-xs text-indigo-700 font-medium mb-1">Total Tablets</div>
+                            <div class="text-2xl font-bold text-indigo-800">${totals.total_tablets.toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
         if (filteredSubmissions.length === 0) {
             modalContent += `
                 <div class="text-center py-12 text-gray-500">
                     <div class="text-6xl mb-4">📭</div>
-                    <p class="text-lg">No submissions found${lineItemName ? ' for this product' : ''}</p>
+                                <p class="text-lg">No submissions found${inventoryItemId ? ' for this product' : ''}</p>
                 </div>
             `;
         } else {
