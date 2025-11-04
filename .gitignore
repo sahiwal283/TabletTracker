@@ -14,9 +14,10 @@ env/
 # .env
 # .env.*
 
-# Database
-# *.db
-# *.sqlite3
+# Database - NEVER commit production database!
+*.db
+*.sqlite3
+*.db-journal
 
 # Flask
 instance/
