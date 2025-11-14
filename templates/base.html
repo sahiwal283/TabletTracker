@@ -664,7 +664,12 @@ async function saveSubmissionEdit() {
         const result = await response.json();
         
         if (result.success) {
-            alert('Submission updated successfully!');
+            // Use showSuccess if available, otherwise alert
+            if (typeof showSuccess === 'function') {
+                showSuccess('Submission updated successfully!');
+            } else {
+                alert('Submission updated successfully!');
+            }
             closeEditSubmissionModal();
             
             // If we're in a PO modal context, refresh it instead of reloading the page
