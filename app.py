@@ -1716,6 +1716,7 @@ def count_form():
 @app.route('/submit_count', methods=['POST'])
 def submit_count():
     """Process manual count submission for PO close-outs"""
+    conn = None
     try:
         data = request.get_json() if request.is_json else request.form
         
@@ -3009,6 +3010,7 @@ def get_available_boxes_bags(po_id):
 @admin_required  
 def create_sample_receiving_data():
     """Create sample PO and shipment data for testing receiving workflow"""
+    conn = None
     try:
         from datetime import datetime
         import random
@@ -3051,16 +3053,18 @@ def create_sample_receiving_data():
         
     except Exception as e:
         # Ensure connection is closed even on error
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
 
 @app.route('/api/update_submission_date', methods=['POST'])
 @role_required('dashboard')
 def update_submission_date():
     """Update the submission date for an existing submission"""
+    conn = None
     try:
         data = request.get_json()
         submission_id = data.get('submission_id')
@@ -3088,16 +3092,18 @@ def update_submission_date():
         
     except Exception as e:
         # Ensure connection is closed even on error
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/available_pos', methods=['GET'])
 @role_required('dashboard')
 def get_available_pos_for_submission(submission_id):
     """Get list of POs that can accept this submission (filtered by product/inventory_item_id)"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3157,16 +3163,18 @@ def get_available_pos_for_submission(submission_id):
         
     except Exception as e:
         # Ensure connection is closed even on error
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/approve', methods=['POST'])
 @role_required('dashboard')
 def approve_submission_assignment(submission_id):
     """Approve and lock the current PO assignment for a submission"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3206,16 +3214,18 @@ def approve_submission_assignment(submission_id):
         
     except Exception as e:
         # Ensure connection is closed even on error
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/reassign', methods=['POST'])
 @role_required('dashboard')
 def reassign_submission_to_po(submission_id):
     """Reassign a submission to a different PO (manager verification/correction)"""
+    conn = None
     try:
         data = request.get_json()
         new_po_id = data.get('new_po_id')
@@ -3358,10 +3368,11 @@ def reassign_submission_to_po(submission_id):
         
     except Exception as e:
         # Ensure connection is closed even on error
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reassign_all_submissions', methods=['POST'])
