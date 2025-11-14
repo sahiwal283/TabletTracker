@@ -560,8 +560,11 @@ class ProductionReportGenerator:
             for line in po_data['lines']:
                 remaining = (line.get('quantity_ordered', 0) or 0) - (line.get('good_count', 0) or 0) - (line.get('damaged_count', 0) or 0)
                 round_text = f"Round {line.get('round_number', 'N/A')}" if line.get('round_number') else 'N/A'
+                # Use Paragraph for product names to enable wrapping
+                product_name = line.get('line_item_name', 'Unknown')
+                product_name_para = Paragraph(product_name, self.styles['Normal']) if len(product_name) > 25 else product_name
                 line_items_data.append([
-                    line.get('line_item_name', 'Unknown'),
+                    product_name_para,
                     round_text,
                     f"{(line.get('quantity_ordered', 0) or 0):,}",
                     f"{(line.get('good_count', 0) or 0):,}",
@@ -574,12 +577,15 @@ class ProductionReportGenerator:
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Align to top for multi-line cells
                 ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers and round
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 9),
                 ('FONTSIZE', (0, 1), (-1, -1), 8),
                 ('TOPPADDING', (0, 0), (-1, -1), 3),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LEFTPADDING', (0, 1), (0, -1), 3),  # Extra padding for product name cells
+                ('RIGHTPADDING', (0, 1), (0, -1), 3),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
