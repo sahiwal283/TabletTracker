@@ -516,9 +516,10 @@ class ProductionReportGenerator:
         story.append(Paragraph(f"Purchase Order: {po_data['po_number']}", self.styles['SectionHeader']))
         
         # Basic PO Info
-        # Use Paragraph for long text fields to enable wrapping
+        # Use Paragraph for tablet type to enable text wrapping within cell
         tablet_type_text = po_data.get('tablet_type', 'N/A')
-        tablet_type_para = Paragraph(tablet_type_text, self.styles['Normal']) if len(tablet_type_text) > 30 else tablet_type_text
+        # Always use Paragraph to ensure wrapping works properly
+        tablet_type_para = Paragraph(tablet_type_text, self.styles['Normal'])
         
         po_info_data = [
             ['PO Number', po_data['po_number']],
@@ -560,9 +561,10 @@ class ProductionReportGenerator:
             for line in po_data['lines']:
                 remaining = (line.get('quantity_ordered', 0) or 0) - (line.get('good_count', 0) or 0) - (line.get('damaged_count', 0) or 0)
                 round_text = f"Round {line.get('round_number', 'N/A')}" if line.get('round_number') else 'N/A'
-                # Use Paragraph for product names to enable wrapping
+                # Use Paragraph for product names to enable text wrapping within cell
                 product_name = line.get('line_item_name', 'Unknown')
-                product_name_para = Paragraph(product_name, self.styles['Normal']) if len(product_name) > 25 else product_name
+                # Always use Paragraph to ensure wrapping works properly
+                product_name_para = Paragraph(product_name, self.styles['Normal'])
                 line_items_data.append([
                     product_name_para,
                     round_text,
