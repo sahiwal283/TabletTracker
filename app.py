@@ -2445,6 +2445,7 @@ def generate_production_report():
         start_date = data.get('start_date')
         end_date = data.get('end_date') 
         po_numbers = data.get('po_numbers', [])
+        report_type = data.get('report_type', 'production')  # 'production' or 'vendor'
         
         # Validate date formats if provided
         if start_date:
@@ -2461,15 +2462,23 @@ def generate_production_report():
         
         # Generate report
         generator = ProductionReportGenerator()
-        pdf_content = generator.generate_production_report(
-            start_date=start_date,
-            end_date=end_date,
-            po_numbers=po_numbers if po_numbers else None
-        )
         
-        # Create filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'production_report_{timestamp}.pdf'
+        if report_type == 'vendor':
+            pdf_content = generator.generate_vendor_report(
+                start_date=start_date,
+                end_date=end_date,
+                po_numbers=po_numbers if po_numbers else None
+            )
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'vendor_report_{timestamp}.pdf'
+        else:
+            pdf_content = generator.generate_production_report(
+                start_date=start_date,
+                end_date=end_date,
+                po_numbers=po_numbers if po_numbers else None
+            )
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'production_report_{timestamp}.pdf'
         
         # Return PDF as download
         from flask import make_response

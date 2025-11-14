@@ -78,18 +78,27 @@
     
     <div class="space-y-2">
         <div>
+            <label for="report_type_selector" class="block text-xs font-medium text-gray-700 mb-1">Report Type</label>
+            <select id="report_type_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="production">Production Report</option>
+                <option value="vendor">Vendor Report</option>
+            </select>
+            <p class="text-xs text-gray-500 mt-0.5">Select report type</p>
+        </div>
+        
+        <div>
             <label for="po_selector" class="block text-xs font-medium text-gray-700 mb-1">Select Purchase Order</label>
             <select id="po_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select a PO...</option>
             </select>
-            <p class="text-xs text-gray-500 mt-0.5">Select a PO to generate its detailed production report</p>
+            <p class="text-xs text-gray-500 mt-0.5">Select a PO to generate its detailed report (optional for vendor report)</p>
         </div>
         
         <button onclick="generatePOReport()" id="generate-report-btn" disabled
                 class="btn-primary w-full py-2 text-sm font-semibold transform transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
             <span class="flex items-center justify-center">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-download" /></svg>
-                Generate PO Report
+                <span id="generate-report-btn-text">Generate PO Report</span>
             </span>
         </button>
         
@@ -1269,20 +1278,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (button) button.disabled = false;
                 if (preview) preview.classList.remove('hidden');
                 
-                if (previewContent) {
-                    previewContent.innerHTML = `
-                        <div><strong>PO Number:</strong> ${poData.po_number}</div>
-                        <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
-                        <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
-                        <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
-                        <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
-                        <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
-                        <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
-                        ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
-                    `;
+                    const poData = JSON.parse(selectedOption.dataset.poData);
+                    if (previewContent) {
+                        previewContent.innerHTML = `
+                            <div><strong>PO Number:</strong> ${poData.po_number}</div>
+                            <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
+                            <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
+                            <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
+                            <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
+                            <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
+                            <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
+                            ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
+                        `;
+                    }
                 }
             } else {
-                if (button) button.disabled = true;
+                if (reportType === 'production') {
+                    if (button) button.disabled = true;
+                }
                 if (preview) preview.classList.add('hidden');
             }
         });
@@ -1291,10 +1304,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function generatePOReport() {
     const selector = document.getElementById('po_selector');
+    const reportTypeSelector = document.getElementById('report_type_selector');
     const button = document.getElementById('generate-report-btn');
     const originalText = button.innerHTML;
     
-    if (!selector.value) {
+    const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+    
+    // Vendor report doesn't require PO selection
+    if (reportType !== 'vendor' && !selector.value) {
         showError('Please select a PO first');
         return;
     }
@@ -1309,9 +1326,85 @@ async function generatePOReport() {
             </span>
         `;
         
-        // Prepare request data for single PO
+        // Prepare request data
         const requestData = {
-            po_numbers: [selector.value]
+            report_type: reportType
+        };
+        
+        // Add PO numbers if PO is selected (for production report) or if vendor report with PO
+        if (selector.value) {
+            requestData.po_numbers = [selector.value];
+        }
+        
+        // Make API request
+        const response = await fetch('/api/reports/production', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        // Get the PDF blob
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        // Generate filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+        const reportName = reportType === 'vendor' ? 'vendor_report' : 'production_report';
+        const poSuffix = selector.value ? `_${selector.value}` : '';
+        a.download = `${poSuffix}${reportName}_${timestamp}.pdf`;
+        
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        const reportTypeName = reportType === 'vendor' ? 'Vendor' : 'Production';
+        const poText = selector.value ? ` for ${selector.value}` : '';
+        showSuccess(`${reportTypeName} report${poText} generated successfully!`);
+        
+    } catch (error) {
+        console.error('Report generation error:', error);
+        showError('Failed to generate report: ' + error.message);
+    } finally {
+        // Restore button state
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+async function generateAllPOsReport() {
+    const reportTypeSelector = document.getElementById('report_type_selector');
+    const button = document.getElementById('generate-all-btn');
+    const originalText = button.innerHTML;
+    
+    const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+    
+    try {
+        // Show loading state
+        button.disabled = true;
+        button.innerHTML = `
+            <span class="flex items-center justify-center">
+                <svg class="animate-spin w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-spinner" /></svg>
+                Generating...
+            </span>
+        `;
+        
+        // Generate report with no filters (all POs)
+        const requestData = {
+            report_type: reportType
         };
         
         // Make API request
@@ -1339,68 +1432,8 @@ async function generatePOReport() {
         
         // Generate filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        a.download = `${selector.value}_production_report_${timestamp}.pdf`;
-        
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        showSuccess(`Report for ${selector.value} generated successfully!`);
-        
-    } catch (error) {
-        console.error('Report generation error:', error);
-        showError('Failed to generate report: ' + error.message);
-    } finally {
-        // Restore button state
-        button.disabled = false;
-        button.innerHTML = originalText;
-    }
-}
-
-async function generateAllPOsReport() {
-    const button = document.getElementById('generate-all-btn');
-    const originalText = button.innerHTML;
-    
-    try {
-        // Show loading state
-        button.disabled = true;
-        button.innerHTML = `
-            <span class="flex items-center justify-center">
-                <svg class="animate-spin w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-spinner" /></svg>
-                Generating...
-            </span>
-        `;
-        
-        // Generate report with no filters (all POs)
-        const requestData = {};
-        
-        // Make API request
-        const response = await fetch('/api/reports/production', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestData)
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
-        }
-        
-        // Get the PDF blob
-        const blob = await response.blob();
-        
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        
-        // Generate filename
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        a.download = `all_pos_production_report_${timestamp}.pdf`;
+        const reportName = reportType === 'vendor' ? 'vendor_report' : 'production_report';
+        a.download = `all_pos_${reportName}_${timestamp}.pdf`;
         
         document.body.appendChild(a);
         a.click();

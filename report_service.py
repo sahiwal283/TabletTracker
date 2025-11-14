@@ -791,6 +791,87 @@ class ProductionReportGenerator:
         
         return story
 
+    def generate_vendor_report(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> bytes:
+        """
+        Generate vendor report - single page with only Production Breakdown by Product table
+        
+        Args:
+            start_date: Start date in YYYY-MM-DD format (optional)
+            end_date: End date in YYYY-MM-DD format (optional) 
+            po_numbers: List of specific PO numbers to include (optional)
+            
+        Returns:
+            bytes: PDF content
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
+                              topMargin=40, bottomMargin=30)
+        
+        story = []
+        
+        # Report header
+        story.append(Paragraph("Vendor Report", self.styles['CustomTitle']))
+        story.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", self.styles['Normal']))
+        
+        if start_date or end_date:
+            date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
+            story.append(Paragraph(date_range, self.styles['Normal']))
+        
+        story.append(Spacer(1, 20))
+        
+        # Get report data
+        report_data = self._get_report_data(start_date, end_date, po_numbers)
+        
+        # Only include Production Breakdown by Product table
+        summary = report_data['summary']
+        
+        if summary.get('product_breakdown'):
+            story.append(Paragraph("Production Breakdown by Product", self.styles['SectionHeader']))
+            
+            product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
+            
+            for product in summary['product_breakdown']:
+                product_data.append([
+                    product['product_name'],
+                    f"{product['ordered']:,}",
+                    f"{product['produced']:,}",
+                    f"{product['damaged']:,}"
+                ])
+            
+            # Add totals row
+            product_data.append([
+                'TOTAL',
+                f"{summary['total_ordered']:,}",
+                f"{summary['total_produced']:,}",
+                f"{summary['total_damaged']:,}"
+            ])
+            
+            product_table = Table(product_data, colWidths=[3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
+            product_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                # Totals row styling
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#93B1B5')),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                ('LINEABOVE', (0, -1), (-1, -1), 2, colors.black),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(product_table)
+        
+        # Build PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+
 # Example usage and testing
 if __name__ == "__main__":
     generator = ProductionReportGenerator()
