@@ -33,8 +33,8 @@ class ProductionReportGenerator:
         self.styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
-            fontSize=18,
-            spaceAfter=12,
+            fontSize=16,
+            spaceAfter=8,
             alignment=TA_CENTER,
             textColor=colors.HexColor('#0B2E33')
         ))
@@ -42,9 +42,9 @@ class ProductionReportGenerator:
         self.styles.add(ParagraphStyle(
             name='SectionHeader',
             parent=self.styles['Heading2'],
-            fontSize=13,
-            spaceBefore=10,
-            spaceAfter=6,
+            fontSize=12,
+            spaceBefore=6,
+            spaceAfter=4,
             textColor=colors.HexColor('#4F7C82')
         ))
         
@@ -88,7 +88,7 @@ class ProductionReportGenerator:
         try:
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
-                                  topMargin=40, bottomMargin=30)
+                                  topMargin=30, bottomMargin=25)
             
             story = []
             
@@ -486,14 +486,14 @@ class ProductionReportGenerator:
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
-        story.append(KeepTogether([summary_table, Spacer(1, 10)]))
+        story.append(KeepTogether([summary_table, Spacer(1, 6)]))
         
         # Product Breakdown Table
         if summary.get('product_breakdown'):
@@ -526,8 +526,8 @@ class ProductionReportGenerator:
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('FONTSIZE', (0, 1), (-1, -1), 9),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                 ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
                 # Totals row styling
                 ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#93B1B5')),
@@ -536,7 +536,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(KeepTogether([product_heading, product_table, Spacer(1, 10)]))
+            story.append(KeepTogether([product_heading, product_table, Spacer(1, 6)]))
         
         return story
 
@@ -576,14 +576,14 @@ class ProductionReportGenerator:
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Align to top for multi-line cells
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ('LEFTPADDING', (1, 2), (1, 2), 3),  # Extra padding for tablet type cell
             ('RIGHTPADDING', (1, 2), (1, 2), 3),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
-        story.append(KeepTogether([po_info_table, Spacer(1, 8)]))
+        story.append(KeepTogether([po_info_table, Spacer(1, 6)]))
         
         # Line Items with Round Numbers
         if po_data.get('lines'):
@@ -624,7 +624,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(KeepTogether([line_items_heading, line_items_table, Spacer(1, 8)]))
+            story.append(KeepTogether([line_items_heading, line_items_table, Spacer(1, 6)]))
         
         # Shipment Information
         if po_data.get('shipment'):
@@ -651,7 +651,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(KeepTogether([shipment_heading, shipment_table, Spacer(1, 8)]))
+            story.append(KeepTogether([shipment_heading, shipment_table, Spacer(1, 6)]))
         
         # Production Breakdown
         if po_data.get('production_breakdown'):
@@ -682,7 +682,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(KeepTogether([breakdown_heading, breakdown_table, Spacer(1, 8)]))
+            story.append(KeepTogether([breakdown_heading, breakdown_table, Spacer(1, 6)]))
             
             # By Employee breakdown  
             if breakdown['by_employee']:
@@ -710,7 +710,7 @@ class ProductionReportGenerator:
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
                 
-                story.append(KeepTogether([employee_heading, employee_table, Spacer(1, 6)]))
+                story.append(KeepTogether([employee_heading, employee_table, Spacer(1, 4)]))
         
         return story
 
@@ -771,7 +771,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(KeepTogether([pack_time_heading, pack_time_table, Spacer(1, 8)]))
+            story.append(KeepTogether([pack_time_heading, pack_time_table, Spacer(1, 6)]))
         
         # Top performing employees
         if all_employees:
@@ -802,7 +802,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(KeepTogether([emp_heading, emp_table, Spacer(1, 8)]))
+            story.append(KeepTogether([emp_heading, emp_table, Spacer(1, 6)]))
         
         # Product performance summary
         if all_products:
@@ -854,7 +854,7 @@ class ProductionReportGenerator:
         try:
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
-                                  topMargin=40, bottomMargin=30)
+                                  topMargin=30, bottomMargin=25)
             
             story = []
             
