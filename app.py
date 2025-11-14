@@ -2487,8 +2487,9 @@ def get_po_summary_for_reports():
         conn = get_db()
         
         # First, verify the table exists and has data
-        po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
-        if not po_count or po_count['count'] == 0:
+        po_count_row = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
+        po_count = dict(po_count_row) if po_count_row else {'count': 0}
+        if not po_count or po_count.get('count', 0) == 0:
             conn.close()
             return jsonify({
                 'success': True,
