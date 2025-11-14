@@ -2490,6 +2490,7 @@ def generate_production_report():
 @role_required('dashboard')
 def get_po_summary_for_reports():
     """Get summary of POs available for reporting"""
+    conn = None
     try:
         conn = get_db()
         
@@ -2595,6 +2596,11 @@ def get_po_summary_for_reports():
         error_trace = traceback.format_exc()
         print(f"Error in get_po_summary_for_reports: {e}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({
             'success': False,
             'error': f'Failed to get PO summary: {str(e)}',
@@ -3287,12 +3293,20 @@ def reassign_submission_to_po(submission_id):
             ''', (old_po_id, inventory_item_id)).fetchone()
             
             if old_line:
+                # Get current counts first to calculate new values
+                current_line = conn.execute('''
+                    SELECT good_count, damaged_count FROM po_lines WHERE id = ?
+                ''', (old_line['id'],)).fetchone()
+                
+                new_good = max(0, (current_line['good_count'] or 0) - good_tablets)
+                new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_tablets)
+                
                 conn.execute('''
                     UPDATE po_lines 
-                    SET good_count = MAX(0, good_count - ?), 
-                        damaged_count = MAX(0, damaged_count - ?)
+                    SET good_count = ?, 
+                        damaged_count = ?
                     WHERE id = ?
-                ''', (good_tablets, damaged_tablets, old_line['id']))
+                ''', (new_good, new_damaged, old_line['id']))
                 
                 # Update old PO header
                 old_totals = conn.execute('''
@@ -3380,6 +3394,7 @@ def reassign_submission_to_po(submission_id):
 @admin_required
 def reassign_all_submissions():
     """Reassign ALL submissions to POs using correct PO order (by PO number, not created_at)"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3576,6 +3591,11 @@ def reassign_all_submissions():
         error_trace = traceback.format_exc()
         print(f"❌❌❌ REASSIGN ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/api/recalculate_po_counts', methods=['POST'])
@@ -3585,6 +3605,7 @@ def recalculate_po_counts():
     Recalculate PO line counts based on currently assigned submissions.
     Does NOT change any PO assignments - just fixes the counts to match actual submissions.
     """
+    conn = None
     try:
         conn = get_db()
         
@@ -3740,12 +3761,18 @@ def recalculate_po_counts():
         error_trace = traceback.format_exc()
         print(f"❌ RECALCULATE ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/api/submission/<int:submission_id>/details', methods=['GET'])
 @admin_required
 def get_submission_details(submission_id):
     """Get full details of a submission for editing (Admin only)"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3770,12 +3797,18 @@ def get_submission_details(submission_id):
         error_trace = traceback.format_exc()
         print(f"❌ GET SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/edit', methods=['POST'])
 @admin_required
 def edit_submission(submission_id):
     """Edit a submission and recalculate PO counts (Admin only)"""
+    conn = None
     try:
         data = request.get_json()
         conn = get_db()
@@ -3883,12 +3916,18 @@ def edit_submission(submission_id):
         error_trace = traceback.format_exc()
         print(f"❌ EDIT SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/delete', methods=['POST'])
 @admin_required
 def delete_submission(submission_id):
     """Delete a submission and remove its counts from PO (Admin only)"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3935,13 +3974,21 @@ def delete_submission(submission_id):
             ''', (old_po_id, inventory_item_id)).fetchone()
             
             if po_line:
+                # Get current counts first to calculate new values
+                current_line = conn.execute('''
+                    SELECT good_count, damaged_count FROM po_lines WHERE id = ?
+                ''', (po_line['id'],)).fetchone()
+                
+                new_good = max(0, (current_line['good_count'] or 0) - good_tablets)
+                new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_tablets)
+                
                 # Remove counts from PO line
                 conn.execute('''
                     UPDATE po_lines
-                    SET good_count = MAX(0, good_count - ?), 
-                        damaged_count = MAX(0, damaged_count - ?)
+                    SET good_count = ?, 
+                        damaged_count = ?
                     WHERE id = ?
-                ''', (good_tablets, damaged_tablets, po_line['id']))
+                ''', (new_good, new_damaged, po_line['id']))
                 
                 # Update PO header totals
                 totals = conn.execute('''
@@ -3979,6 +4026,11 @@ def delete_submission(submission_id):
         error_trace = traceback.format_exc()
         print(f"❌ DELETE SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/po/<int:po_id>/delete', methods=['POST'])
@@ -4021,12 +4073,18 @@ def delete_po(po_id):
         error_trace = traceback.format_exc()
         print(f"❌ DELETE PO ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/resync_unassigned_submissions', methods=['POST'])
 @admin_required
 def resync_unassigned_submissions():
     """Resync unassigned submissions to try matching them with POs based on updated item IDs"""
+    conn = None
     try:
         conn = get_db()
         
@@ -4181,6 +4239,7 @@ def resync_unassigned_submissions():
 @role_required('dashboard')
 def get_po_submissions(po_id):
     """Get all submissions assigned to a specific PO"""
+    conn = None
     try:
         conn = get_db()
         
@@ -4313,6 +4372,11 @@ def get_po_submissions(po_id):
         error_trace = traceback.format_exc()
         print(f"❌ Error fetching PO submissions: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 # ===== TEMPLATE CONTEXT PROCESSORS =====
