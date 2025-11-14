@@ -75,8 +75,8 @@ msgid "Displays Made"
 msgstr "Exhibidores Hechos"
 
 #: templates/warehouse_form.html:99
-msgid "Single Packs Remaining"
-msgstr "Paquetes Individuales Restantes"
+msgid "Cards Remaining"
+msgstr "Tarjetas Restantes"
 
 #: templates/warehouse_form.html:107
 msgid "Loose Tablets"

@@ -74,7 +74,7 @@ msgid "Displays Made"
 msgstr ""
 
 #: templates/warehouse_form.html:99
-msgid "Single Packs Remaining"
+msgid "Cards Remaining"
 msgstr ""
 
 #: templates/warehouse_form.html:107

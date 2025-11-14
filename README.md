@@ -430,7 +430,7 @@ shipments (id, po_id, tracking_number, carrier, dates, notes)
 ### Production Calculation
 ```
 Total Tablets = (Displays × Packages_Per_Display × Tablets_Per_Package) + 
-                (Packs_Remaining × Tablets_Per_Package) + 
+                (Cards_Remaining × Tablets_Per_Package) + 
                 Loose_Tablets + 
                 Damaged_Tablets
 ```
