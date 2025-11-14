@@ -581,6 +581,7 @@ def submit_warehouse():
         ''', (data['product_name'],)).fetchone()
         
         if not product:
+            conn.close()
             return jsonify({'error': 'Product not found'}), 400
         
         # Calculate tablet counts
@@ -1727,6 +1728,7 @@ def submit_count():
         ''', (data['tablet_type'],)).fetchone()
         
         if not tablet_type:
+            conn.close()
             return jsonify({'error': 'Tablet type not found'}), 400
         
         actual_count = int(data.get('actual_count', 0))
@@ -1825,13 +1827,16 @@ def submit_count():
         conn.commit()
         conn.close()
         
-        message = f'Count submitted successfully! Applied {actual_count - remaining_count} tablets to PO'
-        if remaining_count > 0:
-            message += f' ({remaining_count} tablets could not be allocated)'
+        message = f'Count submitted successfully! Applied {actual_count} tablets to PO'
         
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            conn.close()
+        except:
+            pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/save_product', methods=['POST'])
@@ -3045,6 +3050,11 @@ def create_sample_receiving_data():
         })
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            conn.close()
+        except:
+            pass
         return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
 
 @app.route('/api/update_submission_date', methods=['POST'])
@@ -3077,6 +3087,11 @@ def update_submission_date():
         })
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            conn.close()
+        except:
+            pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/available_pos', methods=['GET'])
@@ -3131,6 +3146,8 @@ def get_available_pos_for_submission(submission_id):
                 'remaining': (po['ordered_quantity'] or 0) - (po['current_good_count'] or 0) - (po['current_damaged_count'] or 0)
             })
         
+        conn.close()
+        
         return jsonify({
             'success': True,
             'available_pos': pos_list,
@@ -3139,6 +3156,11 @@ def get_available_pos_for_submission(submission_id):
         })
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            conn.close()
+        except:
+            pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/approve', methods=['POST'])
@@ -3183,6 +3205,11 @@ def approve_submission_assignment(submission_id):
         })
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            conn.close()
+        except:
+            pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/reassign', methods=['POST'])
@@ -3330,6 +3357,11 @@ def reassign_submission_to_po(submission_id):
         })
         
     except Exception as e:
+        # Ensure connection is closed even on error
+        try:
+            conn.close()
+        except:
+            pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reassign_all_submissions', methods=['POST'])
