@@ -695,7 +695,7 @@ class ProductionReportGenerator:
         
         # Pack time distribution
         if pack_times:
-            story.append(Paragraph("Pack Time Analysis", self.styles['Heading3']))
+            pack_time_heading = Paragraph("Pack Time Analysis", self.styles['Heading3'])
             
             pack_time_data = [
                 ['Metric', 'Days'],
@@ -718,8 +718,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(pack_time_table)
-            story.append(Spacer(1, 8))
+            story.append(KeepTogether([pack_time_heading, pack_time_table, Spacer(1, 8)]))
         
         # Top performing employees
         if all_employees:
