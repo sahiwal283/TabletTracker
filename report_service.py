@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -455,12 +455,11 @@ class ProductionReportGenerator:
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
-        story.append(summary_table)
-        story.append(Spacer(1, 10))
+        story.append(KeepTogether([summary_table, Spacer(1, 10)]))
         
         # Product Breakdown Table
         if summary.get('product_breakdown'):
-            story.append(Paragraph("Production Breakdown by Product", self.styles['SectionHeader']))
+            product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
             
             product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
             
@@ -499,8 +498,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(product_table)
-            story.append(Spacer(1, 10))
+            story.append(KeepTogether([product_heading, product_table, Spacer(1, 10)]))
         
         return story
 
@@ -539,12 +537,11 @@ class ProductionReportGenerator:
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
-        story.append(po_info_table)
-        story.append(Spacer(1, 8))
+        story.append(KeepTogether([po_info_table, Spacer(1, 8)]))
         
         # Line Items with Round Numbers
         if po_data.get('lines'):
-            story.append(Paragraph("Line Items", self.styles['Heading3']))
+            line_items_heading = Paragraph("Line Items", self.styles['Heading3'])
             
             line_items_data = [['Product Name', 'Round', 'Ordered', 'Good', 'Damaged', 'Remaining']]
             for line in po_data['lines']:
@@ -574,12 +571,11 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(line_items_table)
-            story.append(Spacer(1, 8))
+            story.append(KeepTogether([line_items_heading, line_items_table, Spacer(1, 8)]))
         
         # Shipment Information
         if po_data.get('shipment'):
-            story.append(Paragraph("Shipment Information", self.styles['Heading3']))
+            shipment_heading = Paragraph("Shipment Information", self.styles['Heading3'])
             shipment = po_data['shipment']
             
             shipment_data = [
@@ -602,12 +598,11 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(shipment_table)
-            story.append(Spacer(1, 8))
+            story.append(KeepTogether([shipment_heading, shipment_table, Spacer(1, 8)]))
         
         # Production Breakdown
         if po_data.get('production_breakdown'):
-            story.append(Paragraph("Production Breakdown", self.styles['Heading3']))
+            breakdown_heading = Paragraph("Production Breakdown", self.styles['Heading3'])
             breakdown = po_data['production_breakdown']
             
             breakdown_data = [
@@ -634,12 +629,11 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(breakdown_table)
-            story.append(Spacer(1, 8))
+            story.append(KeepTogether([breakdown_heading, breakdown_table, Spacer(1, 8)]))
             
             # By Employee breakdown  
             if breakdown['by_employee']:
-                story.append(Paragraph("Production by Employee", self.styles['Heading4']))
+                employee_heading = Paragraph("Production by Employee", self.styles['Heading4'])
                 
                 employee_data = [['Employee', 'Submissions', 'Displays', 'Total Tablets']]
                 for employee, data in breakdown['by_employee'].items():
@@ -663,8 +657,7 @@ class ProductionReportGenerator:
                     ('GRID', (0, 0), (-1, -1), 1, colors.black)
                 ]))
                 
-                story.append(employee_table)
-                story.append(Spacer(1, 6))
+                story.append(KeepTogether([employee_heading, employee_table, Spacer(1, 6)]))
         
         return story
 
@@ -730,7 +723,7 @@ class ProductionReportGenerator:
         
         # Top performing employees
         if all_employees:
-            story.append(Paragraph("Employee Performance Summary", self.styles['Heading3']))
+            emp_heading = Paragraph("Employee Performance Summary", self.styles['Heading3'])
             
             # Sort by total tablets processed
             top_employees = sorted(all_employees.items(), key=lambda x: x[1]['tablets'], reverse=True)[:10]
@@ -757,12 +750,11 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(emp_table)
-            story.append(Spacer(1, 8))
+            story.append(KeepTogether([emp_heading, emp_table, Spacer(1, 8)]))
         
         # Product performance summary
         if all_products:
-            story.append(Paragraph("Product Performance Summary", self.styles['Heading3']))
+            prod_heading = Paragraph("Product Performance Summary", self.styles['Heading3'])
             
             prod_data = [['Product', 'Total Displays', 'Total Packages', 'Loose Tablets', 'Damaged']]
             for prod, data in sorted(all_products.items()):
@@ -787,7 +779,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(prod_table)
+            story.append(KeepTogether([prod_heading, prod_table]))
         
         return story
 
@@ -826,7 +818,7 @@ class ProductionReportGenerator:
         summary = report_data['summary']
         
         if summary.get('product_breakdown'):
-            story.append(Paragraph("Production Breakdown by Product", self.styles['SectionHeader']))
+            product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
             
             product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
             
@@ -865,7 +857,7 @@ class ProductionReportGenerator:
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
-            story.append(product_table)
+            story.append(KeepTogether([product_heading, product_table]))
         
         # Build PDF
         doc.build(story)
