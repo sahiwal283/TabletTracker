@@ -1311,7 +1311,7 @@ async function generatePOReport() {
     const button = document.getElementById('generate-report-btn');
     const originalText = button.innerHTML;
     
-    const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+    const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
     
     // Vendor report doesn't require PO selection
     if (reportType !== 'vendor' && !selector.value) {
@@ -1396,7 +1396,7 @@ async function generateAllPOsReport() {
     const button = document.getElementById('generate-all-btn');
     const originalText = button.innerHTML;
     
-    const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+    const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
     
     try {
         // Show loading state
