@@ -80,8 +80,8 @@
         <div>
             <label for="report_type_selector" class="block text-xs font-medium text-gray-700 mb-1">Report Type</label>
             <select id="report_type_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="vendor" selected>Vendor Report</option>
                 <option value="production">Production Report</option>
-                <option value="vendor">Vendor Report</option>
             </select>
             <p class="text-xs text-gray-500 mt-0.5">Select report type</p>
         </div>
@@ -94,11 +94,11 @@
             <p class="text-xs text-gray-500 mt-0.5">Select a PO to generate its detailed report (optional for vendor report)</p>
         </div>
         
-        <button onclick="generatePOReport()" id="generate-report-btn" disabled
+        <button onclick="generatePOReport()" id="generate-report-btn"
                 class="btn-primary w-full py-2 text-sm font-semibold transform transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
             <span class="flex items-center justify-center">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-download" /></svg>
-                <span id="generate-report-btn-text">Generate PO Report</span>
+                <span id="generate-report-btn-text">Generate Vendor Report</span>
             </span>
         </button>
         
@@ -1275,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Check report type - vendor report doesn't require PO selection
             const reportTypeSelector = document.getElementById('report_type_selector');
-            const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+            const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
             
             if (reportType === 'vendor' || (this.value && selectedOption.dataset.poData)) {
                 if (button) button.disabled = false;
@@ -1364,7 +1364,8 @@ async function generatePOReport() {
         
         // Generate filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+        const reportTypeSelector = document.getElementById('report_type_selector');
+        const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
         const reportName = reportType === 'vendor' ? 'vendor_report' : 'production_report';
         const poSuffix = selector.value ? `_${selector.value}` : '';
         a.download = `${poSuffix}${reportName}_${timestamp}.pdf`;
@@ -1374,6 +1375,8 @@ async function generatePOReport() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
+        const reportTypeSelector = document.getElementById('report_type_selector');
+        const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
         const reportTypeName = reportType === 'vendor' ? 'Vendor' : 'Production';
         const poText = selector.value ? ` for ${selector.value}` : '';
         showSuccess(`${reportTypeName} report${poText} generated successfully!`);
