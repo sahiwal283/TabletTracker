@@ -533,6 +533,8 @@ class ProductionReportGenerator:
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
+                ('ALIGN', (4, 0), (-1, -1), 'CENTER'),  # Center remaining column
+                ('VALIGN', (4, 0), (4, 0), 'MIDDLE'),  # Vertically center remaining header
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('FONTSIZE', (0, 1), (-1, -1), 9),
