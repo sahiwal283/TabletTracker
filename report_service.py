@@ -516,10 +516,14 @@ class ProductionReportGenerator:
         story.append(Paragraph(f"Purchase Order: {po_data['po_number']}", self.styles['SectionHeader']))
         
         # Basic PO Info
+        # Use Paragraph for long text fields to enable wrapping
+        tablet_type_text = po_data.get('tablet_type', 'N/A')
+        tablet_type_para = Paragraph(tablet_type_text, self.styles['Normal']) if len(tablet_type_text) > 30 else tablet_type_text
+        
         po_info_data = [
             ['PO Number', po_data['po_number']],
             ['Zoho PO ID', po_data.get('zoho_po_id', 'N/A')],
-            ['Tablet Type', po_data.get('tablet_type', 'N/A')],
+            ['Tablet Type', tablet_type_para],
             ['Status', po_data.get('internal_status', 'Unknown')],
             ['Zoho Status', po_data.get('zoho_status', 'N/A')],
             ['Created Date', po_data['created_at'][:10] if po_data.get('created_at') else 'N/A'],
@@ -532,14 +536,17 @@ class ProductionReportGenerator:
         if po_data.get('pack_time_days'):
             po_info_data.append(['Pack Time', f"{po_data['pack_time_days']} days"])
         
-        po_info_table = Table(po_info_data, colWidths=[1.8*inch, 2.5*inch])
+        po_info_table = Table(po_info_data, colWidths=[1.8*inch, 4.2*inch])
         po_info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#B8E3E9')),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Align to top for multi-line cells
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (1, 2), (1, 2), 3),  # Extra padding for tablet type cell
+            ('RIGHTPADDING', (1, 2), (1, 2), 3),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         
