@@ -1263,8 +1263,39 @@ async function loadAvailablePOs() {
     }
 }
 
-// Setup change listener for PO selector (only once, on page load)
+// Setup change listeners (only once, on page load)
 document.addEventListener('DOMContentLoaded', function() {
+    // Setup report type selector listener
+    const reportTypeSelector = document.getElementById('report_type_selector');
+    const generateBtnText = document.getElementById('generate-report-btn-text');
+    const poSelector = document.getElementById('po_selector');
+    const generateBtn = document.getElementById('generate-report-btn');
+    
+    // Initialize button state based on default (vendor)
+    if (generateBtn) {
+        generateBtn.disabled = false; // Vendor report is default and doesn't require PO
+    }
+    
+    if (reportTypeSelector && generateBtnText) {
+        reportTypeSelector.addEventListener('change', function() {
+            const reportType = this.value;
+            if (reportType === 'vendor') {
+                generateBtnText.textContent = 'Generate Vendor Report';
+                // Vendor report doesn't require PO selection
+                if (generateBtn) {
+                    generateBtn.disabled = false;
+                }
+            } else {
+                generateBtnText.textContent = 'Generate PO Report';
+                // Production report requires PO selection
+                if (generateBtn && poSelector) {
+                    generateBtn.disabled = !poSelector.value;
+                }
+            }
+        });
+    }
+    
+    // Setup PO selector listener
     const selector = document.getElementById('po_selector');
     if (selector) {
         selector.addEventListener('change', function() {
@@ -1278,7 +1309,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
             
             if (reportType === 'vendor' || (this.value && selectedOption.dataset.poData)) {
-                if (button) button.disabled = false;
+                if (button && reportType === 'production') {
+                    // Only enable for production if PO is selected
+                    button.disabled = false;
+                }
                 if (preview && this.value && selectedOption.dataset.poData) {
                     preview.classList.remove('hidden');
                     const poData = JSON.parse(selectedOption.dataset.poData);
