@@ -2526,8 +2526,11 @@ def get_po_summary_for_reports():
         ''').fetchall()
         
         po_list = []
-        for po in pos:
+        for po_row in pos:
             try:
+                # Convert sqlite3.Row to dict for easier access
+                po = dict(po_row)
+                
                 # Calculate pack time if possible
                 pack_time = None
                 delivery_date = None
@@ -2565,7 +2568,10 @@ def get_po_summary_for_reports():
                 })
             except Exception as e:
                 # Log error but continue processing other POs
-                print(f"Error processing PO {po.get('po_number', 'unknown')}: {e}")
+                po_num = dict(po_row).get('po_number', 'unknown') if po_row else 'unknown'
+                print(f"Error processing PO {po_num}: {e}")
+                import traceback
+                print(traceback.format_exc())
                 continue
         
         conn.close()
