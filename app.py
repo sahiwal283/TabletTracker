@@ -2543,54 +2543,36 @@ def get_po_summary_for_reports():
             LIMIT 100
         ''').fetchall()
         
+        # Convert to list of dicts efficiently - calculate pack_time only if dates exist
         po_list = []
         for po_row in pos:
-            try:
-                # Convert sqlite3.Row to dict for easier access
-                po = dict(po_row)
-                
-                # Calculate pack time if possible
-                pack_time = None
-                delivery_date = None
-                completion_date = None
-                
-                if po.get('actual_delivery'):
-                    delivery_date = str(po['actual_delivery'])
-                elif po.get('delivered_at'):
-                    delivery_date = str(po['delivered_at'])
-                
-                if po.get('last_submission'):
-                    completion_date = str(po['last_submission'])[:10]
-                elif po.get('internal_status') == 'Complete' and po.get('updated_at'):
-                    completion_date = str(po['updated_at'])[:10]
-                
-                if delivery_date and completion_date:
-                    try:
-                        del_dt = datetime.strptime(delivery_date[:10], '%Y-%m-%d')
-                        comp_dt = datetime.strptime(completion_date, '%Y-%m-%d')
-                        pack_time = (comp_dt - del_dt).days
-                    except Exception:
-                        pack_time = None
-                
-                po_list.append({
-                    'po_number': po.get('po_number') or 'N/A',
-                    'tablet_type': po.get('tablet_type') or 'N/A',
-                    'status': po.get('internal_status') or 'Active',
-                    'ordered': int(po.get('ordered_quantity') or 0),
-                    'produced': int(po.get('current_good_count') or 0),
-                    'damaged': int(po.get('current_damaged_count') or 0),
-                    'created_date': str(po['created_at'])[:10] if po.get('created_at') else None,
-                    'submissions': int(po.get('submission_count') or 0),
-                    'pack_time_days': pack_time,
-                    'tracking_status': po.get('tracking_status')
-                })
-            except Exception as e:
-                # Log error but continue processing other POs
-                po_num = dict(po_row).get('po_number', 'unknown') if po_row else 'unknown'
-                print(f"Error processing PO {po_num}: {e}")
-                import traceback
-                print(traceback.format_exc())
-                continue
+            po = dict(po_row)
+            
+            # Calculate pack time if both dates exist (simplified)
+            pack_time = None
+            delivery_date = po.get('actual_delivery') or po.get('delivered_at')
+            completion_date = po.get('last_submission') or (po.get('updated_at')[:10] if po.get('internal_status') == 'Complete' and po.get('updated_at') else None)
+            
+            if delivery_date and completion_date:
+                try:
+                    del_dt = datetime.strptime(str(delivery_date)[:10], '%Y-%m-%d')
+                    comp_dt = datetime.strptime(str(completion_date)[:10], '%Y-%m-%d')
+                    pack_time = (comp_dt - del_dt).days
+                except (ValueError, TypeError):
+                    pack_time = None
+            
+            po_list.append({
+                'po_number': po.get('po_number') or 'N/A',
+                'tablet_type': po.get('tablet_type') or 'N/A',
+                'status': po.get('internal_status') or 'Active',
+                'ordered': int(po.get('ordered_quantity') or 0),
+                'produced': int(po.get('current_good_count') or 0),
+                'damaged': int(po.get('current_damaged_count') or 0),
+                'created_date': str(po['created_at'])[:10] if po.get('created_at') else None,
+                'submissions': int(po.get('submission_count') or 0),
+                'pack_time_days': pack_time,
+                'tracking_status': po.get('tracking_status')
+            })
         
         conn.close()
         
