@@ -244,6 +244,14 @@ def init_db():
         except Exception as e:
             print(f"Note: inventory_item_id column migration: {e}")
     
+    # Add admin_notes column to warehouse_submissions for admin-only notes
+    if 'admin_notes' not in existing_ws_cols:
+        try:
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN admin_notes TEXT')
+            print("Added admin_notes column to warehouse_submissions table")
+        except Exception as e:
+            print(f"Note: admin_notes column migration: {e}")
+    
     # Add tracking columns if upgrading existing DB
     # Safe ALTERs to backfill missing columns
     c.execute('PRAGMA table_info(shipments)')
@@ -529,7 +537,10 @@ def production_form():
     # Get today's date for the date picker
     today_date = datetime.now().date().isoformat()
     
-    return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date)
+    # Check if user is admin
+    is_admin = session.get('admin_authenticated') or session.get('employee_role') == 'admin'
+    
+    return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
 
 @app.route('/warehouse')
 @employee_required
@@ -585,15 +596,18 @@ def submit_warehouse():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
+        # Get admin_notes if user is admin
+        admin_notes = data.get('admin_notes', '') if session.get('admin_authenticated') else None
+        
         # Insert submission record using logged-in employee name WITH inventory_item_id
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (employee_name, data['product_name'], product['inventory_item_id'], data.get('box_number'),
               data.get('bag_number'), data.get('bag_label_count'),
-              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date))
+              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes))
         
         # Find open PO lines for this inventory item
         print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
@@ -734,6 +748,7 @@ def admin_dashboard():
         SELECT ws.*, po.po_number, po.closed as po_closed,
                pd.packages_per_display, pd.tablets_per_package,
                COALESCE(ws.po_assignment_verified, 0) as po_verified,
+               ws.admin_notes,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                    (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -826,6 +841,7 @@ def all_submissions():
                pd.packages_per_display, pd.tablets_per_package,
                tt.inventory_item_id,
                COALESCE(ws.po_assignment_verified, 0) as po_verified,
+               ws.admin_notes,
                (
                    (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                    (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -1719,14 +1735,17 @@ def submit_count():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
+        # Get admin_notes if user is admin
+        admin_notes = data.get('admin_notes', '') if session.get('admin_authenticated') else None
+        
         # Insert count record WITH inventory_item_id
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (data['employee_name'], data['tablet_type'], tablet_type['inventory_item_id'], data.get('box_number'),
-              data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date))
+              data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date, admin_notes))
         
         # Find open PO lines for this inventory item
         # Order by PO number (oldest PO numbers first) since they represent issue order

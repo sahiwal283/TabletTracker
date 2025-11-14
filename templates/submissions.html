@@ -107,6 +107,11 @@
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         PO
                     </th>
+                    {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        🔒 Admin Notes
+                    </th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -239,6 +244,17 @@
                             </div>
                         {% endif %}
                     </td>
+                    {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
+                    <td class="px-6 py-4 text-base text-gray-600 max-w-xs">
+                        {% if sub.admin_notes %}
+                            <div class="bg-purple-50 border border-purple-200 rounded p-2 text-sm">
+                                {{ sub.admin_notes }}
+                            </div>
+                        {% else %}
+                            <span class="text-gray-400 text-sm">—</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>

@@ -143,6 +143,19 @@
                 <p class="text-xs text-gray-500 mt-1">{{ gettext('Change this if submitting for a different date') }}</p>
             </div>
             
+            <!-- Admin Notes (Admin Only) -->
+            {% if is_admin %}
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <label for="admin_notes" class="block text-sm font-medium text-purple-800 mb-1">
+                    🔒 Admin Notes (Optional)
+                </label>
+                <textarea id="admin_notes" name="admin_notes" rows="3"
+                          class="form-input w-full" 
+                          placeholder="Add internal notes visible only to admins..."></textarea>
+                <p class="text-xs text-purple-600 mt-1">These notes are only visible to administrators</p>
+            </div>
+            {% endif %}
+            
             <!-- Submit Button -->
             <button type="submit" class="w-full py-4 px-6 text-lg font-bold btn-primary mt-8 transform transition-all duration-300 hover:scale-105 flex items-center justify-center">
                 <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
@@ -240,6 +253,19 @@
                     <div id="variance-display" class="font-medium"></div>
                 </div>
             </div>
+            
+            <!-- Admin Notes (Admin Only) -->
+            {% if is_admin %}
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <label for="count_admin_notes" class="block text-sm font-medium text-purple-800 mb-1">
+                    🔒 Admin Notes (Optional)
+                </label>
+                <textarea id="count_admin_notes" name="admin_notes" rows="3"
+                          class="form-input w-full" 
+                          placeholder="Add internal notes visible only to admins..."></textarea>
+                <p class="text-xs text-purple-600 mt-1">These notes are only visible to administrators</p>
+            </div>
+            {% endif %}
             
             <!-- Submit Button -->
             <button type="submit" class="w-full py-4 px-6 text-lg font-semibold text-white btn-primary rounded-lg shadow-md hover:shadow-lg transition-colors duration-200 focus:outline-none">
