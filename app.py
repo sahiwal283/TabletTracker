@@ -1834,10 +1834,11 @@ def submit_count():
         
     except Exception as e:
         # Ensure connection is closed even on error
-        try:
-            conn.close()
-        except:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/save_product', methods=['POST'])
