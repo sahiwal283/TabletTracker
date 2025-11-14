@@ -720,7 +720,6 @@ class ProductionReportGenerator:
         story.append(Paragraph("Overall Production Metrics", self.styles['SectionHeader']))
         
         # Calculate aggregate metrics across all POs
-        all_employees = {}
         all_products = {}
         pack_times = []
         
@@ -729,14 +728,6 @@ class ProductionReportGenerator:
                 pack_times.append(po['pack_time_days'])
             
             if po.get('production_breakdown'):
-                # Aggregate employee stats
-                for emp, data in po['production_breakdown']['by_employee'].items():
-                    if emp not in all_employees:
-                        all_employees[emp] = {'submissions': 0, 'displays': 0, 'tablets': 0}
-                    all_employees[emp]['submissions'] += data['submissions']
-                    all_employees[emp]['displays'] += data['displays']
-                    all_employees[emp]['tablets'] += data['total_tablets']
-                
                 # Aggregate product stats
                 for prod, data in po['production_breakdown']['by_product'].items():
                     if prod not in all_products:
@@ -772,37 +763,6 @@ class ProductionReportGenerator:
             ]))
             
             story.append(KeepTogether([pack_time_heading, pack_time_table, Spacer(1, 6)]))
-        
-        # Top performing employees
-        if all_employees:
-            emp_heading = Paragraph("Employee Performance Summary", self.styles['Heading3'])
-            
-            # Sort by total tablets processed
-            top_employees = sorted(all_employees.items(), key=lambda x: x[1]['tablets'], reverse=True)[:10]
-            
-            emp_data = [['Employee', 'Total Submissions', 'Total Displays', 'Total Tablets']]
-            for emp, data in top_employees:
-                emp_data.append([
-                    emp,
-                    str(data['submissions']),
-                    str(data['displays']),
-                    f"{data['tablets']:,}"
-                ])
-            
-            emp_table = Table(emp_data, colWidths=[2*inch, 1.2*inch, 1.2*inch, 1.6*inch])
-            emp_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 2),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            
-            story.append(KeepTogether([emp_heading, emp_table, Spacer(1, 6)]))
         
         # Product performance summary
         if all_products:
