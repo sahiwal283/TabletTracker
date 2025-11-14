@@ -2515,8 +2515,8 @@ def get_po_summary_for_reports():
                 'message': 'No purchase orders found'
             })
         
-        # Get PO summary with date ranges - use COALESCE for safe handling of NULLs
-        # Use GROUP BY po.id only (SQLite allows selecting other po columns with aggregates)
+        # Simplified query for dropdown - use subqueries instead of GROUP BY with JOINs
+        # This avoids expensive JOIN operations and is much faster
         pos = conn.execute('''
             SELECT 
                 po.id,
@@ -2528,17 +2528,13 @@ def get_po_summary_for_reports():
                 COALESCE(po.current_damaged_count, 0) as current_damaged_count,
                 po.created_at,
                 po.updated_at,
-                COUNT(DISTINCT ws.id) as submission_count,
-                MIN(ws.created_at) as first_submission,
-                MAX(ws.created_at) as last_submission,
-                MAX(s.actual_delivery) as actual_delivery,
-                MAX(s.delivered_at) as delivered_at,
-                MAX(s.tracking_status) as tracking_status
+                (SELECT COUNT(*) FROM warehouse_submissions WHERE assigned_po_id = po.id) as submission_count,
+                (SELECT MAX(created_at) FROM warehouse_submissions WHERE assigned_po_id = po.id) as last_submission,
+                (SELECT MAX(actual_delivery) FROM shipments WHERE po_id = po.id) as actual_delivery,
+                (SELECT MAX(delivered_at) FROM shipments WHERE po_id = po.id) as delivered_at,
+                (SELECT MAX(tracking_status) FROM shipments WHERE po_id = po.id) as tracking_status
             FROM purchase_orders po
-            LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
-            LEFT JOIN shipments s ON po.id = s.po_id
             WHERE po.po_number IS NOT NULL
-            GROUP BY po.id
             ORDER BY po.created_at DESC
             LIMIT 100
         ''').fetchall()
