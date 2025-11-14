@@ -499,25 +499,35 @@ class ProductionReportGenerator:
         if summary.get('product_breakdown'):
             product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
             
-            product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
+            # Create header with subheader for Remaining column
+            remaining_header = Paragraph("Remaining<br/><font size=7>Ordered - (Produced + Damaged)</font>", self.styles['Normal'])
+            
+            product_data = [['Product', 'Ordered', 'Produced', 'Damaged', remaining_header]]
             
             for product in summary['product_breakdown']:
+                ordered = product['ordered'] or 0
+                produced = product['produced'] or 0
+                damaged = product['damaged'] or 0
+                remaining = ordered - (produced + damaged)
                 product_data.append([
                     product['product_name'],
-                    f"{product['ordered']:,}",
-                    f"{product['produced']:,}",
-                    f"{product['damaged']:,}"
+                    f"{ordered:,}",
+                    f"{produced:,}",
+                    f"{damaged:,}",
+                    f"{remaining:,}"
                 ])
             
             # Add totals row
+            total_remaining = summary['total_ordered'] - (summary['total_produced'] + summary['total_damaged'])
             product_data.append([
                 'TOTAL',
                 f"{summary['total_ordered']:,}",
                 f"{summary['total_produced']:,}",
-                f"{summary['total_damaged']:,}"
+                f"{summary['total_damaged']:,}",
+                f"{total_remaining:,}"
             ])
             
-            product_table = Table(product_data, colWidths=[3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
+            product_table = Table(product_data, colWidths=[2.5*inch, 1.1*inch, 1.1*inch, 1.1*inch, 1.2*inch])
             product_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -842,30 +852,42 @@ class ProductionReportGenerator:
             if summary.get('product_breakdown') and len(summary['product_breakdown']) > 0:
                 product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
                 
-                product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
+                # Create header with subheader for Remaining column
+                remaining_header = Paragraph("Remaining<br/><font size=7>Ordered - (Produced + Damaged)</font>", self.styles['Normal'])
+                
+                product_data = [['Product', 'Ordered', 'Produced', 'Damaged', remaining_header]]
                 
                 for product in summary['product_breakdown']:
+                    ordered = product['ordered'] or 0
+                    produced = product['produced'] or 0
+                    damaged = product['damaged'] or 0
+                    remaining = ordered - (produced + damaged)
                     product_data.append([
                         product['product_name'],
-                        f"{product['ordered']:,}",
-                        f"{product['produced']:,}",
-                        f"{product['damaged']:,}"
+                        f"{ordered:,}",
+                        f"{produced:,}",
+                        f"{damaged:,}",
+                        f"{remaining:,}"
                     ])
                 
                 # Add totals row
+                total_remaining = summary['total_ordered'] - (summary['total_produced'] + summary['total_damaged'])
                 product_data.append([
                     'TOTAL',
                     f"{summary['total_ordered']:,}",
                     f"{summary['total_produced']:,}",
-                    f"{summary['total_damaged']:,}"
+                    f"{summary['total_damaged']:,}",
+                    f"{total_remaining:,}"
                 ])
                 
-                product_table = Table(product_data, colWidths=[3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
+                product_table = Table(product_data, colWidths=[2.5*inch, 1.1*inch, 1.1*inch, 1.1*inch, 1.2*inch])
                 product_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
+                    ('ALIGN', (4, 0), (-1, -1), 'CENTER'),  # Center remaining column
+                    ('VALIGN', (4, 0), (4, 0), 'MIDDLE'),  # Vertically center remaining header
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, 0), 10),
                     ('FONTSIZE', (0, 1), (-1, -1), 9),
