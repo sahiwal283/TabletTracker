@@ -4233,6 +4233,11 @@ def resync_unassigned_submissions():
         error_trace = traceback.format_exc()
         print(f"❌❌❌ RESYNC ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 @app.route('/api/po/<int:po_id>/submissions', methods=['GET'])
