@@ -64,6 +64,15 @@ def fix_schema():
         else:
             print("  ✓ inventory_item_id already exists")
         
+        # Add admin_notes column
+        if 'admin_notes' not in ws_columns:
+            print("  ➜ Adding admin_notes column...")
+            cursor.execute('ALTER TABLE warehouse_submissions ADD COLUMN admin_notes TEXT')
+            conn.commit()
+            print("  ✓ Added admin_notes for admin-only notes")
+        else:
+            print("  ✓ admin_notes already exists")
+        
         # Check purchase_orders columns
         print("\n2. Checking purchase_orders table...")
         cursor.execute("PRAGMA table_info(purchase_orders)")
