@@ -512,10 +512,17 @@ def production_form():
         ORDER BY tablet_type_name
     ''').fetchall()
     
-    # Get employee info for display
-    employee = conn.execute('''
-        SELECT full_name FROM employees WHERE id = ?
-    ''', (session.get('employee_id'),)).fetchone()
+    # Get employee info for display (handle admin users)
+    employee = None
+    if session.get('admin_authenticated'):
+        # Create a mock employee object for admin
+        class MockEmployee:
+            full_name = 'Admin'
+        employee = MockEmployee()
+    elif session.get('employee_id'):
+        employee = conn.execute('''
+            SELECT full_name FROM employees WHERE id = ?
+        ''', (session.get('employee_id'),)).fetchone()
     
     conn.close()
     
@@ -539,15 +546,20 @@ def submit_warehouse():
         
         # Get employee name from session
         conn = get_db()
-        employee = conn.execute('''
-            SELECT full_name FROM employees WHERE id = ?
-        ''', (session.get('employee_id'),)).fetchone()
         
-        if not employee:
-            return jsonify({'error': 'Employee not found'}), 400
-        
-        # Override employee name with logged-in user
-        employee_name = employee['full_name']
+        # Handle admin users (they don't have employee_id in session)
+        if session.get('admin_authenticated'):
+            employee_name = 'Admin'
+        else:
+            employee = conn.execute('''
+                SELECT full_name FROM employees WHERE id = ?
+            ''', (session.get('employee_id'),)).fetchone()
+            
+            if not employee:
+                conn.close()
+                return jsonify({'error': 'Employee not found'}), 400
+            
+            employee_name = employee['full_name']
         
         # Get product details
         product = conn.execute('''
