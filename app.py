@@ -2498,6 +2498,7 @@ def get_po_summary_for_reports():
             })
         
         # Get PO summary with date ranges - use COALESCE for safe handling of NULLs
+        # Use GROUP BY po.id only (SQLite allows selecting other po columns with aggregates)
         pos = conn.execute('''
             SELECT 
                 po.id,
@@ -2512,16 +2513,14 @@ def get_po_summary_for_reports():
                 COUNT(DISTINCT ws.id) as submission_count,
                 MIN(ws.created_at) as first_submission,
                 MAX(ws.created_at) as last_submission,
-                s.actual_delivery,
-                s.delivered_at,
-                s.tracking_status
+                MAX(s.actual_delivery) as actual_delivery,
+                MAX(s.delivered_at) as delivered_at,
+                MAX(s.tracking_status) as tracking_status
             FROM purchase_orders po
             LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
             LEFT JOIN shipments s ON po.id = s.po_id
             WHERE po.po_number IS NOT NULL
-            GROUP BY po.id, po.po_number, po.tablet_type, po.internal_status, 
-                     po.ordered_quantity, po.current_good_count, po.current_damaged_count,
-                     po.created_at, po.updated_at, s.actual_delivery, s.delivered_at, s.tracking_status
+            GROUP BY po.id
             ORDER BY po.created_at DESC
             LIMIT 100
         ''').fetchall()
