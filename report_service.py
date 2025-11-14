@@ -500,7 +500,7 @@ class ProductionReportGenerator:
             product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
             
             # Create header with subheader for Remaining column
-            remaining_header = Paragraph("Remaining<br/><font size=7>Ordered - (Produced + Damaged)</font>", self.styles['Normal'])
+            remaining_header = Paragraph("Remaining<br/><font size=7 color='white'>Ordered - (Produced + Damaged)</font>", self.styles['Normal'])
             
             product_data = [['Product', 'Ordered', 'Produced', 'Damaged', remaining_header]]
             
