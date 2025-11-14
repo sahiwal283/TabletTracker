@@ -4145,6 +4145,7 @@ def get_po_submissions(po_id):
                     ws.box_number,
                     ws.bag_number,
                     ws.bag_label_count,
+                    ws.admin_notes,
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id
@@ -4169,6 +4170,7 @@ def get_po_submissions(po_id):
                     ws.box_number,
                     ws.bag_number,
                     ws.bag_label_count,
+                    ws.admin_notes,
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id
