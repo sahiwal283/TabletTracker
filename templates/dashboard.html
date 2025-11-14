@@ -1189,23 +1189,75 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadAvailablePOs() {
     try {
-        const response = await fetch('/api/reports/po-summary');
-        const data = await response.json();
-        
         const selector = document.getElementById('po_selector');
-        selector.innerHTML = '<option value="">Select a PO...</option>';
-        
-        if (data.success && data.pos) {
-            data.pos.forEach(po => {
-                const option = document.createElement('option');
-                option.value = po.po_number;
-                option.textContent = `${po.po_number} - ${po.tablet_type || 'N/A'} (${po.ordered || 0} tablets)`;
-                option.dataset.poData = JSON.stringify(po);
-                selector.appendChild(option);
-            });
+        if (!selector) {
+            console.error('PO selector element not found');
+            return;
         }
         
-        // Add change listener
+        // Show loading state
+        selector.innerHTML = '<option value="">Loading POs...</option>';
+        selector.disabled = true;
+        
+        const response = await fetch('/api/reports/po-summary');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        selector.innerHTML = '<option value="">Select a PO...</option>';
+        selector.disabled = false;
+        
+        if (data.success && data.pos && Array.isArray(data.pos)) {
+            if (data.pos.length === 0) {
+                selector.innerHTML = '<option value="">No POs found</option>';
+                console.warn('No purchase orders returned from API');
+                return;
+            }
+            
+            data.pos.forEach(po => {
+                if (!po || !po.po_number) {
+                    console.warn('Invalid PO data:', po);
+                    return;
+                }
+                
+                try {
+                    const option = document.createElement('option');
+                    option.value = po.po_number;
+                    option.textContent = `${po.po_number} - ${po.tablet_type || 'N/A'} (${po.ordered || 0} tablets)`;
+                    option.dataset.poData = JSON.stringify(po);
+                    selector.appendChild(option);
+                } catch (e) {
+                    console.error('Error adding PO option:', e, po);
+                }
+            });
+            
+            console.log(`Loaded ${data.pos.length} POs into dropdown`);
+        } else {
+            console.error('Invalid response from API:', data);
+            selector.innerHTML = '<option value="">Error loading POs</option>';
+            if (data.error) {
+                alert('Error loading POs: ' + data.error);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error loading POs:', error);
+        const selector = document.getElementById('po_selector');
+        if (selector) {
+            selector.innerHTML = '<option value="">Error loading POs</option>';
+            selector.disabled = false;
+        }
+        alert('Failed to load purchase orders: ' + error.message);
+    }
+}
+
+// Setup change listener for PO selector (only once, on page load)
+document.addEventListener('DOMContentLoaded', function() {
+    const selector = document.getElementById('po_selector');
+    if (selector) {
         selector.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const button = document.getElementById('generate-report-btn');
@@ -1214,31 +1266,28 @@ async function loadAvailablePOs() {
             
             if (this.value && selectedOption.dataset.poData) {
                 const poData = JSON.parse(selectedOption.dataset.poData);
-                button.disabled = false;
-                preview.classList.remove('hidden');
+                if (button) button.disabled = false;
+                if (preview) preview.classList.remove('hidden');
                 
-                previewContent.innerHTML = `
-                    <div><strong>PO Number:</strong> ${poData.po_number}</div>
-                    <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
-                    <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
-                    <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
-                    <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
-                    <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
-                    <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
-                    ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
-                `;
+                if (previewContent) {
+                    previewContent.innerHTML = `
+                        <div><strong>PO Number:</strong> ${poData.po_number}</div>
+                        <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
+                        <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
+                        <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
+                        <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
+                        <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
+                        <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
+                        ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
+                    `;
+                }
             } else {
-                button.disabled = true;
-                preview.classList.add('hidden');
+                if (button) button.disabled = true;
+                if (preview) preview.classList.add('hidden');
             }
         });
-        
-    } catch (error) {
-        console.error('Failed to load POs:', error);
-        const selector = document.getElementById('po_selector');
-        selector.innerHTML = '<option value="">Error loading POs</option>';
     }
-}
+});
 
 async function generatePOReport() {
     const selector = document.getElementById('po_selector');

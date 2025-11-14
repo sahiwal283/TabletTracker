@@ -2486,15 +2486,27 @@ def get_po_summary_for_reports():
     try:
         conn = get_db()
         
-        # Get PO summary with date ranges
+        # First, verify the table exists and has data
+        po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
+        if not po_count or po_count['count'] == 0:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'pos': [],
+                'total_count': 0,
+                'message': 'No purchase orders found'
+            })
+        
+        # Get PO summary with date ranges - use COALESCE for safe handling of NULLs
         pos = conn.execute('''
             SELECT 
+                po.id,
                 po.po_number,
                 po.tablet_type,
-                po.internal_status,
-                po.ordered_quantity,
-                po.current_good_count,
-                po.current_damaged_count,
+                COALESCE(po.internal_status, 'Active') as internal_status,
+                COALESCE(po.ordered_quantity, 0) as ordered_quantity,
+                COALESCE(po.current_good_count, 0) as current_good_count,
+                COALESCE(po.current_damaged_count, 0) as current_damaged_count,
                 po.created_at,
                 po.updated_at,
                 COUNT(DISTINCT ws.id) as submission_count,
@@ -2506,48 +2518,56 @@ def get_po_summary_for_reports():
             FROM purchase_orders po
             LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
             LEFT JOIN shipments s ON po.id = s.po_id
-            GROUP BY po.id
+            WHERE po.po_number IS NOT NULL
+            GROUP BY po.id, po.po_number, po.tablet_type, po.internal_status, 
+                     po.ordered_quantity, po.current_good_count, po.current_damaged_count,
+                     po.created_at, po.updated_at, s.actual_delivery, s.delivered_at, s.tracking_status
             ORDER BY po.created_at DESC
             LIMIT 100
         ''').fetchall()
         
         po_list = []
         for po in pos:
-            # Calculate pack time if possible
-            pack_time = None
-            delivery_date = None
-            completion_date = None
-            
-            if po['actual_delivery']:
-                delivery_date = po['actual_delivery']
-            elif po['delivered_at']:
-                delivery_date = po['delivered_at']
-            
-            if po['last_submission']:
-                completion_date = po['last_submission'][:10]
-            elif po['internal_status'] == 'Complete':
-                completion_date = po['updated_at'][:10]
-            
-            if delivery_date and completion_date:
-                try:
-                    del_dt = datetime.strptime(delivery_date[:10], '%Y-%m-%d')
-                    comp_dt = datetime.strptime(completion_date, '%Y-%m-%d')
-                    pack_time = (comp_dt - del_dt).days
-                except:
-                    pack_time = None
-            
-            po_list.append({
-                'po_number': po['po_number'],
-                'tablet_type': po['tablet_type'],
-                'status': po['internal_status'],
-                'ordered': po['ordered_quantity'] or 0,
-                'produced': po['current_good_count'] or 0,
-                'damaged': po['current_damaged_count'] or 0,
-                'created_date': po['created_at'][:10] if po['created_at'] else None,
-                'submissions': po['submission_count'],
-                'pack_time_days': pack_time,
-                'tracking_status': po['tracking_status']
-            })
+            try:
+                # Calculate pack time if possible
+                pack_time = None
+                delivery_date = None
+                completion_date = None
+                
+                if po.get('actual_delivery'):
+                    delivery_date = str(po['actual_delivery'])
+                elif po.get('delivered_at'):
+                    delivery_date = str(po['delivered_at'])
+                
+                if po.get('last_submission'):
+                    completion_date = str(po['last_submission'])[:10]
+                elif po.get('internal_status') == 'Complete' and po.get('updated_at'):
+                    completion_date = str(po['updated_at'])[:10]
+                
+                if delivery_date and completion_date:
+                    try:
+                        del_dt = datetime.strptime(delivery_date[:10], '%Y-%m-%d')
+                        comp_dt = datetime.strptime(completion_date, '%Y-%m-%d')
+                        pack_time = (comp_dt - del_dt).days
+                    except Exception:
+                        pack_time = None
+                
+                po_list.append({
+                    'po_number': po.get('po_number') or 'N/A',
+                    'tablet_type': po.get('tablet_type') or 'N/A',
+                    'status': po.get('internal_status') or 'Active',
+                    'ordered': int(po.get('ordered_quantity') or 0),
+                    'produced': int(po.get('current_good_count') or 0),
+                    'damaged': int(po.get('current_damaged_count') or 0),
+                    'created_date': str(po['created_at'])[:10] if po.get('created_at') else None,
+                    'submissions': int(po.get('submission_count') or 0),
+                    'pack_time_days': pack_time,
+                    'tracking_status': po.get('tracking_status')
+                })
+            except Exception as e:
+                # Log error but continue processing other POs
+                print(f"Error processing PO {po.get('po_number', 'unknown')}: {e}")
+                continue
         
         conn.close()
         
@@ -2558,9 +2578,14 @@ def get_po_summary_for_reports():
         })
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in get_po_summary_for_reports: {e}")
+        print(error_trace)
         return jsonify({
             'success': False,
-            'error': f'Failed to get PO summary: {str(e)}'
+            'error': f'Failed to get PO summary: {str(e)}',
+            'trace': error_trace
         }), 500
 
 # ===== RECEIVING MANAGEMENT ROUTES =====
