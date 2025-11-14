@@ -1398,8 +1398,6 @@ async function generatePOReport() {
         
         // Generate filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const reportTypeSelector = document.getElementById('report_type_selector');
-        const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
         const reportName = reportType === 'vendor' ? 'vendor_report' : 'production_report';
         const poSuffix = selector.value ? `_${selector.value}` : '';
         a.download = `${poSuffix}${reportName}_${timestamp}.pdf`;
@@ -1409,8 +1407,6 @@ async function generatePOReport() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        const reportTypeSelector = document.getElementById('report_type_selector');
-        const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
         const reportTypeName = reportType === 'vendor' ? 'Vendor' : 'Production';
         const poText = selector.value ? ` for ${selector.value}` : '';
         showSuccess(`${reportTypeName} report${poText} generated successfully!`);
