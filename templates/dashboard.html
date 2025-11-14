@@ -1443,7 +1443,8 @@ async function generateAllPOsReport() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        showSuccess('All POs report generated successfully!');
+        const reportTypeName = reportType === 'vendor' ? 'Vendor' : 'Production';
+        showSuccess(`All POs ${reportTypeName} report generated successfully!`);
         
     } catch (error) {
         console.error('Report generation error:', error);
