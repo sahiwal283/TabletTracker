@@ -501,5 +501,202 @@
             });
         });
     </script>
+
+<!-- Shared Edit Submission Modal (Available on all pages) -->
+<div id="edit-submission-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[60]" onclick="closeEditSubmissionModal(event)">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4" onclick="event.stopPropagation()">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Edit Submission</h3>
+                <button onclick="closeEditSubmissionModal(event)" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            
+            <input type="hidden" id="edit-submission-id">
+            <input type="hidden" id="edit-po-context-po-id">
+            <input type="hidden" id="edit-po-context-item-id">
+            
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Displays Made</label>
+                        <input type="number" id="edit-displays" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cards Remaining</label>
+                        <input type="number" id="edit-packs" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Loose Tablets</label>
+                        <input type="number" id="edit-loose" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Damaged Tablets</label>
+                        <input type="number" id="edit-damaged" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Box Number</label>
+                        <input type="number" id="edit-box-number" min="1" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Bag Number</label>
+                        <input type="number" id="edit-bag-number" min="1" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Bag Label Count</label>
+                        <input type="number" id="edit-bag-label-count" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                
+                <!-- Admin Notes (Editable) -->
+                <div id="admin-notes-section" class="mt-4">
+                    <label class="block text-sm font-medium text-purple-800 mb-1">🔒 Admin Notes (Optional)</label>
+                    <textarea id="edit-admin-notes" rows="3"
+                              class="w-full px-3 py-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-purple-50 text-sm text-gray-700"
+                              placeholder="Add internal notes visible only to admins..."></textarea>
+                    <p class="text-xs text-purple-600 mt-1">These notes are only visible to administrators</p>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeEditSubmissionModal(event)" 
+                        class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                    Cancel
+                </button>
+                <button onclick="saveSubmissionEdit()" 
+                        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shared Edit Submission Modal JavaScript (Available on all pages) -->
+<script>
+// Edit Submission Modal Functions (shared across all pages)
+async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/details`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert(data.error || 'Failed to load submission');
+            return;
+        }
+        
+        const sub = data.submission;
+        
+        // Populate the form
+        document.getElementById('edit-submission-id').value = sub.id;
+        const poContextInput = document.getElementById('edit-po-context-po-id');
+        const itemContextInput = document.getElementById('edit-po-context-item-id');
+        if (poContextInput && poId !== null) poContextInput.value = poId || '';
+        if (itemContextInput && inventoryItemId !== null) itemContextInput.value = inventoryItemId || '';
+        document.getElementById('edit-displays').value = sub.displays_made || 0;
+        document.getElementById('edit-packs').value = sub.packs_remaining || 0;
+        document.getElementById('edit-loose').value = sub.loose_tablets || 0;
+        document.getElementById('edit-damaged').value = sub.damaged_tablets || 0;
+        document.getElementById('edit-box-number').value = sub.box_number || '';
+        document.getElementById('edit-bag-number').value = sub.bag_number || '';
+        document.getElementById('edit-bag-label-count').value = sub.bag_label_count || '';
+        
+        // Populate admin notes textarea
+        const adminNotesTextarea = document.getElementById('edit-admin-notes');
+        if (adminNotesTextarea) {
+            adminNotesTextarea.value = sub.admin_notes || '';
+        }
+        
+        // Show modal
+        document.getElementById('edit-submission-modal').classList.remove('hidden');
+    } catch (error) {
+        console.error('Error loading submission:', error);
+        alert('Failed to load submission: ' + error.message);
+    }
+}
+
+function closeEditSubmissionModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('edit-submission-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+}
+
+async function saveSubmissionEdit() {
+    const submissionId = document.getElementById('edit-submission-id').value;
+    const poId = document.getElementById('edit-po-context-po-id')?.value || '';
+    const inventoryItemId = document.getElementById('edit-po-context-item-id')?.value || '';
+    
+    const formData = {
+        displays_made: parseInt(document.getElementById('edit-displays').value) || 0,
+        packs_remaining: parseInt(document.getElementById('edit-packs').value) || 0,
+        loose_tablets: parseInt(document.getElementById('edit-loose').value) || 0,
+        damaged_tablets: parseInt(document.getElementById('edit-damaged').value) || 0,
+        box_number: parseInt(document.getElementById('edit-box-number').value) || null,
+        bag_number: parseInt(document.getElementById('edit-bag-number').value) || null,
+        bag_label_count: parseInt(document.getElementById('edit-bag-label-count').value) || null,
+        admin_notes: document.getElementById('edit-admin-notes')?.value?.trim() || null
+    };
+    
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Submission updated successfully!');
+            closeEditSubmissionModal();
+            
+            // If we're in a PO modal context, refresh it instead of reloading the page
+            if (poId && poId !== '') {
+                // Refresh the PO submissions modal
+                const poNumber = document.querySelector('#submissions-modal h3')?.textContent.match(/PO-[^\s]+/)?.[0] || '';
+                if (poNumber && typeof viewPOSubmissions === 'function') {
+                    viewPOSubmissions(parseInt(poId), poNumber, inventoryItemId || null);
+                } else {
+                    location.reload();
+                }
+            } else {
+                location.reload();
+            }
+        } else {
+            const errorMsg = result.error || 'Failed to update submission';
+            if (typeof showError === 'function') {
+                showError(errorMsg);
+            } else {
+                alert('Error: ' + errorMsg);
+            }
+        }
+    } catch (error) {
+        console.error('Error updating submission:', error);
+        const errorMsg = 'Failed to update submission: ' + error.message;
+        if (typeof showError === 'function') {
+            showError(errorMsg);
+        } else {
+            alert(errorMsg);
+        }
+    }
+}
+</script>
 </body>
 </html>
