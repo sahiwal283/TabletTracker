@@ -1273,11 +1273,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const preview = document.getElementById('po_preview');
             const previewContent = document.getElementById('po_preview_content');
             
-            if (this.value && selectedOption.dataset.poData) {
-                const poData = JSON.parse(selectedOption.dataset.poData);
+            // Check report type - vendor report doesn't require PO selection
+            const reportTypeSelector = document.getElementById('report_type_selector');
+            const reportType = reportTypeSelector ? reportTypeSelector.value : 'production';
+            
+            if (reportType === 'vendor' || (this.value && selectedOption.dataset.poData)) {
                 if (button) button.disabled = false;
-                if (preview) preview.classList.remove('hidden');
-                
+                if (preview && this.value && selectedOption.dataset.poData) {
+                    preview.classList.remove('hidden');
                     const poData = JSON.parse(selectedOption.dataset.poData);
                     if (previewContent) {
                         previewContent.innerHTML = `
