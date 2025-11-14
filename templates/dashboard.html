@@ -1308,32 +1308,38 @@ document.addEventListener('DOMContentLoaded', function() {
             const reportTypeSelector = document.getElementById('report_type_selector');
             const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
             
-            if (reportType === 'vendor' || (this.value && selectedOption.dataset.poData)) {
-                if (button && reportType === 'production') {
-                    // Only enable for production if PO is selected
-                    button.disabled = false;
-                }
-                if (preview && this.value && selectedOption.dataset.poData) {
-                    preview.classList.remove('hidden');
-                    const poData = JSON.parse(selectedOption.dataset.poData);
-                    if (previewContent) {
-                        previewContent.innerHTML = `
-                            <div><strong>PO Number:</strong> ${poData.po_number}</div>
-                            <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
-                            <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
-                            <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
-                            <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
-                            <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
-                            <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
-                            ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
-                        `;
-                    }
-                }
-            } else {
-                if (reportType === 'production') {
-                    if (button) button.disabled = true;
-                }
+            // Button state logic:
+            // - Vendor reports: always enabled (no PO selection required)
+            // - Production reports: enabled only when a PO is selected
+            if (reportType === 'vendor') {
+                // Vendor report doesn't require PO selection
+                if (button) button.disabled = false;
                 if (preview) preview.classList.add('hidden');
+            } else if (reportType === 'production') {
+                // Production report requires PO selection
+                if (this.value && selectedOption.dataset.poData) {
+                    if (button) button.disabled = false;
+                    if (preview) {
+                        preview.classList.remove('hidden');
+                        const poData = JSON.parse(selectedOption.dataset.poData);
+                        if (previewContent) {
+                            previewContent.innerHTML = `
+                                <div><strong>PO Number:</strong> ${poData.po_number}</div>
+                                <div><strong>Tablet Type:</strong> ${poData.tablet_type || 'N/A'}</div>
+                                <div><strong>Status:</strong> ${poData.status || 'Unknown'}</div>
+                                <div><strong>Ordered:</strong> ${poData.ordered || 0} tablets</div>
+                                <div><strong>Produced:</strong> ${poData.produced || 0} tablets</div>
+                                <div><strong>Damaged:</strong> ${poData.damaged || 0} tablets</div>
+                                <div><strong>Submissions:</strong> ${poData.submissions || 0}</div>
+                                ${poData.pack_time_days ? `<div><strong>Pack Time:</strong> ${poData.pack_time_days} days</div>` : ''}
+                            `;
+                        }
+                    }
+                } else {
+                    // No PO selected for production report
+                    if (button) button.disabled = true;
+                    if (preview) preview.classList.add('hidden');
+                }
             }
         });
     }

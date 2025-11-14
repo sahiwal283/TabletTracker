@@ -80,138 +80,158 @@ class ProductionReportGenerator:
             
         Returns:
             bytes: PDF content
+            
+        Raises:
+            Exception: If report generation fails
         """
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
-                              topMargin=40, bottomMargin=30)
-        
-        story = []
-        
-        # Report header (more compact)
-        story.append(Paragraph("Production Cycle Report", self.styles['CustomTitle']))
-        # Get current time in Eastern Time
-        eastern = ZoneInfo("America/New_York")
-        now_et = datetime.now(eastern)
-        # Determine if DST is in effect (EDT) or not (EST)
-        tz_abbr = "EDT" if now_et.dst() else "EST"
-        story.append(Paragraph(f"Generated on {now_et.strftime('%B %d, %Y at %I:%M %p')} {tz_abbr}", self.styles['Normal']))
-        
-        if start_date or end_date:
-            date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
-            story.append(Paragraph(date_range, self.styles['Normal']))
-        
-        story.append(Spacer(1, 10))
-        
-        # Get report data
-        report_data = self._get_report_data(start_date, end_date, po_numbers)
-        
-        # Executive Summary
-        story.extend(self._create_executive_summary(report_data))
-        
-        # Individual PO Reports
-        for po_data in report_data['pos']:
-            story.extend(self._create_po_detailed_report(po_data))
-            story.append(PageBreak())
-        
-        # Overall Production Metrics
-        story.extend(self._create_overall_metrics(report_data))
-        
-        # Build PDF
-        doc.build(story)
-        buffer.seek(0)
-        return buffer.getvalue()
+        buffer = None
+        try:
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
+                                  topMargin=40, bottomMargin=30)
+            
+            story = []
+            
+            # Report header (more compact)
+            story.append(Paragraph("Production Cycle Report", self.styles['CustomTitle']))
+            # Get current time in Eastern Time
+            eastern = ZoneInfo("America/New_York")
+            now_et = datetime.now(eastern)
+            # Determine if DST is in effect (EDT) or not (EST)
+            tz_abbr = "EDT" if now_et.dst() else "EST"
+            story.append(Paragraph(f"Generated on {now_et.strftime('%B %d, %Y at %I:%M %p')} {tz_abbr}", self.styles['Normal']))
+            
+            if start_date or end_date:
+                date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
+                story.append(Paragraph(date_range, self.styles['Normal']))
+            
+            story.append(Spacer(1, 10))
+            
+            # Get report data
+            report_data = self._get_report_data(start_date, end_date, po_numbers)
+            
+            # Executive Summary
+            story.extend(self._create_executive_summary(report_data))
+            
+            # Individual PO Reports
+            for po_data in report_data['pos']:
+                story.extend(self._create_po_detailed_report(po_data))
+                story.append(PageBreak())
+            
+            # Overall Production Metrics
+            story.extend(self._create_overall_metrics(report_data))
+            
+            # Build PDF
+            doc.build(story)
+            buffer.seek(0)
+            return buffer.getvalue()
+        except Exception as e:
+            # Ensure buffer is closed if it was created
+            if buffer:
+                try:
+                    buffer.close()
+                except:
+                    pass
+            raise Exception(f"Failed to generate production report: {str(e)}")
 
     def _get_report_data(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> Dict:
         """Gather comprehensive data for the report"""
-        conn = self.get_db_connection()
-        
-        # Build date filter
-        date_filter = ""
-        params = []
-        
-        if start_date:
-            date_filter += " AND po.created_at >= ?"
-            params.append(start_date)
-        if end_date:
-            date_filter += " AND po.created_at <= ?"
-            params.append(end_date + " 23:59:59")
-        
-        # Build PO filter
-        po_filter = ""
-        if po_numbers:
-            placeholders = ",".join(["?" for _ in po_numbers])
-            po_filter = f" AND po.po_number IN ({placeholders})"
-            params.extend(po_numbers)
-        
-        # Get PO data with all related information
-        po_query = f"""
-        SELECT 
-            po.*,
-            s.tracking_number,
-            s.carrier,
-            s.shipped_date,
-            s.estimated_delivery,
-            s.actual_delivery,
-            s.tracking_status,
-            s.delivered_at,
-            COUNT(DISTINCT ws.id) as total_submissions,
-            MIN(ws.created_at) as first_submission,
-            MAX(ws.created_at) as last_submission
-        FROM purchase_orders po
-        LEFT JOIN shipments s ON po.id = s.po_id
-        LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
-        WHERE 1=1 {date_filter} {po_filter}
-        GROUP BY po.id
-        ORDER BY po.created_at DESC
-        """
-        
-        pos = conn.execute(po_query, params).fetchall()
-        
-        report_data = {
-            'pos': [],
-            'summary': {
-                'total_pos': len(pos),
-                'total_ordered': 0,
-                'total_produced': 0,
-                'total_damaged': 0,
-                'average_pack_time': 0,
-                'efficiency_rate': 0
+        conn = None
+        try:
+            conn = self.get_db_connection()
+            
+            # Build date filter
+            date_filter = ""
+            params = []
+            
+            if start_date:
+                date_filter += " AND po.created_at >= ?"
+                params.append(start_date)
+            if end_date:
+                date_filter += " AND po.created_at <= ?"
+                params.append(end_date + " 23:59:59")
+            
+            # Build PO filter
+            po_filter = ""
+            if po_numbers:
+                placeholders = ",".join(["?" for _ in po_numbers])
+                po_filter = f" AND po.po_number IN ({placeholders})"
+                params.extend(po_numbers)
+            
+            # Get PO data with all related information
+            po_query = f"""
+            SELECT 
+                po.*,
+                s.tracking_number,
+                s.carrier,
+                s.shipped_date,
+                s.estimated_delivery,
+                s.actual_delivery,
+                s.tracking_status,
+                s.delivered_at,
+                COUNT(DISTINCT ws.id) as total_submissions,
+                MIN(ws.created_at) as first_submission,
+                MAX(ws.created_at) as last_submission
+            FROM purchase_orders po
+            LEFT JOIN shipments s ON po.id = s.po_id
+            LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+            WHERE 1=1 {date_filter} {po_filter}
+            GROUP BY po.id
+            ORDER BY po.created_at DESC
+            """
+            
+            pos = conn.execute(po_query, params).fetchall()
+            
+            report_data = {
+                'pos': [],
+                'summary': {
+                    'total_pos': len(pos),
+                    'total_ordered': 0,
+                    'total_produced': 0,
+                    'total_damaged': 0,
+                    'average_pack_time': 0,
+                    'efficiency_rate': 0
+                }
             }
-        }
-        
-        total_pack_times = []
-        
-        for po in pos:
-            # Convert to dict immediately 
-            po_dict = dict(po)
-            po_data = self._get_detailed_po_data(conn, po_dict['id'])
             
-            # Calculate pack time if we have delivery and completion data
-            pack_time = self._calculate_pack_time(po_data)
-            if pack_time:
-                total_pack_times.append(pack_time)
+            total_pack_times = []
             
-            report_data['pos'].append(po_data)
+            for po in pos:
+                # Convert to dict immediately 
+                po_dict = dict(po)
+                po_data = self._get_detailed_po_data(conn, po_dict['id'])
+                
+                # Calculate pack time if we have delivery and completion data
+                pack_time = self._calculate_pack_time(po_data)
+                if pack_time:
+                    total_pack_times.append(pack_time)
+                
+                report_data['pos'].append(po_data)
+                
+                # Update summary stats
+                report_data['summary']['total_ordered'] += po_data.get('ordered_quantity', 0) or 0
+                report_data['summary']['total_produced'] += po_data.get('current_good_count', 0) or 0
+                report_data['summary']['total_damaged'] += po_data.get('current_damaged_count', 0) or 0
             
-            # Update summary stats
-            report_data['summary']['total_ordered'] += po_data.get('ordered_quantity', 0) or 0
-            report_data['summary']['total_produced'] += po_data.get('current_good_count', 0) or 0
-            report_data['summary']['total_damaged'] += po_data.get('current_damaged_count', 0) or 0
-        
-        # Calculate average pack time
-        if total_pack_times:
-            report_data['summary']['average_pack_time'] = sum(total_pack_times) / len(total_pack_times)
-        
-        # Calculate efficiency rate
-        if report_data['summary']['total_ordered'] > 0:
-            total_processed = report_data['summary']['total_produced'] + report_data['summary']['total_damaged']
-            report_data['summary']['efficiency_rate'] = (report_data['summary']['total_produced'] / total_processed * 100) if total_processed > 0 else 0
-        
-        # Get product breakdown
-        report_data['summary']['product_breakdown'] = self._get_product_breakdown(conn, start_date, end_date, po_numbers)
-        
-        conn.close()
-        return report_data
+            # Calculate average pack time
+            if total_pack_times:
+                report_data['summary']['average_pack_time'] = sum(total_pack_times) / len(total_pack_times)
+            
+            # Calculate efficiency rate
+            if report_data['summary']['total_ordered'] > 0:
+                total_processed = report_data['summary']['total_produced'] + report_data['summary']['total_damaged']
+                report_data['summary']['efficiency_rate'] = (report_data['summary']['total_produced'] / total_processed * 100) if total_processed > 0 else 0
+            
+            # Get product breakdown
+            report_data['summary']['product_breakdown'] = self._get_product_breakdown(conn, start_date, end_date, po_numbers)
+            
+            return report_data
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
 
     def _get_product_breakdown(self, conn: sqlite3.Connection, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> List[Dict]:
         """Get breakdown of ordered/produced/damaged by product/tablet type"""
@@ -263,73 +283,85 @@ class ProductionReportGenerator:
 
     def _get_detailed_po_data(self, conn: sqlite3.Connection, po_id: int) -> Dict:
         """Get detailed data for a specific PO"""
-        # Base PO info
-        po = conn.execute("SELECT * FROM purchase_orders WHERE id = ?", (po_id,)).fetchone()
-        
-        # PO lines
-        lines = conn.execute("""
-            SELECT pl.*, tt.tablet_type_name
-            FROM po_lines pl
-            LEFT JOIN tablet_types tt ON pl.inventory_item_id = tt.inventory_item_id
-            WHERE pl.po_id = ?
-            ORDER BY pl.line_item_name
-        """, (po_id,)).fetchall()
-        
-        # Shipment info
-        shipment = conn.execute("SELECT * FROM shipments WHERE po_id = ?", (po_id,)).fetchone()
-        
-        # Warehouse submissions
-        submissions = conn.execute("""
-            SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.tablet_type_name
-            FROM warehouse_submissions ws
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            WHERE ws.assigned_po_id = ?
-            ORDER BY ws.created_at
-        """, (po_id,)).fetchall()
-        
-        # Convert to dicts to avoid sqlite3.Row issues
-        po_dict = dict(po) if po else {}
-        lines_list = [dict(line) for line in lines] if lines else []
-        shipment_dict = dict(shipment) if shipment else None
-        submissions_list = [dict(sub) for sub in submissions] if submissions else []
-        
-        # Calculate round numbers for each line item
-        current_po_number = po_dict.get('po_number') if po_dict else None
-        if current_po_number:
-            for line in lines_list:
-                round_number = None
-                inventory_item_id = line.get('inventory_item_id')
-                
-                if inventory_item_id:
-                    # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
-                    pos_with_item = conn.execute('''
-                        SELECT DISTINCT po.po_number, po.id
-                        FROM purchase_orders po
-                        JOIN po_lines pl ON po.id = pl.po_id
-                        WHERE pl.inventory_item_id = ?
-                        ORDER BY po.po_number ASC
-                    ''', (inventory_item_id,)).fetchall()
+        try:
+            # Base PO info
+            po = conn.execute("SELECT * FROM purchase_orders WHERE id = ?", (po_id,)).fetchone()
+            
+            # PO lines
+            lines = conn.execute("""
+                SELECT pl.*, tt.tablet_type_name
+                FROM po_lines pl
+                LEFT JOIN tablet_types tt ON pl.inventory_item_id = tt.inventory_item_id
+                WHERE pl.po_id = ?
+                ORDER BY pl.line_item_name
+            """, (po_id,)).fetchall()
+            
+            # Shipment info
+            shipment = conn.execute("SELECT * FROM shipments WHERE po_id = ?", (po_id,)).fetchone()
+            
+            # Warehouse submissions
+            submissions = conn.execute("""
+                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.tablet_type_name
+                FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                WHERE ws.assigned_po_id = ?
+                ORDER BY ws.created_at
+            """, (po_id,)).fetchall()
+            
+            # Convert to dicts to avoid sqlite3.Row issues
+            po_dict = dict(po) if po else {}
+            lines_list = [dict(line) for line in lines] if lines else []
+            shipment_dict = dict(shipment) if shipment else None
+            submissions_list = [dict(sub) for sub in submissions] if submissions else []
+            
+            # Calculate round numbers for each line item
+            current_po_number = po_dict.get('po_number') if po_dict else None
+            if current_po_number:
+                for line in lines_list:
+                    round_number = None
+                    inventory_item_id = line.get('inventory_item_id')
                     
-                    # Find the position of current PO in this list (1-indexed = round number)
-                    for idx, po_row in enumerate(pos_with_item, start=1):
-                        if po_row['po_number'] == current_po_number:
-                            round_number = idx
-                            break
-                
-                line['round_number'] = round_number
-        
-        # Calculate production breakdown
-        production_breakdown = self._calculate_production_breakdown(submissions_list)
-        
-        return {
-            **po_dict,
-            'lines': lines_list,
-            'shipment': shipment_dict,
-            'submissions': submissions_list,
-            'production_breakdown': production_breakdown,
-            'pack_time_days': self._calculate_pack_time({'po': po_dict, 'shipment': shipment_dict, 'submissions': submissions_list})
-        }
+                    if inventory_item_id:
+                        # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
+                        pos_with_item = conn.execute('''
+                            SELECT DISTINCT po.po_number, po.id
+                            FROM purchase_orders po
+                            JOIN po_lines pl ON po.id = pl.po_id
+                            WHERE pl.inventory_item_id = ?
+                            ORDER BY po.po_number ASC
+                        ''', (inventory_item_id,)).fetchall()
+                        
+                        # Find the position of current PO in this list (1-indexed = round number)
+                        for idx, po_row in enumerate(pos_with_item, start=1):
+                            if po_row['po_number'] == current_po_number:
+                                round_number = idx
+                                break
+                    
+                    line['round_number'] = round_number
+            
+            # Calculate production breakdown
+            production_breakdown = self._calculate_production_breakdown(submissions_list)
+            
+            return {
+                **po_dict,
+                'lines': lines_list,
+                'shipment': shipment_dict,
+                'submissions': submissions_list,
+                'production_breakdown': production_breakdown,
+                'pack_time_days': self._calculate_pack_time({'po': po_dict, 'shipment': shipment_dict, 'submissions': submissions_list})
+            }
+        except Exception as e:
+            # Return minimal data structure if error occurs
+            return {
+                'id': po_id,
+                'po_number': f'PO-{po_id}',
+                'lines': [],
+                'shipment': None,
+                'submissions': [],
+                'production_breakdown': {},
+                'pack_time_days': None
+            }
 
     def _calculate_production_breakdown(self, submissions: List[Dict]) -> Dict:
         """Calculate detailed production breakdown from submissions"""
@@ -814,80 +846,98 @@ class ProductionReportGenerator:
             
         Returns:
             bytes: PDF content
+            
+        Raises:
+            Exception: If report generation fails
         """
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
-                              topMargin=40, bottomMargin=30)
-        
-        story = []
-        
-        # Report header
-        story.append(Paragraph("Vendor Report", self.styles['CustomTitle']))
-        # Get current time in Eastern Time
-        eastern = ZoneInfo("America/New_York")
-        now_et = datetime.now(eastern)
-        # Determine if DST is in effect (EDT) or not (EST)
-        tz_abbr = "EDT" if now_et.dst() else "EST"
-        story.append(Paragraph(f"Generated on {now_et.strftime('%B %d, %Y at %I:%M %p')} {tz_abbr}", self.styles['Normal']))
-        
-        if start_date or end_date:
-            date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
-            story.append(Paragraph(date_range, self.styles['Normal']))
-        
-        story.append(Spacer(1, 20))
-        
-        # Get report data
-        report_data = self._get_report_data(start_date, end_date, po_numbers)
-        
-        # Only include Production Breakdown by Product table
-        summary = report_data['summary']
-        
-        if summary.get('product_breakdown'):
-            product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
+        buffer = None
+        try:
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, 
+                                  topMargin=40, bottomMargin=30)
             
-            product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
+            story = []
             
-            for product in summary['product_breakdown']:
+            # Report header
+            story.append(Paragraph("Vendor Report", self.styles['CustomTitle']))
+            # Get current time in Eastern Time
+            eastern = ZoneInfo("America/New_York")
+            now_et = datetime.now(eastern)
+            # Determine if DST is in effect (EDT) or not (EST)
+            tz_abbr = "EDT" if now_et.dst() else "EST"
+            story.append(Paragraph(f"Generated on {now_et.strftime('%B %d, %Y at %I:%M %p')} {tz_abbr}", self.styles['Normal']))
+            
+            if start_date or end_date:
+                date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
+                story.append(Paragraph(date_range, self.styles['Normal']))
+            
+            story.append(Spacer(1, 20))
+            
+            # Get report data
+            report_data = self._get_report_data(start_date, end_date, po_numbers)
+            
+            # Only include Production Breakdown by Product table
+            summary = report_data['summary']
+            
+            if summary.get('product_breakdown') and len(summary['product_breakdown']) > 0:
+                product_heading = Paragraph("Production Breakdown by Product", self.styles['SectionHeader'])
+                
+                product_data = [['Product', 'Ordered', 'Produced', 'Damaged']]
+                
+                for product in summary['product_breakdown']:
+                    product_data.append([
+                        product['product_name'],
+                        f"{product['ordered']:,}",
+                        f"{product['produced']:,}",
+                        f"{product['damaged']:,}"
+                    ])
+                
+                # Add totals row
                 product_data.append([
-                    product['product_name'],
-                    f"{product['ordered']:,}",
-                    f"{product['produced']:,}",
-                    f"{product['damaged']:,}"
+                    'TOTAL',
+                    f"{summary['total_ordered']:,}",
+                    f"{summary['total_produced']:,}",
+                    f"{summary['total_damaged']:,}"
                 ])
+                
+                product_table = Table(product_data, colWidths=[3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
+                product_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                    # Totals row styling
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#93B1B5')),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                    ('LINEABOVE', (0, -1), (-1, -1), 2, colors.black),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                
+                story.append(KeepTogether([product_heading, product_table]))
+            else:
+                # Show message if no data available
+                story.append(Paragraph("No production data available for the selected criteria.", self.styles['Normal']))
+                story.append(Spacer(1, 10))
+                story.append(Paragraph("Please adjust your date range or PO selection.", self.styles['Normal']))
             
-            # Add totals row
-            product_data.append([
-                'TOTAL',
-                f"{summary['total_ordered']:,}",
-                f"{summary['total_produced']:,}",
-                f"{summary['total_damaged']:,}"
-            ])
-            
-            product_table = Table(product_data, colWidths=[3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
-            product_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F7C82')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),  # Center numbers
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                # Totals row styling
-                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#93B1B5')),
-                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                ('LINEABOVE', (0, -1), (-1, -1), 2, colors.black),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            
-            story.append(KeepTogether([product_heading, product_table]))
-        
-        # Build PDF
-        doc.build(story)
-        buffer.seek(0)
-        return buffer.getvalue()
+            # Build PDF
+            doc.build(story)
+            buffer.seek(0)
+            return buffer.getvalue()
+        except Exception as e:
+            # Ensure buffer is closed if it was created
+            if buffer:
+                try:
+                    buffer.close()
+                except:
+                    pass
+            raise Exception(f"Failed to generate vendor report: {str(e)}")
 
 # Example usage and testing
 if __name__ == "__main__":
