@@ -6,6 +6,7 @@ Generates comprehensive PO lifecycle reports with detailed production metrics
 
 import sqlite3
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether
@@ -88,7 +89,12 @@ class ProductionReportGenerator:
         
         # Report header (more compact)
         story.append(Paragraph("Production Cycle Report", self.styles['CustomTitle']))
-        story.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", self.styles['Normal']))
+        # Get current time in Eastern Time
+        eastern = ZoneInfo("America/New_York")
+        now_et = datetime.now(eastern)
+        # Determine if DST is in effect (EDT) or not (EST)
+        tz_abbr = "EDT" if now_et.dst() else "EST"
+        story.append(Paragraph(f"Generated on {now_et.strftime('%B %d, %Y at %I:%M %p')} {tz_abbr}", self.styles['Normal']))
         
         if start_date or end_date:
             date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
@@ -802,7 +808,12 @@ class ProductionReportGenerator:
         
         # Report header
         story.append(Paragraph("Vendor Report", self.styles['CustomTitle']))
-        story.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", self.styles['Normal']))
+        # Get current time in Eastern Time
+        eastern = ZoneInfo("America/New_York")
+        now_et = datetime.now(eastern)
+        # Determine if DST is in effect (EDT) or not (EST)
+        tz_abbr = "EDT" if now_et.dst() else "EST"
+        story.append(Paragraph(f"Generated on {now_et.strftime('%B %d, %Y at %I:%M %p')} {tz_abbr}", self.styles['Normal']))
         
         if start_date or end_date:
             date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
