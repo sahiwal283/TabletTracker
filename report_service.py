@@ -871,7 +871,7 @@ class ProductionReportGenerator:
                 date_range = f"Period: {start_date or 'Beginning'} to {end_date or 'Present'}"
                 story.append(Paragraph(date_range, self.styles['Normal']))
             
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, 12))
             
             # Get report data
             report_data = self._get_report_data(start_date, end_date, po_numbers)
