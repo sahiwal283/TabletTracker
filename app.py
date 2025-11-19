@@ -624,12 +624,20 @@ def submit_warehouse():
             return jsonify({'error': 'Product not found'}), 400
         
         # Validate product configuration
-        packages_per_display = product.get('packages_per_display') or 0
-        tablets_per_package = product.get('tablets_per_package') or 0
+        packages_per_display = product.get('packages_per_display')
+        tablets_per_package = product.get('tablets_per_package')
         
-        if packages_per_display is None or tablets_per_package is None:
+        if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
             conn.close()
-            return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required'}), 400
+            return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
+        
+        # Convert to int after validation
+        try:
+            packages_per_display = int(packages_per_display)
+            tablets_per_package = int(tablets_per_package)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
         
         # Calculate tablet counts with safe type conversion
         try:
@@ -4016,15 +4024,31 @@ def edit_submission(submission_id):
             conn.close()
             return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
         
+        # Validate product configuration values
+        packages_per_display = product.get('packages_per_display')
+        tablets_per_package = product.get('tablets_per_package')
+        
+        if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
+        
+        # Convert to int after validation
+        try:
+            packages_per_display = int(packages_per_display)
+            tablets_per_package = int(tablets_per_package)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'success': False, 'error': 'Invalid numeric values for product configuration'}), 400
+        
         # Calculate old totals to subtract
-        old_good = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
-                   submission['packs_remaining'] * product['tablets_per_package'] +
+        old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
+                   submission['packs_remaining'] * tablets_per_package +
                    submission['loose_tablets'])
         old_damaged = submission['damaged_tablets']
         
         # Calculate new totals
-        new_good = (data['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
-                   data['packs_remaining'] * product['tablets_per_package'] +
+        new_good = (data['displays_made'] * packages_per_display * tablets_per_package +
+                   data['packs_remaining'] * tablets_per_package +
                    data['loose_tablets'])
         new_damaged = data['damaged_tablets']
         
