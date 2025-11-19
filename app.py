@@ -4655,7 +4655,6 @@ def to_est_time_filter(dt_string):
         # Parse the datetime string (assumes UTC)
         if isinstance(dt_string, str):
             # Handle date-only strings (YYYY-MM-DD) - return N/A for time-only display
-            import re
             if re.match(r'^\d{4}-\d{2}-\d{2}$', dt_string):
                 return 'N/A'  # No time component for date-only strings
             
