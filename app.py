@@ -4615,16 +4615,29 @@ def to_est_filter(dt_string):
     try:
         # Parse the datetime string (assumes UTC)
         if isinstance(dt_string, str):
+            # Handle date-only strings (YYYY-MM-DD)
+            import re
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', dt_string):
+                return dt_string  # Return date-only as-is
+            
             # Handle different datetime formats
             if '.' in dt_string:
                 dt = datetime.strptime(dt_string.split('.')[0], '%Y-%m-%d %H:%M:%S')
             else:
                 dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
+            # Assume UTC if no timezone info in string
+            utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
         else:
+            # Already a datetime object
             dt = dt_string
+            if dt.tzinfo is None:
+                # Naive datetime - assume UTC (from database)
+                utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+            else:
+                # Already has timezone - convert to UTC first if needed
+                utc_dt = dt.astimezone(ZoneInfo('UTC'))
         
         # Convert from UTC to Eastern
-        utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
         est_dt = utc_dt.astimezone(ZoneInfo('America/New_York'))
         
         # Format as YYYY-MM-DD HH:MM:SS
@@ -4641,16 +4654,29 @@ def to_est_time_filter(dt_string):
     try:
         # Parse the datetime string (assumes UTC)
         if isinstance(dt_string, str):
+            # Handle date-only strings (YYYY-MM-DD) - return N/A for time-only display
+            import re
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', dt_string):
+                return 'N/A'  # No time component for date-only strings
+            
             # Handle different datetime formats
             if '.' in dt_string:
                 dt = datetime.strptime(dt_string.split('.')[0], '%Y-%m-%d %H:%M:%S')
             else:
                 dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
+            # Assume UTC if no timezone info in string
+            utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
         else:
+            # Already a datetime object
             dt = dt_string
+            if dt.tzinfo is None:
+                # Naive datetime - assume UTC (from database)
+                utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+            else:
+                # Already has timezone - convert to UTC first if needed
+                utc_dt = dt.astimezone(ZoneInfo('UTC'))
         
         # Convert from UTC to Eastern
-        utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
         est_dt = utc_dt.astimezone(ZoneInfo('America/New_York'))
         
         # Format as HH:MM:SS
