@@ -6,6 +6,7 @@ import json
 import os
 import requests
 import hashlib
+import re
 from functools import wraps
 from config import Config
 from zoho_integration import zoho_api
@@ -4616,7 +4617,6 @@ def to_est_filter(dt_string):
         # Parse the datetime string (assumes UTC)
         if isinstance(dt_string, str):
             # Handle date-only strings (YYYY-MM-DD)
-            import re
             if re.match(r'^\d{4}-\d{2}-\d{2}$', dt_string):
                 return dt_string  # Return date-only as-is
             
