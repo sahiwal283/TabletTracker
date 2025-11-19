@@ -559,8 +559,13 @@ def warehouse_form():
 @employee_required
 def submit_warehouse():
     """Process warehouse submission and update PO counts"""
+    conn = None
     try:
         data = request.get_json() if request.is_json else request.form
+        
+        # Validate required fields
+        if not data.get('product_name'):
+            return jsonify({'error': 'product_name is required'}), 400
         
         # Get employee name from session
         conn = get_db()
@@ -585,20 +590,32 @@ def submit_warehouse():
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.product_name = ?
-        ''', (data['product_name'],)).fetchone()
+        ''', (data.get('product_name'),)).fetchone()
         
         if not product:
             conn.close()
             return jsonify({'error': 'Product not found'}), 400
         
-        # Calculate tablet counts
-        displays_made = int(data.get('displays_made', 0))
-        packs_remaining = int(data.get('packs_remaining', 0))
-        loose_tablets = int(data.get('loose_tablets', 0))
-        damaged_tablets = int(data.get('damaged_tablets', 0))
+        # Validate product configuration
+        packages_per_display = product.get('packages_per_display') or 0
+        tablets_per_package = product.get('tablets_per_package') or 0
         
-        good_tablets = (displays_made * product['packages_per_display'] * product['tablets_per_package'] + 
-                       packs_remaining * product['tablets_per_package'] + 
+        if packages_per_display is None or tablets_per_package is None:
+            conn.close()
+            return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required'}), 400
+        
+        # Calculate tablet counts with safe type conversion
+        try:
+            displays_made = int(data.get('displays_made', 0) or 0)
+            packs_remaining = int(data.get('packs_remaining', 0) or 0)
+            loose_tablets = int(data.get('loose_tablets', 0) or 0)
+            damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': 'Invalid numeric values for counts'}), 400
+        
+        good_tablets = (displays_made * packages_per_display * tablets_per_package + 
+                       packs_remaining * tablets_per_package + 
                        loose_tablets)
         
         # Get submission_date (defaults to today if not provided)
@@ -608,17 +625,22 @@ def submit_warehouse():
         admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
         
         # Insert submission record using logged-in employee name WITH inventory_item_id
+        inventory_item_id = product.get('inventory_item_id')
+        if not inventory_item_id:
+            conn.close()
+            return jsonify({'error': 'Product inventory_item_id not found'}), 400
+            
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (employee_name, data['product_name'], product['inventory_item_id'], data.get('box_number'),
+        ''', (employee_name, data.get('product_name'), inventory_item_id, data.get('box_number'),
               data.get('bag_number'), data.get('bag_label_count'),
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes))
         
         # Find open PO lines for this inventory item
-        print(f"Looking for PO lines with inventory_item_id: {product['inventory_item_id']}")
+        print(f"Looking for PO lines with inventory_item_id: {inventory_item_id}")
         # Order by PO number (oldest PO numbers first) since they represent issue order
         # Exclude Draft POs - only assign to Issued/Active POs
         # Note: We do NOT filter by available quantity - POs can receive more than ordered
@@ -629,14 +651,14 @@ def submit_warehouse():
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND COALESCE(po.internal_status, '') != 'Draft'
             ORDER BY po.po_number ASC
-        ''', (product['inventory_item_id'],)).fetchall()
+        ''', (inventory_item_id,)).fetchall()
         
         print(f"Found {len(po_lines)} matching PO lines")
         
         if not po_lines:
             conn.commit()
             conn.close()
-            return jsonify({'warning': f'No open PO found for this tablet type (inventory_item_id: {product["inventory_item_id"]})', 'submission_saved': True})
+            return jsonify({'warning': f'No open PO found for this tablet type (inventory_item_id: {inventory_item_id})', 'submission_saved': True})
         
         # Get the PO we'll assign to (first available line's PO - oldest PO number)
         assigned_po_id = po_lines[0]['po_id'] if po_lines else None
@@ -723,6 +745,11 @@ def submit_warehouse():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
@@ -777,7 +804,7 @@ def admin_dashboard():
         # Create bag identifier from box_number/bag_number
         bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
         # Key includes PO ID so each PO tracks its own bag totals independently
-        bag_key = (sub_dict.get('assigned_po_id'), sub_dict['product_name'], bag_identifier)
+        bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
         
         # Individual calculation for this submission
         individual_calc = sub_dict.get('calculated_total', 0) or 0
@@ -887,7 +914,7 @@ def all_submissions():
         # Create bag identifier from box_number/bag_number
         bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
         # Key includes PO ID so each PO tracks its own bag totals independently
-        bag_key = (sub_dict.get('assigned_po_id'), sub_dict['product_name'], bag_identifier)
+        bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
         
         # Individual calculation for this submission
         individual_calc = sub_dict.get('calculated_total', 0) or 0
@@ -1512,12 +1539,30 @@ def save_shipment():
     conn = None
     try:
         data = request.get_json()
+        
+        # Validate required fields
+        if not data.get('po_id'):
+            return jsonify({'success': False, 'error': 'po_id is required'}), 400
+        
+        # Validate po_id is numeric
+        try:
+            po_id = int(data['po_id'])
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid po_id'}), 400
+        
         conn = get_db()
         
         # For multiple shipments per PO, always create new unless we're editing a specific shipment
         shipment_id = data.get('shipment_id')
         
         if shipment_id:
+            # Validate shipment_id is numeric
+            try:
+                shipment_id = int(shipment_id)
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({'success': False, 'error': 'Invalid shipment_id'}), 400
+                
             # Update existing specific shipment
             conn.execute('''
                 UPDATE shipments 
@@ -1534,7 +1579,7 @@ def save_shipment():
                 INSERT INTO shipments (po_id, tracking_number, carrier, shipped_date,
                                      estimated_delivery, actual_delivery, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (data['po_id'], data.get('tracking_number'), data.get('carrier'), 
+            ''', (po_id, data.get('tracking_number'), data.get('carrier'), 
                   data.get('shipped_date'), data.get('estimated_delivery'), 
                   data.get('actual_delivery'), data.get('notes')))
             # set carrier_code based on carrier
@@ -1544,7 +1589,7 @@ def save_shipment():
         if data.get('tracking_number'):
             current_status = conn.execute(
                 'SELECT internal_status FROM purchase_orders WHERE id = ?',
-                (data['po_id'],)
+                (po_id,)
             ).fetchone()
             
             if current_status and current_status['internal_status'] in ['Draft', 'Issued']:
@@ -1552,8 +1597,8 @@ def save_shipment():
                     UPDATE purchase_orders 
                     SET internal_status = 'Shipped', updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                ''', (data['po_id'],))
-                print(f"Auto-progressed PO {data['po_id']} to Shipped (tracking added)")
+                ''', (po_id,))
+                print(f"Auto-progressed PO {po_id} to Shipped (tracking added)")
         
         conn.commit()
 
@@ -1562,7 +1607,7 @@ def save_shipment():
             sh = conn.execute('''
                 SELECT id FROM shipments WHERE po_id = ? AND tracking_number = ?
                 ORDER BY updated_at DESC LIMIT 1
-            ''', (data['po_id'], data.get('tracking_number'))).fetchone()
+            ''', (po_id, data.get('tracking_number'))).fetchone()
             if sh:
                 try:
                     result = refresh_shipment_row(conn, sh['id'])
@@ -1739,20 +1784,31 @@ def submit_count():
     try:
         data = request.get_json() if request.is_json else request.form
         
+        # Validate required fields
+        if not data.get('tablet_type'):
+            return jsonify({'error': 'tablet_type is required'}), 400
+        if not data.get('employee_name'):
+            return jsonify({'error': 'employee_name is required'}), 400
+        
         conn = get_db()
         
         # Get tablet type details
         tablet_type = conn.execute('''
             SELECT * FROM tablet_types
             WHERE tablet_type_name = ?
-        ''', (data['tablet_type'],)).fetchone()
+        ''', (data.get('tablet_type'),)).fetchone()
         
         if not tablet_type:
             conn.close()
             return jsonify({'error': 'Tablet type not found'}), 400
         
-        actual_count = int(data.get('actual_count', 0))
-        bag_label_count = int(data.get('bag_label_count', 0))
+        # Safe type conversion
+        try:
+            actual_count = int(data.get('actual_count', 0) or 0)
+            bag_label_count = int(data.get('bag_label_count', 0) or 0)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
@@ -1761,12 +1817,17 @@ def submit_count():
         admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
         
         # Insert count record WITH inventory_item_id
+        inventory_item_id = tablet_type.get('inventory_item_id')
+        if not inventory_item_id:
+            conn.close()
+            return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
+            
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (data['employee_name'], data['tablet_type'], tablet_type['inventory_item_id'], data.get('box_number'),
+        ''', (data.get('employee_name'), data.get('tablet_type'), inventory_item_id, data.get('box_number'),
               data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date, admin_notes))
         
         # Find open PO lines for this inventory item
@@ -1867,24 +1928,46 @@ def save_product():
     conn = None
     try:
         data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['product_name', 'tablet_type_id', 'packages_per_display', 'tablets_per_package']
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                return jsonify({'success': False, 'error': f'{field} is required'}), 400
+        
+        # Validate numeric fields
+        try:
+            tablet_type_id = int(data['tablet_type_id'])
+            packages_per_display = int(data['packages_per_display'])
+            tablets_per_package = int(data['tablets_per_package'])
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid numeric values for tablet_type_id, packages_per_display, or tablets_per_package'}), 400
+        
         conn = get_db()
+        
+        product_name = data.get('product_name')
         
         if data.get('id'):
             # Update existing product
+            try:
+                product_id = int(data['id'])
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({'success': False, 'error': 'Invalid product ID'}), 400
+                
             conn.execute('''
                 UPDATE product_details 
                 SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?
                 WHERE id = ?
-            ''', (data['product_name'], data['tablet_type_id'], data['packages_per_display'], 
-                  data['tablets_per_package'], data['id']))
-            message = f"Updated {data['product_name']}"
+            ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package, product_id))
+            message = f"Updated {product_name}"
         else:
             # Create new product
             conn.execute('''
                 INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package)
                 VALUES (?, ?, ?, ?)
-            ''', (data['product_name'], data['tablet_type_id'], data['packages_per_display'], data['tablets_per_package']))
-            message = f"Created {data['product_name']}"
+            ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package))
+            message = f"Created {product_name}"
         
         conn.commit()
         conn.close()
