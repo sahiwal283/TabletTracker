@@ -629,7 +629,11 @@ function showAdminNotes(adminNotes) {
     const content = document.getElementById('admin-notes-content');
     
     if (modal && content) {
-        content.textContent = adminNotes || 'No notes available.';
+        // Decode HTML entities and preserve newlines
+        const decodedNotes = adminNotes 
+            ? adminNotes.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+            : 'No notes available.';
+        content.textContent = decodedNotes;
         modal.classList.remove('hidden');
     }
 }
