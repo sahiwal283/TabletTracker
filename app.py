@@ -2151,9 +2151,6 @@ def update_tablet_inventory_ids():
             except:
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/add_tablet_type', methods=['POST'])
 def add_tablet_type():
