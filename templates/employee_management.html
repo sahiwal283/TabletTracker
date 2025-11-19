@@ -143,7 +143,7 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ employee.created_at.split('.')[0] if employee.created_at else 'Unknown' }}
+                        {{ employee.created_at|to_est if employee.created_at else 'Unknown' }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button onclick="toggleEmployee({{ employee.id }})" 

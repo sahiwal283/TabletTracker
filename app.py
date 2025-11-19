@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import sqlite3
 import json
 import os
@@ -4605,6 +4606,63 @@ def get_po_submissions(po_id):
         return jsonify({'error': str(e)}), 500
 
 # ===== TEMPLATE CONTEXT PROCESSORS =====
+
+@app.template_filter('to_est')
+def to_est_filter(dt_string):
+    """Convert UTC datetime string to Eastern Time (EST/EDT)"""
+    if not dt_string:
+        return 'N/A'
+    try:
+        # Parse the datetime string (assumes UTC)
+        if isinstance(dt_string, str):
+            # Handle different datetime formats
+            if '.' in dt_string:
+                dt = datetime.strptime(dt_string.split('.')[0], '%Y-%m-%d %H:%M:%S')
+            else:
+                dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
+        else:
+            dt = dt_string
+        
+        # Convert from UTC to Eastern
+        utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+        est_dt = utc_dt.astimezone(ZoneInfo('America/New_York'))
+        
+        # Format as YYYY-MM-DD HH:MM:SS
+        return est_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception as e:
+        print(f"Error converting datetime to EST: {e}")
+        return dt_string if isinstance(dt_string, str) else 'N/A'
+
+@app.template_filter('to_est_time')
+def to_est_time_filter(dt_string):
+    """Convert UTC datetime string to Eastern Time, showing only time portion"""
+    if not dt_string:
+        return 'N/A'
+    try:
+        # Parse the datetime string (assumes UTC)
+        if isinstance(dt_string, str):
+            # Handle different datetime formats
+            if '.' in dt_string:
+                dt = datetime.strptime(dt_string.split('.')[0], '%Y-%m-%d %H:%M:%S')
+            else:
+                dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
+        else:
+            dt = dt_string
+        
+        # Convert from UTC to Eastern
+        utc_dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+        est_dt = utc_dt.astimezone(ZoneInfo('America/New_York'))
+        
+        # Format as HH:MM:SS
+        return est_dt.strftime('%H:%M:%S')
+    except Exception as e:
+        print(f"Error converting datetime to EST: {e}")
+        if isinstance(dt_string, str):
+            # Fallback: try to extract time portion
+            parts = dt_string.split(' ')
+            if len(parts) > 1:
+                return parts[1].split('.')[0] if '.' in parts[1] else parts[1]
+        return 'N/A'
 
 @app.context_processor
 def inject_version():
