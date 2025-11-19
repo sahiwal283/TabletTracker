@@ -4030,6 +4030,9 @@ def edit_submission(submission_id):
             conn.close()
             return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
         
+        # Convert Row to dict for safe access
+        product = dict(product)
+        
         # Validate product configuration values
         packages_per_display = product.get('packages_per_display')
         tablets_per_package = product.get('tablets_per_package')
