@@ -331,7 +331,7 @@
                     <td class="px-3 py-2 text-xs text-gray-900">
                         <div class="flex items-center gap-1">
                             {{ sub.employee_name }}
-                            {% if sub.admin_notes and (session.get('employee_role') == 'admin' or session.get('admin_authenticated')) %}
+                            {% if sub.admin_notes and (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) %}
                             <span class="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700" title="Has admin notes">
                                 📝
                             </span>
@@ -2265,11 +2265,11 @@ async function reassignSubmission(submissionId, newPoId) {
 <script>
 // Use shared edit modal from base.html - just provide wrapper function
 async function openEditSubmissionFromPO(submissionId, poId, inventoryItemId) {
-    // Check if user is admin (only admins can edit)
-    const isAdmin = {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+    // Check if user is admin or manager (admins and managers can edit)
+    const canEdit = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
     
-    if (!isAdmin) {
-        alert('Only administrators can edit submissions.');
+    if (!canEdit) {
+        alert('Only administrators and managers can edit submissions.');
         return;
     }
     

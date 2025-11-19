@@ -537,8 +537,8 @@ def production_form():
     # Get today's date for the date picker
     today_date = datetime.now().date().isoformat()
     
-    # Check if user is admin
-    is_admin = session.get('admin_authenticated') or session.get('employee_role') == 'admin'
+    # Check if user is admin or manager (for admin notes access)
+    is_admin = session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']
     
     return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
 
@@ -597,8 +597,8 @@ def submit_warehouse():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-        # Get admin_notes if user is admin
-        admin_notes = data.get('admin_notes', '') if session.get('admin_authenticated') else None
+        # Get admin_notes if user is admin or manager
+        admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
         
         # Insert submission record using logged-in employee name WITH inventory_item_id
         conn.execute('''
@@ -1738,8 +1738,8 @@ def submit_count():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-        # Get admin_notes if user is admin
-        admin_notes = data.get('admin_notes', '') if session.get('admin_authenticated') else None
+        # Get admin_notes if user is admin or manager
+        admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
         
         # Insert count record WITH inventory_item_id
         conn.execute('''
@@ -3758,6 +3758,10 @@ def recalculate_po_counts():
 @app.route('/api/submission/<int:submission_id>/details', methods=['GET'])
 @admin_required
 def get_submission_details(submission_id):
+    # Allow managers to view submission details (especially admin notes)
+    if not (session.get('admin_authenticated') or 
+            (session.get('employee_authenticated') and session.get('employee_role') in ['admin', 'manager'])):
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
     """Get full details of a submission for editing (Admin only)"""
     conn = None
     try:
@@ -3794,7 +3798,11 @@ def get_submission_details(submission_id):
 @app.route('/api/submission/<int:submission_id>/edit', methods=['POST'])
 @admin_required
 def edit_submission(submission_id):
-    """Edit a submission and recalculate PO counts (Admin only)"""
+    """Edit a submission and recalculate PO counts (Admin and Manager only)"""
+    # Allow managers to edit submissions (especially admin notes)
+    if not (session.get('admin_authenticated') or 
+            (session.get('employee_authenticated') and session.get('employee_role') in ['admin', 'manager'])):
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
     conn = None
     try:
         data = request.get_json()

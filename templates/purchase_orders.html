@@ -805,11 +805,11 @@ async function createOversPOInZoho(poId, oversPONumber) {
 
 // Use shared edit modal from submissions.html - just provide wrapper function
 async function openEditSubmissionFromPO(submissionId, poId, inventoryItemId) {
-    // Check if user is admin (only admins can edit)
-    const isAdmin = {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+    // Check if user is admin or manager (admins and managers can edit)
+    const canEdit = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
     
-    if (!isAdmin) {
-        alert('Only administrators can edit submissions.');
+    if (!canEdit) {
+        alert('Only administrators and managers can edit submissions.');
         return;
     }
     
