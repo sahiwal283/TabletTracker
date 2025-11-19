@@ -465,34 +465,45 @@ def index():
                 return render_template('unified_login.html')
         else:
             # Employee login
-            conn = get_db()
-            employee = conn.execute('''
-                SELECT id, username, full_name, password_hash, role, is_active 
-                FROM employees 
-                WHERE username = ? AND is_active = TRUE
-            ''', (username,)).fetchone()
-            
-            conn.close()
-            
-            if employee and verify_password(password, employee['password_hash']):
-                session['employee_authenticated'] = True
-                session['employee_id'] = employee['id']
-                session['employee_name'] = employee['full_name']
-                session['employee_username'] = employee['username']
-                session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
-                session.permanent = True
-                app.permanent_session_lifetime = timedelta(hours=8)
+            conn = None
+            try:
+                conn = get_db()
+                employee = conn.execute('''
+                    SELECT id, username, full_name, password_hash, role, is_active 
+                    FROM employees 
+                    WHERE username = ? AND is_active = TRUE
+                ''', (username,)).fetchone()
                 
-                # Smart redirect based on role
-                role = employee['role'] if employee['role'] else 'warehouse_staff'
-                if role in ['manager', 'admin']:
-                    flash(f'Welcome back, {employee["full_name"]}!', 'success')
-                    return redirect(url_for('admin_dashboard'))
+                conn.close()
+                
+                if employee and verify_password(password, employee['password_hash']):
+                    session['employee_authenticated'] = True
+                    session['employee_id'] = employee['id']
+                    session['employee_name'] = employee['full_name']
+                    session['employee_username'] = employee['username']
+                    session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
+                    session.permanent = True
+                    app.permanent_session_lifetime = timedelta(hours=8)
+                    
+                    # Smart redirect based on role
+                    role = employee['role'] if employee['role'] else 'warehouse_staff'
+                    if role in ['manager', 'admin']:
+                        flash(f'Welcome back, {employee["full_name"]}!', 'success')
+                        return redirect(url_for('admin_dashboard'))
+                    else:
+                        flash(f'Welcome back, {employee["full_name"]}!', 'success')
+                        return redirect(url_for('warehouse_form'))
                 else:
-                    flash(f'Welcome back, {employee["full_name"]}!', 'success')
-                    return redirect(url_for('warehouse_form'))
-            else:
-                flash('Invalid employee credentials', 'error')
+                    flash('Invalid employee credentials', 'error')
+                    return render_template('unified_login.html')
+            except Exception as e:
+                if conn:
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                print(f"Login error in index(): {str(e)}")
+                flash('An error occurred during login', 'error')
                 return render_template('unified_login.html')
     
     # Show unified login page
@@ -1629,6 +1640,7 @@ def save_shipment():
 @app.route('/api/update_tablet_type_inventory', methods=['POST'])
 def update_tablet_type_inventory():
     """Update a tablet type's inventory item ID"""
+    conn = None
     try:
         data = request.get_json()
         tablet_type_id = data.get('tablet_type_id')
@@ -1651,6 +1663,7 @@ def update_tablet_type_inventory():
             ''', (inventory_item_id, tablet_type_id)).fetchone()
             
             if existing:
+                conn.close()
                 return jsonify({
                     'success': False, 
                     'error': f'Inventory ID already used by {existing["tablet_type_name"]}'
@@ -1668,6 +1681,11 @@ def update_tablet_type_inventory():
         return jsonify({'success': True, 'message': 'Tablet type updated successfully'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/admin')
@@ -1717,44 +1735,59 @@ def employee_login():
 @app.route('/login', methods=['POST'])
 def employee_login_post():
     """Handle employee login"""
-    username = request.form.get('username') or request.json.get('username')
-    password = request.form.get('password') or request.json.get('password')
-    
-    if not username or not password:
+    conn = None
+    try:
+        username = request.form.get('username') or request.json.get('username')
+        password = request.form.get('password') or request.json.get('password')
+        
+        if not username or not password:
+            if request.form:
+                flash('Username and password required', 'error')
+                return render_template('employee_login.html')
+            else:
+                return jsonify({'success': False, 'error': 'Username and password required'})
+        
+        conn = get_db()
+        employee = conn.execute('''
+            SELECT id, username, full_name, password_hash, role, is_active 
+            FROM employees 
+            WHERE username = ? AND is_active = TRUE
+        ''', (username,)).fetchone()
+        
+        conn.close()
+        
+        if employee and verify_password(password, employee['password_hash']):
+            session['employee_authenticated'] = True
+            session['employee_id'] = employee['id']
+            session['employee_name'] = employee['full_name']
+            session['employee_username'] = employee['username']
+            session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
+            session.permanent = True
+            app.permanent_session_lifetime = timedelta(hours=8)
+            
+            return redirect(url_for('warehouse_form')) if request.form else jsonify({'success': True})
+        else:
+            # Log failed login attempt
+            print(f"Failed employee login attempt for {username} from {request.remote_addr} at {datetime.now()}")
+            
+            if request.form:
+                flash('Invalid username or password', 'error')
+                return render_template('employee_login.html')
+            else:
+                return jsonify({'success': False, 'error': 'Invalid username or password'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        # Log error but don't expose details to user
+        print(f"Login error: {str(e)}")
         if request.form:
-            flash('Username and password required', 'error')
+            flash('An error occurred during login', 'error')
             return render_template('employee_login.html')
         else:
-            return jsonify({'success': False, 'error': 'Username and password required'})
-    
-    conn = get_db()
-    employee = conn.execute('''
-        SELECT id, username, full_name, password_hash, role, is_active 
-        FROM employees 
-        WHERE username = ? AND is_active = TRUE
-    ''', (username,)).fetchone()
-    
-    conn.close()
-    
-    if employee and verify_password(password, employee['password_hash']):
-        session['employee_authenticated'] = True
-        session['employee_id'] = employee['id']
-        session['employee_name'] = employee['full_name']
-        session['employee_username'] = employee['username']
-        session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
-        session.permanent = True
-        app.permanent_session_lifetime = timedelta(hours=8)
-        
-        return redirect(url_for('warehouse_form')) if request.form else jsonify({'success': True})
-    else:
-        # Log failed login attempt
-        print(f"Failed employee login attempt for {username} from {request.remote_addr} at {datetime.now()}")
-        
-        if request.form:
-            flash('Invalid username or password', 'error')
-            return render_template('employee_login.html')
-        else:
-            return jsonify({'success': False, 'error': 'Invalid username or password'})
+            return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
 
 @app.route('/logout')
 def logout():
@@ -2012,6 +2045,7 @@ def delete_product(product_id):
 @app.route('/api/get_or_create_tablet_type', methods=['POST'])
 def get_or_create_tablet_type():
     """Get existing tablet type by name or create new one"""
+    conn = None
     try:
         data = request.get_json()
         tablet_type_name = data.get('tablet_type_name', '').strip()
@@ -2042,6 +2076,11 @@ def get_or_create_tablet_type():
         return jsonify({'success': True, 'tablet_type_id': tablet_type_id})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/update_tablet_inventory_ids', methods=['POST'])
@@ -2099,6 +2138,20 @@ def update_tablet_inventory_ids():
             'success': True, 
             'message': f'Updated {updated_count} tablet types with inventory item IDs'
         })
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -2526,6 +2579,7 @@ def test_zoho_connection():
 @admin_required
 def clear_po_data():
     """Clear all PO data for fresh sync testing"""
+    conn = None
     try:
         conn = get_db()
         
@@ -2543,6 +2597,11 @@ def clear_po_data():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({
             'success': False,
             'error': f'Clear failed: {str(e)}'
