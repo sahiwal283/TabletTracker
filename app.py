@@ -365,16 +365,21 @@ ROLE_PERMISSIONS = {
 
 def get_employee_role(username):
     """Get the role of an employee"""
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         result = conn.execute(
             'SELECT role FROM employees WHERE username = ? AND is_active = 1',
             (username,)
         ).fetchone()
         conn.close()
         return result['role'] if result else None
-    except:
-        conn.close()
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return None
 
 def has_permission(username, required_permission):
@@ -2086,6 +2091,7 @@ def get_or_create_tablet_type():
 @app.route('/api/update_tablet_inventory_ids', methods=['POST'])
 def update_tablet_inventory_ids():
     """Update tablet types with inventory item IDs from PO line items"""
+    conn = None
     try:
         conn = get_db()
         
@@ -2138,13 +2144,6 @@ def update_tablet_inventory_ids():
             'success': True, 
             'message': f'Updated {updated_count} tablet types with inventory item IDs'
         })
-    except Exception as e:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-        return jsonify({'success': False, 'error': str(e)}), 500
     except Exception as e:
         if conn:
             try:
