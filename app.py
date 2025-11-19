@@ -4046,11 +4046,21 @@ def edit_submission(submission_id):
                    submission['loose_tablets'])
         old_damaged = submission['damaged_tablets']
         
+        # Validate and convert input data
+        try:
+            displays_made = int(data.get('displays_made', 0) or 0)
+            packs_remaining = int(data.get('packs_remaining', 0) or 0)
+            loose_tablets = int(data.get('loose_tablets', 0) or 0)
+            damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
+        
         # Calculate new totals
-        new_good = (data['displays_made'] * packages_per_display * tablets_per_package +
-                   data['packs_remaining'] * tablets_per_package +
-                   data['loose_tablets'])
-        new_damaged = data['damaged_tablets']
+        new_good = (displays_made * packages_per_display * tablets_per_package +
+                   packs_remaining * tablets_per_package +
+                   loose_tablets)
+        new_damaged = damaged_tablets
         
         # Update the submission
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
@@ -4060,8 +4070,8 @@ def edit_submission(submission_id):
                 damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
                 submission_date = ?, admin_notes = ?
             WHERE id = ?
-        ''', (data['displays_made'], data['packs_remaining'], data['loose_tablets'],
-              data['damaged_tablets'], data.get('box_number'), data.get('bag_number'),
+        ''', (displays_made, packs_remaining, loose_tablets,
+              damaged_tablets, data.get('box_number'), data.get('bag_number'),
               data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
         
         # Update PO line counts if assigned to a PO
