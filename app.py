@@ -39,6 +39,7 @@ def get_locale():
     # 3. Check employee's preferred language from database (if authenticated)
     if (session.get('employee_authenticated') and session.get('employee_id') and 
         not session.get('manual_language_override')):
+        conn = None
         try:
             conn = get_db()
             employee = conn.execute('''
@@ -49,8 +50,14 @@ def get_locale():
                 conn.close()
                 return employee['preferred_language']
             conn.close()
-        except:
-            pass  # Continue to fallback if database query fails
+        except Exception as e:
+            # Continue to fallback if database query fails
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            pass
     
     # 4. Use session language if available
     if 'language' in session and session['language'] in app.config['LANGUAGES']:
@@ -1484,6 +1491,7 @@ def get_shipment(shipment_id: int):
 
 @app.route('/api/shipment/<int:shipment_id>', methods=['DELETE'])
 def delete_shipment(shipment_id: int):
+    conn = None
     try:
         conn = get_db()
         conn.execute('DELETE FROM shipments WHERE id = ?', (shipment_id,))
@@ -1491,11 +1499,17 @@ def delete_shipment(shipment_id: int):
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/save_shipment', methods=['POST'])
 def save_shipment():
     """Save shipment information (supports multiple shipments per PO)"""
+    conn = None
     try:
         data = request.get_json()
         conn = get_db()
@@ -1560,6 +1574,11 @@ def save_shipment():
         return jsonify({'success': True, 'message': 'Shipment saved; tracking refreshed if supported'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/update_tablet_type_inventory', methods=['POST'])
@@ -1845,6 +1864,7 @@ def submit_count():
 @admin_required
 def save_product():
     """Save or update a product configuration"""
+    conn = None
     try:
         data = request.get_json()
         conn = get_db()
@@ -1872,17 +1892,24 @@ def save_product():
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/delete_product/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
     """Delete a product configuration"""
+    conn = None
     try:
         conn = get_db()
         
         # Get product name first
         product = conn.execute('SELECT product_name FROM product_details WHERE id = ?', (product_id,)).fetchone()
         if not product:
+            conn.close()
             return jsonify({'success': False, 'error': 'Product not found'}), 404
         
         conn.execute('DELETE FROM product_details WHERE id = ?', (product_id,))
@@ -1892,6 +1919,11 @@ def delete_product(product_id):
         return jsonify({'success': True, 'message': f"Deleted {product['product_name']}"})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/get_or_create_tablet_type', methods=['POST'])
