@@ -3848,15 +3848,16 @@ def edit_submission(submission_id):
         new_damaged = data['damaged_tablets']
         
         # Update the submission
+        submission_date = data.get('submission_date', datetime.now().date().isoformat())
         conn.execute('''
             UPDATE warehouse_submissions
             SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
                 damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
-                admin_notes = ?
+                submission_date = ?, admin_notes = ?
             WHERE id = ?
         ''', (data['displays_made'], data['packs_remaining'], data['loose_tablets'],
               data['damaged_tablets'], data.get('box_number'), data.get('bag_number'),
-              data.get('bag_label_count'), data.get('admin_notes'), submission_id))
+              data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
         
         # Update PO line counts if assigned to a PO
         if old_po_id and inventory_item_id:
