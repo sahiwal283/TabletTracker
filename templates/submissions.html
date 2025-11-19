@@ -119,7 +119,10 @@
                         <div class="flex items-center gap-2">
                             {{ sub.employee_name }}
                             {% if sub.admin_notes and (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700" title="Has admin notes">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors" 
+                                  title="Click to view admin notes"
+                                  data-admin-notes="{{ sub.admin_notes|e }}"
+                                  onclick="event.stopPropagation(); showAdminNotes(this.getAttribute('data-admin-notes'));">
                                 📝
                             </span>
                             {% endif %}

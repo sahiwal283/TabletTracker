@@ -594,8 +594,56 @@
     </div>
 </div>
 
+<!-- Admin Notes View Modal (Read-only) -->
+<div id="admin-notes-view-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[70]" onclick="closeAdminNotesModal(event)">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4" onclick="event.stopPropagation()">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Admin Notes</h3>
+                <button onclick="event.stopPropagation(); closeAdminNotesModal(event)" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <div class="bg-purple-50 border border-purple-200 rounded-md p-4">
+                    <div id="admin-notes-content" class="text-sm text-gray-700 whitespace-pre-wrap"></div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end">
+                <button onclick="event.stopPropagation(); closeAdminNotesModal(event)" 
+                        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Shared Edit Submission Modal JavaScript (Available on all pages) -->
 <script>
+// Admin Notes View Modal Functions (shared across all pages)
+function showAdminNotes(adminNotes) {
+    const modal = document.getElementById('admin-notes-view-modal');
+    const content = document.getElementById('admin-notes-content');
+    
+    if (modal && content) {
+        content.textContent = adminNotes || 'No notes available.';
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeAdminNotesModal(event) {
+    const modal = document.getElementById('admin-notes-view-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    if (event) {
+        event.stopPropagation();
+    }
+}
+
 // Edit Submission Modal Functions (shared across all pages)
 async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
     try {
