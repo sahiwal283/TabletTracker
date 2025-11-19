@@ -623,6 +623,9 @@ def submit_warehouse():
             conn.close()
             return jsonify({'error': 'Product not found'}), 400
         
+        # Convert Row to dict for safe access
+        product = dict(product)
+        
         # Validate product configuration
         packages_per_display = product.get('packages_per_display')
         tablets_per_package = product.get('tablets_per_package')
@@ -1858,6 +1861,9 @@ def submit_count():
         if not tablet_type:
             conn.close()
             return jsonify({'error': 'Tablet type not found'}), 400
+        
+        # Convert Row to dict for safe access
+        tablet_type = dict(tablet_type)
         
         # Safe type conversion
         try:
