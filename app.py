@@ -7,6 +7,7 @@ import os
 import requests
 import hashlib
 import re
+import traceback
 from functools import wraps
 from config import Config
 from zoho_integration import zoho_api
@@ -795,7 +796,6 @@ def submit_warehouse():
         })
         
     except Exception as e:
-        import traceback
         print(f"Error in submit_warehouse: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -918,11 +918,17 @@ def admin_dashboard():
         
         return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count)
     except Exception as e:
-        import traceback
         print(f"Error in admin_dashboard: {e}")
         traceback.print_exc()
         flash('An error occurred while loading the dashboard. Please try again.', 'error')
-        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=None, verification_count=0)
+        # Create default stats dict to match expected structure (SQLite Row-like object)
+        default_stats = type('obj', (object,), {
+            'open_pos': 0,
+            'closed_pos': 0,
+            'draft_pos': 0,
+            'total_remaining': 0
+        })()
+        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0)
     finally:
         if conn:
             conn.close()
@@ -1086,7 +1092,6 @@ def all_submissions():
         
         return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived)
     except Exception as e:
-        import traceback
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
