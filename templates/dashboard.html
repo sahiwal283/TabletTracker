@@ -2029,7 +2029,11 @@ async function createOversPOInZoho(poId, oversPONumber) {
             // Optionally reload or refresh
             setTimeout(() => {
                 if (confirm('Would you like to sync POs now to import the newly created overs PO?')) {
-                    syncZohoPOs();
+                    if (typeof window.syncZohoPOs === 'function') {
+                        window.syncZohoPOs();
+                    } else {
+                        alert('Sync function not available. Please refresh the page.');
+                    }
                 }
             }, 2000);
         } else {
