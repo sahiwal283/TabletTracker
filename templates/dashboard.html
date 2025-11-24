@@ -526,6 +526,9 @@ async function syncZohoPOs() {
         const result = await response.json();
         
         if (result.success) {
+            // Update sessionStorage to prevent immediate re-sync
+            sessionStorage.setItem('lastZohoSync', Date.now().toString());
+            
             if (typeof showSuccess === 'function') {
                 showSuccess(result.message);
             } else {
@@ -1129,6 +1132,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-sync Zoho POs on page load to ensure closed status is up to date
     // This prevents submissions from being assigned to closed POs
     syncZohoPOsOnLoad();
+    
+    // Start periodic auto-sync every 15 minutes
+    startPeriodicAutoSync();
 });
 
 // Auto-sync Zoho POs silently in the background (only once per session)
@@ -1163,6 +1169,67 @@ async function syncZohoPOsOnLoad() {
     } catch (error) {
         console.warn('Auto-sync error:', error);
         // Don't show error to user - it's a background sync
+    }
+}
+
+// Periodic auto-sync - runs every 15 minutes while page is open
+let autoSyncInterval = null;
+
+function startPeriodicAutoSync() {
+    // Clear any existing interval
+    if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+    }
+    
+    // Sync every 15 minutes (900000 milliseconds)
+    const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+    
+    console.log('🔄 Starting periodic auto-sync (every 15 minutes)');
+    
+    autoSyncInterval = setInterval(async () => {
+        const lastSync = sessionStorage.getItem('lastZohoSync');
+        const now = Date.now();
+        
+        // Only sync if it's been more than 5 minutes since last sync (manual or auto)
+        if (lastSync && (now - parseInt(lastSync)) < 300000) {
+            console.log('⏭️ Skipping periodic sync - synced recently');
+            return;
+        }
+        
+        console.log('🔄 Running periodic auto-sync...');
+        
+        try {
+            const response = await fetch('/api/sync_zoho_pos');
+            const result = await response.json();
+            
+            if (result.success) {
+                // Mark that we've synced
+                sessionStorage.setItem('lastZohoSync', now.toString());
+                console.log('✅ Periodic auto-sync completed:', result.message);
+                
+                // Only reload if there might be status changes
+                if (result.message && (result.message.includes('closed') || result.message.includes('Updated') || result.message.includes('Cancelled'))) {
+                    console.log('🔄 Status changes detected, reloading page...');
+                    setTimeout(() => location.reload(), 2000);
+                }
+            } else {
+                console.warn('⚠️ Periodic auto-sync failed:', result.error);
+            }
+        } catch (error) {
+            console.warn('⚠️ Periodic auto-sync error:', error.message);
+        }
+    }, SYNC_INTERVAL);
+    
+    // Store interval ID so we can clear it if needed
+    window.autoSyncInterval = autoSyncInterval;
+}
+
+// Stop periodic auto-sync (can be called if needed)
+function stopPeriodicAutoSync() {
+    if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+        autoSyncInterval = null;
+        console.log('⏹️ Stopped periodic auto-sync');
     }
 }
 
