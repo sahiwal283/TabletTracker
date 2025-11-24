@@ -2333,6 +2333,7 @@ def add_employee():
 @admin_required
 def update_employee_role(employee_id):
     """Update an employee's role"""
+    conn = None
     try:
         data = request.get_json()
         new_role = data.get('role', '').strip()
@@ -2361,7 +2362,6 @@ def update_employee_role(employee_id):
         ''', (new_role, employee_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True, 
@@ -2370,6 +2370,12 @@ def update_employee_role(employee_id):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/toggle_employee/<int:employee_id>', methods=['POST'])
 def toggle_employee(employee_id):
@@ -3073,12 +3079,21 @@ def delete_receiving(receiving_id):
 @admin_required
 def process_receiving():
     """Process a new shipment receiving with photos and box/bag tracking"""
+    conn = None
     try:
         conn = get_db()
         
-        # Get form data
+        # Get form data with safe type conversion
         shipment_id = request.form.get('shipment_id')
-        total_small_boxes = int(request.form.get('total_small_boxes', 0))
+        if not shipment_id:
+            return jsonify({'error': 'Shipment ID required'}), 400
+        
+        # Safe type conversion for total_small_boxes
+        try:
+            total_small_boxes = int(request.form.get('total_small_boxes', 0))
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid total_small_boxes value'}), 400
+        
         received_by = request.form.get('received_by')
         notes = request.form.get('notes', '')
         
@@ -3100,9 +3115,6 @@ def process_receiving():
         
         if delivery_photo and delivery_photo.filename:
             # Save photo locally
-            import os
-            from werkzeug.utils import secure_filename
-            
             # Create uploads directory if it doesn't exist
             upload_dir = 'static/uploads/receiving'
             os.makedirs(upload_dir, exist_ok=True)
@@ -3126,20 +3138,43 @@ def process_receiving():
         total_bags = 0
         all_bag_data = {}
         
-        # First, collect all bag data from the form
+        # First, collect all bag data from the form with safe type conversion
         for key in request.form.keys():
             if key.startswith('bag_') and key.endswith('_pill_count'):
-                # Extract bag number from key like 'bag_3_pill_count'
-                bag_num = int(key.split('_')[1])
-                if bag_num not in all_bag_data:
-                    all_bag_data[bag_num] = {}
-                all_bag_data[bag_num]['pill_count'] = int(request.form[key])
-                all_bag_data[bag_num]['box'] = int(request.form.get(f'bag_{bag_num}_box', 0))
-                all_bag_data[bag_num]['notes'] = request.form.get(f'bag_{bag_num}_notes', '')
+                try:
+                    # Extract bag number from key like 'bag_3_pill_count'
+                    key_parts = key.split('_')
+                    if len(key_parts) < 2:
+                        continue
+                    bag_num = int(key_parts[1])
+                    if bag_num not in all_bag_data:
+                        all_bag_data[bag_num] = {}
+                    
+                    # Safe type conversion for pill_count
+                    try:
+                        all_bag_data[bag_num]['pill_count'] = int(request.form[key])
+                    except (ValueError, TypeError):
+                        all_bag_data[bag_num]['pill_count'] = 0
+                    
+                    # Safe type conversion for box number
+                    try:
+                        all_bag_data[bag_num]['box'] = int(request.form.get(f'bag_{bag_num}_box', 0))
+                    except (ValueError, TypeError):
+                        all_bag_data[bag_num]['box'] = 0
+                    
+                    all_bag_data[bag_num]['notes'] = request.form.get(f'bag_{bag_num}_notes', '')
+                except (ValueError, TypeError, IndexError):
+                    # Skip invalid bag entries
+                    continue
         
         # Process boxes and their bags with sequential numbering
         for box_num in range(1, total_small_boxes + 1):
-            bags_in_box = int(request.form.get(f'box_{box_num}_bags', 0))
+            # Safe type conversion for bags_in_box
+            try:
+                bags_in_box = int(request.form.get(f'box_{box_num}_bags', 0))
+            except (ValueError, TypeError):
+                bags_in_box = 0
+            
             box_notes = request.form.get(f'box_{box_num}_notes', '')
             
             # Create small box record
@@ -3166,7 +3201,6 @@ def process_receiving():
         ''', (shipment_id,))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -3176,6 +3210,12 @@ def process_receiving():
         
     except Exception as e:
         return jsonify({'error': f'Failed to process receiving: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/available_boxes_bags/<int:po_id>')
 @employee_required
