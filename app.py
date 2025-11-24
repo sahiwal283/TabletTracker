@@ -1073,12 +1073,14 @@ def all_submissions():
             WHERE COALESCE(ws.po_assignment_verified, 0) = 0
         '''
         unverified_params = []
-        # Only exclude archived if not showing archived and column exists
-        if has_archived and not show_archived:
-            unverified_query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
+        # When filtering by PO, show ALL submissions (including archived) for auditing
+        # Only exclude archived if NOT filtering by PO and not showing archived
         if filter_po_id:
             unverified_query += ' AND ws.assigned_po_id = ?'
             unverified_params.append(filter_po_id)
+            # Don't filter by archived when viewing a specific PO
+        elif has_archived and not show_archived:
+            unverified_query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
         if filter_item_id:
             unverified_query += ' AND tt.inventory_item_id = ?'
             unverified_params.append(filter_item_id)
