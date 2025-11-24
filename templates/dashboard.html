@@ -885,17 +885,6 @@ async function resyncUnassignedSubmissions() {
     }
 }
 
-// Date editing functions removed - date editing is now in the edit modal
-                display.textContent = `${newDate} ${currentTime}`;
-            }
-        } else {
-            showError(result.error || 'Failed to update submission date');
-        }
-    } catch (error) {
-        showError('Failed to update submission date: ' + error.message);
-    }
-}
-
 async function refreshProducts() {
     if (!confirm('This will refresh all products with the updated configuration. Continue?')) {
         return;
@@ -1109,8 +1098,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const syncBtn = document.getElementById('sync-pos-btn');
     if (syncBtn) {
         syncBtn.addEventListener('click', function() {
-            if (typeof syncZohoPOs === 'function') {
-                syncZohoPOs();
+            if (typeof window.syncZohoPOs === 'function') {
+                window.syncZohoPOs();
             } else {
                 alert('Sync function not loaded. Please refresh the page.');
             }
@@ -2006,7 +1995,7 @@ Tablet Type: ${data.tablet_type}
 Total Overs: ${data.total_overs.toLocaleString()} tablets
 
 Line Items:
-${data.line_items.map(item => `- ${item.line_item_name} (ID: ${item.inventory_item_id}): ${item.overs_quantity.toLocaleString()} tablets`).join('\\n')}
+${data.line_items.map(item => `- ${item.line_item_name} (ID: ${item.inventory_item_id}): ${item.overs_quantity.toLocaleString()} tablets`).join('\n')}
 
 Instructions: Create this PO in Zoho and mark it with the tablets custom field, then sync POs.`;
         
@@ -2043,8 +2032,8 @@ async function createOversPOInZoho(poId, oversPONumber) {
             // Optionally reload or refresh
             setTimeout(() => {
                 if (confirm('Would you like to sync POs now to import the newly created overs PO?')) {
-                    if (typeof syncZohoPOs === 'function') {
-                        syncZohoPOs();
+                    if (typeof window.syncZohoPOs === 'function') {
+                        window.syncZohoPOs();
                     } else {
                         alert('Sync function not available. Please refresh the page.');
                     }
@@ -2259,10 +2248,10 @@ async function openEditSubmissionFromPO(submissionId, poId, inventoryItemId) {
 }
 
 // Ensure syncZohoPOs is available globally (in case of script loading issues)
-if (typeof syncZohoPOs === 'undefined') {
+if (typeof window.syncZohoPOs === 'undefined') {
     console.error('syncZohoPOs function is not defined. Check for JavaScript syntax errors.');
     // Define a fallback function
-    window.syncZohoPOs = syncZohoPOs = function() {
+    window.syncZohoPOs = function() {
         alert('Sync function not loaded. Please refresh the page to reload scripts.');
     };
 }
