@@ -272,11 +272,16 @@ class ZohoInventoryAPI:
                         WHERE zoho_po_id = ?
                     ''', (po['purchaseorder_number'], zoho_status, is_closed, parent_po_number, po['purchaseorder_id']))
                 
-                # If PO just became closed, unassign any submissions that were assigned to it
-                # This handles cases where submissions were assigned before we detected the PO was closed
+                # If PO just became closed (or cancelled), unassign any submissions that were assigned to it
+                # This handles cases where submissions were assigned before we detected the PO was closed/cancelled
                 if was_closed != is_now_closed:
                     if is_now_closed and not was_closed:
-                        print(f"✅ PO {po['purchaseorder_number']} changed from OPEN to CLOSED")
+                        # Check if it's cancelled specifically
+                        is_cancelled = ('CANCEL' in main_status.upper() or 
+                                       'CANCEL' in order_status.upper() or 
+                                       'CANCEL' in current_sub_status.upper())
+                        status_msg = "CANCELLED" if is_cancelled else "CLOSED"
+                        print(f"⚠️  PO {po['purchaseorder_number']} changed from OPEN to {status_msg}")
                         
                         unassigned_count = db_conn.execute('''
                             SELECT COUNT(*) as count
