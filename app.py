@@ -690,6 +690,7 @@ def submit_warehouse():
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND COALESCE(po.internal_status, '') != 'Draft'
+            AND COALESCE(po.internal_status, '') != 'Cancelled'
             ORDER BY po.po_number ASC
         ''', (inventory_item_id,)).fetchall()
         
@@ -809,6 +810,7 @@ def admin_dashboard():
         LEFT JOIN po_lines pl ON po.id = pl.po_id
         INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
         WHERE po.closed = FALSE
+        AND COALESCE(po.internal_status, '') != 'Cancelled'
         GROUP BY po.id
         HAVING submission_count > 0
         ORDER BY po.po_number DESC
@@ -1915,6 +1917,7 @@ def submit_count():
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.closed = FALSE
             AND COALESCE(po.internal_status, '') != 'Draft'
+            AND COALESCE(po.internal_status, '') != 'Cancelled'
             ORDER BY po.po_number ASC
         ''', (tablet_type['inventory_item_id'],)).fetchall()
         
@@ -3660,6 +3663,7 @@ def reassign_all_submissions():
                     WHERE pl.inventory_item_id = ?
                     AND COALESCE(po.internal_status, '') != 'Draft'
                     AND po.closed = FALSE
+                    AND COALESCE(po.internal_status, '') != 'Cancelled'
                     ORDER BY po.po_number ASC
                 ''', (inventory_item_id,)).fetchall()
                 

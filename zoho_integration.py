@@ -194,46 +194,54 @@ class ZohoInventoryAPI:
             # Also check the main status field (it might be "closed" directly)
             main_status = po.get('status', '').upper()
             
+            # Check if PO is CANCELLED (separate from closed)
+            is_cancelled = (order_status == 'CANCELLED' or 
+                          order_status == 'CANCELED' or
+                          current_sub_status == 'CANCELLED' or
+                          current_sub_status == 'CANCELED' or
+                          main_status == 'CANCELLED' or
+                          main_status == 'CANCELED' or
+                          'CANCELLED' in main_status or
+                          'CANCELLED' in order_status or
+                          'CANCELLED' in current_sub_status or
+                          'CANCELED' in main_status or
+                          'CANCELED' in order_status or
+                          'CANCELED' in current_sub_status)
+            
+            # Additional check: if status contains "cancel" or "cancelled" anywhere
+            if not is_cancelled:
+                status_str = f"{main_status} {order_status} {current_sub_status} {billed_status}".upper()
+                if 'CANCEL' in status_str or 'CANCELLED' in status_str:
+                    is_cancelled = True
+            
             # CLOSED in Zoho UI can be indicated by:
             # 1. order_status = "CLOSED"
             # 2. current_sub_status = "CLOSED"
             # 3. billed_status = "BILLED"
             # 4. main status = "CLOSED"
             # 5. Any status containing "CLOSED" or "CLOSE"
-            # 6. CANCELLED/CANCELED status (treat as closed - should not accept submissions)
+            # Note: CANCELLED is handled separately above
             is_closed = (order_status == 'CLOSED' or 
                         current_sub_status == 'CLOSED' or
                         billed_status == 'BILLED' or
                         main_status == 'CLOSED' or
-                        order_status == 'CANCELLED' or
-                        order_status == 'CANCELED' or
-                        current_sub_status == 'CANCELLED' or
-                        current_sub_status == 'CANCELED' or
-                        main_status == 'CANCELLED' or
-                        main_status == 'CANCELED' or
                         'CLOSED' in main_status or
                         'CLOSED' in order_status or
                         'CLOSED' in current_sub_status or
-                        'CANCELLED' in main_status or
-                        'CANCELLED' in order_status or
-                        'CANCELLED' in current_sub_status or
-                        'CANCELED' in main_status or
-                        'CANCELED' in order_status or
-                        'CANCELED' in current_sub_status or
                         (is_billed and bill_count > 0))
             
-            # Additional check: if status contains "close", "closed", "cancel", or "cancelled" anywhere
+            # Additional check: if status contains "close" or "closed" anywhere
             if not is_closed:
                 status_str = f"{main_status} {order_status} {current_sub_status} {billed_status}".upper()
-                if 'CLOSE' in status_str or 'CLOSED' in status_str or 'CANCEL' in status_str or 'CANCELLED' in status_str:
+                if 'CLOSE' in status_str or 'CLOSED' in status_str:
                     is_closed = True
             
             # Log cancelled status specifically for debugging
-            if 'CANCEL' in main_status.upper() or 'CANCEL' in order_status.upper() or 'CANCEL' in current_sub_status.upper():
-                print(f"⚠️  CANCELLED PO detected: {po['purchaseorder_number']} - marking as closed")
+            if is_cancelled:
+                print(f"⚠️  CANCELLED PO detected: {po['purchaseorder_number']} - setting internal_status to 'Cancelled'")
             
             print(f"PO {po['purchaseorder_number']}: status='{main_status}', order_status='{order_status}', current_sub_status='{current_sub_status}', billed_status='{billed_status}'")
-            print(f"Final closed determination: {is_closed}")
+            print(f"Final status determination: cancelled={is_cancelled}, closed={is_closed}")
             
             # Get PO creation date from Zoho (they use 'date' field for PO date)
             po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
@@ -249,38 +257,55 @@ class ZohoInventoryAPI:
                 # Convert Row to dict for .get() method access
                 existing = dict(existing)
                 
-                # Check if PO status changed from open to closed
+                # Get current status
+                current_internal_status = existing.get('internal_status', 'Active')
                 was_closed = bool(existing.get('closed', False))
-                is_now_closed = is_closed
+                was_cancelled = (current_internal_status == 'Cancelled')
                 po_id = existing['id']
                 
+                # Determine new internal status
+                if is_cancelled:
+                    new_internal_status = 'Cancelled'
+                    # Cancelled POs should also be marked as closed to prevent submissions
+                    is_now_closed = True
+                elif is_closed:
+                    # Only update to closed if not already cancelled (preserve cancelled status)
+                    if current_internal_status != 'Cancelled':
+                        new_internal_status = current_internal_status  # Keep existing status if already set
+                    else:
+                        new_internal_status = 'Cancelled'  # Keep cancelled status
+                    is_now_closed = True
+                else:
+                    # PO is open - reset cancelled status if it was cancelled before
+                    if was_cancelled:
+                        new_internal_status = 'Active'  # Reset from cancelled to active
+                    else:
+                        new_internal_status = current_internal_status  # Keep existing status
+                    is_now_closed = False
+                
                 # Update existing PO with proper status and tablet type
-                print(f"Updating existing PO {po['purchaseorder_number']}: zoho_status='{zoho_status}', closed={is_closed}")
+                status_msg = "CANCELLED" if is_cancelled else ("CLOSED" if is_closed else "OPEN")
+                print(f"Updating existing PO {po['purchaseorder_number']}: zoho_status='{zoho_status}', closed={is_now_closed}, internal_status='{new_internal_status}'")
                 
                 # Update created_at only if we have a date from Zoho and current created_at is different
                 if po_date and po_date != existing.get('created_at', '')[:10]:
                     db_conn.execute('''
                         UPDATE purchase_orders 
-                        SET po_number = ?, zoho_status = ?, closed = ?, parent_po_number = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
+                        SET po_number = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
-                    ''', (po['purchaseorder_number'], zoho_status, is_closed, parent_po_number, po_date, po['purchaseorder_id']))
+                    ''', (po['purchaseorder_number'], zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date, po['purchaseorder_id']))
                 else:
-                    # Always update closed status - this is critical for preventing assignments
+                    # Always update closed status and internal status - this is critical for preventing assignments
                     db_conn.execute('''
                         UPDATE purchase_orders 
-                        SET po_number = ?, zoho_status = ?, closed = ?, parent_po_number = ?, updated_at = CURRENT_TIMESTAMP
+                        SET po_number = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
-                    ''', (po['purchaseorder_number'], zoho_status, is_closed, parent_po_number, po['purchaseorder_id']))
+                    ''', (po['purchaseorder_number'], zoho_status, is_now_closed, new_internal_status, parent_po_number, po['purchaseorder_id']))
                 
-                # If PO just became closed (or cancelled), unassign any submissions that were assigned to it
+                # If PO just became closed or cancelled, unassign any submissions that were assigned to it
                 # This handles cases where submissions were assigned before we detected the PO was closed/cancelled
-                if was_closed != is_now_closed:
-                    if is_now_closed and not was_closed:
-                        # Check if it's cancelled specifically
-                        is_cancelled = ('CANCEL' in main_status.upper() or 
-                                       'CANCEL' in order_status.upper() or 
-                                       'CANCEL' in current_sub_status.upper())
-                        status_msg = "CANCELLED" if is_cancelled else "CLOSED"
+                if (was_closed != is_now_closed) or (was_cancelled != is_cancelled):
+                    if (is_now_closed and not was_closed) or (is_cancelled and not was_cancelled):
                         print(f"⚠️  PO {po['purchaseorder_number']} changed from OPEN to {status_msg}")
                         
                         unassigned_count = db_conn.execute('''
@@ -314,28 +339,40 @@ class ZohoInventoryAPI:
                                 WHERE assigned_po_id = ?
                             ''', (po_id,))
                             
-                            print(f"⚠️  Unassigned {unassigned_count} submission(s) from closed PO {po['purchaseorder_number']}")
+                            print(f"⚠️  Unassigned {unassigned_count} submission(s) from {status_msg.lower()} PO {po['purchaseorder_number']}")
                     else:
-                        print(f"✅ PO {po['purchaseorder_number']} changed from CLOSED to OPEN")
-                elif was_closed == is_now_closed:
+                        print(f"✅ PO {po['purchaseorder_number']} changed from CLOSED/CANCELLED to OPEN")
+                elif was_closed == is_now_closed and was_cancelled == is_cancelled:
                     if is_now_closed:
-                        print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_closed} (already closed)")
+                        status_display = "cancelled" if is_cancelled else "closed"
+                        print(f"✅ Updated PO {po['purchaseorder_number']}: {status_display}={is_now_closed} (already {status_display})")
                     else:
-                        print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_closed} (still open)")
+                        print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_now_closed} (still open)")
             else:
                 # Insert new PO with proper status and creation date
+                # Determine internal status for new PO
+                if is_cancelled:
+                    new_internal_status = 'Cancelled'
+                    is_now_closed = True  # Cancelled POs should be closed
+                elif is_closed:
+                    new_internal_status = 'Active'  # Will be updated later based on workflow
+                    is_now_closed = True
+                else:
+                    new_internal_status = 'Active'
+                    is_now_closed = False
+                
                 if po_date:
                     cursor = db_conn.execute('''
-                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, parent_po_number, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, internal_status, parent_po_number, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                          zoho_status, is_closed, parent_po_number, po_date))
+                          zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date))
                 else:
                     cursor = db_conn.execute('''
-                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, parent_po_number)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, internal_status, parent_po_number)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                          zoho_status, is_closed, parent_po_number))
+                          zoho_status, is_now_closed, new_internal_status, parent_po_number))
                 po_id = cursor.lastrowid
             
             # Determine actual tablet type from line items  
