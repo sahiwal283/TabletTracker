@@ -1105,6 +1105,18 @@ function toggleClosedSubmissions() {
 document.addEventListener('DOMContentLoaded', function() {
     toggleClosedSubmissions();
     
+    // Attach sync button event listener
+    const syncBtn = document.getElementById('sync-pos-btn');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', function() {
+            if (typeof syncZohoPOs === 'function') {
+                syncZohoPOs();
+            } else {
+                alert('Sync function not loaded. Please refresh the page.');
+            }
+        });
+    }
+    
     // Auto-sync Zoho POs on page load to ensure closed status is up to date
     // This prevents submissions from being assigned to closed POs
     syncZohoPOsOnLoad();
