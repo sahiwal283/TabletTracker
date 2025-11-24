@@ -200,20 +200,37 @@ class ZohoInventoryAPI:
             # 3. billed_status = "BILLED"
             # 4. main status = "CLOSED"
             # 5. Any status containing "CLOSED" or "CLOSE"
+            # 6. CANCELLED/CANCELED status (treat as closed - should not accept submissions)
             is_closed = (order_status == 'CLOSED' or 
                         current_sub_status == 'CLOSED' or
                         billed_status == 'BILLED' or
                         main_status == 'CLOSED' or
+                        order_status == 'CANCELLED' or
+                        order_status == 'CANCELED' or
+                        current_sub_status == 'CANCELLED' or
+                        current_sub_status == 'CANCELED' or
+                        main_status == 'CANCELLED' or
+                        main_status == 'CANCELED' or
                         'CLOSED' in main_status or
                         'CLOSED' in order_status or
                         'CLOSED' in current_sub_status or
+                        'CANCELLED' in main_status or
+                        'CANCELLED' in order_status or
+                        'CANCELLED' in current_sub_status or
+                        'CANCELED' in main_status or
+                        'CANCELED' in order_status or
+                        'CANCELED' in current_sub_status or
                         (is_billed and bill_count > 0))
             
-            # Additional check: if status contains "close" or "closed" anywhere
+            # Additional check: if status contains "close", "closed", "cancel", or "cancelled" anywhere
             if not is_closed:
                 status_str = f"{main_status} {order_status} {current_sub_status} {billed_status}".upper()
-                if 'CLOSE' in status_str or 'CLOSED' in status_str:
+                if 'CLOSE' in status_str or 'CLOSED' in status_str or 'CANCEL' in status_str or 'CANCELLED' in status_str:
                     is_closed = True
+            
+            # Log cancelled status specifically for debugging
+            if 'CANCEL' in main_status.upper() or 'CANCEL' in order_status.upper() or 'CANCEL' in current_sub_status.upper():
+                print(f"⚠️  CANCELLED PO detected: {po['purchaseorder_number']} - marking as closed")
             
             print(f"PO {po['purchaseorder_number']}: status='{main_status}', order_status='{order_status}', current_sub_status='{current_sub_status}', billed_status='{billed_status}'")
             print(f"Final closed determination: {is_closed}")
