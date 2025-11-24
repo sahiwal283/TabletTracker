@@ -1172,32 +1172,27 @@ async function syncZohoPOsOnLoad() {
     }
 }
 
-// Periodic auto-sync - runs every 15 minutes while page is open
-let autoSyncInterval = null;
-
+// Auto-sync on page load if it's been more than 3 days (approximately twice a week)
 function startPeriodicAutoSync() {
-    // Clear any existing interval
-    if (autoSyncInterval) {
-        clearInterval(autoSyncInterval);
-    }
+    const lastSync = sessionStorage.getItem('lastZohoSync');
+    const now = Date.now();
     
-    // Sync every 15 minutes (900000 milliseconds)
-    const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+    // Sync every 3 days (approximately twice a week)
+    const SYNC_INTERVAL = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
     
-    console.log('🔄 Starting periodic auto-sync (every 15 minutes)');
-    
-    autoSyncInterval = setInterval(async () => {
-        const lastSync = sessionStorage.getItem('lastZohoSync');
-        const now = Date.now();
-        
-        // Only sync if it's been more than 5 minutes since last sync (manual or auto)
-        if (lastSync && (now - parseInt(lastSync)) < 300000) {
-            console.log('⏭️ Skipping periodic sync - synced recently');
+    if (lastSync) {
+        const timeSinceLastSync = now - parseInt(lastSync);
+        if (timeSinceLastSync < SYNC_INTERVAL) {
+            const hoursRemaining = Math.round((SYNC_INTERVAL - timeSinceLastSync) / (60 * 60 * 1000));
+            console.log(`⏭️ Auto-sync skipped - last synced ${Math.round(timeSinceLastSync / (60 * 60 * 1000))} hours ago. Next auto-sync in ~${hoursRemaining} hours.`);
             return;
         }
-        
-        console.log('🔄 Running periodic auto-sync...');
-        
+    }
+    
+    console.log('🔄 Running auto-sync (twice per week schedule)...');
+    
+    // Run sync asynchronously without blocking
+    (async () => {
         try {
             const response = await fetch('/api/sync_zoho_pos');
             const result = await response.json();
@@ -1205,7 +1200,7 @@ function startPeriodicAutoSync() {
             if (result.success) {
                 // Mark that we've synced
                 sessionStorage.setItem('lastZohoSync', now.toString());
-                console.log('✅ Periodic auto-sync completed:', result.message);
+                console.log('✅ Auto-sync completed:', result.message);
                 
                 // Only reload if there might be status changes
                 if (result.message && (result.message.includes('closed') || result.message.includes('Updated') || result.message.includes('Cancelled'))) {
@@ -1213,24 +1208,12 @@ function startPeriodicAutoSync() {
                     setTimeout(() => location.reload(), 2000);
                 }
             } else {
-                console.warn('⚠️ Periodic auto-sync failed:', result.error);
+                console.warn('⚠️ Auto-sync failed:', result.error);
             }
         } catch (error) {
-            console.warn('⚠️ Periodic auto-sync error:', error.message);
+            console.warn('⚠️ Auto-sync error:', error.message);
         }
-    }, SYNC_INTERVAL);
-    
-    // Store interval ID so we can clear it if needed
-    window.autoSyncInterval = autoSyncInterval;
-}
-
-// Stop periodic auto-sync (can be called if needed)
-function stopPeriodicAutoSync() {
-    if (autoSyncInterval) {
-        clearInterval(autoSyncInterval);
-        autoSyncInterval = null;
-        console.log('⏹️ Stopped periodic auto-sync');
-    }
+    })();
 }
 
 // toggleAllSubmissions function removed - Recent Submissions now uses scrolling instead of expand/collapse
