@@ -4732,6 +4732,7 @@ def get_po_submissions(po_id):
         
         # Get all submissions for this PO with product details for calculating total tablets
         # Include inventory_item_id for matching with PO line items
+        # IMPORTANT: Include archived field and show ALL submissions (archived and non-archived) for auditing
         if has_submission_date:
             submissions_query = '''
                 SELECT 
@@ -4748,6 +4749,7 @@ def get_po_submissions(po_id):
                     ws.bag_number,
                     ws.bag_label_count,
                     ws.admin_notes,
+                    COALESCE(ws.archived, FALSE) as archived,
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id
@@ -4773,6 +4775,7 @@ def get_po_submissions(po_id):
                     ws.bag_number,
                     ws.bag_label_count,
                     ws.admin_notes,
+                    COALESCE(ws.archived, FALSE) as archived,
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id
@@ -4784,6 +4787,7 @@ def get_po_submissions(po_id):
             '''
         
         submissions_raw = conn.execute(submissions_query, (po_id,)).fetchall()
+        print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} (including archived)")
         
         # Calculate total tablets and running bag totals for each submission
         bag_running_totals = {}
