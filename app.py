@@ -1065,7 +1065,7 @@ def all_submissions():
                 filter_info['item_name'] = item_info['line_item_name']
                 filter_info['item_id'] = filter_item_id
         
-        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived, has_archived=has_archived)
+        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
@@ -1081,31 +1081,15 @@ def all_purchase_orders():
     """Full purchase orders page showing all POs with filtering"""
     conn = get_db()
     
-    # Check if archived column exists
-    has_archived = has_archived_column(conn)
-    # Exclude archived submissions from count (archived submissions are from closed POs)
-    if has_archived:
-        # Use subquery to count only non-archived submissions
-        submission_count_query = '''
-            (SELECT COUNT(DISTINCT ws.id) 
-             FROM warehouse_submissions ws 
-             WHERE ws.assigned_po_id = po.id 
-             AND COALESCE(ws.archived, FALSE) = FALSE) as submission_count
-        '''
-    else:
-        submission_count_query = '''
-            (SELECT COUNT(DISTINCT ws.id) 
-             FROM warehouse_submissions ws 
-             WHERE ws.assigned_po_id = po.id) as submission_count
-        '''
-    
-    # Get ALL POs with line counts and submission counts (excluding archived submissions)
-    all_pos = conn.execute(f'''
+    # Get ALL POs with line counts and submission counts
+    all_pos = conn.execute('''
         SELECT po.*, 
                COUNT(DISTINCT pl.id) as line_count,
                COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
                COALESCE(po.internal_status, 'Active') as status_display,
-               {submission_count_query}
+               (SELECT COUNT(DISTINCT ws.id) 
+                FROM warehouse_submissions ws 
+                WHERE ws.assigned_po_id = po.id) as submission_count
         FROM purchase_orders po
         LEFT JOIN po_lines pl ON po.id = pl.po_id
         GROUP BY po.id
@@ -1383,7 +1367,6 @@ def get_po_lines(po_id):
             SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
         ''', (po_id,)).fetchall()
         
-        # Check if archived column exists
         # Count unverified submissions for this PO
         unverified_query = '''
             SELECT COUNT(*) as count
@@ -2850,12 +2833,6 @@ def get_po_summary_for_reports():
                 'message': 'No purchase orders found'
             })
         
-        # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        
-        # Build query conditionally based on whether archived column exists
-        archived_filter = 'AND COALESCE(archived, FALSE) = FALSE' if has_archived else ''
-        
         # Simplified query for dropdown - use subqueries instead of GROUP BY with JOINs
         # This avoids expensive JOIN operations and is much faster
         query = '''
@@ -3984,7 +3961,6 @@ def recalculate_po_counts():
         conn.execute('UPDATE po_lines SET good_count = 0, damaged_count = 0')
         conn.commit()
         
-        # Check if archived column exists
         # Step 2: Get all submissions with inventory_item_id (now stored directly!)
         # Use COALESCE to fallback to JOIN for old submissions without inventory_item_id
         submissions_query = '''
@@ -4004,7 +3980,6 @@ def recalculate_po_counts():
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE ws.assigned_po_id IS NOT NULL
-            {archived_filter}
             ORDER BY ws.created_at ASC
         '''
         submissions = conn.execute(submissions_query).fetchall()
@@ -4679,8 +4654,7 @@ def get_po_submissions(po_id):
         except:
             pass
         
-        # For PO-specific views, ALWAYS show ALL submissions (including archived) for auditing purposes
-        # This is critical for auditing - users need to see complete submission history for a PO
+        # For PO-specific views, show ALL submissions for auditing purposes
         
         # Determine which PO IDs to query:
         # 1. If this is a parent PO, also include submissions from related OVERS POs
