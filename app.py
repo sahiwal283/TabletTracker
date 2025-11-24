@@ -986,14 +986,16 @@ def all_submissions():
         
         params = []
         
-        # Exclude archived submissions by default (unless show_archived is true)
-        if has_archived and not show_archived:
-            query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
-        
         # Apply PO filter if provided
         if filter_po_id:
             query += ' AND ws.assigned_po_id = ?'
             params.append(filter_po_id)
+            # When filtering by PO, show ALL submissions (including archived) for auditing purposes
+            # Don't apply archived filter when viewing a specific PO
+        else:
+            # Exclude archived submissions by default (unless show_archived is true) only when NOT filtering by PO
+            if has_archived and not show_archived:
+                query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
         
         # Apply item filter if provided
         if filter_item_id:
@@ -4723,14 +4725,13 @@ def get_po_submissions(po_id):
         except:
             pass
         
-        # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        archived_filter = 'AND COALESCE(ws.archived, FALSE) = FALSE' if has_archived else ''
+        # For PO-specific views, ALWAYS show ALL submissions (including archived) for auditing purposes
+        # This is critical for auditing - users need to see complete submission history for a PO
         
         # Get all submissions for this PO with product details for calculating total tablets
         # Include inventory_item_id for matching with PO line items
         if has_submission_date:
-            submissions_query = f'''
+            submissions_query = '''
                 SELECT 
                     ws.id,
                     ws.product_name,
@@ -4752,11 +4753,10 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE ws.assigned_po_id = ?
-                {archived_filter}
                 ORDER BY ws.created_at ASC
             '''
         else:
-            submissions_query = f'''
+            submissions_query = '''
                 SELECT 
                     ws.id,
                     ws.product_name,
@@ -4778,7 +4778,6 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE ws.assigned_po_id = ?
-                {archived_filter}
                 ORDER BY ws.created_at ASC
             '''
         
