@@ -2288,6 +2288,7 @@ def manage_employees():
 @app.route('/api/add_employee', methods=['POST'])
 def add_employee():
     """Add a new employee"""
+    conn = None
     try:
         data = request.get_json()
         username = data.get('username', '').strip()
@@ -2322,12 +2323,16 @@ def add_employee():
         ''', (username, full_name, password_hash, role))
         
         conn.commit()
-        conn.close()
-        
         return jsonify({'success': True, 'message': f'Added employee: {full_name}'})
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/update_employee_role/<int:employee_id>', methods=['POST'])
 @admin_required
@@ -2380,6 +2385,7 @@ def update_employee_role(employee_id):
 @app.route('/api/toggle_employee/<int:employee_id>', methods=['POST'])
 def toggle_employee(employee_id):
     """Toggle employee active status"""
+    conn = None
     try:
         conn = get_db()
         
@@ -2401,17 +2407,23 @@ def toggle_employee(employee_id):
         ''', (new_status, employee_id))
         
         conn.commit()
-        conn.close()
         
         status_text = 'activated' if new_status else 'deactivated'
         return jsonify({'success': True, 'message': f'{employee["full_name"]} {status_text}'})
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/delete_employee/<int:employee_id>', methods=['DELETE'])
 def delete_employee(employee_id):
     """Delete an employee"""
+    conn = None
     try:
         conn = get_db()
         
@@ -2428,12 +2440,17 @@ def delete_employee(employee_id):
         conn.execute('DELETE FROM employees WHERE id = ?', (employee_id,))
         
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': f'Deleted employee: {employee["full_name"]}'})
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/set-language', methods=['POST'])
 def set_language():
