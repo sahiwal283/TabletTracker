@@ -1123,10 +1123,10 @@ def public_shipments():
 @role_required('dashboard')
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
+    conn = None
     try:
         conn = get_db()
         success, message = zoho_api.sync_tablet_pos_to_db(conn)
-        conn.close()
         
         if success:
             return jsonify({'message': message, 'success': True})
@@ -1134,7 +1134,17 @@ def sync_zoho_pos():
             return jsonify({'error': message, 'success': False}), 400
             
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Sync Zoho POs error: {str(e)}")
+        print(f"Traceback: {error_trace}")
         return jsonify({'error': f'Sync failed: {str(e)}', 'success': False}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/create_overs_po/<int:po_id>', methods=['POST'])
 @role_required('dashboard')

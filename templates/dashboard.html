@@ -560,14 +560,28 @@ async function testZohoConnection() {
 }
 
 async function syncZohoPOs() {
+    const button = document.getElementById('sync-pos-btn');
+    const originalText = button.textContent;
     try {
-        const button = document.getElementById('sync-pos-btn');
-        const originalText = button.textContent;
         button.disabled = true;
         button.style.opacity = '0.7';
         button.textContent = '🔄 SYNCING...';
         
         const response = await fetch('/api/sync_zoho_pos');
+        
+        // Check if response is ok before parsing JSON
+        if (!response.ok) {
+            let errorMessage = `Sync failed with status ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                errorMessage = await response.text() || errorMessage;
+            }
+            showError(errorMessage);
+            return;
+        }
+        
         const result = await response.json();
         
         if (result.success) {
@@ -577,16 +591,13 @@ async function syncZohoPOs() {
         } else {
             showError(result.error || 'Sync failed - check terminal for details');
         }
-        
+    } catch (error) {
+        console.error('Sync error:', error);
+        showError('Sync failed: ' + (error.message || 'Unknown error'));
+    } finally {
         button.disabled = false;
         button.style.opacity = '1';
         button.textContent = originalText;
-    } catch (error) {
-        showError('Sync failed: ' + error.message);
-        const button = document.getElementById('sync-pos-btn');
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.textContent = '🔄 SYNC ZOHO POs';
     }
 }
 

@@ -121,8 +121,12 @@ class ZohoInventoryAPI:
         # Get all POs (open, closed, draft, etc.)
         pos_data = self.get_purchase_orders(status='all')
         
-        if not pos_data or 'purchaseorders' not in pos_data:
-            return False, "Failed to fetch POs from Zoho"
+        if not pos_data:
+            return False, "Failed to fetch POs from Zoho - API returned no data. Check Zoho API credentials and connection."
+        
+        if 'purchaseorders' not in pos_data:
+            error_msg = pos_data.get('message', 'Unknown error') if isinstance(pos_data, dict) else 'Invalid response format'
+            return False, f"Failed to fetch POs from Zoho: {error_msg}"
         
         synced_count = 0
         skipped_count = 0
