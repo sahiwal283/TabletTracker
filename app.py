@@ -262,23 +262,6 @@ def init_db():
         except Exception as e:
             print(f"Note: admin_notes column migration: {e}")
     
-    # Add archived column to warehouse_submissions for archiving submissions from closed POs
-    if 'archived' not in existing_ws_cols:
-        try:
-            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN archived BOOLEAN DEFAULT FALSE')
-            # Archive existing submissions for closed POs
-            c.execute('''
-                UPDATE warehouse_submissions 
-                SET archived = TRUE 
-                WHERE assigned_po_id IN (
-                    SELECT id FROM purchase_orders WHERE closed = TRUE
-                )
-            ''')
-            rows_archived = c.execute('SELECT changes()').fetchone()[0]
-            print(f"Added archived column to warehouse_submissions and archived {rows_archived} existing submissions from closed POs")
-        except Exception as e:
-            print(f"Note: archived column migration: {e}")
-    
     # Add tracking columns if upgrading existing DB
     # Safe ALTERs to backfill missing columns
     c.execute('PRAGMA table_info(shipments)')
@@ -363,14 +346,6 @@ def get_db():
     conn = sqlite3.connect('tablet_counter.db')
     conn.row_factory = sqlite3.Row
     return conn
-
-def has_archived_column(conn):
-    """Check if the archived column exists in warehouse_submissions table"""
-    try:
-        conn.execute('SELECT archived FROM warehouse_submissions LIMIT 1')
-        return True
-    except sqlite3.OperationalError:
-        return False
 
 # Helper function to require login for admin views
 def admin_required(f):
@@ -822,12 +797,8 @@ def admin_dashboard():
     try:
         conn = get_db()
         
-        # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        archived_filter = 'AND COALESCE(ws.archived, FALSE) = FALSE' if has_archived else ''
-        
         # Get active POs that have submissions assigned (last 10)
-        active_pos_query = f'''
+        active_pos_query = '''
             SELECT po.*, 
                    COUNT(DISTINCT pl.id) as line_count,
                    COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
@@ -838,7 +809,6 @@ def admin_dashboard():
             INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
             WHERE po.closed = FALSE
             AND COALESCE(po.internal_status, '') != 'Cancelled'
-            {archived_filter}
             GROUP BY po.id
             HAVING submission_count > 0
             ORDER BY po.po_number DESC
@@ -850,7 +820,7 @@ def admin_dashboard():
         closed_pos = []
         
         # Get recent submissions with calculated totals and running bag totals
-        submissions_query = f'''
+        submissions_query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
@@ -863,7 +833,6 @@ def admin_dashboard():
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            WHERE 1=1 {archived_filter}
             ORDER BY ws.created_at ASC
         '''
         submissions_raw = conn.execute(submissions_query).fetchall()
@@ -955,15 +924,9 @@ def all_submissions():
     try:
         conn = get_db()
         
-        # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        
         # Get filter parameters from query string
         filter_po_id = request.args.get('po_id', type=int)
         filter_item_id = request.args.get('item_id', type=str)
-        # Always check the query parameter, but only use it if column exists
-        show_archived_param = request.args.get('show_archived', type=str) == 'true'
-        show_archived = show_archived_param if has_archived else False
         
         # Build query with optional filters
         query = '''
@@ -990,12 +953,6 @@ def all_submissions():
         if filter_po_id:
             query += ' AND ws.assigned_po_id = ?'
             params.append(filter_po_id)
-            # When filtering by PO, show ALL submissions (including archived) for auditing purposes
-            # Don't apply archived filter when viewing a specific PO
-        else:
-            # Exclude archived submissions by default (unless show_archived is true) only when NOT filtering by PO
-            if has_archived and not show_archived:
-                query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
         
         # Apply item filter if provided
         if filter_item_id:
@@ -1073,14 +1030,9 @@ def all_submissions():
             WHERE COALESCE(ws.po_assignment_verified, 0) = 0
         '''
         unverified_params = []
-        # When filtering by PO, show ALL submissions (including archived) for auditing
-        # Only exclude archived if NOT filtering by PO and not showing archived
         if filter_po_id:
             unverified_query += ' AND ws.assigned_po_id = ?'
             unverified_params.append(filter_po_id)
-            # Don't filter by archived when viewing a specific PO
-        elif has_archived and not show_archived:
-            unverified_query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
         if filter_item_id:
             unverified_query += ' AND tt.inventory_item_id = ?'
             unverified_params.append(filter_item_id)
@@ -1118,18 +1070,7 @@ def all_submissions():
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
-        # Check if archived column exists even in error case
-        conn_error = None
-        has_archived_error = False
-        try:
-            conn_error = get_db()
-            has_archived_error = has_archived_column(conn_error)
-        except:
-            pass
-        finally:
-            if conn_error:
-                conn_error.close()
-        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0, show_archived=False, has_archived=has_archived_error)
+        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0)
     finally:
         if conn:
             conn.close()
@@ -1443,15 +1384,11 @@ def get_po_lines(po_id):
         ''', (po_id,)).fetchall()
         
         # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        archived_filter = 'AND COALESCE(archived, FALSE) = FALSE' if has_archived else ''
-        
         # Count unverified submissions for this PO
-        unverified_query = f'''
+        unverified_query = '''
             SELECT COUNT(*) as count
             FROM warehouse_submissions
             WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
-            {archived_filter}
         '''
         unverified_count = conn.execute(unverified_query, (po_id,)).fetchone()
         
@@ -2921,7 +2858,7 @@ def get_po_summary_for_reports():
         
         # Simplified query for dropdown - use subqueries instead of GROUP BY with JOINs
         # This avoids expensive JOIN operations and is much faster
-        query = f'''
+        query = '''
             SELECT 
                 po.id,
                 po.po_number,
@@ -2932,8 +2869,8 @@ def get_po_summary_for_reports():
                 COALESCE(po.current_damaged_count, 0) as current_damaged_count,
                 po.created_at,
                 po.updated_at,
-                (SELECT COUNT(*) FROM warehouse_submissions WHERE assigned_po_id = po.id {archived_filter}) as submission_count,
-                (SELECT MAX(created_at) FROM warehouse_submissions WHERE assigned_po_id = po.id {archived_filter}) as last_submission,
+                (SELECT COUNT(*) FROM warehouse_submissions WHERE assigned_po_id = po.id) as submission_count,
+                (SELECT MAX(created_at) FROM warehouse_submissions WHERE assigned_po_id = po.id) as last_submission,
                 (SELECT MAX(actual_delivery) FROM shipments WHERE po_id = po.id) as actual_delivery,
                 (SELECT MAX(delivered_at) FROM shipments WHERE po_id = po.id) as delivered_at,
                 (SELECT MAX(tracking_status) FROM shipments WHERE po_id = po.id) as tracking_status
@@ -4048,12 +3985,9 @@ def recalculate_po_counts():
         conn.commit()
         
         # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        archived_filter = 'AND COALESCE(ws.archived, FALSE) = FALSE' if has_archived else ''
-        
         # Step 2: Get all submissions with inventory_item_id (now stored directly!)
         # Use COALESCE to fallback to JOIN for old submissions without inventory_item_id
-        submissions_query = f'''
+        submissions_query = '''
             SELECT 
                 ws.id as submission_id,
                 ws.assigned_po_id,
@@ -4748,12 +4682,6 @@ def get_po_submissions(po_id):
         # For PO-specific views, ALWAYS show ALL submissions (including archived) for auditing purposes
         # This is critical for auditing - users need to see complete submission history for a PO
         
-        # Check if archived column exists
-        has_archived = has_archived_column(conn)
-        
-        # Build query with archived field only if column exists
-        archived_select = ', COALESCE(ws.archived, FALSE) as archived' if has_archived else ', 0 as archived'
-        
         # Determine which PO IDs to query:
         # 1. If this is a parent PO, also include submissions from related OVERS POs
         # 2. If this is an OVERS PO, also include submissions from the parent PO
@@ -4782,7 +4710,6 @@ def get_po_submissions(po_id):
         
         # Get all submissions for this PO (and related OVERS/parent POs) with product details
         # Include inventory_item_id for matching with PO line items
-        # IMPORTANT: Show ALL submissions (archived and non-archived) for auditing
         if has_submission_date:
             submissions_query = f'''
                 SELECT 
@@ -4798,7 +4725,7 @@ def get_po_submissions(po_id):
                     ws.box_number,
                     ws.bag_number,
                     ws.bag_label_count,
-                    ws.admin_notes{archived_select},
+                    ws.admin_notes,
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id,
@@ -4824,7 +4751,7 @@ def get_po_submissions(po_id):
                     ws.box_number,
                     ws.bag_number,
                     ws.bag_label_count,
-                    ws.admin_notes{archived_select},
+                    ws.admin_notes,
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id,
@@ -4837,7 +4764,7 @@ def get_po_submissions(po_id):
             '''
         
         submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query)).fetchall()
-        print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query} (including archived)")
+        print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query}")
         
         # Calculate total tablets and running bag totals for each submission
         bag_running_totals = {}
