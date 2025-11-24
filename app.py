@@ -4710,7 +4710,8 @@ def get_po_submissions(po_id):
         # Get PO details
         po = conn.execute('''
             SELECT po_number, tablet_type, ordered_quantity, 
-                   current_good_count, current_damaged_count, remaining_quantity
+                   current_good_count, current_damaged_count, remaining_quantity,
+                   parent_po_number
             FROM purchase_orders
             WHERE id = ?
         ''', (po_id,)).fetchone()
@@ -4736,7 +4737,33 @@ def get_po_submissions(po_id):
         # Build query with archived field only if column exists
         archived_select = ', COALESCE(ws.archived, FALSE) as archived' if has_archived else ', 0 as archived'
         
-        # Get all submissions for this PO with product details for calculating total tablets
+        # Determine which PO IDs to query:
+        # 1. If this is a parent PO, also include submissions from related OVERS POs
+        # 2. If this is an OVERS PO, also include submissions from the parent PO
+        po_ids_to_query = [po_id]
+        po_number = po['po_number']
+        
+        # Check if this is a parent PO - find related OVERS POs
+        overs_pos = conn.execute('''
+            SELECT id FROM purchase_orders 
+            WHERE parent_po_number = ?
+        ''', (po_number,)).fetchall()
+        for overs_po in overs_pos:
+            po_ids_to_query.append(overs_po['id'])
+        
+        # Check if this is an OVERS PO - find parent PO
+        if po['parent_po_number']:
+            parent_po = conn.execute('''
+                SELECT id FROM purchase_orders 
+                WHERE po_number = ?
+            ''', (po['parent_po_number'],)).fetchone()
+            if parent_po and parent_po['id'] not in po_ids_to_query:
+                po_ids_to_query.append(parent_po['id'])
+        
+        # Build WHERE clause for multiple PO IDs
+        po_ids_placeholders = ','.join(['?'] * len(po_ids_to_query))
+        
+        # Get all submissions for this PO (and related OVERS/parent POs) with product details
         # Include inventory_item_id for matching with PO line items
         # IMPORTANT: Show ALL submissions (archived and non-archived) for auditing
         if has_submission_date:
@@ -4757,11 +4784,12 @@ def get_po_submissions(po_id):
                     ws.admin_notes{archived_select},
                     pd.packages_per_display,
                     pd.tablets_per_package,
-                    tt.inventory_item_id
+                    tt.inventory_item_id,
+                    ws.assigned_po_id
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE ws.assigned_po_id = ?
+                WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
         else:
@@ -4782,16 +4810,17 @@ def get_po_submissions(po_id):
                     ws.admin_notes{archived_select},
                     pd.packages_per_display,
                     pd.tablets_per_package,
-                    tt.inventory_item_id
+                    tt.inventory_item_id,
+                    ws.assigned_po_id
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE ws.assigned_po_id = ?
+                WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
         
-        submissions_raw = conn.execute(submissions_query, (po_id,)).fetchall()
-        print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} (including archived)")
+        submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query)).fetchall()
+        print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query} (including archived)")
         
         # Calculate total tablets and running bag totals for each submission
         bag_running_totals = {}
