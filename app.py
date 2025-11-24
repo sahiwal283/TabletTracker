@@ -1344,8 +1344,10 @@ def get_po_lines(po_id):
         current_po_number = current_po['po_number'] if current_po else None
         po_status = None
         if current_po:
-            # Determine status: closed takes priority, then internal_status, then zoho_status
-            if current_po['closed']:
+            # Determine status: cancelled takes priority, then closed, then internal_status, then zoho_status
+            if current_po['internal_status'] == 'Cancelled':
+                po_status = 'Cancelled'
+            elif current_po['closed']:
                 po_status = 'Closed'
             elif current_po['internal_status']:
                 po_status = current_po['internal_status']
@@ -3455,7 +3457,7 @@ def get_available_pos_for_submission(submission_id):
                 'id': po['id'],
                 'po_number': po['po_number'],
                 'closed': bool(po['closed']),
-                'status': 'Closed' if po['closed'] else (po['internal_status'] or 'Active'),
+                'status': 'Cancelled' if po['internal_status'] == 'Cancelled' else ('Closed' if po['closed'] else (po['internal_status'] or 'Active')),
                 'ordered': po['ordered_quantity'] or 0,
                 'good': po['current_good_count'] or 0,
                 'damaged': po['current_damaged_count'] or 0,
