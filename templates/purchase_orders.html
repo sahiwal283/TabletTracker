@@ -402,6 +402,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
+        // Count archived vs non-archived submissions
+        const archivedCount = filteredSubmissions.filter(sub => {
+            return sub.archived === true || sub.archived === 1 || sub.archived === 'true' || sub.archived === '1';
+        }).length;
+        const activeCount = filteredSubmissions.length - archivedCount;
+        
         // Get product name for display from first submission or from filtered list
         const displayProductName = filteredSubmissions.length > 0 ? filteredSubmissions[0].product_name : '';
         
@@ -442,7 +448,10 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                             <div class="flex-1 text-center">
                                 <h3 class="text-xl font-bold">📋 Submissions for ${data.po.po_number}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
-                                <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s) found</p>
+                                <p class="text-sm text-blue-100 mt-1">
+                                    ${filteredSubmissions.length} submission(s) total
+                                    ${archivedCount > 0 ? `<span class="ml-2 px-2 py-1 bg-gray-600 rounded text-xs">${activeCount} active, ${archivedCount} archived</span>` : ''}
+                                </p>
                                 ${totals ? `<p class="text-sm text-blue-100 mt-1 font-semibold">📊 Total Tablets: ${totals.total_tablets.toLocaleString()}</p>` : ''}
                             </div>
                             <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
@@ -500,22 +509,28 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                 const cursorClass = isAdmin ? 'cursor-pointer' : '';
                 const editHint = isAdmin ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
                 
+                // Check if submission is archived
+                const isArchived = sub.archived === true || sub.archived === 1 || sub.archived === 'true' || sub.archived === '1';
+                const archivedClass = isArchived ? 'opacity-75 bg-gray-50 border-gray-300' : '';
+                const archivedBadge = isArchived ? '<div class="inline-block bg-gray-500 text-white px-2 py-1 rounded-full text-xs font-semibold mb-2">📦 ARCHIVED</div>' : '';
+                
                 modalContent += `
-                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors ${cursorClass}" ${clickHandler}>
+                    <div class="border ${isArchived ? 'border-gray-300' : 'border-gray-200'} rounded-lg p-4 ${isArchived ? 'bg-gray-50' : 'hover:bg-gray-50'} transition-colors ${cursorClass} ${archivedClass}" ${clickHandler}>
+                        ${archivedBadge}
                         <div class="flex justify-between items-start mb-3">
                             <div>
-                                <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
-                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
+                                <h4 class="font-medium ${isArchived ? 'text-gray-600' : 'text-gray-900'}">${sub.product_name}</h4>
+                                <p class="text-sm ${isArchived ? 'text-gray-500' : 'text-gray-600'}">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
                             </div>
                             <div class="text-right text-sm">
-                                <div class="text-gray-600">📅 ${formatDateEST(submissionDateStr)}</div>
+                                <div class="${isArchived ? 'text-gray-500' : 'text-gray-600'}">📅 ${formatDateEST(submissionDateStr)}</div>
                                 <div class="text-xs text-gray-400">Created: ${formatDateTimeEST(createdDateStr)}</div>
                             </div>
                         </div>
                         
                         <!-- Running Total and Bag Check -->
                         <div class="mb-3 flex gap-2 items-center flex-wrap">
-                            <div class="inline-block bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
+                            <div class="inline-block ${isArchived ? 'bg-gray-200 text-gray-700' : 'bg-purple-100 text-purple-800'} px-3 py-1 rounded-full">
                                 <span class="font-semibold text-sm">Running: ${(sub.running_total || 0).toLocaleString()}</span>
                             </div>
                             ${sub.bag_label_count ? `

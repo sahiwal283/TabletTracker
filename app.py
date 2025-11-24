@@ -1140,16 +1140,33 @@ def all_purchase_orders():
     """Full purchase orders page showing all POs with filtering"""
     conn = get_db()
     
-    # Get ALL POs with line counts and submission counts
-    all_pos = conn.execute('''
+    # Check if archived column exists
+    has_archived = has_archived_column(conn)
+    # Exclude archived submissions from count (archived submissions are from closed POs)
+    if has_archived:
+        # Use subquery to count only non-archived submissions
+        submission_count_query = '''
+            (SELECT COUNT(DISTINCT ws.id) 
+             FROM warehouse_submissions ws 
+             WHERE ws.assigned_po_id = po.id 
+             AND COALESCE(ws.archived, FALSE) = FALSE) as submission_count
+        '''
+    else:
+        submission_count_query = '''
+            (SELECT COUNT(DISTINCT ws.id) 
+             FROM warehouse_submissions ws 
+             WHERE ws.assigned_po_id = po.id) as submission_count
+        '''
+    
+    # Get ALL POs with line counts and submission counts (excluding archived submissions)
+    all_pos = conn.execute(f'''
         SELECT po.*, 
                COUNT(DISTINCT pl.id) as line_count,
                COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
                COALESCE(po.internal_status, 'Active') as status_display,
-               COUNT(DISTINCT ws.id) as submission_count
+               {submission_count_query}
         FROM purchase_orders po
         LEFT JOIN po_lines pl ON po.id = pl.po_id
-        LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
         GROUP BY po.id
         ORDER BY po.po_number DESC
     ''').fetchall()
