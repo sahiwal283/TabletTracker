@@ -625,7 +625,6 @@ def submit_warehouse():
             ''', (session.get('employee_id'),)).fetchone()
             
             if not employee:
-                conn.close()
                 return jsonify({'error': 'Employee not found'}), 400
             
             employee_name = employee['full_name']
@@ -639,7 +638,6 @@ def submit_warehouse():
         ''', (data.get('product_name'),)).fetchone()
         
         if not product:
-            conn.close()
             return jsonify({'error': 'Product not found'}), 400
         
         # Convert Row to dict for safe access
@@ -650,7 +648,6 @@ def submit_warehouse():
         tablets_per_package = product.get('tablets_per_package')
         
         if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
-            conn.close()
             return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
         
         # Convert to int after validation
@@ -658,7 +655,6 @@ def submit_warehouse():
             packages_per_display = int(packages_per_display)
             tablets_per_package = int(tablets_per_package)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
         
         # Calculate tablet counts with safe type conversion
@@ -668,7 +664,6 @@ def submit_warehouse():
             loose_tablets = int(data.get('loose_tablets', 0) or 0)
             damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
         good_tablets = (displays_made * packages_per_display * tablets_per_package + 
@@ -684,7 +679,6 @@ def submit_warehouse():
         # Insert submission record using logged-in employee name WITH inventory_item_id
         inventory_item_id = product.get('inventory_item_id')
         if not inventory_item_id:
-            conn.close()
             return jsonify({'error': 'Product inventory_item_id not found'}), 400
             
         conn.execute('''
@@ -715,7 +709,6 @@ def submit_warehouse():
         
         if not po_lines:
             conn.commit()
-            conn.close()
             return jsonify({'warning': f'No open PO found for this tablet type (inventory_item_id: {inventory_item_id})', 'submission_saved': True})
         
         # Get the PO we'll assign to (first available line's PO - oldest PO number)
@@ -793,7 +786,6 @@ def submit_warehouse():
                 updated_pos.add(line['po_id'])
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True, 
@@ -803,281 +795,305 @@ def submit_warehouse():
         })
         
     except Exception as e:
+        import traceback
+        print(f"Error in submit_warehouse: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/dashboard')
 @role_required('dashboard')
 def admin_dashboard():
     """Desktop dashboard for managers/admins"""
-    conn = get_db()
-    
-    # Get active POs that have submissions assigned (last 10)
-    active_pos = conn.execute('''
-        SELECT po.*, 
-               COUNT(DISTINCT pl.id) as line_count,
-               COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
-               COALESCE(po.internal_status, 'Active') as status_display,
-               COUNT(DISTINCT ws.id) as submission_count
-        FROM purchase_orders po
-        LEFT JOIN po_lines pl ON po.id = pl.po_id
-        INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
-        WHERE po.closed = FALSE
-        AND COALESCE(po.internal_status, '') != 'Cancelled'
-        AND COALESCE(ws.archived, FALSE) = FALSE
-        GROUP BY po.id
-        HAVING submission_count > 0
-        ORDER BY po.po_number DESC
-        LIMIT 10
-    ''').fetchall()
-    
-    # Get closed POs for historical reference (removed from dashboard)
-    closed_pos = []
-    
-    # Get recent submissions with calculated totals and running bag totals
-    submissions_raw = conn.execute('''
-        SELECT ws.*, po.po_number, po.closed as po_closed,
-               pd.packages_per_display, pd.tablets_per_package,
-               COALESCE(ws.po_assignment_verified, 0) as po_verified,
-               ws.admin_notes,
-               (
-                   (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
-                   ws.loose_tablets + ws.damaged_tablets
-               ) as calculated_total
-        FROM warehouse_submissions ws
-        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-        WHERE COALESCE(ws.archived, FALSE) = FALSE
-        ORDER BY ws.created_at ASC
-    ''').fetchall()
-    
-    # Calculate running totals by bag PER PO (each PO has its own physical bags)
-    bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
-    submissions_processed = []
-    
-    for sub in submissions_raw:
-        sub_dict = dict(sub)
-        # Create bag identifier from box_number/bag_number
-        bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-        # Key includes PO ID so each PO tracks its own bag totals independently
-        bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+    conn = None
+    try:
+        conn = get_db()
         
-        # Individual calculation for this submission
-        individual_calc = sub_dict.get('calculated_total', 0) or 0
+        # Get active POs that have submissions assigned (last 10)
+        active_pos = conn.execute('''
+            SELECT po.*, 
+                   COUNT(DISTINCT pl.id) as line_count,
+                   COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
+                   COALESCE(po.internal_status, 'Active') as status_display,
+                   COUNT(DISTINCT ws.id) as submission_count
+            FROM purchase_orders po
+            LEFT JOIN po_lines pl ON po.id = pl.po_id
+            INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+            WHERE po.closed = FALSE
+            AND COALESCE(po.internal_status, '') != 'Cancelled'
+            AND COALESCE(ws.archived, FALSE) = FALSE
+            GROUP BY po.id
+            HAVING submission_count > 0
+            ORDER BY po.po_number DESC
+            LIMIT 10
+        ''').fetchall()
         
-        # Update running total for this bag
-        if bag_key not in bag_running_totals:
-            bag_running_totals[bag_key] = 0
-        bag_running_totals[bag_key] += individual_calc
+        # Get closed POs for historical reference (removed from dashboard)
+        closed_pos = []
         
-        # Add running total and comparison fields
-        sub_dict['individual_calc'] = individual_calc
-        sub_dict['running_total'] = bag_running_totals[bag_key]
+        # Get recent submissions with calculated totals and running bag totals
+        submissions_raw = conn.execute('''
+            SELECT ws.*, po.po_number, po.closed as po_closed,
+                   pd.packages_per_display, pd.tablets_per_package,
+                   COALESCE(ws.po_assignment_verified, 0) as po_verified,
+                   ws.admin_notes,
+                   (
+                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                       ws.loose_tablets + ws.damaged_tablets
+                   ) as calculated_total
+            FROM warehouse_submissions ws
+            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE COALESCE(ws.archived, FALSE) = FALSE
+            ORDER BY ws.created_at ASC
+        ''').fetchall()
         
-        # Compare running total to bag label count
-        bag_count = sub_dict.get('bag_label_count', 0) or 0
-        running_total = bag_running_totals[bag_key]
+        # Calculate running totals by bag PER PO (each PO has its own physical bags)
+        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+        submissions_processed = []
         
-        # Determine status
-        if bag_count == 0:
-            sub_dict['count_status'] = 'no_bag'
-        elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
-            sub_dict['count_status'] = 'match'
-        elif running_total < bag_count:
-            sub_dict['count_status'] = 'under'
-        else:
-            sub_dict['count_status'] = 'over'
+        for sub in submissions_raw:
+            sub_dict = dict(sub)
+            # Create bag identifier from box_number/bag_number
+            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+            # Key includes PO ID so each PO tracks its own bag totals independently
+            bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+            
+            # Individual calculation for this submission
+            individual_calc = sub_dict.get('calculated_total', 0) or 0
+            
+            # Update running total for this bag
+            if bag_key not in bag_running_totals:
+                bag_running_totals[bag_key] = 0
+            bag_running_totals[bag_key] += individual_calc
+            
+            # Add running total and comparison fields
+            sub_dict['individual_calc'] = individual_calc
+            sub_dict['running_total'] = bag_running_totals[bag_key]
+            
+            # Compare running total to bag label count
+            bag_count = sub_dict.get('bag_label_count', 0) or 0
+            running_total = bag_running_totals[bag_key]
+            
+            # Determine status
+            if bag_count == 0:
+                sub_dict['count_status'] = 'no_bag'
+            elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+                sub_dict['count_status'] = 'match'
+            elif running_total < bag_count:
+                sub_dict['count_status'] = 'under'
+            else:
+                sub_dict['count_status'] = 'over'
+            
+            sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+            
+            submissions_processed.append(sub_dict)
         
-        sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+        # Show only last 10 most recent submissions on dashboard
+        submissions = list(reversed(submissions_processed[-10:]))  # Last 10, newest first
         
-        submissions_processed.append(sub_dict)
-    
-    # Show only last 10 most recent submissions on dashboard
-    submissions = list(reversed(submissions_processed[-10:]))  # Last 10, newest first
-    
-    # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
-    stats = conn.execute('''
-        SELECT 
-            COUNT(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
-            COUNT(CASE WHEN closed = TRUE AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
-            COUNT(CASE WHEN internal_status = 'Draft' AND zoho_po_id IS NOT NULL THEN 1 END) as draft_pos,
-            COALESCE(SUM(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 
-                (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
-        FROM purchase_orders
-    ''').fetchone()
-    
-    # Count ALL submissions needing verification (not verified yet)
-    verification_count = conn.execute('''
-        SELECT COUNT(*) as count
-        FROM warehouse_submissions
-        WHERE COALESCE(po_assignment_verified, 0) = 0
-    ''').fetchone()['count']
-    
-    conn.close()
-    return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count)
+        # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
+        stats = conn.execute('''
+            SELECT 
+                COUNT(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
+                COUNT(CASE WHEN closed = TRUE AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
+                COUNT(CASE WHEN internal_status = 'Draft' AND zoho_po_id IS NOT NULL THEN 1 END) as draft_pos,
+                COALESCE(SUM(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 
+                    (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
+            FROM purchase_orders
+        ''').fetchone()
+        
+        # Count ALL submissions needing verification (not verified yet)
+        verification_count = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM warehouse_submissions
+            WHERE COALESCE(po_assignment_verified, 0) = 0
+        ''').fetchone()['count']
+        
+        return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count)
+    except Exception as e:
+        import traceback
+        print(f"Error in admin_dashboard: {e}")
+        traceback.print_exc()
+        flash('An error occurred while loading the dashboard. Please try again.', 'error')
+        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=None, verification_count=0)
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/submissions')
 @role_required('dashboard')
 def all_submissions():
     """Full submissions page showing all submissions"""
-    conn = get_db()
-    
-    # Get filter parameters from query string
-    filter_po_id = request.args.get('po_id', type=int)
-    filter_item_id = request.args.get('item_id', type=str)
-    show_archived = request.args.get('show_archived', type=str) == 'true'
-    
-    # Build query with optional filters
-    query = '''
-        SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter,
-               pd.packages_per_display, pd.tablets_per_package,
-               tt.inventory_item_id,
-               COALESCE(ws.po_assignment_verified, 0) as po_verified,
-               ws.admin_notes,
-               (
-                   (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
-                   ws.loose_tablets + ws.damaged_tablets
-               ) as calculated_total
-        FROM warehouse_submissions ws
-        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-        WHERE 1=1
-    '''
-    
-    params = []
-    
-    # Exclude archived submissions by default (unless show_archived is true)
-    if not show_archived:
-        query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
-    
-    # Apply PO filter if provided
-    if filter_po_id:
-        query += ' AND ws.assigned_po_id = ?'
-        params.append(filter_po_id)
-    
-    # Apply item filter if provided
-    if filter_item_id:
-        query += ' AND tt.inventory_item_id = ?'
-        params.append(filter_item_id)
-    
-    query += ' ORDER BY ws.created_at ASC'
-    
-    submissions_raw = conn.execute(query, params).fetchall()
-    
-    # Calculate running totals by bag PER PO (each PO has its own physical bags)
-    bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
-    submissions_processed = []
-    
-    for sub in submissions_raw:
-        sub_dict = dict(sub)
-        # Create bag identifier from box_number/bag_number
-        bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-        # Key includes PO ID so each PO tracks its own bag totals independently
-        bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+    conn = None
+    try:
+        conn = get_db()
         
-        # Individual calculation for this submission
-        individual_calc = sub_dict.get('calculated_total', 0) or 0
+        # Get filter parameters from query string
+        filter_po_id = request.args.get('po_id', type=int)
+        filter_item_id = request.args.get('item_id', type=str)
+        show_archived = request.args.get('show_archived', type=str) == 'true'
         
-        # Update running total for this bag
-        if bag_key not in bag_running_totals:
-            bag_running_totals[bag_key] = 0
-        bag_running_totals[bag_key] += individual_calc
+        # Build query with optional filters
+        query = '''
+            SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter,
+                   pd.packages_per_display, pd.tablets_per_package,
+                   tt.inventory_item_id,
+                   COALESCE(ws.po_assignment_verified, 0) as po_verified,
+                   ws.admin_notes,
+                   (
+                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                       ws.loose_tablets + ws.damaged_tablets
+                   ) as calculated_total
+            FROM warehouse_submissions ws
+            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE 1=1
+        '''
         
-        # Add running total and comparison fields
-        sub_dict['individual_calc'] = individual_calc
-        sub_dict['running_total'] = bag_running_totals[bag_key]
+        params = []
         
-        # Compare running total to bag label count
-        bag_count = sub_dict.get('bag_label_count', 0) or 0
-        running_total = bag_running_totals[bag_key]
+        # Exclude archived submissions by default (unless show_archived is true)
+        if not show_archived:
+            query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
         
-        # Determine status
-        if bag_count == 0:
-            sub_dict['count_status'] = 'no_bag'
-        elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
-            sub_dict['count_status'] = 'match'
-        elif running_total < bag_count:
-            sub_dict['count_status'] = 'under'
-        else:
-            sub_dict['count_status'] = 'over'
+        # Apply PO filter if provided
+        if filter_po_id:
+            query += ' AND ws.assigned_po_id = ?'
+            params.append(filter_po_id)
         
-        sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+        # Apply item filter if provided
+        if filter_item_id:
+            query += ' AND tt.inventory_item_id = ?'
+            params.append(filter_item_id)
         
-        submissions_processed.append(sub_dict)
-    
-    # Reverse to show newest first in UI
-    all_submissions = list(reversed(submissions_processed))  # All submissions, newest first
-    
-    # Pagination
-    page = request.args.get('page', 1, type=int)
-    per_page = 15
-    total_submissions = len(all_submissions)
-    total_pages = (total_submissions + per_page - 1) // per_page  # Ceiling division
-    
-    # Calculate start and end indices
-    start_idx = (page - 1) * per_page
-    end_idx = start_idx + per_page
-    
-    # Get submissions for current page
-    submissions = all_submissions[start_idx:end_idx]
-    
-    # Count unverified submissions (respecting current filters)
-    unverified_query = '''
-        SELECT COUNT(*) as count
-        FROM warehouse_submissions ws
-        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-        WHERE COALESCE(ws.po_assignment_verified, 0) = 0
-    '''
-    unverified_params = []
-    # Only exclude archived if not showing archived
-    if not show_archived:
-        unverified_query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
-    if filter_po_id:
-        unverified_query += ' AND ws.assigned_po_id = ?'
-        unverified_params.append(filter_po_id)
-    if filter_item_id:
-        unverified_query += ' AND tt.inventory_item_id = ?'
-        unverified_params.append(filter_item_id)
-    
-    unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
-    
-    # Pagination info
-    pagination = {
-        'page': page,
-        'per_page': per_page,
-        'total': total_submissions,
-        'total_pages': total_pages,
-        'has_prev': page > 1,
-        'has_next': page < total_pages,
-        'prev_page': page - 1 if page > 1 else None,
-        'next_page': page + 1 if page < total_pages else None
-    }
-    
-    # Get filter info for display
-    filter_info = {}
-    if filter_po_id:
-        po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
-        if po_info:
-            filter_info['po_number'] = po_info['po_number']
-            filter_info['po_id'] = filter_po_id
-    
-    if filter_item_id:
-        item_info = conn.execute('SELECT line_item_name FROM po_lines WHERE inventory_item_id = ? LIMIT 1', (filter_item_id,)).fetchone()
-        if item_info:
-            filter_info['item_name'] = item_info['line_item_name']
-            filter_info['item_id'] = filter_item_id
-    
-    conn.close()
-    return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived)
+        query += ' ORDER BY ws.created_at ASC'
+        
+        submissions_raw = conn.execute(query, params).fetchall()
+        
+        # Calculate running totals by bag PER PO (each PO has its own physical bags)
+        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+        submissions_processed = []
+        
+        for sub in submissions_raw:
+            sub_dict = dict(sub)
+            # Create bag identifier from box_number/bag_number
+            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+            # Key includes PO ID so each PO tracks its own bag totals independently
+            bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+            
+            # Individual calculation for this submission
+            individual_calc = sub_dict.get('calculated_total', 0) or 0
+            
+            # Update running total for this bag
+            if bag_key not in bag_running_totals:
+                bag_running_totals[bag_key] = 0
+            bag_running_totals[bag_key] += individual_calc
+            
+            # Add running total and comparison fields
+            sub_dict['individual_calc'] = individual_calc
+            sub_dict['running_total'] = bag_running_totals[bag_key]
+            
+            # Compare running total to bag label count
+            bag_count = sub_dict.get('bag_label_count', 0) or 0
+            running_total = bag_running_totals[bag_key]
+            
+            # Determine status
+            if bag_count == 0:
+                sub_dict['count_status'] = 'no_bag'
+            elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+                sub_dict['count_status'] = 'match'
+            elif running_total < bag_count:
+                sub_dict['count_status'] = 'under'
+            else:
+                sub_dict['count_status'] = 'over'
+            
+            sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+            
+            submissions_processed.append(sub_dict)
+        
+        # Reverse to show newest first in UI
+        all_submissions = list(reversed(submissions_processed))  # All submissions, newest first
+        
+        # Pagination
+        page = request.args.get('page', 1, type=int)
+        per_page = 15
+        total_submissions = len(all_submissions)
+        total_pages = (total_submissions + per_page - 1) // per_page  # Ceiling division
+        
+        # Calculate start and end indices
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        
+        # Get submissions for current page
+        submissions = all_submissions[start_idx:end_idx]
+        
+        # Count unverified submissions (respecting current filters)
+        unverified_query = '''
+            SELECT COUNT(*) as count
+            FROM warehouse_submissions ws
+            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE COALESCE(ws.po_assignment_verified, 0) = 0
+        '''
+        unverified_params = []
+        # Only exclude archived if not showing archived
+        if not show_archived:
+            unverified_query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
+        if filter_po_id:
+            unverified_query += ' AND ws.assigned_po_id = ?'
+            unverified_params.append(filter_po_id)
+        if filter_item_id:
+            unverified_query += ' AND tt.inventory_item_id = ?'
+            unverified_params.append(filter_item_id)
+        
+        unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
+        
+        # Pagination info
+        pagination = {
+            'page': page,
+            'per_page': per_page,
+            'total': total_submissions,
+            'total_pages': total_pages,
+            'has_prev': page > 1,
+            'has_next': page < total_pages,
+            'prev_page': page - 1 if page > 1 else None,
+            'next_page': page + 1 if page < total_pages else None
+        }
+        
+        # Get filter info for display
+        filter_info = {}
+        if filter_po_id:
+            po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
+            if po_info:
+                filter_info['po_number'] = po_info['po_number']
+                filter_info['po_id'] = filter_po_id
+        
+        if filter_item_id:
+            item_info = conn.execute('SELECT line_item_name FROM po_lines WHERE inventory_item_id = ? LIMIT 1', (filter_item_id,)).fetchone()
+            if item_info:
+                filter_info['item_name'] = item_info['line_item_name']
+                filter_info['item_id'] = filter_item_id
+        
+        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived)
+    except Exception as e:
+        import traceback
+        print(f"Error in all_submissions: {e}")
+        traceback.print_exc()
+        flash('An error occurred while loading submissions. Please try again.', 'error')
+        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0, show_archived=False)
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/purchase_orders')
 @role_required('dashboard')
