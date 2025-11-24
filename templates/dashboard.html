@@ -559,8 +559,13 @@ async function testZohoConnection() {
     }
 }
 
-async function syncZohoPOs() {
+// Make syncZohoPOs globally available
+window.syncZohoPOs = async function syncZohoPOs() {
     const button = document.getElementById('sync-pos-btn');
+    if (!button) {
+        console.error('Sync button not found');
+        return;
+    }
     const originalText = button.textContent;
     try {
         button.disabled = true;
@@ -578,28 +583,46 @@ async function syncZohoPOs() {
             } catch (e) {
                 errorMessage = await response.text() || errorMessage;
             }
-            showError(errorMessage);
+            if (typeof showError === 'function') {
+                showError(errorMessage);
+            } else {
+                alert('Error: ' + errorMessage);
+            }
             return;
         }
         
         const result = await response.json();
         
         if (result.success) {
-            showSuccess(result.message);
+            if (typeof showSuccess === 'function') {
+                showSuccess(result.message);
+            } else {
+                alert('Success: ' + result.message);
+            }
             // Reload page to show new data
             setTimeout(() => location.reload(), 2000);
         } else {
-            showError(result.error || 'Sync failed - check terminal for details');
+            if (typeof showError === 'function') {
+                showError(result.error || 'Sync failed - check terminal for details');
+            } else {
+                alert('Error: ' + (result.error || 'Sync failed'));
+            }
         }
     } catch (error) {
         console.error('Sync error:', error);
-        showError('Sync failed: ' + (error.message || 'Unknown error'));
+        if (typeof showError === 'function') {
+            showError('Sync failed: ' + (error.message || 'Unknown error'));
+        } else {
+            alert('Sync failed: ' + (error.message || 'Unknown error'));
+        }
     } finally {
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.textContent = originalText;
+        if (button) {
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.textContent = originalText;
+        }
     }
-}
+};
 
 async function togglePODetails(poId, button) {
     const detailsRow = document.getElementById(`details-${poId}`);
