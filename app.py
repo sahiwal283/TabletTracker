@@ -1316,155 +1316,193 @@ def get_overs_po_info(po_id):
 @app.route('/api/po_lines/<int:po_id>')
 def get_po_lines(po_id):
     """Get line items for a specific PO"""
-    conn = get_db()
-    lines = conn.execute('''
-        SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
-    ''', (po_id,)).fetchall()
-    
-    # Count unverified submissions for this PO
-    unverified_count = conn.execute('''
-        SELECT COUNT(*) as count
-        FROM warehouse_submissions
-        WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
-    ''', (po_id,)).fetchone()
-    
-    # Get current PO details including status and parent
-    current_po = conn.execute('''
-        SELECT po_number, closed, internal_status, zoho_status, parent_po_number
-        FROM purchase_orders WHERE id = ?
-    ''', (po_id,)).fetchone()
-    current_po_number = current_po['po_number'] if current_po else None
-    po_status = None
-    if current_po:
-        # Determine status: closed takes priority, then internal_status, then zoho_status
-        if current_po['closed']:
-            po_status = 'Closed'
-        elif current_po['internal_status']:
-            po_status = current_po['internal_status']
-        elif current_po['zoho_status']:
-            po_status = current_po['zoho_status']
-        else:
-            po_status = 'Open'
-    
-    # Check if there's an overs PO linked to this parent PO
-    overs_po = None
-    if current_po_number:
-        overs_po_record = conn.execute('''
-            SELECT id, po_number 
-            FROM purchase_orders 
-            WHERE parent_po_number = ?
-        ''', (current_po_number,)).fetchone()
-        if overs_po_record:
-            overs_po = {
-                'id': overs_po_record['id'],
-                'po_number': overs_po_record['po_number']
-            }
-    
-    # Check if this is an overs PO (has a parent)
-    parent_po = None
-    if current_po and current_po['parent_po_number']:
-        parent_po_record = conn.execute('''
-            SELECT id, po_number 
-            FROM purchase_orders 
-            WHERE po_number = ?
-        ''', (current_po['parent_po_number'],)).fetchone()
-        if parent_po_record:
-            parent_po = {
-                'id': parent_po_record['id'],
-                'po_number': parent_po_record['po_number']
-            }
-    
-    # Calculate round numbers for each line item
-    lines_with_rounds = []
-    for line in lines:
-        line_dict = dict(line)
-        round_number = None
+    conn = None
+    try:
+        conn = get_db()
+        lines = conn.execute('''
+            SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
+        ''', (po_id,)).fetchall()
         
-        if line_dict.get('inventory_item_id') and current_po_number:
-            # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
-            pos_with_item = conn.execute('''
-                SELECT DISTINCT po.po_number, po.id
-                FROM purchase_orders po
-                JOIN po_lines pl ON po.id = pl.po_id
-                WHERE pl.inventory_item_id = ?
-                ORDER BY po.po_number ASC
-            ''', (line_dict['inventory_item_id'],)).fetchall()
+        # Count unverified submissions for this PO
+        unverified_count = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM warehouse_submissions
+            WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
+        ''', (po_id,)).fetchone()
+        
+        # Get current PO details including status and parent
+        current_po = conn.execute('''
+            SELECT po_number, closed, internal_status, zoho_status, parent_po_number
+            FROM purchase_orders WHERE id = ?
+        ''', (po_id,)).fetchone()
+        current_po_number = current_po['po_number'] if current_po else None
+        po_status = None
+        if current_po:
+            # Determine status: closed takes priority, then internal_status, then zoho_status
+            if current_po['closed']:
+                po_status = 'Closed'
+            elif current_po['internal_status']:
+                po_status = current_po['internal_status']
+            elif current_po['zoho_status']:
+                po_status = current_po['zoho_status']
+            else:
+                po_status = 'Open'
+        
+        # Check if there's an overs PO linked to this parent PO
+        overs_po = None
+        if current_po_number:
+            overs_po_record = conn.execute('''
+                SELECT id, po_number 
+                FROM purchase_orders 
+                WHERE parent_po_number = ?
+            ''', (current_po_number,)).fetchone()
+            if overs_po_record:
+                overs_po = {
+                    'id': overs_po_record['id'],
+                    'po_number': overs_po_record['po_number']
+                }
+        
+        # Check if this is an overs PO (has a parent)
+        parent_po = None
+        if current_po and current_po['parent_po_number']:
+            parent_po_record = conn.execute('''
+                SELECT id, po_number 
+                FROM purchase_orders 
+                WHERE po_number = ?
+            ''', (current_po['parent_po_number'],)).fetchone()
+            if parent_po_record:
+                parent_po = {
+                    'id': parent_po_record['id'],
+                    'po_number': parent_po_record['po_number']
+                }
+        
+        # Calculate round numbers for each line item
+        lines_with_rounds = []
+        for line in lines:
+            line_dict = dict(line)
+            round_number = None
             
-            # Find the position of current PO in this list (1-indexed = round number)
-            for idx, po_row in enumerate(pos_with_item, start=1):
-                if po_row['po_number'] == current_po_number:
-                    round_number = idx
-                    break
+            if line_dict.get('inventory_item_id') and current_po_number:
+                # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
+                pos_with_item = conn.execute('''
+                    SELECT DISTINCT po.po_number, po.id
+                    FROM purchase_orders po
+                    JOIN po_lines pl ON po.id = pl.po_id
+                    WHERE pl.inventory_item_id = ?
+                    ORDER BY po.po_number ASC
+                ''', (line_dict['inventory_item_id'],)).fetchall()
+                
+                # Find the position of current PO in this list (1-indexed = round number)
+                for idx, po_row in enumerate(pos_with_item, start=1):
+                    if po_row['po_number'] == current_po_number:
+                        round_number = idx
+                        break
+            
+            line_dict['round_number'] = round_number
+            lines_with_rounds.append(line_dict)
         
-        line_dict['round_number'] = round_number
-        lines_with_rounds.append(line_dict)
-    
-    conn.close()
-    
-    result = {
-        'lines': lines_with_rounds,
-        'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
-        'unverified_count': unverified_count['count'] if unverified_count else 0,
-        'po_status': po_status,
-        'overs_po': overs_po,
-        'parent_po': parent_po
-    }
-    
-    return jsonify(result)
+        result = {
+            'lines': lines_with_rounds,
+            'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
+            'unverified_count': unverified_count['count'] if unverified_count else 0,
+            'po_status': po_status,
+            'overs_po': overs_po,
+            'parent_po': parent_po
+        }
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': f'Failed to get PO lines: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/admin/products')
 @admin_required
 def product_mapping():
     """Show product → tablet mapping and calculation examples"""
-    conn = get_db()
-    
-    # Get all products with their tablet type and calculation details
-    products = conn.execute('''
-        SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id
-        FROM product_details pd
-        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-        ORDER BY tt.tablet_type_name, pd.product_name
-    ''').fetchall()
-    
-    # Get tablet types for dropdown
-    tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
-    
-    conn.close()
-    return render_template('product_mapping.html', products=products, tablet_types=tablet_types)
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all products with their tablet type and calculation details
+        products = conn.execute('''
+            SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            ORDER BY tt.tablet_type_name, pd.product_name
+        ''').fetchall()
+        
+        # Get tablet types for dropdown
+        tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
+        
+        return render_template('product_mapping.html', products=products, tablet_types=tablet_types)
+    except Exception as e:
+        flash(f'Error loading product mapping: {str(e)}', 'error')
+        return render_template('product_mapping.html', products=[], tablet_types=[])
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/admin/tablet_types')
 @admin_required
 def tablet_types_config():
     """Configuration page for tablet types and their inventory item IDs"""
-    conn = get_db()
-    
-    # Get all tablet types with their current inventory item IDs
-    tablet_types = conn.execute('''
-        SELECT * FROM tablet_types 
-        ORDER BY tablet_type_name
-    ''').fetchall()
-    
-    conn.close()
-    return render_template('tablet_types_config.html', tablet_types=tablet_types)
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all tablet types with their current inventory item IDs
+        tablet_types = conn.execute('''
+            SELECT * FROM tablet_types 
+            ORDER BY tablet_type_name
+        ''').fetchall()
+        
+        return render_template('tablet_types_config.html', tablet_types=tablet_types)
+    except Exception as e:
+        flash(f'Error loading tablet types: {str(e)}', 'error')
+        return render_template('tablet_types_config.html', tablet_types=[])
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/admin/shipments')
 @admin_required
 def shipments_management():
     """Shipment tracking management page"""
-    conn = get_db()
-    
-    # Get all POs with optional shipment info
-    pos_with_shipments = conn.execute('''
-        SELECT po.*, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
-               s.last_checkpoint, s.shipped_date, s.estimated_delivery, s.actual_delivery,
-               s.notes as shipment_notes
-        FROM purchase_orders po
-        LEFT JOIN shipments s ON po.id = s.po_id
-        ORDER BY po.po_number DESC
-    ''').fetchall()
-    
-    conn.close()
-    return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all POs with optional shipment info
+        pos_with_shipments = conn.execute('''
+            SELECT po.*, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+                   s.last_checkpoint, s.shipped_date, s.estimated_delivery, s.actual_delivery,
+                   s.notes as shipment_notes
+            FROM purchase_orders po
+            LEFT JOIN shipments s ON po.id = s.po_id
+            ORDER BY po.po_number DESC
+        ''').fetchall()
+        
+        return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
+    except Exception as e:
+        flash(f'Error loading shipments: {str(e)}', 'error')
+        return render_template('shipments_management.html', pos_with_shipments=[])
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/shipping')
 @role_required('shipping')
