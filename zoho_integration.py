@@ -30,7 +30,8 @@ class ZohoInventoryAPI:
             raise ValueError(error_msg)
         
         try:
-            response = requests.post(url, data=data)
+            # Add timeout to prevent hanging (30 seconds)
+            response = requests.post(url, data=data, timeout=30)
             response.raise_for_status()
             token_data = response.json()
             
@@ -70,12 +71,14 @@ class ZohoInventoryAPI:
             params.update(extra_params)
         
         try:
+            # Add timeout to prevent hanging (30 seconds)
+            timeout = 30
             if method == 'GET':
-                response = requests.get(url, headers=headers, params=params)
+                response = requests.get(url, headers=headers, params=params, timeout=timeout)
             elif method == 'POST':
-                response = requests.post(url, headers=headers, params=params, json=data)
+                response = requests.post(url, headers=headers, params=params, json=data, timeout=timeout)
             elif method == 'PUT':
-                response = requests.put(url, headers=headers, params=params, json=data)
+                response = requests.put(url, headers=headers, params=params, json=data, timeout=timeout)
             
             print(f"Request URL: {response.url}")
             print(f"Response Status: {response.status_code}")
@@ -86,6 +89,9 @@ class ZohoInventoryAPI:
             response.raise_for_status()
             return response.json()
             
+        except requests.exceptions.Timeout as e:
+            print(f"Zoho API request timed out after {timeout} seconds: {e}")
+            return None
         except requests.exceptions.RequestException as e:
             print(f"Error making Zoho API request: {e}")
             return None

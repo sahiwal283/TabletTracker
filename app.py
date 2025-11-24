@@ -1127,8 +1127,13 @@ def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
     conn = None
     try:
+        print("🔄 Starting Zoho PO sync...")
         conn = get_db()
+        print("✅ Database connection established")
+        
+        print("📡 Calling Zoho API sync function...")
         success, message = zoho_api.sync_tablet_pos_to_db(conn)
+        print(f"✅ Sync completed. Success: {success}, Message: {message}")
         
         if success:
             return jsonify({'message': message, 'success': True})
@@ -1145,6 +1150,7 @@ def sync_zoho_pos():
         if conn:
             try:
                 conn.close()
+                print("✅ Database connection closed")
             except:
                 pass
 
