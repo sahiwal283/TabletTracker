@@ -485,9 +485,9 @@ async function syncZohoPOs() {
         button.style.opacity = '0.7';
         button.textContent = '🔄 SYNCING...';
         
-        // Add timeout to prevent hanging (60 seconds)
+        // Add timeout to prevent hanging (5 minutes - sync can take a while with many POs)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        const timeoutId = setTimeout(() => controller.abort(), 300000);
         
         let response;
         try {
@@ -497,7 +497,7 @@ async function syncZohoPOs() {
         } catch (fetchError) {
             clearTimeout(timeoutId);
             if (fetchError.name === 'AbortError') {
-                throw new Error('Sync request timed out after 60 seconds. The sync may still be processing in the background. Please check the server logs.');
+                throw new Error('Sync request timed out after 5 minutes. The sync may still be processing in the background. Please check the server logs.');
             }
             throw fetchError;
         }

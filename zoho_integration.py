@@ -136,8 +136,12 @@ class ZohoInventoryAPI:
         
         synced_count = 0
         skipped_count = 0
+        total_pos = len(pos_data.get('purchaseorders', []))
+        print(f"📊 Processing {total_pos} total POs from Zoho...")
         
-        for po in pos_data['purchaseorders']:
+        for idx, po in enumerate(pos_data['purchaseorders'], 1):
+            if idx % 10 == 0:
+                print(f"📊 Progress: {idx}/{total_pos} POs processed ({synced_count} synced, {skipped_count} skipped)")
             # Check if it's a tablet PO AND not closed
             is_tablet_po = False
             po_number = po.get('purchaseorder_number', '')
