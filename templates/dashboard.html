@@ -427,7 +427,7 @@
     </div>
     
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <button id="sync-pos-btn" onclick="if(typeof window.syncZohoPOs === 'function') { window.syncZohoPOs(); } else { alert('Sync function not loaded. Please refresh the page.'); }" 
+        <button id="sync-pos-btn" onclick="if(typeof syncZohoPOs === 'function') { syncZohoPOs(); } else { alert('Sync function not loaded. Please refresh the page.'); }" 
                 class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105">
             <span class="flex items-center justify-center">
                 <span class="text-lg mr-2">🔄</span>
@@ -559,8 +559,8 @@ async function testZohoConnection() {
     }
 }
 
-// Make syncZohoPOs globally available
-window.syncZohoPOs = async function syncZohoPOs() {
+// Make syncZohoPOs globally available - define both ways for maximum compatibility
+async function syncZohoPOs() {
     const button = document.getElementById('sync-pos-btn');
     if (!button) {
         console.error('Sync button not found');
@@ -622,7 +622,10 @@ window.syncZohoPOs = async function syncZohoPOs() {
             button.textContent = originalText;
         }
     }
-};
+}
+
+// Also assign to window for explicit global access
+window.syncZohoPOs = syncZohoPOs;
 
 async function togglePODetails(poId, button) {
     const detailsRow = document.getElementById(`details-${poId}`);
@@ -2029,8 +2032,8 @@ async function createOversPOInZoho(poId, oversPONumber) {
             // Optionally reload or refresh
             setTimeout(() => {
                 if (confirm('Would you like to sync POs now to import the newly created overs PO?')) {
-                    if (typeof window.syncZohoPOs === 'function') {
-                        window.syncZohoPOs();
+                    if (typeof syncZohoPOs === 'function') {
+                        syncZohoPOs();
                     } else {
                         alert('Sync function not available. Please refresh the page.');
                     }
@@ -2245,10 +2248,10 @@ async function openEditSubmissionFromPO(submissionId, poId, inventoryItemId) {
 }
 
 // Ensure syncZohoPOs is available globally (in case of script loading issues)
-if (typeof window.syncZohoPOs === 'undefined') {
+if (typeof syncZohoPOs === 'undefined') {
     console.error('syncZohoPOs function is not defined. Check for JavaScript syntax errors.');
     // Define a fallback function
-    window.syncZohoPOs = function() {
+    window.syncZohoPOs = syncZohoPOs = function() {
         alert('Sync function not loaded. Please refresh the page to reload scripts.');
     };
 }
