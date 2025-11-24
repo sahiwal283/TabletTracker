@@ -1114,7 +1114,18 @@ def all_submissions():
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
-        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0, show_archived=False)
+        # Check if archived column exists even in error case
+        conn_error = None
+        has_archived_error = False
+        try:
+            conn_error = get_db()
+            has_archived_error = has_archived_column(conn_error)
+        except:
+            pass
+        finally:
+            if conn_error:
+                conn_error.close()
+        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0, show_archived=False, has_archived=has_archived_error)
     finally:
         if conn:
             conn.close()

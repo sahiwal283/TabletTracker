@@ -69,16 +69,15 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                {% if has_archived %}
                 <a href="/submissions?show_archived={{ 'false' if show_archived else 'true' }}{% if filter_po_id %}&po_id={{ filter_po_id }}{% endif %}{% if filter_item_id %}&item_id={{ filter_item_id }}{% endif %}" 
-                   class="btn-secondary px-4 py-2 text-sm">
+                   class="btn-secondary px-4 py-2 text-sm{% if not has_archived %} opacity-50 cursor-not-allowed{% endif %}"
+                   {% if not has_archived %}title="Archiving feature will be available after database migration"{% endif %}>
                     {% if show_archived %}
                         📦 Hide Archived
                     {% else %}
                         📦 Show Archived
                     {% endif %}
                 </a>
-                {% endif %}
             </div>
         </div>
     </div>
