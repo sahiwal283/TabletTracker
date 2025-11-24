@@ -1109,17 +1109,31 @@ def all_purchase_orders():
 @app.route('/shipments')
 def public_shipments():
     """Read-only shipment status page for staff (no login required)."""
-    conn = get_db()
-    rows = conn.execute('''
-        SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
-               s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
-        FROM shipments s
-        JOIN purchase_orders po ON po.id = s.po_id
-        ORDER BY s.updated_at DESC
-        LIMIT 200
-    ''').fetchall()
-    conn.close()
-    return render_template('shipments_public.html', shipments=rows)
+    conn = None
+    try:
+        conn = get_db()
+        rows = conn.execute('''
+            SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+                   s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
+            FROM shipments s
+            JOIN purchase_orders po ON po.id = s.po_id
+            ORDER BY s.updated_at DESC
+            LIMIT 200
+        ''').fetchall()
+        return render_template('shipments_public.html', shipments=rows)
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Error loading public shipments: {str(e)}")
+        print(f"Traceback: {error_trace}")
+        flash('Failed to load shipments. Please try again later.', 'error')
+        return render_template('shipments_public.html', shipments=[])
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/sync_zoho_pos')
 @role_required('dashboard')
