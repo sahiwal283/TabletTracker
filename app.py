@@ -3048,6 +3048,7 @@ def receiving_details(receiving_id):
 @admin_required
 def delete_receiving(receiving_id):
     """Delete a receiving record with confirmation"""
+    conn = None
     try:
         # Get confirmation password/name from request
         data = request.get_json() or {}
@@ -3068,7 +3069,6 @@ def delete_receiving(receiving_id):
         ''', (receiving_id,)).fetchone()
         
         if not receiving:
-            conn.close()
             return jsonify({'error': 'Receiving record not found'}), 404
         
         # Delete in correct order due to foreign key constraints
@@ -3082,7 +3082,6 @@ def delete_receiving(receiving_id):
         conn.execute('DELETE FROM receiving WHERE id = ?', (receiving_id,))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -3091,6 +3090,12 @@ def delete_receiving(receiving_id):
         
     except Exception as e:
         return jsonify({'error': f'Failed to delete receiving record: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/process_receiving', methods=['POST'])
 @admin_required
