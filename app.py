@@ -1077,7 +1077,7 @@ def all_submissions():
             filter_info['item_id'] = filter_item_id
     
     conn.close()
-    return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count)
+    return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived)
 
 @app.route('/purchase_orders')
 @role_required('dashboard')

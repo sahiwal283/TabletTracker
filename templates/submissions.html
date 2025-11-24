@@ -69,9 +69,9 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <a href="/submissions?show_archived={{ 'false' if request.args.get('show_archived') == 'true' else 'true' }}" 
+                <a href="/submissions?show_archived={{ 'false' if show_archived else 'true' }}{% if filter_po_id %}&po_id={{ filter_po_id }}{% endif %}{% if filter_item_id %}&item_id={{ filter_item_id }}{% endif %}" 
                    class="btn-secondary px-4 py-2 text-sm">
-                    {% if request.args.get('show_archived') == 'true' %}
+                    {% if show_archived %}
                         📦 Hide Archived
                     {% else %}
                         📦 Show Archived
