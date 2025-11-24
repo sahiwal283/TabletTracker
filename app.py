@@ -4730,11 +4730,17 @@ def get_po_submissions(po_id):
         # For PO-specific views, ALWAYS show ALL submissions (including archived) for auditing purposes
         # This is critical for auditing - users need to see complete submission history for a PO
         
+        # Check if archived column exists
+        has_archived = has_archived_column(conn)
+        
+        # Build query with archived field only if column exists
+        archived_select = ', COALESCE(ws.archived, FALSE) as archived' if has_archived else ', 0 as archived'
+        
         # Get all submissions for this PO with product details for calculating total tablets
         # Include inventory_item_id for matching with PO line items
-        # IMPORTANT: Include archived field and show ALL submissions (archived and non-archived) for auditing
+        # IMPORTANT: Show ALL submissions (archived and non-archived) for auditing
         if has_submission_date:
-            submissions_query = '''
+            submissions_query = f'''
                 SELECT 
                     ws.id,
                     ws.product_name,
@@ -4748,8 +4754,7 @@ def get_po_submissions(po_id):
                     ws.box_number,
                     ws.bag_number,
                     ws.bag_label_count,
-                    ws.admin_notes,
-                    COALESCE(ws.archived, FALSE) as archived,
+                    ws.admin_notes{archived_select},
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id
@@ -4760,7 +4765,7 @@ def get_po_submissions(po_id):
                 ORDER BY ws.created_at ASC
             '''
         else:
-            submissions_query = '''
+            submissions_query = f'''
                 SELECT 
                     ws.id,
                     ws.product_name,
@@ -4774,8 +4779,7 @@ def get_po_submissions(po_id):
                     ws.box_number,
                     ws.bag_number,
                     ws.bag_label_count,
-                    ws.admin_notes,
-                    COALESCE(ws.archived, FALSE) as archived,
+                    ws.admin_notes{archived_select},
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id
