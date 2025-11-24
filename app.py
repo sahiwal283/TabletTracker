@@ -1408,13 +1408,18 @@ def get_po_lines(po_id):
             SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
         ''', (po_id,)).fetchall()
         
+        # Check if archived column exists
+        has_archived = has_archived_column(conn)
+        archived_filter = 'AND COALESCE(archived, FALSE) = FALSE' if has_archived else ''
+        
         # Count unverified submissions for this PO
-        unverified_count = conn.execute('''
+        unverified_query = f'''
             SELECT COUNT(*) as count
             FROM warehouse_submissions
             WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
-            AND COALESCE(archived, FALSE) = FALSE
-        ''', (po_id,)).fetchone()
+            {archived_filter}
+        '''
+        unverified_count = conn.execute(unverified_query, (po_id,)).fetchone()
         
         # Get current PO details including status and parent
         current_po = conn.execute('''
@@ -4008,9 +4013,13 @@ def recalculate_po_counts():
         conn.execute('UPDATE po_lines SET good_count = 0, damaged_count = 0')
         conn.commit()
         
+        # Check if archived column exists
+        has_archived = has_archived_column(conn)
+        archived_filter = 'AND COALESCE(ws.archived, FALSE) = FALSE' if has_archived else ''
+        
         # Step 2: Get all submissions with inventory_item_id (now stored directly!)
         # Use COALESCE to fallback to JOIN for old submissions without inventory_item_id
-        submissions = conn.execute('''
+        submissions_query = f'''
             SELECT 
                 ws.id as submission_id,
                 ws.assigned_po_id,
@@ -4027,9 +4036,10 @@ def recalculate_po_counts():
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE ws.assigned_po_id IS NOT NULL
-            AND COALESCE(ws.archived, FALSE) = FALSE
+            {archived_filter}
             ORDER BY ws.created_at ASC
-        ''').fetchall()
+        '''
+        submissions = conn.execute(submissions_query).fetchall()
         
         # Group submissions by PO and inventory_item_id
         po_line_totals = {}  # {(po_id, inventory_item_id): {'good': X, 'damaged': Y}}
