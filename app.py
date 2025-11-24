@@ -961,7 +961,9 @@ def all_submissions():
         # Get filter parameters from query string
         filter_po_id = request.args.get('po_id', type=int)
         filter_item_id = request.args.get('item_id', type=str)
-        show_archived = request.args.get('show_archived', type=str) == 'true' if has_archived else False
+        # Always check the query parameter, but only use it if column exists
+        show_archived_param = request.args.get('show_archived', type=str) == 'true'
+        show_archived = show_archived_param if has_archived else False
         
         # Build query with optional filters
         query = '''
@@ -1107,7 +1109,7 @@ def all_submissions():
                 filter_info['item_name'] = item_info['line_item_name']
                 filter_info['item_id'] = filter_item_id
         
-        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived)
+        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, show_archived=show_archived, has_archived=has_archived)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()

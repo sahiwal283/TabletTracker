@@ -11,8 +11,8 @@ from datetime import datetime
 def migrate_database():
     """Run database migrations to add missing tables and columns"""
     
-    # Get the database path
-    db_path = 'tablettracker.db'
+    # Get the database path (matches app.py)
+    db_path = 'tablet_counter.db'
     
     print(f"🔍 Migrating database: {db_path}")
     print(f"⏰ Migration started at: {datetime.now()}")
@@ -219,6 +219,70 @@ def migrate_database():
                             raise
             else:
                 print("✅ All shipments columns exist")
+        
+        # Check if warehouse_submissions table exists and add missing columns
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='warehouse_submissions'")
+        if cursor.fetchone():
+            cursor.execute("PRAGMA table_info(warehouse_submissions)")
+            ws_columns = [column[1] for column in cursor.fetchall()]
+            
+            # Add submission_date column if missing
+            if 'submission_date' not in ws_columns:
+                try:
+                    cursor.execute('ALTER TABLE warehouse_submissions ADD COLUMN submission_date DATE')
+                    # Backfill existing records with date from created_at
+                    cursor.execute('UPDATE warehouse_submissions SET submission_date = DATE(created_at) WHERE submission_date IS NULL')
+                    print("✅ Added submission_date column to warehouse_submissions")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"⚠️  Note: submission_date column migration: {e}")
+            
+            # Add po_assignment_verified column if missing
+            if 'po_assignment_verified' not in ws_columns:
+                try:
+                    cursor.execute('ALTER TABLE warehouse_submissions ADD COLUMN po_assignment_verified BOOLEAN DEFAULT FALSE')
+                    print("✅ Added po_assignment_verified column to warehouse_submissions")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"⚠️  Note: po_assignment_verified column migration: {e}")
+            
+            # Add inventory_item_id column if missing
+            if 'inventory_item_id' not in ws_columns:
+                try:
+                    cursor.execute('ALTER TABLE warehouse_submissions ADD COLUMN inventory_item_id TEXT')
+                    print("✅ Added inventory_item_id column to warehouse_submissions")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"⚠️  Note: inventory_item_id column migration: {e}")
+            
+            # Add admin_notes column if missing
+            if 'admin_notes' not in ws_columns:
+                try:
+                    cursor.execute('ALTER TABLE warehouse_submissions ADD COLUMN admin_notes TEXT')
+                    print("✅ Added admin_notes column to warehouse_submissions")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"⚠️  Note: admin_notes column migration: {e}")
+            
+            # Add archived column if missing (CRITICAL for current version)
+            if 'archived' not in ws_columns:
+                try:
+                    cursor.execute('ALTER TABLE warehouse_submissions ADD COLUMN archived BOOLEAN DEFAULT FALSE')
+                    # Archive existing submissions for closed POs
+                    cursor.execute('''
+                        UPDATE warehouse_submissions 
+                        SET archived = TRUE 
+                        WHERE assigned_po_id IN (
+                            SELECT id FROM purchase_orders WHERE closed = TRUE
+                        )
+                    ''')
+                    rows_archived = cursor.execute('SELECT changes()').fetchone()[0]
+                    print(f"✅ Added archived column to warehouse_submissions and archived {rows_archived} existing submissions from closed POs")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e):
+                        print(f"⚠️  Note: archived column migration: {e}")
+            else:
+                print("✅ archived column already exists in warehouse_submissions")
         
         # Commit all changes
         conn.commit()
