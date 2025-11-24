@@ -312,44 +312,27 @@ class ZohoInventoryAPI:
                         WHERE zoho_po_id = ?
                     ''', (po['purchaseorder_number'], zoho_status, is_now_closed, new_internal_status, parent_po_number, po['purchaseorder_id']))
                 
-                # If PO just became closed or cancelled, unassign any submissions that were assigned to it
-                # This handles cases where submissions were assigned before we detected the PO was closed/cancelled
+                # If PO just became closed or cancelled, archive submissions assigned to it
+                # This keeps submissions linked to the PO but hides them from the main submissions view
                 if (was_closed != is_now_closed) or (was_cancelled != is_cancelled):
                     if (is_now_closed and not was_closed) or (is_cancelled and not was_cancelled):
                         print(f"⚠️  PO {po['purchaseorder_number']} changed from OPEN to {status_msg}")
                         
-                        unassigned_count = db_conn.execute('''
+                        archived_count = db_conn.execute('''
                             SELECT COUNT(*) as count
                             FROM warehouse_submissions
-                            WHERE assigned_po_id = ?
+                            WHERE assigned_po_id = ? AND COALESCE(archived, FALSE) = FALSE
                         ''', (po_id,)).fetchone()['count']
                         
-                        if unassigned_count > 0:
-                            # Remove counts from PO lines
-                            db_conn.execute('''
-                                UPDATE po_lines
-                                SET good_count = 0, damaged_count = 0
-                                WHERE po_id = ?
-                            ''', (po_id,))
-                            
-                            # Update PO header totals
-                            db_conn.execute('''
-                                UPDATE purchase_orders
-                                SET current_good_count = 0,
-                                    current_damaged_count = 0,
-                                    remaining_quantity = ordered_quantity
-                                WHERE id = ?
-                            ''', (po_id,))
-                            
-                            # Unassign submissions
+                        if archived_count > 0:
+                            # Archive submissions (keep them linked to PO but mark as archived)
                             db_conn.execute('''
                                 UPDATE warehouse_submissions
-                                SET assigned_po_id = NULL,
-                                    po_assignment_verified = 0
-                                WHERE assigned_po_id = ?
+                                SET archived = TRUE
+                                WHERE assigned_po_id = ? AND COALESCE(archived, FALSE) = FALSE
                             ''', (po_id,))
                             
-                            print(f"⚠️  Unassigned {unassigned_count} submission(s) from {status_msg.lower()} PO {po['purchaseorder_number']}")
+                            print(f"📦 Archived {archived_count} submission(s) from {status_msg.lower()} PO {po['purchaseorder_number']}")
                     else:
                         print(f"✅ PO {po['purchaseorder_number']} changed from CLOSED/CANCELLED to OPEN")
                 elif was_closed == is_now_closed and was_cancelled == is_cancelled:

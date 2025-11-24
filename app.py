@@ -261,6 +261,23 @@ def init_db():
         except Exception as e:
             print(f"Note: admin_notes column migration: {e}")
     
+    # Add archived column to warehouse_submissions for archiving submissions from closed POs
+    if 'archived' not in existing_ws_cols:
+        try:
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN archived BOOLEAN DEFAULT FALSE')
+            # Archive existing submissions for closed POs
+            c.execute('''
+                UPDATE warehouse_submissions 
+                SET archived = TRUE 
+                WHERE assigned_po_id IN (
+                    SELECT id FROM purchase_orders WHERE closed = TRUE
+                )
+            ''')
+            rows_archived = c.execute('SELECT changes()').fetchone()[0]
+            print(f"Added archived column to warehouse_submissions and archived {rows_archived} existing submissions from closed POs")
+        except Exception as e:
+            print(f"Note: archived column migration: {e}")
+    
     # Add tracking columns if upgrading existing DB
     # Safe ALTERs to backfill missing columns
     c.execute('PRAGMA table_info(shipments)')
@@ -811,6 +828,7 @@ def admin_dashboard():
         INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
         WHERE po.closed = FALSE
         AND COALESCE(po.internal_status, '') != 'Cancelled'
+        AND COALESCE(ws.archived, FALSE) = FALSE
         GROUP BY po.id
         HAVING submission_count > 0
         ORDER BY po.po_number DESC
@@ -834,6 +852,7 @@ def admin_dashboard():
         FROM warehouse_submissions ws
         LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        WHERE COALESCE(ws.archived, FALSE) = FALSE
         ORDER BY ws.created_at ASC
     ''').fetchall()
     
@@ -911,6 +930,7 @@ def all_submissions():
     # Get filter parameters from query string
     filter_po_id = request.args.get('po_id', type=int)
     filter_item_id = request.args.get('item_id', type=str)
+    show_archived = request.args.get('show_archived', type=str) == 'true'
     
     # Build query with optional filters
     query = '''
@@ -932,6 +952,10 @@ def all_submissions():
     '''
     
     params = []
+    
+    # Exclude archived submissions by default (unless show_archived is true)
+    if not show_archived:
+        query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
     
     # Apply PO filter if provided
     if filter_po_id:
@@ -1014,6 +1038,9 @@ def all_submissions():
         WHERE COALESCE(ws.po_assignment_verified, 0) = 0
     '''
     unverified_params = []
+    # Only exclude archived if not showing archived
+    if not show_archived:
+        unverified_query += ' AND COALESCE(ws.archived, FALSE) = FALSE'
     if filter_po_id:
         unverified_query += ' AND ws.assigned_po_id = ?'
         unverified_params.append(filter_po_id)
@@ -1348,6 +1375,7 @@ def get_po_lines(po_id):
             SELECT COUNT(*) as count
             FROM warehouse_submissions
             WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
+            AND COALESCE(archived, FALSE) = FALSE
         ''', (po_id,)).fetchone()
         
         # Get current PO details including status and parent
@@ -2821,8 +2849,8 @@ def get_po_summary_for_reports():
                 COALESCE(po.current_damaged_count, 0) as current_damaged_count,
                 po.created_at,
                 po.updated_at,
-                (SELECT COUNT(*) FROM warehouse_submissions WHERE assigned_po_id = po.id) as submission_count,
-                (SELECT MAX(created_at) FROM warehouse_submissions WHERE assigned_po_id = po.id) as last_submission,
+                (SELECT COUNT(*) FROM warehouse_submissions WHERE assigned_po_id = po.id AND COALESCE(archived, FALSE) = FALSE) as submission_count,
+                (SELECT MAX(created_at) FROM warehouse_submissions WHERE assigned_po_id = po.id AND COALESCE(archived, FALSE) = FALSE) as last_submission,
                 (SELECT MAX(actual_delivery) FROM shipments WHERE po_id = po.id) as actual_delivery,
                 (SELECT MAX(delivered_at) FROM shipments WHERE po_id = po.id) as delivered_at,
                 (SELECT MAX(tracking_status) FROM shipments WHERE po_id = po.id) as tracking_status
@@ -3954,6 +3982,7 @@ def recalculate_po_counts():
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE ws.assigned_po_id IS NOT NULL
+            AND COALESCE(ws.archived, FALSE) = FALSE
             ORDER BY ws.created_at ASC
         ''').fetchall()
         
@@ -4651,6 +4680,7 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE ws.assigned_po_id = ?
+                AND COALESCE(ws.archived, FALSE) = FALSE
                 ORDER BY ws.created_at ASC
             '''
         else:
@@ -4676,6 +4706,7 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE ws.assigned_po_id = ?
+                AND COALESCE(ws.archived, FALSE) = FALSE
                 ORDER BY ws.created_at ASC
             '''
         
