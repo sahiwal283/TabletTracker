@@ -318,21 +318,40 @@ class ZohoInventoryAPI:
                     if (is_now_closed and not was_closed) or (is_cancelled and not was_cancelled):
                         print(f"⚠️  PO {po['purchaseorder_number']} changed from OPEN to {status_msg}")
                         
-                        archived_count = db_conn.execute('''
-                            SELECT COUNT(*) as count
-                            FROM warehouse_submissions
-                            WHERE assigned_po_id = ? AND COALESCE(archived, FALSE) = FALSE
-                        ''', (po_id,)).fetchone()['count']
+                        # Check if archived column exists
+                        has_archived_col = False
+                        try:
+                            db_conn.execute('SELECT archived FROM warehouse_submissions LIMIT 1')
+                            has_archived_col = True
+                        except:
+                            pass
                         
-                        if archived_count > 0:
-                            # Archive submissions (keep them linked to PO but mark as archived)
-                            db_conn.execute('''
-                                UPDATE warehouse_submissions
-                                SET archived = TRUE
+                        if has_archived_col:
+                            archived_count = db_conn.execute('''
+                                SELECT COUNT(*) as count
+                                FROM warehouse_submissions
                                 WHERE assigned_po_id = ? AND COALESCE(archived, FALSE) = FALSE
-                            ''', (po_id,))
+                            ''', (po_id,)).fetchone()['count']
                             
-                            print(f"📦 Archived {archived_count} submission(s) from {status_msg.lower()} PO {po['purchaseorder_number']}")
+                            if archived_count > 0:
+                                # Archive submissions (keep them linked to PO but mark as archived)
+                                db_conn.execute('''
+                                    UPDATE warehouse_submissions
+                                    SET archived = TRUE
+                                    WHERE assigned_po_id = ? AND COALESCE(archived, FALSE) = FALSE
+                                ''', (po_id,))
+                                
+                                print(f"📦 Archived {archived_count} submission(s) from {status_msg.lower()} PO {po['purchaseorder_number']}")
+                        else:
+                            # Archived column doesn't exist yet - just log that submissions should be archived
+                            submission_count = db_conn.execute('''
+                                SELECT COUNT(*) as count
+                                FROM warehouse_submissions
+                                WHERE assigned_po_id = ?
+                            ''', (po_id,)).fetchone()['count']
+                            
+                            if submission_count > 0:
+                                print(f"📦 Note: {submission_count} submission(s) from {status_msg.lower()} PO {po['purchaseorder_number']} will be archived once database migration completes")
                     else:
                         print(f"✅ PO {po['purchaseorder_number']} changed from CLOSED/CANCELLED to OPEN")
                 elif was_closed == is_now_closed and was_cancelled == is_cancelled:
