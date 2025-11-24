@@ -472,6 +472,72 @@
 </div>
 
 <script>
+// Define syncZohoPOs function early to ensure it's available
+async function syncZohoPOs() {
+    const button = document.getElementById('sync-pos-btn');
+    if (!button) {
+        console.error('Sync button not found');
+        return;
+    }
+    const originalText = button.textContent;
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.textContent = '🔄 SYNCING...';
+        
+        const response = await fetch('/api/sync_zoho_pos');
+        
+        if (!response.ok) {
+            let errorMessage = `Sync failed with status ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                errorMessage = await response.text() || errorMessage;
+            }
+            if (typeof showError === 'function') {
+                showError(errorMessage);
+            } else {
+                alert('Error: ' + errorMessage);
+            }
+            return;
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            if (typeof showSuccess === 'function') {
+                showSuccess(result.message);
+            } else {
+                alert('Success: ' + result.message);
+            }
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            if (typeof showError === 'function') {
+                showError(result.error || 'Sync failed - check terminal for details');
+            } else {
+                alert('Error: ' + (result.error || 'Sync failed'));
+            }
+        }
+    } catch (error) {
+        console.error('Sync error:', error);
+        if (typeof showError === 'function') {
+            showError('Sync failed: ' + (error.message || 'Unknown error'));
+        } else {
+            alert('Sync failed: ' + (error.message || 'Unknown error'));
+        }
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.textContent = originalText;
+        }
+    }
+}
+
+// Make it globally available
+window.syncZohoPOs = syncZohoPOs;
+
 async function findOrgId() {
     try {
         const button = event.target;
@@ -559,7 +625,6 @@ async function testZohoConnection() {
     }
 }
 
-// syncZohoPOs is now defined at the top of this script block
 
 async function togglePODetails(poId, button) {
     const detailsRow = document.getElementById(`details-${poId}`);
