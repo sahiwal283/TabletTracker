@@ -726,36 +726,6 @@ function exportData() {
     showSuccess('Export feature coming soon');
 }
 
-async function syncZohoPOs() {
-    try {
-        const button = document.getElementById('sync-pos-btn');
-        const originalText = button.textContent;
-        button.disabled = true;
-        button.style.opacity = '0.7';
-        button.textContent = '🔄 SYNCING...';
-        
-        const response = await fetch('/api/sync_zoho_pos');
-        const result = await response.json();
-        
-        if (result.success) {
-            showSuccess(result.message);
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            showError(result.error || 'Sync failed - check terminal for details');
-        }
-        
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.textContent = originalText;
-    } catch (error) {
-        showError('Sync failed: ' + error.message);
-        const button = document.getElementById('sync-pos-btn');
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.textContent = '🔄 SYNC ZOHO POs';
-    }
-}
-
 async function clearPOData() {
     if (!confirm('This will delete all synced PO data. Are you sure?')) {
         return;
