@@ -65,14 +65,47 @@
     <!-- System Tools -->
     <div class="card p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center">🔧 System Tools</h3>
-        <div class="flex justify-center space-x-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
             <button onclick="testZohoConnection()" 
-                    class="btn-primary flex items-center">
+                    class="btn-primary flex items-center justify-center py-2.5">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plug" /></svg>
                 Test Zoho Connection
             </button>
-
+            <button id="sync-pos-btn" 
+                    class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105">
+                <span class="flex items-center justify-center">
+                    <span class="text-lg mr-2">🔄</span>
+                    SYNC ZOHO POs
+                </span>
+            </button>
+            <button onclick="recalculatePOCounts()" 
+                    class="btn-primary py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                    title="Recalculate PO counts from current submissions WITHOUT changing any assignments. Safe to run anytime!">
+                <span class="flex items-center justify-center">
+                    <span class="text-base mr-1">🔢</span>
+                    Recalculate Counts
+                </span>
+            </button>
+            <button onclick="reassignAllSubmissions()" 
+                    class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                    title="⚠️ WARNING: Reassign ALL submissions to POs using correct order. This will clear all current assignments!">
+                <span class="flex items-center justify-center">
+                    <span class="text-base mr-1">🔄</span>
+                    Reassign All
+                </span>
+            </button>
+            <button onclick="clearPOData()" 
+                    class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
+                    title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
+                <span class="flex items-center justify-center">
+                    <span class="text-base mr-1">🗑️</span>
+                    Clear PO Data
+                </span>
+            </button>
         </div>
+        <p class="text-xs text-gray-500 mt-3 text-center">
+            <strong>Clear PO Data:</strong> Start fresh testing • Fix corrupted sync data • Reset all counts to zero
+        </p>
     </div>
 </div>
 
@@ -107,6 +140,153 @@ async function testZohoConnection() {
         button.textContent = originalText;
     }
 }
+
+// Sync Zoho POs function
+async function syncZohoPOs() {
+    const button = document.getElementById('sync-pos-btn');
+    if (!button) {
+        console.error('Sync button not found');
+        return;
+    }
+    const originalText = button.textContent;
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.textContent = '🔄 SYNCING...';
+        
+        const response = await fetch('/api/sync_zoho_pos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message || '✅ PO sync completed successfully!');
+        } else {
+            showError('❌ Sync failed: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        showError('Sync failed: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    }
+}
+
+// Recalculate PO counts
+async function recalculatePOCounts() {
+    if (!confirm('Recalculate all PO counts from current submissions? This will update counts without changing assignments.')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.textContent = '🔢 Recalculating...';
+        
+        const response = await fetch('/api/recalculate_po_counts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message || '✅ Counts recalculated successfully!');
+        } else {
+            showError('❌ Recalculation failed: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        showError('Recalculation failed: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    }
+}
+
+// Reassign all submissions
+async function reassignAllSubmissions() {
+    if (!confirm('⚠️ WARNING: This will clear ALL current PO assignments and reassign all submissions using the correct PO order (by PO number). This cannot be undone. Continue?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.textContent = '🔄 Reassigning...';
+        
+        const response = await fetch('/api/reassign_all_submissions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message || '✅ All submissions reassigned successfully!');
+        } else {
+            showError('❌ Reassignment failed: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        showError('Reassignment failed: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    }
+}
+
+// Clear PO data
+async function clearPOData() {
+    if (!confirm('Are you sure you want to clear all PO data? This will remove all synced POs and line items.')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.textContent = '🗑️ Clearing...';
+        
+        const response = await fetch('/api/clear_po_data', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message || '✅ PO data cleared successfully!');
+        } else {
+            showError('❌ Clear failed: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        showError('Clear failed: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = originalText;
+    }
+}
+
+// Initialize sync button click handler
+document.addEventListener('DOMContentLoaded', function() {
+    const syncBtn = document.getElementById('sync-pos-btn');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', syncZohoPOs);
+    }
+});
 
 
 
