@@ -1400,6 +1400,12 @@ def get_overs_po_info(po_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/po_lines/<int:po_id>')
 def get_po_lines(po_id):
