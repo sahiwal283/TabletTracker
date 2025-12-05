@@ -914,7 +914,10 @@ def admin_dashboard():
         return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0)
     finally:
         if conn:
-            conn.close()
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/submissions')
 @role_required('dashboard')
@@ -1237,6 +1240,7 @@ def sync_zoho_pos():
 @role_required('dashboard')
 def create_overs_po(po_id):
     """Create an overs PO in Zoho for a parent PO"""
+    conn = None
     try:
         conn = get_db()
         
@@ -1249,14 +1253,12 @@ def create_overs_po(po_id):
         ''', (po_id,)).fetchone()
         
         if not parent_po:
-            conn.close()
             return jsonify({'error': 'Parent PO not found'}), 404
         
         # Calculate overs (negative remaining_quantity means overs)
         overs_quantity = abs(min(0, parent_po['remaining_quantity']))
         
         if overs_quantity == 0:
-            conn.close()
             return jsonify({'error': 'No overs found for this PO'}), 400
         
         # Get line items with overs (negative remaining means overs)
@@ -1269,7 +1271,6 @@ def create_overs_po(po_id):
         ''', (po_id,)).fetchall()
         
         if not lines_with_overs:
-            conn.close()
             return jsonify({'error': 'No line items with overs found'}), 400
         
         # Generate overs PO number
@@ -1314,8 +1315,6 @@ def create_overs_po(po_id):
         # Create PO in Zoho
         result = zoho_api.create_purchase_order(po_data)
         
-        conn.close()
-        
         if result and 'purchaseorder' in result:
             created_po = result['purchaseorder']
             return jsonify({
@@ -1335,11 +1334,18 @@ def create_overs_po(po_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/create_overs_po_info/<int:po_id>')
 @role_required('dashboard')
 def get_overs_po_info(po_id):
     """Get information needed to create an overs PO for a parent PO (for preview)"""
+    conn = None
     try:
         conn = get_db()
         
@@ -1352,7 +1358,6 @@ def get_overs_po_info(po_id):
         ''', (po_id,)).fetchone()
         
         if not parent_po:
-            conn.close()
             return jsonify({'error': 'Parent PO not found'}), 404
         
         # Calculate overs (negative remaining_quantity means overs)
@@ -1366,8 +1371,6 @@ def get_overs_po_info(po_id):
             WHERE pl.po_id = ? 
             AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) < 0
         ''', (po_id,)).fetchall()
-        
-        conn.close()
         
         # Generate overs PO number
         overs_po_number = f"{parent_po['po_number']}-OVERS"
@@ -1596,6 +1599,7 @@ def shipments_management():
 @role_required('shipping')
 def shipping_unified():
     """Unified shipping and receiving management page"""
+    conn = None
     try:
         conn = get_db()
         current_date = datetime.now().date()
@@ -1652,8 +1656,6 @@ def shipping_unified():
             LIMIT 10
         ''').fetchall()
         
-        conn.close()
-        
         return render_template('shipping_unified.html', 
                              pos_with_shipments=pos_with_shipments_enhanced,
                              pending_shipments=pending_shipments,
@@ -1665,19 +1667,31 @@ def shipping_unified():
         app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
         return render_template('error.html', 
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/shipments/<int:shipment_id>/refresh', methods=['POST'])
 def refresh_shipment(shipment_id: int):
     """Manually refresh a single shipment's tracking status."""
+    conn = None
     try:
         conn = get_db()
         result = refresh_shipment_row(conn, shipment_id)
-        conn.close()
         if result.get('success'):
             return jsonify(result)
         return jsonify(result), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/shipment/<int:shipment_id>', methods=['GET'])
 def get_shipment(shipment_id: int):
