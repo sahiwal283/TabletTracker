@@ -18,15 +18,82 @@
     </div>
 </div>
 
+<!-- Filters Section -->
+<div class="mb-6 card">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+            <span class="mr-2">🔍</span>
+            Filter Submissions
+        </h3>
+    </div>
+    <div class="px-6 py-4">
+        <form method="GET" action="/submissions" id="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Preserve existing filters -->
+            {% if filter_info.po_id %}
+            <input type="hidden" name="po_id" value="{{ filter_info.po_id }}">
+            {% endif %}
+            {% if filter_info.item_id %}
+            <input type="hidden" name="item_id" value="{{ filter_info.item_id }}">
+            {% endif %}
+            
+            <!-- Date From -->
+            <div>
+                <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+                <input type="date" 
+                       id="date_from" 
+                       name="date_from" 
+                       value="{{ filter_date_from or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            
+            <!-- Date To -->
+            <div>
+                <label for="date_to" class="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+                <input type="date" 
+                       id="date_to" 
+                       name="date_to" 
+                       value="{{ filter_date_to or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            
+            <!-- Tablet Type -->
+            <div>
+                <label for="tablet_type_id" class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
+                <select id="tablet_type_id" 
+                        name="tablet_type_id" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <option value="">All Types</option>
+                    {% for tablet_type in tablet_types %}
+                    <option value="{{ tablet_type.id }}" {% if filter_tablet_type_id == tablet_type.id %}selected{% endif %}>
+                        {{ tablet_type.tablet_type_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Filter Buttons -->
+            <div class="flex items-end gap-2">
+                <button type="submit" class="btn-primary px-4 py-2 flex-1">
+                    Apply Filters
+                </button>
+                <a href="/submissions{% if filter_info.po_id %}?po_id={{ filter_info.po_id }}{% endif %}{% if filter_info.item_id %}{% if filter_info.po_id %}&{% else %}?{% endif %}item_id={{ filter_info.item_id }}{% endif %}" 
+                   class="btn-secondary px-4 py-2">
+                    Clear
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Active Filters -->
-{% if filter_info %}
+{% if filter_info and (filter_info.po_number or filter_info.item_name or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_name) %}
 <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow-md">
     <div class="flex items-center justify-between">
         <div class="flex items-center">
             <span class="text-2xl mr-3">🔍</span>
             <div>
                 <h3 class="font-bold text-blue-900 text-lg">Active Filters</h3>
-                <div class="flex gap-3 mt-2">
+                <div class="flex gap-3 mt-2 flex-wrap">
                     {% if filter_info.po_number %}
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                             📦 PO: {{ filter_info.po_number }}
@@ -37,11 +104,26 @@
                             💊 {{ filter_info.item_name }}
                         </span>
                     {% endif %}
+                    {% if filter_info.date_from %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            📅 From: {{ filter_info.date_from }}
+                        </span>
+                    {% endif %}
+                    {% if filter_info.date_to %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            📅 To: {{ filter_info.date_to }}
+                        </span>
+                    {% endif %}
+                    {% if filter_info.tablet_type_name %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                            💊 Type: {{ filter_info.tablet_type_name }}
+                        </span>
+                    {% endif %}
                 </div>
             </div>
         </div>
         <a href="/submissions" class="btn-secondary px-4 py-2 text-sm">
-            ✖️ Clear Filters
+            ✖️ Clear All Filters
         </a>
     </div>
 </div>
@@ -259,9 +341,18 @@
             </div>
             
             <div class="flex items-center gap-2">
+                {% set query_parts = [] %}
+                {% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}
+                {% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}
+                {% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}
+                {% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}
+                {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
+                {% set filter_query = query_parts|join('&') %}
+                {% set page_prefix = '?' + filter_query + '&' if filter_query else '?' %}
+                
                 <!-- Previous Button -->
                 {% if pagination.has_prev %}
-                <a href="?page={{ pagination.prev_page }}" 
+                <a href="{{ page_prefix }}page={{ pagination.prev_page }}" 
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
                     ← Previous
                 </a>
@@ -279,7 +370,7 @@
                                 {{ page_num }}
                             </span>
                         {% elif page_num == 1 or page_num == pagination.total_pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
-                            <a href="?page={{ page_num }}" 
+                            <a href="{{ page_prefix }}page={{ page_num }}" 
                                class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
                                 {{ page_num }}
                             </a>
@@ -291,7 +382,7 @@
                 
                 <!-- Next Button -->
                 {% if pagination.has_next %}
-                <a href="?page={{ pagination.next_page }}" 
+                <a href="{{ page_prefix }}page={{ pagination.next_page }}" 
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
                     Next →
                 </a>

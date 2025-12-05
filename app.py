@@ -927,14 +927,18 @@ def all_submissions():
         # Get filter parameters from query string
         filter_po_id = request.args.get('po_id', type=int)
         filter_item_id = request.args.get('item_id', type=str)
+        filter_date_from = request.args.get('date_from', type=str)
+        filter_date_to = request.args.get('date_to', type=str)
+        filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
         
         # Build query with optional filters
         query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter,
                    pd.packages_per_display, pd.tablets_per_package,
-                   tt.inventory_item_id,
+                   tt.inventory_item_id, tt.id as tablet_type_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    ws.admin_notes,
+                   COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -958,6 +962,20 @@ def all_submissions():
         if filter_item_id:
             query += ' AND tt.inventory_item_id = ?'
             params.append(filter_item_id)
+        
+        # Apply date range filters
+        if filter_date_from:
+            query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
+            params.append(filter_date_from)
+        
+        if filter_date_to:
+            query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
+            params.append(filter_date_to)
+        
+        # Apply tablet type filter if provided
+        if filter_tablet_type_id:
+            query += ' AND tt.id = ?'
+            params.append(filter_tablet_type_id)
         
         query += ' ORDER BY ws.created_at ASC'
         
@@ -1036,6 +1054,15 @@ def all_submissions():
         if filter_item_id:
             unverified_query += ' AND tt.inventory_item_id = ?'
             unverified_params.append(filter_item_id)
+        if filter_date_from:
+            unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
+            unverified_params.append(filter_date_from)
+        if filter_date_to:
+            unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
+            unverified_params.append(filter_date_to)
+        if filter_tablet_type_id:
+            unverified_query += ' AND tt.id = ?'
+            unverified_params.append(filter_tablet_type_id)
         
         unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
         
@@ -1065,7 +1092,21 @@ def all_submissions():
                 filter_info['item_name'] = item_info['line_item_name']
                 filter_info['item_id'] = filter_item_id
         
-        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count)
+        if filter_date_from:
+            filter_info['date_from'] = filter_date_from
+        if filter_date_to:
+            filter_info['date_to'] = filter_date_to
+        if filter_tablet_type_id:
+            tablet_type_info = conn.execute('SELECT tablet_type_name FROM tablet_types WHERE id = ?', (filter_tablet_type_id,)).fetchone()
+            if tablet_type_info:
+                filter_info['tablet_type_name'] = tablet_type_info['tablet_type_name']
+                filter_info['tablet_type_id'] = filter_tablet_type_id
+        
+        # Get all tablet types for the filter dropdown
+        tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
+        
+        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
+                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
