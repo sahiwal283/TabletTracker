@@ -3583,33 +3583,41 @@ def process_receiving():
 @employee_required
 def get_available_boxes_bags(po_id):
     """Get available boxes and bags for a PO (for warehouse form dropdowns)"""
-    conn = get_db()
-    
-    # Get all receiving records for this PO with available bags
-    receiving_data = conn.execute('''
-        SELECT r.id as receiving_id, sb.box_number, b.bag_number, b.id as bag_id, b.bag_label_count
-        FROM receiving r
-        JOIN small_boxes sb ON r.id = sb.receiving_id
-        JOIN bags b ON sb.id = b.small_box_id
-        WHERE r.po_id = ? AND b.status = 'Available'
-        ORDER BY sb.box_number, b.bag_number
-    ''', (po_id,)).fetchall()
-    
-    conn.close()
-    
-    # Structure data for frontend
-    boxes = {}
-    for row in receiving_data:
-        box_num = row['box_number']
-        if box_num not in boxes:
-            boxes[box_num] = []
-        boxes[box_num].append({
-            'bag_number': row['bag_number'],
-            'bag_id': row['bag_id'],
-            'bag_label_count': row['bag_label_count']
-        })
-    
-    return jsonify({'boxes': boxes})
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all receiving records for this PO with available bags
+        receiving_data = conn.execute('''
+            SELECT r.id as receiving_id, sb.box_number, b.bag_number, b.id as bag_id, b.bag_label_count
+            FROM receiving r
+            JOIN small_boxes sb ON r.id = sb.receiving_id
+            JOIN bags b ON sb.id = b.small_box_id
+            WHERE r.po_id = ? AND b.status = 'Available'
+            ORDER BY sb.box_number, b.bag_number
+        ''', (po_id,)).fetchall()
+        
+        # Structure data for frontend
+        boxes = {}
+        for row in receiving_data:
+            box_num = row['box_number']
+            if box_num not in boxes:
+                boxes[box_num] = []
+            boxes[box_num].append({
+                'bag_number': row['bag_number'],
+                'bag_id': row['bag_id'],
+                'bag_label_count': row['bag_label_count']
+            })
+        
+        return jsonify({'boxes': boxes})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 @app.route('/api/create_sample_receiving_data', methods=['POST'])
@@ -5054,7 +5062,6 @@ def get_po_submissions(po_id):
         ''', (po_id,)).fetchone()
         
         if not po:
-            conn.close()
             return jsonify({'error': 'PO not found'}), 404
         
         # Check if submission_date column exists
@@ -5191,8 +5198,6 @@ def get_po_submissions(po_id):
         # Reverse to show newest first in modal
         submissions.reverse()
         
-        conn.close()
-        
         return jsonify({
             'success': True,
             'po': dict(po),
@@ -5205,12 +5210,13 @@ def get_po_submissions(po_id):
         error_trace = traceback.format_exc()
         print(f"❌ Error fetching PO submissions: {str(e)}")
         print(error_trace)
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
