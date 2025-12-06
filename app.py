@@ -188,8 +188,15 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS tablet_types (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tablet_type_name TEXT UNIQUE NOT NULL,
-        inventory_item_id TEXT UNIQUE
+        inventory_item_id TEXT UNIQUE,
+        category TEXT
     )''')
+    
+    # Add category column if it doesn't exist (for existing databases)
+    try:
+        c.execute('ALTER TABLE tablet_types ADD COLUMN category TEXT')
+    except:
+        pass  # Column already exists
     
     # Product Details table
     c.execute('''CREATE TABLE IF NOT EXISTS product_details (
@@ -1996,7 +2003,14 @@ def product_mapping():
         # Get tablet types for dropdown
         tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
-        return render_template('product_mapping.html', products=products, tablet_types=tablet_types)
+        # Get unique categories
+        categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
+        category_list = [cat['category'] for cat in categories] if categories else []
+        
+        # Default categories if none exist
+        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        
+        return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=category_list or default_categories)
     except Exception as e:
         flash(f'Error loading product mapping: {str(e)}', 'error')
         return render_template('product_mapping.html', products=[], tablet_types=[])
@@ -3102,6 +3116,40 @@ def update_tablet_inventory_ids():
             'success': True, 
             'message': f'Updated {updated_count} tablet types with inventory item IDs'
         })
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tablet_type/category', methods=['POST'])
+@admin_required
+def update_tablet_type_category():
+    """Update category for a tablet type"""
+    conn = None
+    try:
+        data = request.get_json()
+        tablet_type_id = data.get('tablet_type_id')
+        category = data.get('category')  # Can be None to remove category
+        
+        if not tablet_type_id:
+            return jsonify({'success': False, 'error': 'Tablet type ID required'}), 400
+        
+        conn = get_db()
+        
+        # Update category
+        conn.execute('''
+            UPDATE tablet_types 
+            SET category = ?
+            WHERE id = ?
+        ''', (category, tablet_type_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Category updated successfully'})
     except Exception as e:
         if conn:
             try:

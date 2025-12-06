@@ -35,6 +35,58 @@
         </div>
     </div>
 
+    <!-- Category Configuration Section -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Category Configuration</h3>
+        <p class="text-sm text-gray-600 mb-4">Configure which category each tablet type belongs to for dropdown organization</p>
+        
+        <div class="space-y-4">
+            {% for category in categories %}
+            <div class="border border-gray-200 rounded-lg p-4">
+                <h4 class="font-medium text-gray-900 mb-3">{{ category }}</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {% for tablet_type in tablet_types %}
+                    {% if tablet_type.category == category or (not tablet_type.category and category == 'Other') %}
+                    <label class="flex items-center space-x-2 text-sm">
+                        <input type="checkbox" 
+                               class="category-checkbox" 
+                               data-tablet-type-id="{{ tablet_type.id }}"
+                               data-category="{{ category }}"
+                               {% if tablet_type.category == category %}checked{% endif %}
+                               onchange="updateTabletTypeCategory({{ tablet_type.id }}, '{{ category }}', this.checked)">
+                        <span>{{ tablet_type.tablet_type_name }}</span>
+                    </label>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Unassigned tablet types -->
+            {% set unassigned = tablet_types | selectattr('category', 'none') | list %}
+            {% if unassigned %}
+            <div class="border border-gray-200 rounded-lg p-4">
+                <h4 class="font-medium text-gray-900 mb-3">Unassigned</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {% for tablet_type in unassigned %}
+                    <div class="flex items-center space-x-2 text-sm">
+                        <select class="category-select text-xs border border-gray-300 rounded px-2 py-1" 
+                                data-tablet-type-id="{{ tablet_type.id }}"
+                                onchange="updateTabletTypeCategory({{ tablet_type.id }}, this.value, true)">
+                            <option value="">-- Select Category --</option>
+                            {% for category in categories %}
+                            <option value="{{ category }}">{{ category }}</option>
+                            {% endfor %}
+                        </select>
+                        <span>{{ tablet_type.tablet_type_name }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Product Actions Header -->
     <div class="bg-white rounded-lg shadow p-4 mb-6">
         <div class="flex justify-between items-center">
@@ -303,6 +355,29 @@ async function deleteProduct(productId) {
         }
     } catch (error) {
         showError('Failed to delete product: ' + error.message);
+    }
+}
+
+async function updateTabletTypeCategory(tabletTypeId, category, isChecked) {
+    try {
+        const response = await fetch('/api/tablet_type/category', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                tablet_type_id: tabletTypeId,
+                category: isChecked ? category : null
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            // Reload page to show updated categories
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showError(result.error || 'Failed to update category');
+        }
+    } catch (error) {
+        showError('Failed to update category: ' + error.message);
     }
 }
 
