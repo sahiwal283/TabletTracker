@@ -3553,6 +3553,17 @@ def save_receives():
         
         conn = get_db()
         
+        # Ensure tablet_type_id column exists in bags table
+        c = conn.cursor()
+        c.execute('PRAGMA table_info(bags)')
+        existing_bags_cols = [row[1] for row in c.fetchall()]
+        if 'tablet_type_id' not in existing_bags_cols:
+            try:
+                conn.execute('ALTER TABLE bags ADD COLUMN tablet_type_id INTEGER')
+                conn.commit()
+            except Exception as e:
+                print(f"Warning: Could not add tablet_type_id column: {e}")
+        
         # Get current user name
         received_by = 'Unknown'
         if session.get('employee_id'):
