@@ -438,6 +438,28 @@ def has_permission(username, required_permission):
     permissions = ROLE_PERMISSIONS.get(role, [])
     return 'all' in permissions or required_permission in permissions
 
+def get_setting(setting_key, default_value=None):
+    """Get a setting value from app_settings table"""
+    conn = None
+    try:
+        conn = get_db()
+        setting = conn.execute(
+            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+            (setting_key,)
+        ).fetchone()
+        if setting:
+            return setting['setting_value']
+        return default_value
+    except Exception as e:
+        print(f"Error getting setting {setting_key}: {e}")
+        return default_value
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 def role_required(required_permission):
     """Decorator that requires a specific permission/role"""
     def decorator(f):
