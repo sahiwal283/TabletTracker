@@ -3380,7 +3380,7 @@ def rename_category():
                     pass
             return jsonify({'success': False, 'error': 'Category name already exists'}), 400
         
-        # Check if old category exists
+        # Check if old category exists and get count
         old_exists = conn.execute('''
             SELECT COUNT(*) as count
             FROM tablet_types 
@@ -3393,7 +3393,7 @@ def rename_category():
                     conn.close()
                 except:
                     pass
-            return jsonify({'success': False, 'error': f'Category "{old_name}" not found'}), 404
+            return jsonify({'success': False, 'error': f'Category "{old_name}" not found or has no tablet types assigned'}), 404
         
         # Update all tablet types with the old category name
         cursor = conn.execute('''
@@ -3403,6 +3403,23 @@ def rename_category():
         ''', (new_name, old_name))
         
         rows_updated = cursor.rowcount
+        
+        # Verify the update worked
+        verify_update = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM tablet_types 
+            WHERE category = ?
+        ''', (new_name,)).fetchone()
+        
+        if verify_update['count'] != old_exists['count']:
+            conn.rollback()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            return jsonify({'success': False, 'error': 'Failed to update all tablet types. Transaction rolled back.'}), 500
+        
         conn.commit()
         
         if conn:
