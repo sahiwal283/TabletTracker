@@ -2012,12 +2012,18 @@ def product_mapping():
             ORDER BY tt.tablet_type_name, pd.product_name
         ''').fetchall()
         
+        # Check if category column exists
+        table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
+        has_category_column = any(col[1] == 'category' for col in table_info)
+        
         # Get tablet types for dropdown
         tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
         # Get unique categories (including those with tablet types assigned)
-        categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
-        category_list = [cat['category'] for cat in categories] if categories else []
+        category_list = []
+        if has_category_column:
+            categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
+            category_list = [cat['category'] for cat in categories] if categories else []
         
         # Default categories if none exist (always show these as options)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
