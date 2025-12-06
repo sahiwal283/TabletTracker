@@ -2573,10 +2573,21 @@ def submit_count():
         # Validate required fields
         if not data.get('tablet_type'):
             return jsonify({'error': 'tablet_type is required'}), 400
-        if not data.get('employee_name'):
-            return jsonify({'error': 'employee_name is required'}), 400
         
         conn = get_db()
+        
+        # Get employee name from session (logged-in user)
+        if session.get('admin_authenticated'):
+            employee_name = 'Admin'
+        else:
+            employee = conn.execute('''
+                SELECT full_name FROM employees WHERE id = ?
+            ''', (session.get('employee_id'),)).fetchone()
+            
+            if not employee:
+                return jsonify({'error': 'Employee not found'}), 400
+            
+            employee_name = employee['full_name']
         
         # Get tablet type details
         tablet_type = conn.execute('''
@@ -2616,7 +2627,7 @@ def submit_count():
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
-        ''', (data.get('employee_name'), data.get('tablet_type'), inventory_item_id, data.get('box_number'),
+        ''', (employee_name, data.get('tablet_type'), inventory_item_id, data.get('box_number'),
               data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date, admin_notes))
         
         # Find open PO lines for this inventory item
