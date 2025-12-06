@@ -1,8 +1,8 @@
 """
 Database schema management and migrations
+Consolidates all table creation from app.py init_db()
 """
 import sqlite3
-from app.utils.db_utils import get_db
 
 
 class SchemaManager:
@@ -12,11 +12,12 @@ class SchemaManager:
         self.conn = None
     
     def initialize_all_tables(self):
-        """Initialize all database tables"""
+        """Initialize all database tables and run migrations"""
         conn = sqlite3.connect('tablet_counter.db')
         c = conn.cursor()
         
         try:
+            # Create all tables (IF NOT EXISTS ensures idempotency)
             self._create_purchase_orders_table(c)
             self._create_po_lines_table(c)
             self._create_tablet_types_table(c)
@@ -31,13 +32,18 @@ class SchemaManager:
             self._create_app_settings_table(c)
             self._create_tablet_type_categories_table(c)
             
-            # Run migrations
-            self._run_migrations(c)
+            # Run all migrations (adds columns, backfills data)
+            from app.models.migrations import MigrationRunner
+            migration_runner = MigrationRunner(c)
+            migration_runner.run_all()
             
             # Initialize default settings
             self._initialize_default_settings(c)
             
             conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise
         finally:
             conn.close()
     
@@ -195,8 +201,8 @@ class SchemaManager:
             username TEXT UNIQUE NOT NULL,
             full_name TEXT NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT,
-            preferred_language TEXT,
+            role TEXT DEFAULT 'warehouse_staff',
+            preferred_language TEXT DEFAULT 'en',
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -220,12 +226,6 @@ class SchemaManager:
             category_order INTEGER UNIQUE NOT NULL
         )''')
     
-    def _run_migrations(self, c):
-        """Run all schema migrations"""
-        from app.models.migrations import MigrationRunner
-        migration_runner = MigrationRunner(c)
-        migration_runner.run_all()
-    
     def _initialize_default_settings(self, c):
         """Initialize default app settings"""
         default_settings = [
@@ -238,4 +238,3 @@ class SchemaManager:
                     INSERT INTO app_settings (setting_key, setting_value, description)
                     VALUES (?, ?, ?)
                 ''', (key, value, description))
-

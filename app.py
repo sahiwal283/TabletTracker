@@ -108,6 +108,13 @@ def after_request(response):
 
 # Database setup
 def init_db():
+    """Initialize database - delegates to consolidated migration system"""
+    from app.models.database import init_db as init_db_new
+    init_db_new()
+    return
+    
+    # Legacy code below - kept for reference but not executed
+    # All migrations now handled by app.models.schema.SchemaManager
     conn = sqlite3.connect('tablet_counter.db')
     c = conn.cursor()
     
