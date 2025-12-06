@@ -982,9 +982,8 @@ async function convertToTwoLevelDropdown(selectElement) {
     itemSelect.style.display = 'none';
     
     // Add groups to group dropdown
-    const groupOrder = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other'];
     groupOrder.forEach(groupName => {
-        if (groups[groupName].length === 0) return;
+        if (!groups[groupName] || groups[groupName].length === 0) return;
         const option = document.createElement('option');
         option.value = groupName;
         option.textContent = groupName;
