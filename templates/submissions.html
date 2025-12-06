@@ -140,6 +140,11 @@
                             💊 Type: {{ filter_info.tablet_type_name }}
                         </span>
                     {% endif %}
+                    {% if filter_info.submission_type %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800">
+                            📋 {{ filter_info.submission_type|title }}
+                        </span>
+                    {% endif %}
                 </div>
             </div>
         </div>
