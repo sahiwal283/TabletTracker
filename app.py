@@ -2117,9 +2117,34 @@ def shipping_unified():
             ORDER BY r.received_date DESC
         ''').fetchall()
         
+        # Calculate shipment numbers for each PO (numbered sequentially by received_date)
+        # Group shipments by PO and assign numbers
+        po_shipment_counts = {}
+        for rec in receiving_records:
+            po_id = rec['po_id']
+            if po_id:
+                if po_id not in po_shipment_counts:
+                    # Get all shipments for this PO ordered by received_date
+                    po_shipments = conn.execute('''
+                        SELECT id, received_date
+                        FROM receiving
+                        WHERE po_id = ?
+                        ORDER BY received_date ASC, id ASC
+                    ''', (po_id,)).fetchall()
+                    po_shipment_counts[po_id] = {
+                        shipment['id']: idx + 1 
+                        for idx, shipment in enumerate(po_shipments)
+                    }
+        
         # For each receiving record, get its boxes and bags
         shipments = []
         for rec in receiving_records:
+            # Add shipment number if PO is assigned
+            rec_dict = dict(rec)
+            if rec['po_id'] and rec['po_id'] in po_shipment_counts:
+                rec_dict['shipment_number'] = po_shipment_counts[rec['po_id']].get(rec['id'], 1)
+            else:
+                rec_dict['shipment_number'] = None
             boxes = conn.execute('''
                 SELECT sb.*, COUNT(b.id) as bag_count
                 FROM small_boxes sb
@@ -2145,7 +2170,7 @@ def shipping_unified():
                 })
             
             shipments.append({
-                'receiving': dict(rec),
+                'receiving': rec_dict,
                 'boxes': boxes_with_bags
             })
         

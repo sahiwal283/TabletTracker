@@ -31,7 +31,11 @@
                     <div>
                         <h3 class="text-lg font-semibold text-gray-900 mb-1">
                             {% if shipment.receiving.po_number %}
-                                {{ shipment.receiving.po_number }}
+                                {% if shipment.receiving.shipment_number %}
+                                    {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                                {% else %}
+                                    {{ shipment.receiving.po_number }}
+                                {% endif %}
                             {% else %}
                                 Shipment Received
                             {% endif %}
