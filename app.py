@@ -3134,6 +3134,7 @@ def get_tablet_type_categories():
     conn = None
     try:
         conn = get_db()
+        conn.row_factory = sqlite3.Row
         
         # Get all tablet types with their categories
         tablet_types = conn.execute('''
@@ -3147,8 +3148,8 @@ def get_tablet_type_categories():
         unassigned = []
         
         for tt in tablet_types:
-            category = tt['category'] if tt['category'] else 'Other'
-            if category == 'Other' and not tt['category']:
+            category = tt['category'] if tt['category'] else None
+            if not category:
                 unassigned.append({
                     'id': tt['id'],
                     'name': tt['tablet_type_name']
@@ -3167,20 +3168,21 @@ def get_tablet_type_categories():
                 categories['Other'] = []
             categories['Other'].extend(unassigned)
         
-        conn.close()
-        
         return jsonify({
             'success': True,
             'categories': categories,
             'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tablet_type/category', methods=['POST'])
 @admin_required
