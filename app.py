@@ -3322,6 +3322,7 @@ def add_category():
             return jsonify({'success': False, 'error': 'Category name required'}), 400
         
         conn = get_db()
+        conn.row_factory = sqlite3.Row
         
         # Check if category already exists
         existing = conn.execute('''
@@ -3331,14 +3332,28 @@ def add_category():
         ''', (category_name,)).fetchone()
         
         if existing:
-            conn.close()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
             return jsonify({'success': False, 'error': 'Category already exists'}), 400
         
-        # Category will be created when a tablet type is assigned to it
-        # For now, just return success
-        conn.close()
-        return jsonify({'success': True, 'message': 'Category added. Assign tablet types to make it active.'})
+        # Categories are created when tablet types are assigned to them
+        # This endpoint just validates the name - actual creation happens when assigning
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Category "{category_name}" is ready. Assign tablet types to make it active.'
+        })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         if conn:
             try:
                 conn.close()
@@ -3453,19 +3468,63 @@ def delete_category():
             return jsonify({'success': False, 'error': 'Category name required'}), 400
         
         conn = get_db()
+        conn.row_factory = sqlite3.Row
+        
+        # Check if category exists and get count
+        category_exists = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM tablet_types 
+            WHERE category = ?
+        ''', (category_name,)).fetchone()
+        
+        if category_exists['count'] == 0:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            return jsonify({'success': False, 'error': f'Category "{category_name}" not found or has no tablet types assigned'}), 404
         
         # Remove category from all tablet types (set to NULL)
-        conn.execute('''
+        cursor = conn.execute('''
             UPDATE tablet_types 
             SET category = NULL
             WHERE category = ?
         ''', (category_name,))
         
-        conn.commit()
-        conn.close()
+        rows_updated = cursor.rowcount
         
-        return jsonify({'success': True, 'message': f'Category "{category_name}" deleted. All tablet types have been unassigned.'})
+        # Verify the update worked
+        verify_delete = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM tablet_types 
+            WHERE category = ?
+        ''', (category_name,)).fetchone()
+        
+        if verify_delete['count'] != 0:
+            conn.rollback()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            return jsonify({'success': False, 'error': 'Failed to delete category. Transaction rolled back.'}), 500
+        
+        conn.commit()
+        
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Category "{category_name}" deleted. {rows_updated} tablet type(s) have been unassigned.'
+        })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         if conn:
             try:
                 conn.close()
