@@ -334,10 +334,22 @@ def init_db():
                     bag_number INTEGER,
                     bag_label_count INTEGER,
                     pill_count INTEGER,
+                    tablet_type_id INTEGER,
                     status TEXT DEFAULT 'Available',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
                 )''')
+    
+    # Machine counts table - tracks machine counter readings by flavor/tablet type
+    c.execute('''CREATE TABLE IF NOT EXISTS machine_counts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tablet_type_id INTEGER,
+        machine_count INTEGER NOT NULL,
+        employee_name TEXT NOT NULL,
+        count_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
+    )''')
 
     # Employees table for user authentication
     c.execute('''CREATE TABLE IF NOT EXISTS employees (

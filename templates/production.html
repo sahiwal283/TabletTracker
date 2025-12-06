@@ -14,6 +14,10 @@
                 class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
             Bag Count
         </button>
+        <button id="toggle-machine-count" onclick="switchForm('machine-count')" 
+                class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+            Machine Count
+        </button>
     </div>
 
     <!-- Production Submission Form (Default) -->
@@ -276,6 +280,77 @@
         <!-- Success/Error Messages -->
         <div id="count-form-messages" class="mt-4"></div>
     </div>
+
+    <!-- Machine Count Form (Hidden by default) -->
+    <div id="machine-count-form" class="card hover-lift p-8 hidden">
+        <div class="text-center mb-8">
+            <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-gear" /></svg></div>
+            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Machine Count</h2>
+            {% if employee %}
+            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
+                <p class="text-green-800 font-semibold flex items-center justify-center">
+                    <span class="text-2xl mr-3">👷</span>
+                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                </p>
+            </div>
+            {% endif %}
+            <p class="text-gray-600">Enter the counter number on the machine for that particular flavor</p>
+        </div>
+        
+        <form id="machine-count-form-submit" class="space-y-4">
+            <!-- Tablet Type Selection -->
+            <div>
+                <label for="machine_tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
+                    Tablet Type *
+                </label>
+                <select id="machine_tablet_type" name="tablet_type_id" required class="form-input">
+                    <option value="">Select tablet type...</option>
+                    {% for tablet_type in tablet_types %}
+                        <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Machine Count -->
+            <div>
+                <label for="machine_count" class="block text-sm font-medium text-gray-700 mb-1">
+                    Machine Count *
+                </label>
+                <input type="number" id="machine_count" name="machine_count" required
+                       class="form-input" min="0" placeholder="Enter counter number from machine">
+            </div>
+            
+            <!-- Employee Name (Auto-filled) -->
+            <div>
+                <label for="machine_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Name *
+                </label>
+                <input type="text" id="machine_employee_name" name="employee_name" required
+                       class="form-input" 
+                       value="{% if employee %}{{ employee.full_name }}{% endif %}"
+                       placeholder="Your name">
+            </div>
+            
+            <!-- Count Date -->
+            <div>
+                <label for="machine_count_date" class="block text-sm font-medium text-gray-700 mb-1">
+                    Date *
+                </label>
+                <input type="date" id="machine_count_date" name="count_date" required
+                       class="form-input" value="{{ today_date }}">
+                <p class="text-xs text-gray-500 mt-1">Change this if submitting for a different date</p>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="w-full py-4 px-6 text-lg font-bold btn-primary mt-8 transform transition-all duration-300 hover:scale-105 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
+                Submit Machine Count
+            </button>
+        </form>
+        
+        <!-- Success/Error Messages -->
+        <div id="machine-count-form-messages" class="mt-4"></div>
+    </div>
 </div>
 
 <script>
@@ -283,23 +358,35 @@
 function switchForm(formType) {
     const submissionForm = document.getElementById('production-submission-form');
     const bagCountForm = document.getElementById('bag-count-form');
+    const machineCountForm = document.getElementById('machine-count-form');
     const submissionBtn = document.getElementById('toggle-production-submission');
     const bagCountBtn = document.getElementById('toggle-bag-count');
+    const machineCountBtn = document.getElementById('toggle-machine-count');
     
+    // Hide all forms
+    submissionForm.classList.add('hidden');
+    bagCountForm.classList.add('hidden');
+    machineCountForm.classList.add('hidden');
+    
+    // Reset all buttons
+    [submissionBtn, bagCountBtn, machineCountBtn].forEach(btn => {
+        btn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+        btn.classList.add('bg-gray-200', 'text-gray-700');
+    });
+    
+    // Show selected form and highlight button
     if (formType === 'submission') {
         submissionForm.classList.remove('hidden');
-        bagCountForm.classList.add('hidden');
         submissionBtn.classList.remove('bg-gray-200', 'text-gray-700');
         submissionBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
-        bagCountBtn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
-        bagCountBtn.classList.add('bg-gray-200', 'text-gray-700');
-    } else {
-        submissionForm.classList.add('hidden');
+    } else if (formType === 'bag-count') {
         bagCountForm.classList.remove('hidden');
         bagCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
         bagCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
-        submissionBtn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
-        submissionBtn.classList.add('bg-gray-200', 'text-gray-700');
+    } else if (formType === 'machine-count') {
+        machineCountForm.classList.remove('hidden');
+        machineCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
+        machineCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
     }
 }
 
@@ -475,6 +562,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 showSuccess(result.message || result.warning || 'Count submitted successfully!');
                 countForm.reset();
                 countComparison.classList.add('hidden');
+            } else {
+                showError(result.error || 'Submission failed');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+
+    // Machine Count Form
+    const machineCountForm = document.getElementById('machine-count-form-submit');
+    
+    machineCountForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(machineCountForm);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Convert tablet_type_id and machine_count to integers
+        data.tablet_type_id = parseInt(data.tablet_type_id);
+        data.machine_count = parseInt(data.machine_count);
+        
+        const submitBtn = machineCountForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        
+        try {
+            const response = await fetch('/submit_machine_count', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showSuccess(result.message || 'Machine count submitted successfully!');
+                machineCountForm.reset();
+                // Reset employee name if it was auto-filled
+                const employeeNameField = document.getElementById('machine_employee_name');
+                if (employeeNameField && '{{ employee.full_name if employee else "" }}') {
+                    employeeNameField.value = '{{ employee.full_name if employee else "" }}';
+                }
             } else {
                 showError(result.error || 'Submission failed');
             }
