@@ -12,7 +12,74 @@
         <p class="text-gray-600 mt-2">Record shipments that arrive</p>
     </div>
 
+    <!-- Action Button -->
+    <div class="mb-4 flex justify-end">
+        <button onclick="openAddReceivesModal()" 
+                class="btn-primary px-4 py-2 flex items-center">
+            <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-plus" /></svg>
+            Add Receives
+        </button>
+    </div>
+
     <!-- Main Content -->
+    {% if shipments %}
+    <div class="space-y-4">
+        {% for shipment in shipments %}
+        <div class="card">
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
+                            Shipment Received
+                        </h3>
+                        <p class="text-sm text-gray-600">
+                            Received on {{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}
+                            {% if shipment.receiving.received_by %}
+                            by {{ shipment.receiving.received_by }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm text-gray-600">
+                            {{ shipment.receiving.box_count or 0 }} Box{{ 'es' if (shipment.receiving.box_count or 0) != 1 else '' }}
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            {{ shipment.receiving.total_bags or 0 }} Bag{{ 's' if (shipment.receiving.total_bags or 0) != 1 else '' }}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Boxes -->
+                <div class="space-y-3 mt-4">
+                    {% for box_data in shipment.boxes %}
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-medium text-gray-900">Box {{ box_data.box.box_number }}</h4>
+                            <span class="text-sm text-gray-600">{{ box_data.box.bag_count }} bag{{ 's' if box_data.box.bag_count != 1 else '' }}</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                            {% for bag in box_data.bags %}
+                            <div class="bg-white border border-gray-200 rounded p-2 text-sm">
+                                <div class="font-medium text-gray-700">Bag {{ bag.bag_number }}</div>
+                                <div class="text-gray-600">
+                                    {% if bag.tablet_type_name %}
+                                    {{ bag.tablet_type_name }}
+                                    {% else %}
+                                    Unknown Type
+                                    {% endif %}
+                                </div>
+                                <div class="text-gray-600">Count: {{ bag.bag_label_count or 0 }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
     <div class="card">
         <div class="p-6">
             <div class="text-center py-12">
@@ -27,6 +94,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <!-- Add Receives Modal -->

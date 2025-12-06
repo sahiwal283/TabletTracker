@@ -1818,7 +1818,53 @@ def shipping_unified():
             ORDER BY tablet_type_name
         ''').fetchall()
         
-        return render_template('shipping_unified.html', tablet_types=tablet_types)
+        # Get all receiving records with their boxes and bags
+        receiving_records = conn.execute('''
+            SELECT r.*, 
+                   COUNT(DISTINCT sb.id) as box_count,
+                   COUNT(DISTINCT b.id) as total_bags
+            FROM receiving r
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+        ''').fetchall()
+        
+        # For each receiving record, get its boxes and bags
+        shipments = []
+        for rec in receiving_records:
+            boxes = conn.execute('''
+                SELECT sb.*, COUNT(b.id) as bag_count
+                FROM small_boxes sb
+                LEFT JOIN bags b ON sb.id = b.small_box_id
+                WHERE sb.receiving_id = ?
+                GROUP BY sb.id
+                ORDER BY sb.box_number
+            ''', (rec['id'],)).fetchall()
+            
+            # Get bags for each box with tablet type info
+            boxes_with_bags = []
+            for box in boxes:
+                bags = conn.execute('''
+                    SELECT b.*, tt.tablet_type_name
+                    FROM bags b
+                    LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.small_box_id = ?
+                    ORDER BY b.bag_number
+                ''', (box['id'],)).fetchall()
+                boxes_with_bags.append({
+                    'box': dict(box),
+                    'bags': [dict(bag) for bag in bags]
+                })
+            
+            shipments.append({
+                'receiving': dict(rec),
+                'boxes': boxes_with_bags
+            })
+        
+        return render_template('shipping_unified.html', 
+                             tablet_types=tablet_types,
+                             shipments=shipments)
                              
     except Exception as e:
         import traceback
