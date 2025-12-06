@@ -283,22 +283,22 @@ def init_db():
                 pass
     
     # Add pill_count column to bags table if it doesn't exist
-    try:
-        c.execute('SELECT pill_count FROM bags LIMIT 1')
-    except Exception:
+    c.execute('PRAGMA table_info(bags)')
+    existing_bags_cols = [row[1] for row in c.fetchall()]
+    if 'pill_count' not in existing_bags_cols:
         try:
             c.execute('ALTER TABLE bags ADD COLUMN pill_count INTEGER')
-        except Exception:
-            pass
+            print("Added pill_count column to bags table")
+        except Exception as e:
+            print(f"Note: pill_count column migration: {e}")
     
     # Add tablet_type_id column to bags table if it doesn't exist
-    try:
-        c.execute('SELECT tablet_type_id FROM bags LIMIT 1')
-    except Exception:
+    if 'tablet_type_id' not in existing_bags_cols:
         try:
             c.execute('ALTER TABLE bags ADD COLUMN tablet_type_id INTEGER')
-        except Exception:
-            pass
+            print("Added tablet_type_id column to bags table")
+        except Exception as e:
+            print(f"Note: tablet_type_id column migration: {e}")
     
     # Receiving table - tracks shipment arrival and photos
     c.execute('''CREATE TABLE IF NOT EXISTS receiving (
