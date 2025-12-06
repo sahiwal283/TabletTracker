@@ -2042,8 +2042,23 @@ def product_mapping():
                 tt['category'] = None
             category_list = []
         
-        # Default categories (always show these as options)
+        # Get deleted categories from app_settings
+        deleted_categories_set = set()
+        try:
+            deleted_categories_json = conn.execute('''
+                SELECT value FROM app_settings WHERE key = 'deleted_categories'
+            ''').fetchone()
+            if deleted_categories_json:
+                import json
+                deleted_categories_set = set(json.loads(deleted_categories_json['value']))
+        except:
+            pass  # If app_settings table doesn't exist or key doesn't exist, continue
+        
+        # Default categories (always show these as options, unless deleted)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        
+        # Filter out deleted categories from defaults
+        default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
         
         # Merge default categories with existing ones, ensuring all defaults are available
         # This ensures categories are shown even if no tablet types are assigned to them yet
@@ -3511,6 +3526,40 @@ def delete_category():
         
         # Commit even if no rows were updated (category was empty)
         conn.commit()
+        
+        # Track deleted category in app_settings so it doesn't reappear
+        try:
+            # Ensure app_settings table exists
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            ''')
+            
+            # Get current deleted categories
+            deleted_categories_json = conn.execute('''
+                SELECT value FROM app_settings WHERE key = 'deleted_categories'
+            ''').fetchone()
+            
+            deleted_categories = set()
+            if deleted_categories_json:
+                import json
+                deleted_categories = set(json.loads(deleted_categories_json['value']))
+            
+            # Add this category to deleted set
+            deleted_categories.add(category_name)
+            
+            # Save back to app_settings
+            conn.execute('''
+                INSERT OR REPLACE INTO app_settings (key, value) 
+                VALUES (?, ?)
+            ''', ('deleted_categories', json.dumps(list(deleted_categories))))
+            
+            conn.commit()
+        except Exception as e:
+            print(f"Warning: Could not track deleted category: {e}")
+            # Don't fail the request if tracking fails
         
         if conn:
             try:
