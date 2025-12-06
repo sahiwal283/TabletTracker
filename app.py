@@ -3480,39 +3480,36 @@ def delete_category():
             WHERE category = ?
         ''', (category_name,)).fetchone()
         
-        if category_exists['count'] == 0:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            return jsonify({'success': False, 'error': f'Category "{category_name}" not found or has no tablet types assigned'}), 404
+        rows_updated = 0
         
-        # Remove category from all tablet types (set to NULL)
-        cursor = conn.execute('''
-            UPDATE tablet_types 
-            SET category = NULL
-            WHERE category = ?
-        ''', (category_name,))
+        # Only try to update if there are tablet types with this category
+        if category_exists['count'] > 0:
+            # Remove category from all tablet types (set to NULL)
+            cursor = conn.execute('''
+                UPDATE tablet_types 
+                SET category = NULL
+                WHERE category = ?
+            ''', (category_name,))
+            
+            rows_updated = cursor.rowcount
+            
+            # Verify the update worked
+            verify_delete = conn.execute('''
+                SELECT COUNT(*) as count
+                FROM tablet_types 
+                WHERE category = ?
+            ''', (category_name,)).fetchone()
+            
+            if verify_delete['count'] != 0:
+                conn.rollback()
+                if conn:
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                return jsonify({'success': False, 'error': 'Failed to delete category. Transaction rolled back.'}), 500
         
-        rows_updated = cursor.rowcount
-        
-        # Verify the update worked
-        verify_delete = conn.execute('''
-            SELECT COUNT(*) as count
-            FROM tablet_types 
-            WHERE category = ?
-        ''', (category_name,)).fetchone()
-        
-        if verify_delete['count'] != 0:
-            conn.rollback()
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            return jsonify({'success': False, 'error': 'Failed to delete category. Transaction rolled back.'}), 500
-        
+        # Commit even if no rows were updated (category was empty)
         conn.commit()
         
         if conn:
