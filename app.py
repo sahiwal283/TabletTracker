@@ -2003,14 +2003,18 @@ def product_mapping():
         # Get tablet types for dropdown
         tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
-        # Get unique categories
+        # Get unique categories (including those with tablet types assigned)
         categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
         category_list = [cat['category'] for cat in categories] if categories else []
         
-        # Default categories if none exist
+        # Default categories if none exist (always show these as options)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
         
-        return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=category_list or default_categories)
+        # Merge default categories with existing ones, ensuring all defaults are available
+        all_categories = list(set(default_categories + category_list))
+        all_categories.sort(key=lambda x: default_categories.index(x) if x in default_categories else len(default_categories))
+        
+        return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=all_categories)
     except Exception as e:
         flash(f'Error loading product mapping: {str(e)}', 'error')
         return render_template('product_mapping.html', products=[], tablet_types=[])

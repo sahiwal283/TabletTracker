@@ -46,18 +46,21 @@
                 <h4 class="font-medium text-gray-900 mb-3">{{ category }}</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {% for tablet_type in tablet_types %}
-                    {% if tablet_type.category == category or (not tablet_type.category and category == 'Other') %}
+                    {% if tablet_type.category == category %}
                     <label class="flex items-center space-x-2 text-sm">
                         <input type="checkbox" 
                                class="category-checkbox" 
                                data-tablet-type-id="{{ tablet_type.id }}"
                                data-category="{{ category }}"
-                               {% if tablet_type.category == category %}checked{% endif %}
+                               checked
                                onchange="updateTabletTypeCategory({{ tablet_type.id }}, '{{ category }}', this.checked)">
                         <span>{{ tablet_type.tablet_type_name }}</span>
                     </label>
                     {% endif %}
                     {% endfor %}
+                    {% if not tablet_types | selectattr('category', 'equalto', category) | list %}
+                    <p class="text-sm text-gray-400 italic">No tablet types assigned to this category</p>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
