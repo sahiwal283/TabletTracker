@@ -325,13 +325,6 @@
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-green-600 text-white" title="PO assignment verified and locked">
                                         ✓ Verified
                                     </span>
-                                    {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
-                                    <button onclick="openAdminReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
-                                            class="text-sm text-orange-600 hover:text-orange-800 underline ml-2"
-                                            title="Change PO assignment (Admin override - verified submissions)">
-                                        🔧 Change PO (Admin)
-                                    </button>
-                                    {% endif %}
                                 {% else %}
                                     <button onclick="approveSubmission({{ sub.id }})" 
                                             class="text-sm bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"

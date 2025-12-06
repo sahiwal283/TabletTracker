@@ -578,6 +578,29 @@
                               placeholder="Add internal notes visible to admins and managers..."></textarea>
                     <p class="text-xs text-purple-600 mt-1">These notes are visible to administrators and managers</p>
                 </div>
+                
+                <!-- Admin Change PO Section (Only for verified submissions) -->
+                <div id="admin-change-po-section" class="mt-4 hidden border-t pt-4">
+                    <div class="mb-3 bg-red-50 border-l-4 border-red-400 p-3 rounded">
+                        <p class="text-sm text-red-800 font-semibold mb-1">⚠️ ADMIN OVERRIDE - Change PO</p>
+                        <p class="text-sm text-red-700">This submission is verified and locked. Changing the PO requires admin override.</p>
+                        <p class="text-sm text-red-700 mt-1"><strong>Current PO:</strong> <span id="edit-current-po-display"></span></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="edit-admin-confirm-checkbox" class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                            <span class="text-sm text-gray-700">I understand this is an admin override and want to change the PO</span>
+                        </label>
+                    </div>
+                    
+                    <div id="edit-admin-pos-section" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select New PO:</label>
+                        <div id="edit-admin-pos-list" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                            <!-- PO list will be loaded here -->
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div class="mt-6 flex justify-end gap-3">
@@ -689,11 +712,172 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             adminNotesTextarea.value = sub.admin_notes || '';
         }
         
+        // Show/hide admin change PO section for verified submissions
+        // Note: This modal is only accessible to admins/managers (API enforces this)
+        const adminChangePoSection = document.getElementById('admin-change-po-section');
+        const isVerified = sub.po_verified || sub.po_assignment_verified || sub.po_assignment_verified === 1;
+        
+        if (adminChangePoSection && isVerified) {
+            adminChangePoSection.classList.remove('hidden');
+            const currentPoDisplay = document.getElementById('edit-current-po-display');
+            if (currentPoDisplay) {
+                currentPoDisplay.textContent = sub.po_number || 'Unassigned';
+            }
+            
+            // Setup checkbox handler
+            const confirmCheckbox = document.getElementById('edit-admin-confirm-checkbox');
+            const posSection = document.getElementById('edit-admin-pos-section');
+            if (confirmCheckbox && posSection) {
+                confirmCheckbox.checked = false;
+                posSection.classList.add('hidden');
+                confirmCheckbox.onchange = function() {
+                    if (this.checked) {
+                        loadEditAdminPOs(submissionId, sub.product_name);
+                    } else {
+                        posSection.classList.add('hidden');
+                    }
+                };
+            }
+        } else if (adminChangePoSection) {
+            adminChangePoSection.classList.add('hidden');
+        }
+        
         // Show modal
         document.getElementById('edit-submission-modal').classList.remove('hidden');
     } catch (error) {
         console.error('Error loading submission:', error);
         alert('Failed to load submission: ' + error.message);
+    }
+}
+
+// Admin Change PO functions for edit modal
+async function loadEditAdminPOs(submissionId, productName) {
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/available_pos`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            if (typeof showError === 'function') {
+                showError(data.error || 'Failed to load available POs');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to load available POs'));
+            }
+            return;
+        }
+        
+        const posSection = document.getElementById('edit-admin-pos-section');
+        if (posSection) {
+            posSection.classList.remove('hidden');
+        }
+        
+        const posList = document.getElementById('edit-admin-pos-list');
+        if (!posList) return;
+        
+        posList.innerHTML = '';
+        
+        if (data.available_pos.length === 0) {
+            posList.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <p>No POs found for this product</p>
+                </div>
+            `;
+            return;
+        }
+        
+        data.available_pos.forEach(po => {
+            const isCurrent = po.id === data.current_po_id;
+            const statusColor = po.closed ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-700';
+            const statusLabel = po.closed ? '🔒 Closed' : '✓ Open';
+            
+            const poDiv = document.createElement('div');
+            poDiv.className = `border rounded-lg p-4 hover:bg-orange-50 cursor-pointer transition-colors ${isCurrent ? 'border-orange-500 bg-orange-50' : 'border-gray-300'}`;
+            poDiv.onclick = () => adminReassignFromEditModal(submissionId, po.id, po.po_number);
+            
+            poDiv.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-bold text-lg text-gray-900">${po.po_number}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColor}">
+                                ${statusLabel}
+                            </span>
+                            ${isCurrent ? '<span class="text-xs text-orange-600 font-bold">CURRENT</span>' : ''}
+                        </div>
+                        <div class="grid grid-cols-4 gap-3 text-sm">
+                            <div>
+                                <div class="text-xs text-gray-500">Ordered</div>
+                                <div class="font-medium">${po.ordered.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-green-600">Good</div>
+                                <div class="font-medium text-green-600">${po.good.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-red-600">Damaged</div>
+                                <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-blue-600">Remaining</div>
+                                <div class="font-medium text-blue-600">${po.remaining.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${!isCurrent ? '<div class="text-2xl text-orange-600">→</div>' : ''}
+                </div>
+            `;
+            
+            posList.appendChild(poDiv);
+        });
+        
+    } catch (error) {
+        console.error('Error loading available POs:', error);
+        if (typeof showError === 'function') {
+            showError('Failed to load available POs: ' + error.message);
+        } else {
+            alert('Failed to load available POs: ' + error.message);
+        }
+    }
+}
+
+async function adminReassignFromEditModal(submissionId, newPoId, newPoNumber) {
+    if (!confirm(`⚠️ ADMIN OVERRIDE CONFIRMATION\n\nAre you sure you want to change this VERIFIED submission from its current PO to ${newPoNumber}?\n\nThis will:\n- Update counts on both POs\n- Keep the submission verified\n- Require admin override confirmation\n\nThis action cannot be easily undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/admin_reassign`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                new_po_id: newPoId,
+                confirm_override: true
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            if (typeof showSuccess === 'function') {
+                showSuccess(data.message || 'PO assignment changed successfully!');
+            } else {
+                alert('Success: ' + (data.message || 'PO assignment changed successfully!'));
+            }
+            closeEditSubmissionModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            if (typeof showError === 'function') {
+                showError(data.error || 'Failed to change PO assignment');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to change PO assignment'));
+            }
+        }
+    } catch (error) {
+        console.error('Error changing PO assignment:', error);
+        if (typeof showError === 'function') {
+            showError('Failed to change PO assignment: ' + error.message);
+        } else {
+            alert('Failed to change PO assignment: ' + error.message);
+        }
     }
 }
 

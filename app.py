@@ -5442,8 +5442,11 @@ def get_submission_details(submission_id):
         conn = get_db()
         
         submission = conn.execute('''
-            SELECT * FROM warehouse_submissions
-            WHERE id = ?
+            SELECT ws.*, po.po_number, po.closed as po_closed,
+                   COALESCE(ws.po_assignment_verified, 0) as po_verified
+            FROM warehouse_submissions ws
+            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            WHERE ws.id = ?
         ''', (submission_id,)).fetchone()
         
         if not submission:
