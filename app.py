@@ -291,6 +291,15 @@ def init_db():
         except Exception:
             pass
     
+    # Add tablet_type_id column to bags table if it doesn't exist
+    try:
+        c.execute('SELECT tablet_type_id FROM bags LIMIT 1')
+    except Exception:
+        try:
+            c.execute('ALTER TABLE bags ADD COLUMN tablet_type_id INTEGER')
+        except Exception:
+            pass
+    
     # Receiving table - tracks shipment arrival and photos
     c.execute('''CREATE TABLE IF NOT EXISTS receiving (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3587,9 +3596,9 @@ def save_receives():
                     continue
                 
                 conn.execute('''
-                    INSERT INTO bags (small_box_id, bag_number, bag_label_count, status)
-                    VALUES (?, ?, ?, 'Available')
-                ''', (small_box_id, bag_idx, bag_count))
+                    INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status)
+                    VALUES (?, ?, ?, ?, 'Available')
+                ''', (small_box_id, bag_idx, bag_count, tablet_type_id))
                 total_bags += 1
         
         # Update receiving record with total bags
