@@ -1,357 +1,300 @@
 {% extends "base.html" %}
 
-{% block title %}Shipping & Receiving{% endblock %}
+{% block title %}Shipments Received{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">
-            <svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-truck" /></svg> 
-            Shipping & Receiving
+            <svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-box" /></svg> 
+            Shipments Received
         </h1>
-        <p class="text-gray-600 mt-2">Manage outbound shipments and inbound receiving operations</p>
+        <p class="text-gray-600 mt-2">Record shipments that arrive</p>
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="mb-6">
-        <nav class="flex space-x-1 bg-gray-100 rounded-lg p-1">
-            <button onclick="showTab('shipments')" id="shipments-tab" 
-                    class="tab-button flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center active-tab">
-                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-truck" /></svg>
-                Outbound Shipments
-            </button>
-            <button onclick="showTab('receiving')" id="receiving-tab" 
-                    class="tab-button flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center">
-                <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-box" /></svg>
-                Inbound Receiving
-            </button>
-        </nav>
-    </div>
-
-    <!-- Outbound Shipments Tab Content -->
-    <div id="shipments-content" class="tab-content">
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900">Purchase Orders & Shipments</h3>
-                <p class="text-sm text-gray-600 mt-1">Track vendor shipments and delivery information</p>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                PO Number
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Tablet Type
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Tracking #
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Carrier
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Ship Date
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                ETA
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        {% for po in pos_with_shipments %}
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {{ po.po_number }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ po.tablet_type or 'N/A' }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                {% if po.status == 'pending' %}
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                        📦 Pending
-                                    </span>
-                                {% elif po.status == 'shipped' %}
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                        🚚 Shipped
-                                    </span>
-                                {% elif po.status == 'delivered' %}
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                        ✅ Delivered
-                                    </span>
-                                {% else %}
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                        ❓ Unknown
-                                    </span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
-                                {% if po.tracking_number %}
-                                    <div class="flex items-center">
-                                        <span class="mr-2">{{ po.tracking_number }}</span>
-                                        {% if po.tracking_url %}
-                                            <a href="{{ po.tracking_url }}" target="_blank" 
-                                               class="text-blue-600 hover:text-blue-800" title="Track Package">
-                                                <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-external" /></svg>
-                                            </a>
-                                        {% endif %}
-                                    </div>
-                                {% else %}
-                                    <span class="text-gray-400">No tracking</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {% if po.carrier %}
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                        {% if po.carrier == 'UPS' %}bg-amber-100 text-amber-800{% elif po.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% elif po.carrier == 'USPS' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                        {{ po.carrier }}
-                                    </span>
-                                {% else %}
-                                    <span class="text-gray-400">N/A</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ po.ship_date.strftime('%m/%d/%y') if po.ship_date else 'N/A' }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {% if po.estimated_delivery %}
-                                    {{ po.estimated_delivery.strftime('%m/%d/%y') }}
-                                    {% set days_until = (po.estimated_delivery - po.current_date).days %}
-                                    {% if days_until == 0 %}
-                                        <span class="text-green-600 font-medium">(Today)</span>
-                                    {% elif days_until == 1 %}
-                                        <span class="text-blue-600 font-medium">(Tomorrow)</span>
-                                    {% elif days_until > 1 %}
-                                        <span class="text-gray-600">({{ days_until }} days)</span>
-                                    {% elif days_until < 0 %}
-                                        <span class="text-red-600 font-medium">({{ -days_until }} days overdue)</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="text-gray-400">N/A</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div class="flex space-x-2">
-                                    {% if po.tracking_number and po.carrier in ['UPS', 'FedEx'] %}
-                                        <button onclick="refreshTracking('{{ po.po_number }}')" 
-                                                class="text-blue-600 hover:text-blue-900" title="Refresh Tracking">
-                                            <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-refresh" /></svg>
-                                        </button>
-                                    {% endif %}
-                                    <button onclick="editShipment('{{ po.po_number }}')" 
-                                            class="text-indigo-600 hover:text-indigo-900" title="Edit">
-                                        <svg class="w-4 h-4" aria-hidden="true"><use href="#icon-edit" /></svg>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                
-                {% if not pos_with_shipments %}
-                <div class="text-center py-12">
-                    <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" aria-hidden="true"><use href="#icon-truck" /></svg>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">No shipments found</h3>
-                    <p class="text-gray-600">Shipment tracking data will appear here once purchase orders are synced.</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Inbound Receiving Tab Content -->
-    <div id="receiving-content" class="tab-content hidden">
-        <!-- Pending Shipments Awaiting Receiving -->
-        <div class="card mb-8">
-            <div class="flex items-center mb-6">
-                <svg class="w-6 h-6 mr-3 text-orange-500" aria-hidden="true"><use href="#icon-truck" /></svg>
-                <h3 class="text-xl font-semibold">{{ gettext('Pending Shipments') }}</h3>
-            </div>
-            
-            <div class="overflow-x-auto">
-                <table class="min-w-full">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('PO Number') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Tracking') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Carrier') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Status') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Actions') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        {% if pending_shipments %}
-                            {% for shipment in pending_shipments %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-4 font-medium text-gray-900">{{ shipment.po_number }}</td>
-                                <td class="px-4 py-4 text-gray-600 font-mono">{{ shipment.tracking_number }}</td>
-                                <td class="px-4 py-4">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                        {% if shipment.carrier == 'UPS' %}bg-brown-100 text-brown-800{% elif shipment.carrier == 'FedEx' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                        {{ shipment.carrier }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-4">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                        {% if shipment.tracking_status == 'Delivered' %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                        {{ shipment.tracking_status or 'In Transit' }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-4">
-                                    {% if shipment.tracking_status == 'Delivered' %}
-                                        <button onclick="startReceiving('{{ shipment.po_number }}')" 
-                                                class="btn-primary text-xs px-3 py-1">
-                                            {{ gettext('Process Arrival') }}
-                                        </button>
-                                    {% else %}
-                                        <span class="text-gray-400 text-xs">{{ gettext('Awaiting delivery') }}</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="px-4 py-8 text-center">
-                                    <div class="text-gray-500">
-                                        <svg class="w-8 h-8 mx-auto mb-2" aria-hidden="true"><use href="#icon-truck" /></svg>
-                                        <p>{{ gettext('No shipments pending receiving') }}</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Recent Receiving Activity -->
-        <div class="card">
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center">
-                    <svg class="w-6 h-6 mr-3 text-green-500" aria-hidden="true"><use href="#icon-check" /></svg>
-                    <h3 class="text-xl font-semibold">{{ gettext('Recent Receiving Activity') }}</h3>
-                </div>
-                <a href="{{ url_for('receiving_management_v2') }}" class="btn-secondary text-sm">
-                    {{ gettext('View All Details') }}
-                </a>
-            </div>
-            
-            <div class="overflow-x-auto">
-                <table class="min-w-full">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('PO Number') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Received Date') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Received By') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Boxes/Bags') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Status') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        {% if recent_receives %}
-                            {% for receive in recent_receives %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-4 font-medium text-gray-900">{{ receive.po_number }}</td>
-                                <td class="px-4 py-4 text-gray-600">{{ receive.received_date.strftime('%m/%d/%y %I:%M %p') }}</td>
-                                <td class="px-4 py-4 text-gray-600">{{ receive.received_by }}</td>
-                                <td class="px-4 py-4 text-gray-600">{{ receive.total_boxes }}</td>
-                                <td class="px-4 py-4">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        {{ gettext('Received') }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="px-4 py-8 text-center">
-                                    <div class="text-gray-500">
-                                        <svg class="w-8 h-8 mx-auto mb-2" aria-hidden="true"><use href="#icon-check" /></svg>
-                                        <p>{{ gettext('No recent receiving activity') }}</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+    <!-- Main Content -->
+    <div class="card">
+        <div class="p-6">
+            <div class="text-center py-12">
+                <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" aria-hidden="true"><use href="#icon-box" /></svg>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No shipments recorded yet</h3>
+                <p class="text-gray-600 mb-6">Click "Add Receives" to record a new shipment</p>
+                <button onclick="openAddReceivesModal()" 
+                        class="btn-primary px-6 py-3 text-lg">
+                    <svg class="w-5 h-5 mr-2 inline" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    Add Receives
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-.tab-button {
-    color: #6b7280;
-    background-color: transparent;
-}
-
-.tab-button.active-tab {
-    color: #1f2937;
-    background-color: #ffffff;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-}
-</style>
+<!-- Add Receives Modal -->
+<div id="add-receives-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto" onclick="closeAddReceivesModal(event)">
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold">📦 Record Shipment Received</h3>
+                    <p class="text-sm text-blue-100 mt-1">Enter box and bag details for the received shipment</p>
+                </div>
+                <button onclick="closeAddReceivesModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                    ✕
+                </button>
+            </div>
+        </div>
+        
+        <!-- Form Content -->
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            <form id="receives-form" onsubmit="submitReceives(event)">
+                <div id="boxes-container">
+                    <!-- Box 1 will be added automatically -->
+                </div>
+                
+                <!-- Add Box Button -->
+                <div class="mt-4 flex justify-center">
+                    <button type="button" onclick="addBox()" 
+                            class="btn-secondary px-4 py-2 flex items-center">
+                        <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        Add Another Box
+                    </button>
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="mt-6 flex justify-end gap-3 border-t pt-4">
+                    <button type="button" onclick="closeAddReceivesModal()" 
+                            class="btn-secondary px-6 py-2">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="btn-primary px-6 py-2">
+                        Save Receives
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <script>
-// Tab functionality
-function showTab(tabName) {
-    // Hide all tab content
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.add('hidden');
-    });
+let boxCounter = 0;
+let bagCounter = {};
+
+// Initialize with Box 1 and Bag 1
+document.addEventListener('DOMContentLoaded', function() {
+    addBox();
+});
+
+function openAddReceivesModal() {
+    // Reset form
+    boxCounter = 0;
+    bagCounter = {};
+    document.getElementById('boxes-container').innerHTML = '';
     
-    // Remove active class from all tabs
-    document.querySelectorAll('.tab-button').forEach(button => {
-        button.classList.remove('active-tab');
-    });
+    // Add first box
+    addBox();
     
-    // Show selected tab content
-    document.getElementById(tabName + '-content').classList.remove('hidden');
-    
-    // Add active class to selected tab
-    document.getElementById(tabName + '-tab').classList.add('active-tab');
+    // Show modal
+    document.getElementById('add-receives-modal').classList.remove('hidden');
 }
 
-// Shipment functions
-async function refreshTracking(poNumber) {
-    try {
-        const response = await fetch(`/api/refresh_tracking/${poNumber}`, {
-            method: 'POST'
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            location.reload(); // Refresh to show updated data
-        } else {
-            alert('Failed to refresh tracking: ' + result.error);
-        }
-    } catch (error) {
-        alert('Error refreshing tracking: ' + error.message);
+function closeAddReceivesModal(event) {
+    if (!event || event.target === event.currentTarget || event.target.closest('button')) {
+        document.getElementById('add-receives-modal').classList.add('hidden');
     }
 }
 
-function editShipment(poNumber) {
-    // Implement edit shipment functionality
-    alert('Edit shipment functionality for PO: ' + poNumber);
+function addBox() {
+    boxCounter++;
+    const boxNumber = boxCounter;
+    bagCounter[boxNumber] = 0;
+    
+    const boxesContainer = document.getElementById('boxes-container');
+    
+    const boxDiv = document.createElement('div');
+    boxDiv.className = 'mb-6 p-4 border-2 border-gray-300 rounded-lg bg-gray-50';
+    boxDiv.id = `box-${boxNumber}`;
+    boxDiv.innerHTML = `
+        <div class="flex justify-between items-center mb-4">
+            <h4 class="text-lg font-semibold text-gray-900">Box ${boxNumber}</h4>
+            ${boxNumber > 1 ? `
+                <button type="button" onclick="removeBox(${boxNumber})" 
+                        class="text-red-600 hover:text-red-800 text-sm">
+                    Remove Box
+                </button>
+            ` : ''}
+        </div>
+        <div id="box-${boxNumber}-bags" class="space-y-4">
+            <!-- Bags will be added here -->
+        </div>
+        <div class="mt-4">
+            <button type="button" onclick="addBag(${boxNumber})" 
+                    class="btn-secondary text-sm px-3 py-1.5 flex items-center">
+                <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-plus" /></svg>
+                Add Another Bag
+            </button>
+        </div>
+    `;
+    
+    boxesContainer.appendChild(boxDiv);
+    
+    // Automatically add Bag 1 to this box
+    addBag(boxNumber);
 }
 
-// Receiving functions
-function startReceiving(poNumber) {
-    window.location.href = `/receiving/process/${poNumber}`;
+function removeBox(boxNumber) {
+    const boxDiv = document.getElementById(`box-${boxNumber}`);
+    if (boxDiv) {
+        boxDiv.remove();
+        delete bagCounter[boxNumber];
+    }
 }
 
-// Initialize with shipments tab active
-document.addEventListener('DOMContentLoaded', function() {
-    showTab('shipments');
-});
+function addBag(boxNumber) {
+    if (!bagCounter[boxNumber]) {
+        bagCounter[boxNumber] = 0;
+    }
+    bagCounter[boxNumber]++;
+    const bagNumber = bagCounter[boxNumber];
+    
+    const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
+    
+    const bagDiv = document.createElement('div');
+    bagDiv.className = 'p-4 bg-white border border-gray-200 rounded-lg';
+    bagDiv.id = `box-${boxNumber}-bag-${bagNumber}`;
+    bagDiv.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+            <h5 class="font-medium text-gray-700">Bag ${bagNumber}</h5>
+            ${bagNumber > 1 ? `
+                <button type="button" onclick="removeBag(${boxNumber}, ${bagNumber})" 
+                        class="text-red-600 hover:text-red-800 text-xs">
+                    Remove Bag
+                </button>
+            ` : ''}
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
+                <select name="box_${boxNumber}_bag_${bagNumber}_tablet_type" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                    <option value="">Select tablet type...</option>
+                    {% for tablet_type in tablet_types %}
+                    <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Bag Count</label>
+                <input type="number" 
+                       name="box_${boxNumber}_bag_${bagNumber}_bag_count" 
+                       min="0" 
+                       step="1"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                       placeholder="Enter bag count"
+                       required>
+            </div>
+        </div>
+    `;
+    
+    bagsContainer.appendChild(bagDiv);
+}
+
+function removeBag(boxNumber, bagNumber) {
+    const bagDiv = document.getElementById(`box-${boxNumber}-bag-${bagNumber}`);
+    if (bagDiv) {
+        bagDiv.remove();
+    }
+}
+
+async function submitReceives(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    // Parse form data into structured format
+    const boxes = {};
+    
+    // Collect all form fields
+    for (const [key, value] of formData.entries()) {
+        const parts = key.split('_');
+        if (parts.length === 4 && parts[0] === 'box' && parts[2] === 'bag') {
+            const boxNum = parts[1];
+            const bagNum = parts[3];
+            const fieldType = parts[parts.length - 1]; // 'tablet_type' or 'bag_count'
+            
+            if (!boxes[boxNum]) {
+                boxes[boxNum] = {};
+            }
+            if (!boxes[boxNum][bagNum]) {
+                boxes[boxNum][bagNum] = {};
+            }
+            
+            boxes[boxNum][bagNum][fieldType] = value;
+        }
+    }
+    
+    // Convert to array format
+    const boxesArray = [];
+    for (const boxNum in boxes) {
+        const bagsArray = [];
+        for (const bagNum in boxes[boxNum]) {
+            const bag = boxes[boxNum][bagNum];
+            if (bag.tablet_type && bag.bag_count) {
+                bagsArray.push({
+                    tablet_type_id: parseInt(bag.tablet_type),
+                    bag_count: parseInt(bag.bag_count)
+                });
+            }
+        }
+        if (bagsArray.length > 0) {
+            boxesArray.push({
+                box_number: parseInt(boxNum),
+                bags: bagsArray
+            });
+        }
+    }
+    
+    if (boxesArray.length === 0) {
+        alert('Please add at least one bag with tablet type and bag count.');
+        return;
+    }
+    
+    try {
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Saving...';
+        
+        const response = await fetch('/api/save_receives', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                boxes: boxesArray
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Shipment received recorded successfully!');
+            closeAddReceivesModal();
+            location.reload();
+        } else {
+            alert('❌ Error: ' + (result.error || 'Failed to save receives'));
+        }
+        
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+    } catch (error) {
+        alert('Error saving receives: ' + error.message);
+        const submitButton = form.querySelector('button[type="submit"]');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Save Receives';
+    }
+}
 </script>
 {% endblock %}

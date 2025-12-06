@@ -1797,68 +1797,19 @@ def shipments_management():
 @app.route('/shipping')
 @role_required('shipping')
 def shipping_unified():
-    """Unified shipping and receiving management page"""
+    """Shipments Received page - record shipments that arrive"""
     conn = None
     try:
         conn = get_db()
-        current_date = datetime.now().date()
         
-        # Get all POs with shipment info (for shipments tab)
-        pos_with_shipments = conn.execute('''
-            SELECT po.*, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
-                   s.last_checkpoint, s.shipped_date as ship_date, s.estimated_delivery, s.actual_delivery,
-                   s.notes as shipment_notes
-            FROM purchase_orders po
-            LEFT JOIN shipments s ON po.id = s.po_id
-            ORDER BY po.po_number DESC
+        # Get all tablet types for the form dropdown
+        tablet_types = conn.execute('''
+            SELECT id, tablet_type_name 
+            FROM tablet_types 
+            ORDER BY tablet_type_name
         ''').fetchall()
         
-        # Add current_date and tracking_url to each PO for template compatibility
-        pos_with_shipments_enhanced = []
-        for po in pos_with_shipments:
-            po_dict = dict(po)
-            po_dict['current_date'] = current_date
-            # Generate tracking URL if we have tracking number and carrier
-            if po_dict.get('tracking_number') and po_dict.get('carrier'):
-                if po_dict['carrier'].upper() == 'UPS':
-                    po_dict['tracking_url'] = f"https://www.ups.com/track?track=yes&trackNums={po_dict['tracking_number']}"
-                elif po_dict['carrier'].upper() == 'FEDEX':
-                    po_dict['tracking_url'] = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={po_dict['tracking_number']}"
-                elif po_dict['carrier'].upper() == 'USPS':
-                    po_dict['tracking_url'] = f"https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1={po_dict['tracking_number']}"
-                else:
-                    po_dict['tracking_url'] = None
-            else:
-                po_dict['tracking_url'] = None
-            pos_with_shipments_enhanced.append(po_dict)
-        
-        # Get pending shipments (delivered but not yet received) for receiving tab
-        pending_shipments = conn.execute('''
-            SELECT s.*, po.po_number
-            FROM shipments s
-            JOIN purchase_orders po ON s.po_id = po.id
-            LEFT JOIN receiving r ON s.id = r.shipment_id
-            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
-            ORDER BY s.delivered_at DESC, s.created_at DESC
-        ''').fetchall()
-        
-        # Get recent receiving history
-        recent_receives = conn.execute('''
-            SELECT r.*, po.po_number,
-                   COUNT(sb.id) as total_boxes,
-                   SUM(sb.total_bags) as total_bags
-            FROM receiving r
-            JOIN purchase_orders po ON r.po_id = po.id
-            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
-            GROUP BY r.id
-            ORDER BY r.received_date DESC
-            LIMIT 10
-        ''').fetchall()
-        
-        return render_template('shipping_unified.html', 
-                             pos_with_shipments=pos_with_shipments_enhanced,
-                             pending_shipments=pending_shipments,
-                             recent_receives=recent_receives)
+        return render_template('shipping_unified.html', tablet_types=tablet_types)
                              
     except Exception as e:
         import traceback
@@ -3572,6 +3523,93 @@ def process_receiving():
         
     except Exception as e:
         return jsonify({'error': f'Failed to process receiving: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/save_receives', methods=['POST'])
+@role_required('shipping')
+def save_receives():
+    """Save received shipment data (boxes and bags)"""
+    conn = None
+    try:
+        data = request.get_json()
+        boxes_data = data.get('boxes', [])
+        
+        if not boxes_data:
+            return jsonify({'success': False, 'error': 'No boxes data provided'}), 400
+        
+        conn = get_db()
+        
+        # Get current user name
+        received_by = 'Unknown'
+        if session.get('employee_id'):
+            employee = conn.execute('SELECT full_name FROM employees WHERE id = ?', (session.get('employee_id'),)).fetchone()
+            if employee:
+                received_by = employee['full_name']
+        elif session.get('admin_authenticated'):
+            received_by = 'Admin'
+        
+        # Create receiving record (no PO or shipment required for this simplified flow)
+        receiving_cursor = conn.execute('''
+            INSERT INTO receiving (received_by, received_date, total_small_boxes, notes)
+            VALUES (?, CURRENT_TIMESTAMP, ?, ?)
+        ''', (received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)'))
+        
+        receiving_id = receiving_cursor.lastrowid
+        total_bags = 0
+        
+        # Process each box
+        for box_data in boxes_data:
+            box_number = box_data.get('box_number')
+            bags = box_data.get('bags', [])
+            
+            if not bags:
+                continue
+            
+            # Create small box record
+            box_cursor = conn.execute('''
+                INSERT INTO small_boxes (receiving_id, box_number, total_bags)
+                VALUES (?, ?, ?)
+            ''', (receiving_id, box_number, len(bags)))
+            
+            small_box_id = box_cursor.lastrowid
+            
+            # Create bag records
+            for bag_idx, bag in enumerate(bags, start=1):
+                tablet_type_id = bag.get('tablet_type_id')
+                bag_count = bag.get('bag_count', 0)
+                
+                if not tablet_type_id:
+                    continue
+                
+                conn.execute('''
+                    INSERT INTO bags (small_box_id, bag_number, bag_label_count, status)
+                    VALUES (?, ?, ?, 'Available')
+                ''', (small_box_id, bag_idx, bag_count))
+                total_bags += 1
+        
+        # Update receiving record with total bags
+        conn.execute('''
+            UPDATE receiving SET total_small_boxes = ?
+            WHERE id = ?
+        ''', (len(boxes_data), receiving_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully recorded {len(boxes_data)} box(es) with {total_bags} bag(s)',
+            'receiving_id': receiving_id
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
             try:
