@@ -1377,6 +1377,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
+        // Store original submissions for filtering
+        const allSubmissions = [...filteredSubmissions];
+        
         // Apply type filter if specified
         if (typeFilter === 'machine') {
             filteredSubmissions = filteredSubmissions.filter(sub => (sub.submission_type || 'packaged') === 'machine');
@@ -1436,17 +1439,17 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                 </p>
                                 ${data.totals ? `
                                     <div class="mt-2 flex justify-center gap-4 flex-wrap">
-                                        <button onclick="viewPOSubmissions(${poId}, '${data.po.po_number}', ${inventoryItemId ? `'${inventoryItemId}'` : 'null'}, 'machine')" 
+                                        <button onclick="filterSubmissionsInModal('machine')" 
                                                 class="bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'machine' ? 'ring-2 ring-blue-300' : ''}">
                                             <span class="text-xs text-blue-200">⚙️ Machine:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${data.totals.machine.toLocaleString()}</span>
                                         </button>
-                                        <button onclick="viewPOSubmissions(${poId}, '${data.po.po_number}', ${inventoryItemId ? `'${inventoryItemId}'` : 'null'}, 'packaged_bag')" 
+                                        <button onclick="filterSubmissionsInModal('packaged_bag')" 
                                                 class="bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'packaged_bag' ? 'ring-2 ring-purple-300' : ''}">
                                             <span class="text-xs text-purple-200">📦 Packaged+Bag:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${data.totals.packaged_bag.toLocaleString()}</span>
                                         </button>
-                                        <button onclick="viewPOSubmissions(${poId}, '${data.po.po_number}', ${inventoryItemId ? `'${inventoryItemId}'` : 'null'}, 'all')" 
+                                        <button onclick="filterSubmissionsInModal('all')" 
                                                 class="bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${!typeFilter || typeFilter === 'all' ? 'ring-2 ring-green-300' : ''}">
                                             <span class="text-xs text-green-200">📊 Total:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${data.totals.total.toLocaleString()}</span>
