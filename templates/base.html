@@ -504,19 +504,23 @@
 
 <!-- Shared Edit Submission Modal (Available on all pages) -->
 <div id="edit-submission-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[60]" onclick="closeEditSubmissionModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4" onclick="event.stopPropagation()">
-        <div class="p-6">
-            <div class="flex justify-between items-center mb-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+        <!-- Fixed Header -->
+        <div class="flex-shrink-0 p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold text-gray-900">Edit Submission</h3>
-                <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" class="text-gray-400 hover:text-gray-600">
+                <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" class="text-gray-400 hover:text-gray-600 z-10 relative">
                     <span class="text-2xl">&times;</span>
                 </button>
             </div>
-            
-            <input type="hidden" id="edit-submission-id">
-            <input type="hidden" id="edit-po-context-po-id">
-            <input type="hidden" id="edit-po-context-item-id">
-            
+        </div>
+        
+        <input type="hidden" id="edit-submission-id">
+        <input type="hidden" id="edit-po-context-po-id">
+        <input type="hidden" id="edit-po-context-item-id">
+        
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-6">
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -602,8 +606,11 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="mt-6 flex justify-end gap-3">
+        </div>
+        
+        <!-- Fixed Footer -->
+        <div class="flex-shrink-0 p-6 border-t border-gray-200 bg-white">
+            <div class="flex justify-end gap-3">
                 <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" 
                         class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
                     Cancel
