@@ -5587,7 +5587,6 @@ def reassign_all_submissions():
                   totals.get('total_damaged', 0), remaining, po_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True, 
@@ -5603,10 +5602,16 @@ def reassign_all_submissions():
         print(error_trace)
         if conn:
             try:
-                conn.close()
+                conn.rollback()
             except:
                 pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/recalculate_po_counts', methods=['POST'])
 @admin_required
