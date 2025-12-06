@@ -4069,31 +4069,29 @@ def receiving_details(receiving_id):
         return redirect(url_for('receiving_management_v2'))
 
 @app.route('/api/receiving/<int:receiving_id>', methods=['DELETE'])
-@admin_required
+@role_required('shipping')
 def delete_receiving(receiving_id):
-    """Delete a receiving record with confirmation"""
+    """Delete a receiving record with verification"""
     conn = None
     try:
-        # Get confirmation password/name from request
-        data = request.get_json() or {}
-        confirmation = data.get('confirmation', '').strip().lower()
-        
-        # Require exact match of "delete" as confirmation
-        if confirmation != 'delete':
-            return jsonify({'error': 'Confirmation required. Type "delete" to confirm.'}), 400
+        # Check if user is manager or admin
+        user_role = session.get('employee_role')
+        if user_role not in ['manager', 'admin']:
+            return jsonify({'success': False, 'error': 'Only managers and admins can delete shipments'}), 403
         
         conn = get_db()
         
         # Check if receiving record exists and get info
         receiving = conn.execute('''
-            SELECT r.id, po.po_number 
+            SELECT r.id, r.po_id, po.po_number, r.received_date, r.received_by
             FROM receiving r
-            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
             WHERE r.id = ?
         ''', (receiving_id,)).fetchone()
         
         if not receiving:
-            return jsonify({'error': 'Receiving record not found'}), 404
+            conn.close()
+            return jsonify({'success': False, 'error': 'Receiving record not found'}), 404
         
         # Delete in correct order due to foreign key constraints
         # 1. Delete bags first
@@ -4106,20 +4104,21 @@ def delete_receiving(receiving_id):
         conn.execute('DELETE FROM receiving WHERE id = ?', (receiving_id,))
         
         conn.commit()
+        conn.close()
         
+        po_info = receiving['po_number'] if receiving['po_number'] else 'No PO'
         return jsonify({
             'success': True,
-            'message': f'Successfully deleted receiving record for PO {receiving["po_number"]}'
+            'message': f'Successfully deleted shipment (PO: {po_info})'
         })
         
     except Exception as e:
-        return jsonify({'error': f'Failed to delete receiving record: {str(e)}'}), 500
-    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
+        return jsonify({'success': False, 'error': f'Failed to delete receiving record: {str(e)}'}), 500
 
 @app.route('/api/process_receiving', methods=['POST'])
 @admin_required
