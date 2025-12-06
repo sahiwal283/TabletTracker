@@ -2012,18 +2012,32 @@ def product_mapping():
             ORDER BY tt.tablet_type_name, pd.product_name
         ''').fetchall()
         
-        # Check if category column exists
+        # Check if category column exists and add it if missing
         table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
         has_category_column = any(col[1] == 'category' for col in table_info)
         
-        # Get tablet types for dropdown
-        tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
+        if not has_category_column:
+            try:
+                conn.execute('ALTER TABLE tablet_types ADD COLUMN category TEXT')
+                conn.commit()
+                has_category_column = True
+            except Exception as e:
+                print(f"Warning: Could not add category column: {e}")
         
-        # Get unique categories (including those with tablet types assigned)
-        category_list = []
+        # Get tablet types for dropdown
         if has_category_column:
+            tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
+            # Get unique categories (including those with tablet types assigned)
             categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
             category_list = [cat['category'] for cat in categories] if categories else []
+        else:
+            # Fallback: get tablet types without category column
+            tablet_types_raw = conn.execute('SELECT id, tablet_type_name, inventory_item_id FROM tablet_types ORDER BY tablet_type_name').fetchall()
+            # Convert to dict format with None category
+            tablet_types = [dict(row) for row in tablet_types_raw]
+            for tt in tablet_types:
+                tt['category'] = None
+            category_list = []
         
         # Default categories if none exist (always show these as options)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
