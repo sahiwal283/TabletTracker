@@ -800,9 +800,12 @@ async function loadAdminReassignPOs(submissionId, productName) {
 }
 
 function closeAdminReassignModal(event) {
-    if (!event || event.target === event.currentTarget) {
-        document.getElementById('admin-reassign-modal').classList.add('hidden');
-        adminReassignSubmissionId = null;
+    const modal = document.getElementById('admin-reassign-modal');
+    if (modal) {
+        if (!event || event.target === event.currentTarget || event.target.closest('button')) {
+            modal.classList.add('hidden');
+            adminReassignSubmissionId = null;
+        }
     }
 }
 
