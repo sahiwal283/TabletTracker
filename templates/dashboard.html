@@ -1621,6 +1621,17 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
         modalDiv.innerHTML = modalContent;
         document.body.appendChild(modalDiv);
         
+        // Store data for filtering
+        window.currentSubmissionsData = {
+            allSubmissions: allSubmissions,
+            filteredSubmissions: filteredSubmissions,
+            poId: poId,
+            poName: data.po.po_number,
+            inventoryItemId: inventoryItemId,
+            totals: data.totals,
+            displayProductName: displayProductName
+        };
+        
     } catch (error) {
         console.error('Error loading submissions:', error);
         showError('Failed to load submissions: ' + error.message);
@@ -1634,6 +1645,7 @@ function closeSubmissionsModal(event) {
         if (modal) {
             modal.remove();
         }
+        window.currentSubmissionsData = null;
     }
 }
 
