@@ -2186,6 +2186,80 @@ def update_tablet_type_inventory():
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/settings/cards_per_turn', methods=['GET', 'POST'])
+@admin_required
+def manage_cards_per_turn():
+    """Get or update cards per turn setting"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        if request.method == 'GET':
+            setting = conn.execute(
+                'SELECT setting_value, description FROM app_settings WHERE setting_key = ?',
+                ('cards_per_turn',)
+            ).fetchone()
+            if setting:
+                return jsonify({
+                    'success': True,
+                    'value': int(setting['setting_value']),
+                    'description': setting['description']
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Setting not found'}), 404
+        
+        elif request.method == 'POST':
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
+            cards_per_turn = data.get('cards_per_turn')
+            
+            if cards_per_turn is None:
+                return jsonify({'success': False, 'error': 'cards_per_turn is required'}), 400
+            
+            try:
+                cards_per_turn = int(cards_per_turn)
+                if cards_per_turn < 1:
+                    return jsonify({'success': False, 'error': 'cards_per_turn must be at least 1'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid cards_per_turn value'}), 400
+            
+            # Update or insert setting
+            existing = conn.execute(
+                'SELECT id FROM app_settings WHERE setting_key = ?',
+                ('cards_per_turn',)
+            ).fetchone()
+            
+            if existing:
+                conn.execute('''
+                    UPDATE app_settings 
+                    SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE setting_key = ?
+                ''', (str(cards_per_turn), 'cards_per_turn'))
+            else:
+                conn.execute('''
+                    INSERT INTO app_settings (setting_key, setting_value, description)
+                    VALUES (?, ?, ?)
+                ''', ('cards_per_turn', str(cards_per_turn), 'Number of cards produced in one turn of the machine'))
+            
+            conn.commit()
+            return jsonify({
+                'success': True,
+                'message': f'Cards per turn updated to {cards_per_turn}'
+            })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/admin')
 def admin_panel():
     """Admin panel with quick actions and product management"""
