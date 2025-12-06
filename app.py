@@ -3312,8 +3312,22 @@ def get_categories():
         
         category_list = [cat['category'] for cat in categories] if categories else []
         
-        # Add default categories if they don't exist
+        # Get deleted categories from app_settings
+        deleted_categories_set = set()
+        try:
+            deleted_categories_json = conn.execute('''
+                SELECT value FROM app_settings WHERE key = 'deleted_categories'
+            ''').fetchone()
+            if deleted_categories_json:
+                import json
+                deleted_categories_set = set(json.loads(deleted_categories_json['value']))
+        except:
+            pass  # If app_settings table doesn't exist or key doesn't exist, continue
+        
+        # Default categories (filter out deleted ones)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
+        
         all_categories = list(set(default_categories + category_list))
         all_categories.sort(key=lambda x: (default_categories.index(x) if x in default_categories else len(default_categories), x))
         
