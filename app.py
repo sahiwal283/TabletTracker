@@ -3124,6 +3124,60 @@ def update_tablet_inventory_ids():
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/tablet_types/categories', methods=['GET'])
+def get_tablet_type_categories():
+    """Get all tablet types grouped by their configured categories"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all tablet types with their categories
+        tablet_types = conn.execute('''
+            SELECT id, tablet_type_name, category 
+            FROM tablet_types 
+            ORDER BY tablet_type_name
+        ''').fetchall()
+        
+        # Group by category
+        categories = {}
+        unassigned = []
+        
+        for tt in tablet_types:
+            category = tt['category'] if tt['category'] else 'Other'
+            if category == 'Other' and not tt['category']:
+                unassigned.append({
+                    'id': tt['id'],
+                    'name': tt['tablet_type_name']
+                })
+            else:
+                if category not in categories:
+                    categories[category] = []
+                categories[category].append({
+                    'id': tt['id'],
+                    'name': tt['tablet_type_name']
+                })
+        
+        # Add unassigned to Other if it exists
+        if unassigned:
+            if 'Other' not in categories:
+                categories['Other'] = []
+            categories['Other'].extend(unassigned)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'categories': categories,
+            'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        })
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/tablet_type/category', methods=['POST'])
 @admin_required
 def update_tablet_type_category():

@@ -776,7 +776,7 @@ async function saveSubmissionEdit() {
 }
 
 // Convert tablet type dropdown to two-level dropdown system
-function convertToTwoLevelDropdown(selectElement) {
+async function convertToTwoLevelDropdown(selectElement) {
     if (!selectElement || selectElement.tagName !== 'SELECT') return;
     
     // Check if already converted
@@ -787,65 +787,161 @@ function convertToTwoLevelDropdown(selectElement) {
     const placeholder = options.find(opt => opt.value === '' || opt.value === null);
     const originalValue = selectElement.value;
     
-    // Group tablet types
-    const groups = {
-        'FIX Energy': [],
-        'FIX Focus': [],
-        'FIX Relax': [],
-        'FIX MAX': [],
-        '18mg': [],
-        'XL': [],
-        'Hyroxi': [],
-        'Other': []
-    };
+    // Try to fetch configured categories from API
+    let groups = {};
+    let groupOrder = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other'];
     
-    // Categorize each option
-    options.forEach(option => {
-        if (!option.value || option.value === '') return;
+    try {
+        const response = await fetch('/api/tablet_types/categories');
+        const data = await response.json();
         
-        const name = option.text.trim();
-        let categorized = false;
+        if (data.success && data.categories) {
+            // Use configured categories
+            groups = {};
+            groupOrder = data.category_order || groupOrder;
+            
+            // Initialize groups
+            groupOrder.forEach(cat => {
+                groups[cat] = [];
+            });
+            
+            // Map options to categories based on configured categories
+            options.forEach(option => {
+                if (!option.value || option.value === '') return;
+                
+                // Find which category this tablet type belongs to
+                let found = false;
+                for (const [category, items] of Object.entries(data.categories)) {
+                    const matchingItem = items.find(item => item.id == option.value || item.name === option.text.trim());
+                    if (matchingItem) {
+                        if (!groups[category]) {
+                            groups[category] = [];
+                        }
+                        groups[category].push(option);
+                        found = true;
+                        break;
+                    }
+                }
+                
+                // If not found in configured categories, use fallback logic
+                if (!found) {
+                    const name = option.text.trim();
+                    let categorized = false;
+                    
+                    // FIX Energy variants
+                    if (name.match(/^\d+ct\s+FIX\s+Energy/i) || name.match(/^FIX\s+Energy\s+\d+ct/i)) {
+                        if (!groups['FIX Energy']) groups['FIX Energy'] = [];
+                        groups['FIX Energy'].push(option);
+                        categorized = true;
+                    }
+                    // FIX Focus variants
+                    else if (name.match(/^\d+ct\s+FIX\s+Focus/i) || name.match(/^FIX\s+Focus\s+\d+ct/i)) {
+                        if (!groups['FIX Focus']) groups['FIX Focus'] = [];
+                        groups['FIX Focus'].push(option);
+                        categorized = true;
+                    }
+                    // FIX Relax variants
+                    else if (name.match(/^\d+ct\s+FIX\s+Relax/i) || name.match(/^FIX\s+Relax\s+\d+ct/i)) {
+                        if (!groups['FIX Relax']) groups['FIX Relax'] = [];
+                        groups['FIX Relax'].push(option);
+                        categorized = true;
+                    }
+                    // FIX MAX variants
+                    else if (name.match(/^FIX\s+MAX/i)) {
+                        if (!groups['FIX MAX']) groups['FIX MAX'] = [];
+                        groups['FIX MAX'].push(option);
+                        categorized = true;
+                    }
+                    // 18mg variants
+                    else if (name.match(/^18mg/i)) {
+                        if (!groups['18mg']) groups['18mg'] = [];
+                        groups['18mg'].push(option);
+                        categorized = true;
+                    }
+                    // XL variants
+                    else if (name.match(/^XL\s+/i)) {
+                        if (!groups['XL']) groups['XL'] = [];
+                        groups['XL'].push(option);
+                        categorized = true;
+                    }
+                    // Hyroxi variants
+                    else if (name.match(/^Hyroxi/i)) {
+                        if (!groups['Hyroxi']) groups['Hyroxi'] = [];
+                        groups['Hyroxi'].push(option);
+                        categorized = true;
+                    }
+                    
+                    if (!categorized) {
+                        if (!groups['Other']) groups['Other'] = [];
+                        groups['Other'].push(option);
+                    }
+                }
+            });
+        } else {
+            throw new Error('Failed to load categories');
+        }
+    } catch (error) {
+        // Fallback to hardcoded logic if API fails
+        console.warn('Failed to load configured categories, using fallback:', error);
+        groups = {
+            'FIX Energy': [],
+            'FIX Focus': [],
+            'FIX Relax': [],
+            'FIX MAX': [],
+            '18mg': [],
+            'XL': [],
+            'Hyroxi': [],
+            'Other': []
+        };
         
-        // FIX Energy variants
-        if (name.match(/^\d+ct\s+FIX\s+Energy/i) || name.match(/^FIX\s+Energy\s+\d+ct/i)) {
-            groups['FIX Energy'].push(option);
-            categorized = true;
-        }
-        // FIX Focus variants
-        else if (name.match(/^\d+ct\s+FIX\s+Focus/i) || name.match(/^FIX\s+Focus\s+\d+ct/i)) {
-            groups['FIX Focus'].push(option);
-            categorized = true;
-        }
-        // FIX Relax variants
-        else if (name.match(/^\d+ct\s+FIX\s+Relax/i) || name.match(/^FIX\s+Relax\s+\d+ct/i)) {
-            groups['FIX Relax'].push(option);
-            categorized = true;
-        }
-        // FIX MAX variants
-        else if (name.match(/^FIX\s+MAX/i)) {
-            groups['FIX MAX'].push(option);
-            categorized = true;
-        }
-        // 18mg variants
-        else if (name.match(/^18mg/i)) {
-            groups['18mg'].push(option);
-            categorized = true;
-        }
-        // XL variants
-        else if (name.match(/^XL\s+/i)) {
-            groups['XL'].push(option);
-            categorized = true;
-        }
-        // Hyroxi variants
-        else if (name.match(/^Hyroxi/i)) {
-            groups['Hyroxi'].push(option);
-            categorized = true;
-        }
-        
-        if (!categorized) {
-            groups['Other'].push(option);
-        }
-    });
+        // Categorize each option using fallback logic
+        options.forEach(option => {
+            if (!option.value || option.value === '') return;
+            
+            const name = option.text.trim();
+            let categorized = false;
+            
+            // FIX Energy variants
+            if (name.match(/^\d+ct\s+FIX\s+Energy/i) || name.match(/^FIX\s+Energy\s+\d+ct/i)) {
+                groups['FIX Energy'].push(option);
+                categorized = true;
+            }
+            // FIX Focus variants
+            else if (name.match(/^\d+ct\s+FIX\s+Focus/i) || name.match(/^FIX\s+Focus\s+\d+ct/i)) {
+                groups['FIX Focus'].push(option);
+                categorized = true;
+            }
+            // FIX Relax variants
+            else if (name.match(/^\d+ct\s+FIX\s+Relax/i) || name.match(/^FIX\s+Relax\s+\d+ct/i)) {
+                groups['FIX Relax'].push(option);
+                categorized = true;
+            }
+            // FIX MAX variants
+            else if (name.match(/^FIX\s+MAX/i)) {
+                groups['FIX MAX'].push(option);
+                categorized = true;
+            }
+            // 18mg variants
+            else if (name.match(/^18mg/i)) {
+                groups['18mg'].push(option);
+                categorized = true;
+            }
+            // XL variants
+            else if (name.match(/^XL\s+/i)) {
+                groups['XL'].push(option);
+                categorized = true;
+            }
+            // Hyroxi variants
+            else if (name.match(/^Hyroxi/i)) {
+                groups['Hyroxi'].push(option);
+                categorized = true;
+            }
+            
+            if (!categorized) {
+                groups['Other'].push(option);
+            }
+        });
+    }
     
     // Sort within groups (by count if numeric, then alphabetically)
     Object.keys(groups).forEach(groupName => {
