@@ -30,7 +30,11 @@
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <h3 class="text-lg font-semibold text-gray-900 mb-1">
-                            Shipment Received
+                            {% if shipment.receiving.po_number %}
+                                {{ shipment.receiving.po_number }}
+                            {% else %}
+                                Shipment Received
+                            {% endif %}
                         </h3>
                         <p class="text-sm text-gray-600">
                             Received on {{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}
@@ -38,11 +42,7 @@
                             by {{ shipment.receiving.received_by }}
                             {% endif %}
                         </p>
-                        {% if shipment.receiving.po_number %}
-                        <p class="text-sm text-blue-600 font-medium mt-1">
-                            PO: {{ shipment.receiving.po_number }}
-                        </p>
-                        {% elif user_role in ['manager', 'admin'] %}
+                        {% if not shipment.receiving.po_number and user_role in ['manager', 'admin'] %}
                         <p class="text-sm text-gray-500 italic mt-1">No PO assigned</p>
                         {% endif %}
                     </div>
