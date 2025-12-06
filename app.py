@@ -3543,13 +3543,15 @@ def delete_category():
         
         # Track deleted category in app_settings so it doesn't reappear
         try:
-            # Ensure app_settings table exists
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS app_settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            ''')
+            # Ensure app_settings table exists (check first)
+            table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'").fetchone()
+            if not table_check:
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                ''')
             
             # Get current deleted categories
             deleted_categories_json = conn.execute('''
@@ -3557,8 +3559,7 @@ def delete_category():
             ''').fetchone()
             
             deleted_categories = set()
-            if deleted_categories_json:
-                import json
+            if deleted_categories_json and deleted_categories_json['value']:
                 deleted_categories = set(json.loads(deleted_categories_json['value']))
             
             # Add this category to deleted set
@@ -3572,8 +3573,10 @@ def delete_category():
             
             conn.commit()
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Warning: Could not track deleted category: {e}")
-            # Don't fail the request if tracking fails
+            # Don't fail the request if tracking fails, but log the error
         
         if conn:
             try:
