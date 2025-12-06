@@ -1,155 +1,145 @@
-# PythonAnywhere Deployment Guide
+# TabletTracker Deployment Guide for PythonAnywhere
 
-This guide will walk you through deploying TabletTracker v1.0.0 to PythonAnywhere.
+## Quick Deployment Steps
 
-## Prerequisites
-
-1. PythonAnywhere account (free tier works)
-2. Your project files uploaded to PythonAnywhere
-3. Zoho API credentials ready
-
-## Step-by-Step Deployment
-
-### 1. Upload Your Files
-
-1. Go to PythonAnywhere Dashboard > Files
-2. Upload your TabletTracker project folder
-3. Your files should be at: `/home/yourusername/TabletTracker/`
-
-### 2. Create Virtual Environment
-
-Open a PythonAnywhere console and run:
-
+### 1. Pull Latest Code
 ```bash
-cd ~/TabletTracker
-python3.10 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+cd /home/sahilk1/TabletTracker
+git pull origin main
 ```
 
-### 3. Setup Environment Variables
-
-Create `.env` file in your project directory:
-
+### 2. Clear Python Cache
 ```bash
-# In PythonAnywhere Files tab, create new file: .env
-SECRET_KEY=your-strong-secret-key-here-32-chars-minimum
-FLASK_ENV=production
-ADMIN_PASSWORD=YourSecureAdminPassword123!
-ZOHO_CLIENT_ID=your_zoho_client_id
-ZOHO_CLIENT_SECRET=your_zoho_client_secret  
-ZOHO_REFRESH_TOKEN=your_zoho_refresh_token
-ZOHO_ORGANIZATION_ID=your_org_id
+find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
+find . -type f -name "*.pyc" -delete
 ```
 
-**🚨 IMPORTANT SECURITY NOTES:**
-- Change the `ADMIN_PASSWORD` from default immediately
-- Use a strong SECRET_KEY (32+ random characters)  
-- Never commit your `.env` file to version control
-- The admin session expires after 8 hours for security
-
-### 4. Initialize Database
-
-In the console:
-
+### 3. Run Database Migrations
 ```bash
-cd ~/TabletTracker
-source venv/bin/activate
-python setup_db.py
+python3 run_migration.py
 ```
 
-### 5. Configure Web App
+**OR** run the deployment verification script:
+```bash
+python3 deploy_check.py
+```
 
-1. Go to PythonAnywhere Dashboard > Web
-2. Click "Add a new web app"
-3. Choose "Manual configuration" > Python 3.10
-4. Set Source code directory: `/home/yourusername/TabletTracker`
-5. Edit WSGI configuration file:
+### 4. Update WSGI Configuration File
+
+**CRITICAL**: You must manually update the WSGI file in PythonAnywhere's web interface.
+
+1. Log into PythonAnywhere
+2. Go to **Web** tab
+3. Click on your web app (e.g., `sahilk1.pythonanywhere.com`)
+4. Scroll down to **WSGI configuration file** section
+5. Click the file path (usually `/var/www/sahilk1_pythonanywhere_com_wsgi.py`)
+6. Replace the entire contents with:
 
 ```python
+#!/usr/bin/env python3
+"""
+WSGI configuration for PythonAnywhere deployment
+"""
+
 import sys
 import os
 
 # Add your project directory to the sys.path
-path = '/home/yourusername/TabletTracker'  # Replace 'yourusername'
+path = '/home/sahilk1/TabletTracker'
 if path not in sys.path:
     sys.path.insert(0, path)
 
-# Activate virtual environment
-activate_this = '/home/yourusername/TabletTracker/venv/bin/activate_this.py'
-with open(activate_this) as file_:
-    exec(file_.read(), dict(__file__=activate_this))
+# Change to the project directory
+os.chdir(path)
 
-# Import your Flask application
-from app import app as application
-
-if __name__ == "__main__":
-    application.run()
+# Import and create Flask application using factory pattern
+try:
+    from app import create_app
+    application = create_app()
+except ImportError as e:
+    # If import fails, log the error
+    import traceback
+    error_msg = f"Failed to import create_app: {e}\n{traceback.format_exc()}"
+    print(error_msg)
+    raise
 ```
 
-6. Set up static files (if you have any):
-   - URL: `/static/`
-   - Directory: `/home/yourusername/TabletTracker/static/`
+7. **Save** the file
+8. **Reload** the web app (click the green "Reload" button)
 
-### 6. Test Deployment
+### 5. Verify Deployment
 
-1. Click "Reload" button in Web tab
-2. Visit your app: `https://yourusername.pythonanywhere.com`
-3. Test key features:
-   - Warehouse form: `/warehouse`
-   - Dashboard: `/dashboard` 
-   - Admin panel: `/admin` (password: admin123)
-   - Version check: `/version`
+Run the verification script:
+```bash
+python3 deploy_check.py
+```
 
-### 7. Zoho Integration Setup
-
-1. Test Zoho connection: Visit `/api/test_zoho_connection`
-2. If successful, sync POs: Click "Sync Zoho POs" in dashboard
-3. Verify data appears correctly
-
-## Security Notes
-
-1. **Change the admin password** in `app.py` line 574
-2. **Use a strong SECRET_KEY** in production
-3. **Keep your .env file secure** - never commit it to git
+Or test manually:
+```bash
+python3 -c "from app import create_app; app = create_app(); print('✅ App created successfully')"
+```
 
 ## Troubleshooting
 
-### Common Issues
+### Error: `ImportError: cannot import name 'app' from 'app'`
+- **Cause**: WSGI file is trying to import `app` instead of using `create_app()`
+- **Fix**: Update WSGI file as shown in step 4 above
 
-1. **Import Errors**: Check virtual environment activation in WSGI file
-2. **Database Errors**: Ensure `setup_db.py` ran successfully  
-3. **Static Files**: Check static file mappings in Web tab
-4. **Zoho API Issues**: Verify credentials and test connection endpoint
+### Error: `sqlite3.OperationalError: no such column/table`
+- **Cause**: Database migrations haven't been run
+- **Fix**: Run `python3 run_migration.py` or `python3 deploy_check.py`
 
-### Logs
+### Error: `ModuleNotFoundError: No module named 'app.models.purchase_order'`
+- **Cause**: Python cache or outdated `app/models/__init__.py`
+- **Fix**: 
+  1. Clear Python cache (step 2 above)
+  2. Pull latest code (step 1)
+  3. Verify `app/models/__init__.py` doesn't import non-existent modules
 
-Check error logs in PythonAnywhere Dashboard > Web > Log files
+### Error: `404 Not Found`
+- **Cause**: App is running but routes aren't registered
+- **Fix**: 
+  1. Check WSGI file is correct
+  2. Verify blueprints are registered in `app/__init__.py`
+  3. Check error logs in PythonAnywhere dashboard
 
-### Support
+### Error: `NameError: name 'traceback' is not defined`
+- **Cause**: Missing import in old code
+- **Fix**: This shouldn't happen with new code. If it does, check that you've pulled the latest code
 
-- PythonAnywhere Help: https://help.pythonanywhere.com/
-- Application Version: Check `/version` endpoint
+## File Structure
 
-## Post-Deployment
+After deployment, your project should have:
+```
+/home/sahilk1/TabletTracker/
+├── app/
+│   ├── __init__.py          # Application factory
+│   ├── blueprints/          # Route handlers
+│   ├── models/              # Database models and migrations
+│   ├── services/            # Business logic
+│   └── utils/               # Utility functions
+├── wsgi.py                  # Local WSGI file (for reference)
+├── run_migration.py         # Migration script
+└── deploy_check.py          # Deployment verification
+```
 
-1. Train your team on the new mobile interface
-2. Test thoroughly with real data
-3. Setup regular backups of your database
-4. Monitor error logs for the first few days
+## Important Notes
 
-## Version Management
+1. **WSGI File**: The WSGI file in PythonAnywhere's web interface is separate from `wsgi.py` in your project. You must update it manually through the web interface.
 
-Current version: **v1.0.0**
+2. **Database Path**: The database file (`tablet_counter.db`) should be in your project root directory (`/home/sahilk1/TabletTracker/`).
 
-To deploy updates:
-1. Upload new files to PythonAnywhere
-2. Update version in `__version__.py`  
-3. Run any new migrations
-4. Reload the web app
+3. **Virtual Environment**: If you're using a virtual environment, make sure PythonAnywhere is configured to use it.
 
----
+4. **Permissions**: Ensure the database file has write permissions:
+   ```bash
+   chmod 664 tablet_counter.db
+   ```
 
-**Deployment completed!** 🎉
+## Support
 
-Your TabletTracker is now live and ready for production use.
+If you encounter issues not covered here:
+1. Check PythonAnywhere error logs (Web tab → Error log)
+2. Check server logs (Web tab → Server log)
+3. Run `deploy_check.py` to verify setup
+4. Check that all files were pulled from Git correctly
