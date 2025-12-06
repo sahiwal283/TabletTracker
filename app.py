@@ -3316,13 +3316,13 @@ def get_categories():
         deleted_categories_set = set()
         try:
             deleted_categories_json = conn.execute('''
-                SELECT value FROM app_settings WHERE key = 'deleted_categories'
+                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
             ''').fetchone()
-            if deleted_categories_json:
-                import json
-                deleted_categories_set = set(json.loads(deleted_categories_json['value']))
-        except:
-            pass  # If app_settings table doesn't exist or key doesn't exist, continue
+            if deleted_categories_json and deleted_categories_json['setting_value']:
+                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+        except Exception as e:
+            print(f"Warning: Could not load deleted categories: {e}")
+            # Continue without filtering if there's an error
         
         # Default categories (filter out deleted ones)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
