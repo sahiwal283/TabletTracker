@@ -1257,7 +1257,12 @@ def all_submissions():
             query += ' AND tt.id = ?'
             params.append(filter_tablet_type_id)
         
-        query += ' ORDER BY ws.created_at ASC'
+        # Apply submission type filter if provided
+        if filter_submission_type:
+            query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
+            params.append(filter_submission_type)
+        
+        query += ' ORDER BY ws.created_at DESC'
         
         submissions_raw = conn.execute(query, params).fetchall()
         
