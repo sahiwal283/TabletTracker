@@ -394,6 +394,8 @@ def init_db():
         machine_count INTEGER NOT NULL,
         employee_name TEXT NOT NULL,
         count_date DATE NOT NULL,
+        box_number TEXT,
+        bag_number TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
     )''')
@@ -569,6 +571,8 @@ def ensure_machine_counts_table():
                 machine_count INTEGER NOT NULL,
                 employee_name TEXT NOT NULL,
                 count_date DATE NOT NULL,
+                box_number TEXT,
+                bag_number TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
             )''')
@@ -586,7 +590,7 @@ def ensure_machine_counts_table():
                 pass
 
 def ensure_machine_count_columns():
-    """Ensure machine_good_count and machine_damaged_count columns exist in purchase_orders and po_lines tables"""
+    """Ensure machine_good_count and machine_damaged_count columns exist in purchase_orders and po_lines tables, and box_number/bag_number in machine_counts"""
     conn = None
     try:
         conn = get_db()
@@ -627,6 +631,24 @@ def ensure_machine_count_columns():
                 print("Added machine_damaged_count column to po_lines table")
             except Exception as e:
                 print(f"Note: machine_damaged_count column migration: {e}")
+        
+        # Check and add columns to machine_counts table
+        c.execute('PRAGMA table_info(machine_counts)')
+        machine_counts_cols = [row[1] for row in c.fetchall()]
+        
+        if 'box_number' not in machine_counts_cols:
+            try:
+                c.execute('ALTER TABLE machine_counts ADD COLUMN box_number TEXT')
+                print("Added box_number column to machine_counts table")
+            except Exception as e:
+                print(f"Note: box_number column migration: {e}")
+        
+        if 'bag_number' not in machine_counts_cols:
+            try:
+                c.execute('ALTER TABLE machine_counts ADD COLUMN bag_number TEXT')
+                print("Added bag_number column to machine_counts table")
+            except Exception as e:
+                print(f"Note: bag_number column migration: {e}")
         
         conn.commit()
         conn.close()
@@ -2852,15 +2874,21 @@ def submit_machine_count():
         
         tablet_type_id = data.get('tablet_type_id')
         machine_count = data.get('machine_count')
-        count_date = data.get('count_date')
+        box_number = data.get('box_number', '')
+        bag_number = data.get('bag_number', '')
+        
+        # Automatically set date to current EST date
+        count_date = datetime.now(ZoneInfo('America/New_York')).strftime('%Y-%m-%d')
         
         # Validation
         if not tablet_type_id:
             return jsonify({'error': 'Tablet type is required'}), 400
         if machine_count is None or machine_count < 0:
             return jsonify({'error': 'Valid machine count is required'}), 400
-        if not count_date:
-            return jsonify({'error': 'Date is required'}), 400
+        if not box_number:
+            return jsonify({'error': 'Box number is required'}), 400
+        if not bag_number:
+            return jsonify({'error': 'Bag number is required'}), 400
         
         conn = get_db()
         
@@ -2921,9 +2949,9 @@ def submit_machine_count():
         
         # Insert machine count record (for historical tracking)
         conn.execute('''
-            INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
-            VALUES (?, ?, ?, ?)
-        ''', (tablet_type_id, machine_count_int, employee_name, count_date))
+            INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date, box_number, bag_number)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (tablet_type_id, machine_count_int, employee_name, count_date, box_number, bag_number))
         
         # Get inventory_item_id
         inventory_item_id = tablet_type.get('inventory_item_id')
@@ -2934,9 +2962,9 @@ def submit_machine_count():
         # Create warehouse submission with submission_type='machine'
         conn.execute('''
             INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, loose_tablets, submission_date, submission_type)
-            VALUES (?, ?, ?, ?, ?, 'machine')
-        ''', (employee_name, product['product_name'], inventory_item_id, total_tablets, count_date))
+            (employee_name, product_name, inventory_item_id, loose_tablets, submission_date, submission_type, box_number, bag_number)
+            VALUES (?, ?, ?, ?, ?, 'machine', ?, ?)
+        ''', (employee_name, product['product_name'], inventory_item_id, total_tablets, count_date, box_number, bag_number))
         
         # Find open PO lines for this inventory item
         po_lines = conn.execute('''
