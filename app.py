@@ -2039,12 +2039,13 @@ def product_mapping():
                 tt['category'] = None
             category_list = []
         
-        # Default categories if none exist (always show these as options)
+        # Default categories (always show these as options)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
         
         # Merge default categories with existing ones, ensuring all defaults are available
+        # This ensures categories are shown even if no tablet types are assigned to them yet
         all_categories = list(set(default_categories + category_list))
-        all_categories.sort(key=lambda x: default_categories.index(x) if x in default_categories else len(default_categories))
+        all_categories.sort(key=lambda x: (default_categories.index(x) if x in default_categories else len(default_categories), x))
         
         return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=all_categories)
     except Exception as e:
@@ -3267,6 +3268,157 @@ def update_tablet_type_category():
         conn.close()
         
         return jsonify({'success': True, 'message': 'Category updated successfully'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/categories', methods=['GET'])
+@admin_required
+def get_categories():
+    """Get all unique categories"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get unique categories from tablet_types
+        categories = conn.execute('''
+            SELECT DISTINCT category 
+            FROM tablet_types 
+            WHERE category IS NOT NULL AND category != ''
+            ORDER BY category
+        ''').fetchall()
+        
+        category_list = [cat['category'] for cat in categories] if categories else []
+        
+        # Add default categories if they don't exist
+        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        all_categories = list(set(default_categories + category_list))
+        all_categories.sort(key=lambda x: (default_categories.index(x) if x in default_categories else len(default_categories), x))
+        
+        conn.close()
+        return jsonify({'success': True, 'categories': all_categories})
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/categories', methods=['POST'])
+@admin_required
+def add_category():
+    """Add a new category"""
+    conn = None
+    try:
+        data = request.get_json()
+        category_name = data.get('category_name', '').strip()
+        
+        if not category_name:
+            return jsonify({'success': False, 'error': 'Category name required'}), 400
+        
+        conn = get_db()
+        
+        # Check if category already exists
+        existing = conn.execute('''
+            SELECT DISTINCT category 
+            FROM tablet_types 
+            WHERE category = ?
+        ''', (category_name,)).fetchone()
+        
+        if existing:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Category already exists'}), 400
+        
+        # Category will be created when a tablet type is assigned to it
+        # For now, just return success
+        conn.close()
+        return jsonify({'success': True, 'message': 'Category added. Assign tablet types to make it active.'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/categories/rename', methods=['POST'])
+@admin_required
+def rename_category():
+    """Rename a category (updates all tablet types with that category)"""
+    conn = None
+    try:
+        data = request.get_json()
+        old_name = data.get('old_name', '').strip()
+        new_name = data.get('new_name', '').strip()
+        
+        if not old_name or not new_name:
+            return jsonify({'success': False, 'error': 'Both old and new category names required'}), 400
+        
+        if old_name == new_name:
+            return jsonify({'success': False, 'error': 'New name must be different from old name'}), 400
+        
+        conn = get_db()
+        
+        # Check if new name already exists
+        existing = conn.execute('''
+            SELECT DISTINCT category 
+            FROM tablet_types 
+            WHERE category = ?
+        ''', (new_name,)).fetchone()
+        
+        if existing:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Category name already exists'}), 400
+        
+        # Update all tablet types with the old category name
+        conn.execute('''
+            UPDATE tablet_types 
+            SET category = ?
+            WHERE category = ?
+        ''', (new_name, old_name))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Category renamed from "{old_name}" to "{new_name}"'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/categories/delete', methods=['POST'])
+@admin_required
+def delete_category():
+    """Delete a category (removes category from all tablet types)"""
+    conn = None
+    try:
+        data = request.get_json()
+        category_name = data.get('category_name', '').strip()
+        
+        if not category_name:
+            return jsonify({'success': False, 'error': 'Category name required'}), 400
+        
+        conn = get_db()
+        
+        # Remove category from all tablet types (set to NULL)
+        conn.execute('''
+            UPDATE tablet_types 
+            SET category = NULL
+            WHERE category = ?
+        ''', (category_name,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': f'Category "{category_name}" deleted. All tablet types have been unassigned.'})
     except Exception as e:
         if conn:
             try:
