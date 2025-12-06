@@ -423,16 +423,126 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Populate base product dropdown
-    Object.keys(productGroups).sort().forEach(baseName => {
-        const option = document.createElement('option');
-        option.value = baseName;
-        option.textContent = baseName;
-        productBaseSelect.appendChild(option);
+    // Group product bases into categories (similar to tablet type grouping)
+    const categoryGroups = {
+        'FIX Energy': [],
+        'FIX Focus': [],
+        'FIX Relax': [],
+        'FIX MAX': [],
+        '18mg': [],
+        'XL': [],
+        'Hyroxi': [],
+        'Other': []
+    };
+    
+    Object.keys(productGroups).forEach(baseName => {
+        let categorized = false;
+        
+        // FIX Energy variants
+        if (baseName.match(/^FIX\s+Energy/i) || baseName.match(/Energy/i)) {
+            categoryGroups['FIX Energy'].push(baseName);
+            categorized = true;
+        }
+        // FIX Focus variants
+        else if (baseName.match(/^FIX\s+Focus/i) || baseName.match(/Focus/i)) {
+            categoryGroups['FIX Focus'].push(baseName);
+            categorized = true;
+        }
+        // FIX Relax variants
+        else if (baseName.match(/^FIX\s+Relax/i) || baseName.match(/Relax/i)) {
+            categoryGroups['FIX Relax'].push(baseName);
+            categorized = true;
+        }
+        // FIX MAX variants
+        else if (baseName.match(/^FIX\s+MAX/i)) {
+            categoryGroups['FIX MAX'].push(baseName);
+            categorized = true;
+        }
+        // 18mg variants
+        else if (baseName.match(/^18mg/i) || baseName.match(/^7OH$/i) || baseName.match(/^Hybrid$/i) || baseName.match(/^Pseudo$/i)) {
+            categoryGroups['18mg'].push(baseName);
+            categorized = true;
+        }
+        // XL variants
+        else if (baseName.match(/^XL/i)) {
+            categoryGroups['XL'].push(baseName);
+            categorized = true;
+        }
+        // Hyroxi variants
+        else if (baseName.match(/^Hyroxi/i)) {
+            categoryGroups['Hyroxi'].push(baseName);
+            categorized = true;
+        }
+        
+        if (!categorized) {
+            categoryGroups['Other'].push(baseName);
+        }
     });
     
-    // Handle base product selection
-    productBaseSelect.addEventListener('change', function() {
+    // Convert product_base dropdown to two-level system
+    const originalProductBase = productBaseSelect;
+    originalProductBase.style.display = 'none';
+    
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.className = 'space-y-2';
+    
+    // Create category dropdown
+    const categorySelect = document.createElement('select');
+    categorySelect.className = originalProductBase.className;
+    categorySelect.id = 'product_category';
+    categorySelect.name = 'product_category';
+    categorySelect.required = originalProductBase.required;
+    categorySelect.innerHTML = '<option value="">Select category...</option>';
+    
+    // Create base product dropdown
+    const baseSelect = document.createElement('select');
+    baseSelect.className = originalProductBase.className;
+    baseSelect.id = 'product_base_item';
+    baseSelect.name = originalProductBase.name;
+    baseSelect.required = originalProductBase.required;
+    baseSelect.innerHTML = '<option value="">Select product type...</option>';
+    baseSelect.style.display = 'none';
+    
+    // Add categories to category dropdown
+    const categoryOrder = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other'];
+    categoryOrder.forEach(categoryName => {
+        if (categoryGroups[categoryName].length === 0) return;
+        const option = document.createElement('option');
+        option.value = categoryName;
+        option.textContent = categoryName;
+        categorySelect.appendChild(option);
+    });
+    
+    // Store category groups data
+    categorySelect.dataset.categoryGroups = JSON.stringify(categoryGroups);
+    categorySelect.dataset.productGroups = JSON.stringify(productGroups);
+    
+    // Handle category selection
+    categorySelect.addEventListener('change', function() {
+        const selectedCategory = this.value;
+        baseSelect.innerHTML = '<option value="">Select product type...</option>';
+        baseSelect.style.display = 'none';
+        originalProductBase.value = '';
+        productCountSelect.innerHTML = '<option value="">Select count...</option>';
+        countSelection.classList.add('hidden');
+        productNameHidden.value = '';
+        
+        if (selectedCategory && categoryGroups[selectedCategory]) {
+            // Populate base product dropdown
+            categoryGroups[selectedCategory].sort().forEach(baseName => {
+                const option = document.createElement('option');
+                option.value = baseName;
+                option.textContent = baseName;
+                baseSelect.appendChild(option);
+            });
+            baseSelect.style.display = '';
+        }
+    });
+    
+    // Handle base product selection (reuse existing logic)
+    baseSelect.addEventListener('change', function() {
+        originalProductBase.value = this.value;
         productCountSelect.innerHTML = '<option value="">Select count...</option>';
         countSelection.classList.add('hidden');
         productNameHidden.value = '';
@@ -454,6 +564,13 @@ document.addEventListener('DOMContentLoaded', function() {
             countSelection.classList.remove('hidden');
         }
     });
+    
+    // Insert wrapper before original select
+    const parent = originalProductBase.parentNode;
+    parent.insertBefore(wrapper, originalProductBase);
+    wrapper.appendChild(categorySelect);
+    wrapper.appendChild(baseSelect);
+    wrapper.appendChild(originalProductBase); // Keep original for form submission
     
     // Handle count selection
     productCountSelect.addEventListener('change', function() {
