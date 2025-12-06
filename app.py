@@ -1208,6 +1208,7 @@ def all_submissions():
         filter_date_from = request.args.get('date_from', type=str)
         filter_date_to = request.args.get('date_to', type=str)
         filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
+        filter_submission_type = request.args.get('submission_type', type=str)
         
         # Build query with optional filters
         query = '''
@@ -1342,6 +1343,9 @@ def all_submissions():
         if filter_tablet_type_id:
             unverified_query += ' AND tt.id = ?'
             unverified_params.append(filter_tablet_type_id)
+        if filter_submission_type:
+            unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
+            unverified_params.append(filter_submission_type)
         
         unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
         
@@ -1381,11 +1385,14 @@ def all_submissions():
                 filter_info['tablet_type_name'] = tablet_type_info['tablet_type_name']
                 filter_info['tablet_type_id'] = filter_tablet_type_id
         
+        if filter_submission_type:
+            filter_info['submission_type'] = filter_submission_type
+        
         # Get all tablet types for the filter dropdown
         tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
         return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
-                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id)
+                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
