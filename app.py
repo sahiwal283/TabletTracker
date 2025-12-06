@@ -1818,14 +1818,25 @@ def shipping_unified():
             ORDER BY tablet_type_name
         ''').fetchall()
         
+        # Get all POs for managers/admin to assign
+        purchase_orders = []
+        if session.get('employee_role') in ['manager', 'admin']:
+            purchase_orders = conn.execute('''
+                SELECT id, po_number, closed, internal_status, zoho_status
+                FROM purchase_orders
+                ORDER BY po_number DESC
+            ''').fetchall()
+        
         # Get all receiving records with their boxes and bags
         receiving_records = conn.execute('''
             SELECT r.*, 
                    COUNT(DISTINCT sb.id) as box_count,
-                   COUNT(DISTINCT b.id) as total_bags
+                   COUNT(DISTINCT b.id) as total_bags,
+                   po.po_number
             FROM receiving r
             LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
             LEFT JOIN bags b ON sb.id = b.small_box_id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
             GROUP BY r.id
             ORDER BY r.received_date DESC
         ''').fetchall()
@@ -1864,7 +1875,9 @@ def shipping_unified():
         
         return render_template('shipping_unified.html', 
                              tablet_types=tablet_types,
-                             shipments=shipments)
+                             purchase_orders=purchase_orders,
+                             shipments=shipments,
+                             user_role=session.get('employee_role'))
                              
     except Exception as e:
         import traceback
@@ -3593,9 +3606,15 @@ def save_receives():
     try:
         data = request.get_json()
         boxes_data = data.get('boxes', [])
+        po_id = data.get('po_id')  # Optional PO assignment
         
         if not boxes_data:
             return jsonify({'success': False, 'error': 'No boxes data provided'}), 400
+        
+        # Only managers and admins can assign POs
+        user_role = session.get('employee_role')
+        if po_id and user_role not in ['manager', 'admin']:
+            return jsonify({'success': False, 'error': 'Only managers and admins can assign POs'}), 403
         
         conn = get_db()
         
@@ -3619,11 +3638,11 @@ def save_receives():
         elif session.get('admin_authenticated'):
             received_by = 'Admin'
         
-        # Create receiving record (no PO or shipment required for this simplified flow)
+        # Create receiving record (with optional PO assignment)
         receiving_cursor = conn.execute('''
-            INSERT INTO receiving (received_by, received_date, total_small_boxes, notes)
-            VALUES (?, CURRENT_TIMESTAMP, ?, ?)
-        ''', (received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)'))
+            INSERT INTO receiving (po_id, received_by, received_date, total_small_boxes, notes)
+            VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
+        ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)'))
         
         receiving_id = receiving_cursor.lastrowid
         total_bags = 0
@@ -3670,6 +3689,58 @@ def save_receives():
             'success': True,
             'message': f'Successfully recorded {len(boxes_data)} box(es) with {total_bags} bag(s)',
             'receiving_id': receiving_id
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/receiving/<int:receiving_id>/assign_po', methods=['POST'])
+@role_required('shipping')
+def assign_po_to_receiving(receiving_id):
+    """Update PO assignment for a receiving record (managers and admins only)"""
+    conn = None
+    try:
+        user_role = session.get('employee_role')
+        if user_role not in ['manager', 'admin']:
+            return jsonify({'success': False, 'error': 'Only managers and admins can assign POs'}), 403
+        
+        data = request.get_json()
+        po_id = data.get('po_id')  # Can be None to unassign
+        
+        conn = get_db()
+        
+        # Verify receiving record exists
+        receiving = conn.execute('SELECT id FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
+        if not receiving:
+            return jsonify({'success': False, 'error': 'Receiving record not found'}), 404
+        
+        # Update PO assignment
+        conn.execute('''
+            UPDATE receiving SET po_id = ?
+            WHERE id = ?
+        ''', (po_id if po_id else None, receiving_id))
+        
+        conn.commit()
+        
+        # Get PO number for response
+        po_number = None
+        if po_id:
+            po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (po_id,)).fetchone()
+            if po:
+                po_number = po['po_number']
+        
+        return jsonify({
+            'success': True,
+            'message': f'PO assignment updated successfully',
+            'po_number': po_number
         })
         
     except Exception as e:
