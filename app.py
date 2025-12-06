@@ -2126,7 +2126,25 @@ def admin_panel():
     # Check for admin session
     if not session.get('admin_authenticated'):
         return render_template('admin_login.html')
-    return render_template('admin_panel.html')
+    
+    conn = None
+    try:
+        conn = get_db()
+        # Get current settings
+        cards_per_turn = conn.execute(
+            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+            ('cards_per_turn',)
+        ).fetchone()
+        cards_per_turn_value = int(cards_per_turn['setting_value']) if cards_per_turn else 1
+        conn.close()
+        return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return render_template('admin_panel.html', cards_per_turn=1)
 
 @app.route('/admin/login', methods=['POST'])
 def admin_login():
