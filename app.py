@@ -1497,7 +1497,7 @@ def public_shipments():
             except:
                 pass
 
-@app.route('/api/sync_zoho_pos')
+@app.route('/api/sync_zoho_pos', methods=['GET', 'POST'])
 @role_required('dashboard')
 def sync_zoho_pos():
     """Sync Purchase Orders from Zoho Inventory"""
