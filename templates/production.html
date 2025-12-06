@@ -67,17 +67,6 @@
                        class="form-input" min="0" placeholder="Enter counter number from machine">
             </div>
             
-            <!-- Employee Name (Auto-filled) -->
-            <div>
-                <label for="machine_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
-                </label>
-                <input type="text" id="machine_employee_name" name="employee_name" required
-                       class="form-input" 
-                       value="{% if employee %}{{ employee.full_name }}{% endif %}"
-                       placeholder="Your name">
-            </div>
-            
             <!-- Count Date -->
             <div>
                 <label for="machine_count_date" class="block text-sm font-medium text-gray-700 mb-1">
@@ -620,13 +609,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 showSuccess(result.message || 'Machine count submitted successfully!');
                 machineCountForm.reset();
-                // Reset employee name if it was auto-filled
-                const employeeNameField = document.getElementById('machine_employee_name');
-                {% if employee %}
-                if (employeeNameField) {
-                    employeeNameField.value = '{{ employee.full_name }}';
-                }
-                {% endif %}
             } else {
                 showError(result.error || 'Submission failed');
             }

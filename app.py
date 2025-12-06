@@ -2726,7 +2726,6 @@ def submit_machine_count():
         
         tablet_type_id = data.get('tablet_type_id')
         machine_count = data.get('machine_count')
-        employee_name = data.get('employee_name', '').strip()
         count_date = data.get('count_date')
         
         # Validation
@@ -2734,12 +2733,23 @@ def submit_machine_count():
             return jsonify({'error': 'Tablet type is required'}), 400
         if machine_count is None or machine_count < 0:
             return jsonify({'error': 'Valid machine count is required'}), 400
-        if not employee_name:
-            return jsonify({'error': 'Employee name is required'}), 400
         if not count_date:
             return jsonify({'error': 'Date is required'}), 400
         
         conn = get_db()
+        
+        # Get employee name from session (logged-in user)
+        if session.get('admin_authenticated'):
+            employee_name = 'Admin'
+        else:
+            employee = conn.execute('''
+                SELECT full_name FROM employees WHERE id = ?
+            ''', (session.get('employee_id'),)).fetchone()
+            
+            if not employee:
+                return jsonify({'error': 'Employee not found'}), 400
+            
+            employee_name = employee['full_name']
         
         # Verify tablet type exists and get its info
         tablet_type = conn.execute('''
