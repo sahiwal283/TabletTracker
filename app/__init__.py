@@ -76,16 +76,36 @@ def create_app(config_class=Config):
     # Set permanent session lifetime
     app.permanent_session_lifetime = timedelta(seconds=config_class.PERMANENT_SESSION_LIFETIME)
     
-    # Register blueprints (commented out until routes are migrated)
-    # from app.blueprints import auth, dashboard, submissions, purchase_orders, admin, production, shipping, api
-    # app.register_blueprint(auth.bp)
-    # app.register_blueprint(dashboard.bp)
-    # app.register_blueprint(submissions.bp)
-    # app.register_blueprint(purchase_orders.bp)
-    # app.register_blueprint(admin.bp)
-    # app.register_blueprint(production.bp)
-    # app.register_blueprint(shipping.bp)
-    # app.register_blueprint(api.bp)
+    # Initialize database on app startup
+    with app.app_context():
+        try:
+            from app.models.database import init_db
+            init_db()
+            print("✅ Database initialization completed successfully")
+        except Exception as e:
+            import traceback
+            print(f"❌ CRITICAL: Database initialization failed: {str(e)}")
+            traceback.print_exc()
+            # Don't raise - allow app to start but log the error
+            # The app will fail on first database query if schema is broken
+    
+    # Register blueprints
+    try:
+        from app.blueprints import auth, dashboard, submissions, purchase_orders, admin, production, shipping, api
+        app.register_blueprint(auth.bp)
+        app.register_blueprint(dashboard.bp)
+        app.register_blueprint(submissions.bp)
+        app.register_blueprint(purchase_orders.bp)
+        app.register_blueprint(admin.bp)
+        app.register_blueprint(production.bp)
+        app.register_blueprint(shipping.bp)
+        app.register_blueprint(api.bp)
+        print(f"✅ Registered {len(app.blueprints)} blueprints: {', '.join(app.blueprints.keys())}")
+    except Exception as e:
+        import traceback
+        error_msg = f"❌ CRITICAL: Failed to register blueprints: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        raise RuntimeError(error_msg) from e
     
     # Register error handlers
     @app.errorhandler(404)

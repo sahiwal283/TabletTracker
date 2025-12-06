@@ -53,6 +53,20 @@ def check_deployment():
         print("   ✅ Flask app created successfully")
         print(f"   ✅ App name: {app.name}")
         print(f"   ✅ Registered blueprints: {len(app.blueprints)}")
+        if len(app.blueprints) == 0:
+            print("   ⚠️  WARNING: No blueprints registered! This indicates an import error.")
+            print("   🔍 Attempting to import blueprints individually...")
+            try:
+                from app.blueprints import auth
+                print(f"      ✅ auth blueprint imported: {auth.bp}")
+            except Exception as e:
+                print(f"      ❌ Failed to import auth blueprint: {e}")
+            try:
+                from app.blueprints import dashboard
+                print(f"      ✅ dashboard blueprint imported: {dashboard.bp}")
+            except Exception as e:
+                print(f"      ❌ Failed to import dashboard blueprint: {e}")
+            return False
         for bp_name in app.blueprints.keys():
             print(f"      - {bp_name}")
     except Exception as e:

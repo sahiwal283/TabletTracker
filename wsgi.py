@@ -19,11 +19,13 @@ os.chdir(path)
 try:
     from app import create_app
     application = create_app()
-except ImportError:
-    # Fallback: if app package doesn't work, try importing from app.py directly
-    # This handles the case where the old app.py is still being used
-    import app as app_module
-    application = app_module.app
+    print(f"✅ Flask app created with {len(application.blueprints)} blueprints registered")
+except Exception as e:
+    # Log the error and raise it - don't fall back to old app.py
+    import traceback
+    error_msg = f"❌ CRITICAL: Failed to create Flask app: {str(e)}\n{traceback.format_exc()}"
+    print(error_msg)
+    raise
 
 if __name__ == "__main__":
     application.run()
