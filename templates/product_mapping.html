@@ -362,24 +362,33 @@ async function deleteProduct(productId) {
 
 async function updateTabletTypeCategory(tabletTypeId, category, isChecked) {
     try {
+        // If unchecking, set category to null; if checking, set to the category
+        const categoryValue = isChecked ? category : null;
+        
         const response = await fetch('/api/tablet_type/category', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 tablet_type_id: tabletTypeId,
-                category: isChecked ? category : null
+                category: categoryValue
             })
         });
         
         const result = await response.json();
         if (result.success) {
+            // Show success message briefly
+            const message = isChecked ? `Assigned to ${category}` : 'Removed from category';
             // Reload page to show updated categories
             setTimeout(() => location.reload(), 500);
         } else {
-            showError(result.error || 'Failed to update category');
+            alert('Error: ' + (result.error || 'Failed to update category'));
+            // Reload to reset UI state
+            location.reload();
         }
     } catch (error) {
-        showError('Failed to update category: ' + error.message);
+        alert('Error: ' + error.message);
+        // Reload to reset UI state
+        location.reload();
     }
 }
 
