@@ -2046,13 +2046,13 @@ def product_mapping():
         deleted_categories_set = set()
         try:
             deleted_categories_json = conn.execute('''
-                SELECT value FROM app_settings WHERE key = 'deleted_categories'
+                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
             ''').fetchone()
-            if deleted_categories_json:
-                import json
-                deleted_categories_set = set(json.loads(deleted_categories_json['value']))
-        except:
-            pass  # If app_settings table doesn't exist or key doesn't exist, continue
+            if deleted_categories_json and deleted_categories_json['setting_value']:
+                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+        except Exception as e:
+            print(f"Warning: Could not load deleted categories: {e}")
+            # Continue without filtering if there's an error
         
         # Default categories (always show these as options, unless deleted)
         default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
@@ -3543,33 +3543,23 @@ def delete_category():
         
         # Track deleted category in app_settings so it doesn't reappear
         try:
-            # Ensure app_settings table exists (check first)
-            table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'").fetchone()
-            if not table_check:
-                conn.execute('''
-                    CREATE TABLE IF NOT EXISTS app_settings (
-                        key TEXT PRIMARY KEY,
-                        value TEXT
-                    )
-                ''')
-            
-            # Get current deleted categories
+            # Get current deleted categories using correct column names
             deleted_categories_json = conn.execute('''
-                SELECT value FROM app_settings WHERE key = 'deleted_categories'
+                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
             ''').fetchone()
             
             deleted_categories = set()
-            if deleted_categories_json and deleted_categories_json['value']:
-                deleted_categories = set(json.loads(deleted_categories_json['value']))
+            if deleted_categories_json and deleted_categories_json['setting_value']:
+                deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
             
             # Add this category to deleted set
             deleted_categories.add(category_name)
             
-            # Save back to app_settings
+            # Save back to app_settings using correct column names
             conn.execute('''
-                INSERT OR REPLACE INTO app_settings (key, value) 
-                VALUES (?, ?)
-            ''', ('deleted_categories', json.dumps(list(deleted_categories))))
+                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                VALUES (?, ?, ?)
+            ''', ('deleted_categories', json.dumps(list(deleted_categories)), 'List of deleted categories that should not appear'))
             
             conn.commit()
         except Exception as e:
