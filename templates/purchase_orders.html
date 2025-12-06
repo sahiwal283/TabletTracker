@@ -349,12 +349,16 @@ async function viewPODetailsModal(poId, poNumber) {
             modalContent += '</div>';
         }
         
-        // Add "View All Submissions" button at the bottom
+        // Add "View All Submissions" and "View Receives" buttons at the bottom
         modalContent += `
-            <div class="mt-6 flex justify-center border-t pt-4">
+            <div class="mt-6 flex justify-center gap-3 border-t pt-4">
                 <button onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${poNumber}', null);" 
                         class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-colors">
-                    📋 View All Submissions for this PO
+                    📋 View All Submissions
+                </button>
+                <button onclick="event.stopPropagation(); viewPOReceives(${poId}, '${poNumber}');" 
+                        class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-colors">
+                    📦 View Receives
                 </button>
             </div>
         `;
@@ -825,6 +829,151 @@ async function openEditSubmissionFromPO(submissionId, poId, inventoryItemId) {
         await openEditSubmissionModal(submissionId, poId, inventoryItemId);
     } else {
         alert('Edit functionality not available. Please refresh the page.');
+    }
+}
+
+async function viewPOReceives(poId, poNumber) {
+    try {
+        const response = await fetch(`/api/po/${poId}/receives`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Error: ' + (data.error || 'Failed to load receives'));
+            return;
+        }
+        
+        const receives = data.receives || [];
+        
+        // Build modal content
+        let modalContent = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceivesModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div class="flex-1 text-center">
+                                <h3 class="text-xl font-bold">📦 Receives for ${poNumber}</h3>
+                                <p class="text-sm text-green-100 mt-1">
+                                    ${receives.length} shipment${receives.length !== 1 ? 's' : ''} received
+                                </p>
+                            </div>
+                            <button onclick="closeReceivesModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        `;
+        
+        if (receives.length === 0) {
+            modalContent += `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No receives found for this PO</p>
+                </div>
+            `;
+        } else {
+            modalContent += '<div class="space-y-4">';
+            
+            receives.forEach((receiveData, idx) => {
+                const rec = receiveData.receiving;
+                const receivedDate = rec.received_date ? new Date(rec.received_date).toLocaleDateString('en-US', { 
+                    timeZone: 'America/New_York', 
+                    month: '2-digit', 
+                    day: '2-digit', 
+                    year: 'numeric' 
+                }) : 'Unknown';
+                
+                modalContent += `
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h4 class="text-lg font-semibold text-gray-900 mb-1">
+                                    Shipment ${idx + 1}
+                                </h4>
+                                <p class="text-sm text-gray-600">
+                                    Received on ${receivedDate}
+                                    ${rec.received_by ? ` by ${rec.received_by}` : ''}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-600">
+                                    ${rec.box_count || 0} Box${(rec.box_count || 0) !== 1 ? 'es' : ''}
+                                </div>
+                                <div class="text-sm text-gray-600">
+                                    ${rec.total_bags || 0} Bag${(rec.total_bags || 0) !== 1 ? 's' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Boxes -->
+                        <div class="space-y-3 mt-4">
+                `;
+                
+                receiveData.boxes.forEach(boxData => {
+                    const box = boxData.box;
+                    modalContent += `
+                        <div class="border border-gray-200 rounded-lg p-3 bg-white">
+                            <div class="flex justify-between items-center mb-2">
+                                <h5 class="font-medium text-gray-900">Box ${box.box_number}</h5>
+                                <span class="text-sm text-gray-600">${box.bag_count} bag${box.bag_count !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                    `;
+                    
+                    boxData.bags.forEach(bag => {
+                        modalContent += `
+                            <div class="bg-gray-50 border border-gray-200 rounded p-2 text-sm">
+                                <div class="font-medium text-gray-700">Bag ${bag.bag_number}</div>
+                                <div class="text-gray-600">
+                                    ${bag.tablet_type_name || 'Unknown Type'}
+                                </div>
+                                <div class="text-gray-600">Count: ${bag.bag_label_count || 0}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    modalContent += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                modalContent += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            modalContent += '</div>';
+        }
+        
+        modalContent += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'receives-modal';
+        modalDiv.innerHTML = modalContent;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading receives:', error);
+        alert('Failed to load receives: ' + error.message);
+    }
+}
+
+function closeReceivesModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('receives-modal');
+        if (modal) {
+            modal.remove();
+        }
     }
 }
 </script>

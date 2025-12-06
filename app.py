@@ -5506,6 +5506,86 @@ def resync_unassigned_submissions():
                 pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
+@app.route('/api/po/<int:po_id>/receives', methods=['GET'])
+@role_required('dashboard')
+def get_po_receives(po_id):
+    """Get all receives (shipments received) for a specific PO"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get PO details
+        po = conn.execute('''
+            SELECT po_number
+            FROM purchase_orders
+            WHERE id = ?
+        ''', (po_id,)).fetchone()
+        
+        if not po:
+            return jsonify({'error': 'PO not found'}), 404
+        
+        # Get all receiving records for this PO with their boxes and bags
+        receiving_records = conn.execute('''
+            SELECT r.*, 
+                   COUNT(DISTINCT sb.id) as box_count,
+                   COUNT(DISTINCT b.id) as total_bags
+            FROM receiving r
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            WHERE r.po_id = ?
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+        ''', (po_id,)).fetchall()
+        
+        # For each receiving record, get its boxes and bags
+        receives = []
+        for rec in receiving_records:
+            boxes = conn.execute('''
+                SELECT sb.*, COUNT(b.id) as bag_count
+                FROM small_boxes sb
+                LEFT JOIN bags b ON sb.id = b.small_box_id
+                WHERE sb.receiving_id = ?
+                GROUP BY sb.id
+                ORDER BY sb.box_number
+            ''', (rec['id'],)).fetchall()
+            
+            # Get bags for each box with tablet type info
+            boxes_with_bags = []
+            for box in boxes:
+                bags = conn.execute('''
+                    SELECT b.*, tt.tablet_type_name
+                    FROM bags b
+                    LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.small_box_id = ?
+                    ORDER BY b.bag_number
+                ''', (box['id'],)).fetchall()
+                boxes_with_bags.append({
+                    'box': dict(box),
+                    'bags': [dict(bag) for bag in bags]
+                })
+            
+            receives.append({
+                'receiving': dict(rec),
+                'boxes': boxes_with_bags
+            })
+        
+        return jsonify({
+            'success': True,
+            'po': dict(po),
+            'receives': receives
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/api/po/<int:po_id>/submissions', methods=['GET'])
 @role_required('dashboard')
 def get_po_submissions(po_id):
