@@ -129,7 +129,7 @@
                             <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-gray-400 to-gray-500 text-white shadow-lg">
                                 🔒 Closed
                             </span>
-                        {% elif po.remaining_quantity <= 0 %}
+                        {% elif po.ordered_quantity and po.ordered_quantity > 0 and po.remaining_quantity <= 0 and (po.current_good_count or 0) + (po.current_damaged_count or 0) > 0 %}
                             <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-green-400 to-green-500 text-white shadow-lg">
                                 ✓ Complete
                             </span>
