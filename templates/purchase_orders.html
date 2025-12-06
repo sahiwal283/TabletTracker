@@ -1109,6 +1109,25 @@ async function viewPOReceives(poId, poNumber) {
         
         const receives = data.receives || [];
         
+        // Calculate totals
+        let totalReceived = 0;
+        const totalsByTablet = {};
+        
+        receives.forEach(receiveData => {
+            receiveData.boxes.forEach(boxData => {
+                boxData.bags.forEach(bag => {
+                    const count = parseInt(bag.bag_label_count || 0);
+                    totalReceived += count;
+                    
+                    const tabletName = bag.tablet_type_name || 'Unknown Type';
+                    if (!totalsByTablet[tabletName]) {
+                        totalsByTablet[tabletName] = 0;
+                    }
+                    totalsByTablet[tabletName] += count;
+                });
+            });
+        });
+        
         // Build modal content
         let modalContent = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceivesModal(event)">
@@ -1131,6 +1150,49 @@ async function viewPOReceives(poId, poNumber) {
                     <!-- Content -->
                     <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
         `;
+        
+        // Add totals section if there are receives
+        if (receives.length > 0) {
+            modalContent += `
+                <!-- Totals Section -->
+                <div class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                        <span class="mr-2">📊</span>
+                        Total Received Counts
+                    </h4>
+                    
+                    <!-- Overall Total -->
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between bg-white rounded-lg p-3 border border-blue-200">
+                            <span class="font-medium text-gray-700">Total Received:</span>
+                            <span class="text-2xl font-bold text-blue-600">${totalReceived.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Totals by Tablet Type -->
+                    <div>
+                        <h5 class="text-sm font-semibold text-gray-700 mb-2">By Tablet Type:</h5>
+                        <div class="space-y-2">
+            `;
+            
+            // Sort tablet types by count (descending)
+            const sortedTablets = Object.entries(totalsByTablet).sort((a, b) => b[1] - a[1]);
+            
+            sortedTablets.forEach(([tabletName, count]) => {
+                modalContent += `
+                    <div class="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
+                        <span class="text-sm text-gray-600">${tabletName}:</span>
+                        <span class="font-semibold text-gray-900">${count.toLocaleString()}</span>
+                    </div>
+                `;
+            });
+            
+            modalContent += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
         if (receives.length === 0) {
             modalContent += `
