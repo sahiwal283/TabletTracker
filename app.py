@@ -3928,6 +3928,7 @@ def server_debug_info():
 @admin_required
 def receiving_debug():
     """Debug route to test receiving functionality"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3945,8 +3946,6 @@ def receiving_debug():
             WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
             ORDER BY s.delivered_at DESC, s.created_at DESC
         ''').fetchall()
-        
-        conn.close()
         
         debug_info = {
             'status': 'success',
@@ -3972,11 +3971,18 @@ def receiving_debug():
         <p>Error: {str(e)}</p>
         <p><a href="/receiving">Try receiving page anyway</a></p>
         """
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/receiving')
 @admin_required  
 def receiving_management_v2():
     """Receiving management page - REBUILT VERSION"""
+    conn = None
     try:
         conn = get_db()
         
@@ -3985,7 +3991,6 @@ def receiving_management_v2():
             test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
             receiving_count = test_query['count'] if test_query else 0
         except Exception as e:
-            conn.close()
             return f"""
             <h2>Database Error (v1.7.6 REBUILT)</h2>
             <p>Cannot access receiving table: {str(e)}</p>
@@ -4015,8 +4020,6 @@ def receiving_management_v2():
             LIMIT 20
         ''').fetchall()
         
-        conn.close()
-        
         return render_template('receiving_management.html', 
                              pending_shipments=pending_shipments,
                              recent_receiving=recent_receiving)
@@ -4030,11 +4033,18 @@ def receiving_management_v2():
         <p><a href="/debug/server-info">Check Server Info</a></p>
         <p><a href="/admin">Back to admin</a></p>
         """
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/receiving/<int:receiving_id>')
 @admin_required
 def receiving_details(receiving_id):
     """View detailed information about a specific receiving record"""
+    conn = None
     try:
         conn = get_db()
         
@@ -4064,8 +4074,6 @@ def receiving_details(receiving_id):
             ORDER BY sb.box_number
         ''', (receiving_id,)).fetchall()
         
-        conn.close()
-        
         return render_template('receiving_details.html', 
                              receiving=dict(receiving),
                              boxes=[dict(box) for box in boxes])
@@ -4073,6 +4081,12 @@ def receiving_details(receiving_id):
     except Exception as e:
         flash(f'Error loading receiving details: {str(e)}', 'error')
         return redirect(url_for('receiving_management_v2'))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/receiving/<int:receiving_id>', methods=['DELETE'])
 @role_required('shipping')
@@ -4096,7 +4110,6 @@ def delete_receiving(receiving_id):
         ''', (receiving_id,)).fetchone()
         
         if not receiving:
-            conn.close()
             return jsonify({'success': False, 'error': 'Receiving record not found'}), 404
         
         # Delete in correct order due to foreign key constraints
@@ -4110,7 +4123,6 @@ def delete_receiving(receiving_id):
         conn.execute('DELETE FROM receiving WHERE id = ?', (receiving_id,))
         
         conn.commit()
-        conn.close()
         
         po_info = receiving['po_number'] if receiving['po_number'] else 'No PO'
         return jsonify({
@@ -4119,12 +4131,13 @@ def delete_receiving(receiving_id):
         })
         
     except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to delete receiving record: {str(e)}'}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': f'Failed to delete receiving record: {str(e)}'}), 500
 
 @app.route('/api/process_receiving', methods=['POST'])
 @admin_required
