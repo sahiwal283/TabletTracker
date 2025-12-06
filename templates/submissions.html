@@ -72,13 +72,8 @@
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const select = document.getElementById('tablet_type_id');
-                        if (select && typeof organizeTabletTypeDropdown === 'function') {
-                            // Preserve selected value
-                            select.dataset.selectedValue = select.value;
-                            organizeTabletTypeDropdown(select);
-                            if (typeof addTabletTypeSearch === 'function') {
-                                addTabletTypeSearch(select);
-                            }
+                        if (select && typeof convertToTwoLevelDropdown === 'function') {
+                            convertToTwoLevelDropdown(select);
                         }
                     });
                 </script>

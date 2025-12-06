@@ -51,9 +51,8 @@
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const select = document.getElementById('machine_tablet_type');
-                        if (select) {
-                            organizeTabletTypeDropdown(select);
-                            addTabletTypeSearch(select);
+                        if (select && typeof convertToTwoLevelDropdown === 'function') {
+                            convertToTwoLevelDropdown(select);
                         }
                     });
                 </script>
@@ -262,9 +261,8 @@
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const select = document.getElementById('tablet_type');
-                        if (select) {
-                            organizeTabletTypeDropdown(select);
-                            addTabletTypeSearch(select);
+                        if (select && typeof convertToTwoLevelDropdown === 'function') {
+                            convertToTwoLevelDropdown(select);
                         }
                     });
                 </script>

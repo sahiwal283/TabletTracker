@@ -775,20 +775,17 @@ async function saveSubmissionEdit() {
     }
 }
 
-// Organize tablet type dropdown with optgroups
-function organizeTabletTypeDropdown(selectElement) {
+// Convert tablet type dropdown to two-level dropdown system
+function convertToTwoLevelDropdown(selectElement) {
     if (!selectElement || selectElement.tagName !== 'SELECT') return;
+    
+    // Check if already converted
+    if (selectElement.dataset.twoLevelConverted === 'true') return;
+    selectElement.dataset.twoLevelConverted = 'true';
     
     const options = Array.from(selectElement.options);
     const placeholder = options.find(opt => opt.value === '' || opt.value === null);
-    
-    // Clear the select
-    selectElement.innerHTML = '';
-    
-    // Add placeholder back if it exists
-    if (placeholder) {
-        selectElement.appendChild(placeholder);
-    }
+    const originalValue = selectElement.value;
     
     // Group tablet types
     const groups = {
@@ -865,24 +862,91 @@ function organizeTabletTypeDropdown(selectElement) {
         });
     });
     
-    // Add optgroups and options
-    const groupOrder = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other'];
+    // Hide original select
+    selectElement.style.display = 'none';
     
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.className = 'space-y-2';
+    
+    // Create group dropdown
+    const groupSelect = document.createElement('select');
+    groupSelect.className = selectElement.className;
+    groupSelect.id = selectElement.id + '_group';
+    groupSelect.name = selectElement.name + '_group';
+    groupSelect.innerHTML = '<option value="">Select category...</option>';
+    
+    // Create item dropdown
+    const itemSelect = document.createElement('select');
+    itemSelect.className = selectElement.className;
+    itemSelect.id = selectElement.id + '_item';
+    itemSelect.name = selectElement.name;
+    itemSelect.required = selectElement.required;
+    itemSelect.innerHTML = '<option value="">Select tablet type...</option>';
+    itemSelect.style.display = 'none';
+    
+    // Add groups to group dropdown
+    const groupOrder = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other'];
     groupOrder.forEach(groupName => {
         if (groups[groupName].length === 0) return;
-        
-        const optgroup = document.createElement('optgroup');
-        optgroup.label = groupName;
-        groups[groupName].forEach(option => {
-            optgroup.appendChild(option);
-        });
-        selectElement.appendChild(optgroup);
+        const option = document.createElement('option');
+        option.value = groupName;
+        option.textContent = groupName;
+        groupSelect.appendChild(option);
     });
     
-    // Preserve selected value
-    if (selectElement.dataset.selectedValue) {
-        selectElement.value = selectElement.dataset.selectedValue;
+    // Store groups data
+    groupSelect.dataset.groups = JSON.stringify(groups);
+    
+    // Handle group selection
+    groupSelect.addEventListener('change', function() {
+        const selectedGroup = this.value;
+        itemSelect.innerHTML = '<option value="">Select tablet type...</option>';
+        itemSelect.style.display = 'none';
+        selectElement.value = '';
+        
+        if (selectedGroup && groups[selectedGroup]) {
+            // Populate item dropdown
+            groups[selectedGroup].forEach(option => {
+                const itemOption = document.createElement('option');
+                itemOption.value = option.value;
+                itemOption.textContent = option.text;
+                itemSelect.appendChild(itemOption);
+            });
+            itemSelect.style.display = '';
+        }
+    });
+    
+    // Handle item selection
+    itemSelect.addEventListener('change', function() {
+        selectElement.value = this.value;
+        // Trigger change event on original select for form validation
+        selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    
+    // Restore original value if set
+    if (originalValue) {
+        // Find which group contains this value
+        for (const [groupName, groupOptions] of Object.entries(groups)) {
+            const found = groupOptions.find(opt => opt.value === originalValue);
+            if (found) {
+                groupSelect.value = groupName;
+                groupSelect.dispatchEvent(new Event('change'));
+                setTimeout(() => {
+                    itemSelect.value = originalValue;
+                    selectElement.value = originalValue;
+                }, 0);
+                break;
+            }
+        }
     }
+    
+    // Insert wrapper before select
+    const parent = selectElement.parentNode;
+    parent.insertBefore(wrapper, selectElement);
+    wrapper.appendChild(groupSelect);
+    wrapper.appendChild(itemSelect);
+    wrapper.appendChild(selectElement); // Keep original for form submission
 }
 
 // Add search functionality to tablet type dropdown
