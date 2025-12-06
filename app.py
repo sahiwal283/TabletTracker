@@ -474,10 +474,49 @@ def has_permission(username, required_permission):
     permissions = ROLE_PERMISSIONS.get(role, [])
     return 'all' in permissions or required_permission in permissions
 
+def ensure_app_settings_table():
+    """Ensure app_settings table exists, create if missing"""
+    conn = None
+    try:
+        conn = get_db()
+        # Check if table exists
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'")
+        if not c.fetchone():
+            # Create the table
+            c.execute('''CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT NOT NULL,
+                description TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''')
+            # Initialize default settings
+            default_settings = [
+                ('cards_per_turn', '1', 'Number of cards produced in one turn of the machine')
+            ]
+            for key, value, description in default_settings:
+                c.execute('''
+                    INSERT INTO app_settings (setting_key, setting_value, description)
+                    VALUES (?, ?, ?)
+                ''', (key, value, description))
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error ensuring app_settings table: {e}")
+        import traceback
+        traceback.print_exc()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 def get_setting(setting_key, default_value=None):
     """Get a setting value from app_settings table"""
     conn = None
     try:
+        ensure_app_settings_table()  # Ensure table exists
         conn = get_db()
         setting = conn.execute(
             'SELECT setting_value FROM app_settings WHERE setting_key = ?',
@@ -2192,6 +2231,7 @@ def manage_cards_per_turn():
     """Get or update cards per turn setting"""
     conn = None
     try:
+        ensure_app_settings_table()  # Ensure table exists
         conn = get_db()
         
         if request.method == 'GET':
@@ -2269,6 +2309,7 @@ def admin_panel():
     
     conn = None
     try:
+        ensure_app_settings_table()  # Ensure table exists
         conn = get_db()
         # Get current settings
         cards_per_turn = conn.execute(
@@ -2279,6 +2320,8 @@ def admin_panel():
         conn.close()
         return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         if conn:
             try:
                 conn.close()
