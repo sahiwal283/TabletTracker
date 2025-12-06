@@ -5901,6 +5901,7 @@ def get_po_submissions(po_id):
         # Get all submissions for this PO (and related OVERS/parent POs) with product details
         # Include inventory_item_id for matching with PO line items
         submission_type_select = ', ws.submission_type' if has_submission_type else ", 'packaged' as submission_type"
+        po_verified_select = ', COALESCE(ws.po_assignment_verified, 0) as po_verified' if has_submission_type else ", 0 as po_verified"
         if has_submission_date:
             submissions_query = f'''
                 SELECT 
@@ -5920,11 +5921,15 @@ def get_po_submissions(po_id):
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id,
-                    ws.assigned_po_id
+                    ws.assigned_po_id,
+                    po.po_number,
+                    po.closed as po_closed
                     {submission_type_select}
+                    {po_verified_select}
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
@@ -5947,11 +5952,15 @@ def get_po_submissions(po_id):
                     pd.packages_per_display,
                     pd.tablets_per_package,
                     tt.inventory_item_id,
-                    ws.assigned_po_id
+                    ws.assigned_po_id,
+                    po.po_number,
+                    po.closed as po_closed
                     {submission_type_select}
+                    {po_verified_select}
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
