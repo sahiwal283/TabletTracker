@@ -450,7 +450,22 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                 <p class="text-sm text-blue-100 mt-1">
                                     ${filteredSubmissions.length} submission(s) total
                                 </p>
-                                ${totals ? `<p class="text-sm text-blue-100 mt-1 font-semibold">📊 Total Tablets: ${totals.total_tablets.toLocaleString()}</p>` : ''}
+                                ${data.totals ? `
+                                    <div class="mt-2 flex justify-center gap-4 flex-wrap">
+                                        <div class="bg-blue-800 bg-opacity-50 px-3 py-1 rounded">
+                                            <span class="text-xs text-blue-200">⚙️ Machine:</span>
+                                            <span class="text-sm font-semibold text-white ml-1">${data.totals.machine.toLocaleString()}</span>
+                                        </div>
+                                        <div class="bg-purple-800 bg-opacity-50 px-3 py-1 rounded">
+                                            <span class="text-xs text-purple-200">📦 Packaged+Bag:</span>
+                                            <span class="text-sm font-semibold text-white ml-1">${data.totals.packaged_bag.toLocaleString()}</span>
+                                        </div>
+                                        <div class="bg-green-800 bg-opacity-50 px-3 py-1 rounded">
+                                            <span class="text-xs text-green-200">📊 Total:</span>
+                                            <span class="text-sm font-semibold text-white ml-1">${data.totals.total.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                ` : ''}
                             </div>
                             <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
                                 ✕
@@ -507,11 +522,25 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                 const cursorClass = isAdmin ? 'cursor-pointer' : '';
                 const editHint = isAdmin ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
                 
+                // Determine submission type badge
+                const submissionType = sub.submission_type || 'packaged';
+                let typeBadge = '';
+                if (submissionType === 'machine') {
+                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+                } else if (submissionType === 'bag') {
+                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+                } else {
+                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+                }
+                
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors ${cursorClass}" ${clickHandler}>
                         <div class="flex justify-between items-start mb-3">
                             <div>
-                                <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
+                                    ${typeBadge}
+                                </div>
                                 <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
                             </div>
                             <div class="text-right text-sm">
@@ -520,7 +549,8 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                             </div>
                         </div>
                         
-                        <!-- Running Total and Bag Check -->
+                        <!-- Running Total and Bag Check (only for packaged/bag submissions) -->
+                        ${submissionType !== 'machine' ? `
                         <div class="mb-3 flex gap-2 items-center flex-wrap">
                             <div class="inline-block bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
                                 <span class="font-semibold text-sm">Running: ${(sub.running_total || 0).toLocaleString()}</span>
@@ -534,6 +564,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                 ${sub.count_status === 'over' ? '<span class="text-red-600 font-bold text-sm">❌ Over</span>' : ''}
                             ` : ''}
                         </div>
+                        ` : ''}
                         
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
                             <div>

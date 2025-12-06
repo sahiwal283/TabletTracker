@@ -5843,10 +5843,11 @@ def get_po_submissions(po_id):
     try:
         conn = get_db()
         
-        # Get PO details
+        # Get PO details including machine counts
         po = conn.execute('''
             SELECT po_number, tablet_type, ordered_quantity, 
                    current_good_count, current_damaged_count, remaining_quantity,
+                   machine_good_count, machine_damaged_count,
                    parent_po_number
             FROM purchase_orders
             WHERE id = ?
@@ -5855,11 +5856,17 @@ def get_po_submissions(po_id):
         if not po:
             return jsonify({'error': 'PO not found'}), 404
         
-        # Check if submission_date column exists
+        # Check if submission_date and submission_type columns exist
         has_submission_date = False
+        has_submission_type = False
         try:
             conn.execute('SELECT submission_date FROM warehouse_submissions LIMIT 1')
             has_submission_date = True
+        except:
+            pass
+        try:
+            conn.execute('SELECT submission_type FROM warehouse_submissions LIMIT 1')
+            has_submission_type = True
         except:
             pass
         
@@ -5893,6 +5900,7 @@ def get_po_submissions(po_id):
         
         # Get all submissions for this PO (and related OVERS/parent POs) with product details
         # Include inventory_item_id for matching with PO line items
+        submission_type_select = ', ws.submission_type' if has_submission_type else ", 'packaged' as submission_type"
         if has_submission_date:
             submissions_query = f'''
                 SELECT 
@@ -5913,6 +5921,7 @@ def get_po_submissions(po_id):
                     pd.tablets_per_package,
                     tt.inventory_item_id,
                     ws.assigned_po_id
+                    {submission_type_select}
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
@@ -5939,6 +5948,7 @@ def get_po_submissions(po_id):
                     pd.tablets_per_package,
                     tt.inventory_item_id,
                     ws.assigned_po_id
+                    {submission_type_select}
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
@@ -5950,11 +5960,15 @@ def get_po_submissions(po_id):
         print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query}")
         
         # Calculate total tablets and running bag totals for each submission
+        # Also calculate separate totals for machine vs packaged+bag counts
         bag_running_totals = {}
         submissions = []
+        machine_total = 0
+        packaged_bag_total = 0
         
         for sub in submissions_raw:
             sub_dict = dict(sub)
+            submission_type = sub_dict.get('submission_type', 'packaged')
             
             # Calculate total tablets for this submission
             displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
@@ -5964,25 +5978,36 @@ def get_po_submissions(po_id):
             total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
             sub_dict['total_tablets'] = total_tablets
             
-            # Calculate running total by bag PER PO
-            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-            # Key includes PO ID so each PO tracks its own bag totals independently
-            bag_key = (po_id, sub_dict.get('product_name', ''), bag_identifier)
-            if bag_key not in bag_running_totals:
-                bag_running_totals[bag_key] = 0
-            bag_running_totals[bag_key] += total_tablets
-            sub_dict['running_total'] = bag_running_totals[bag_key]
+            # Track totals separately by submission type
+            if submission_type == 'machine':
+                machine_total += total_tablets
+            else:  # 'packaged' or 'bag'
+                packaged_bag_total += total_tablets
             
-            # Determine count status
-            bag_count = sub_dict.get('bag_label_count', 0) or 0
-            if bag_count == 0:
-                sub_dict['count_status'] = 'no_bag'
-            elif abs(bag_running_totals[bag_key] - bag_count) <= 5:
-                sub_dict['count_status'] = 'match'
-            elif bag_running_totals[bag_key] < bag_count:
-                sub_dict['count_status'] = 'under'
+            # Calculate running total by bag PER PO (only for packaged/bag submissions)
+            if submission_type != 'machine':
+                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+                # Key includes PO ID so each PO tracks its own bag totals independently
+                bag_key = (po_id, sub_dict.get('product_name', ''), bag_identifier)
+                if bag_key not in bag_running_totals:
+                    bag_running_totals[bag_key] = 0
+                bag_running_totals[bag_key] += total_tablets
+                sub_dict['running_total'] = bag_running_totals[bag_key]
+                
+                # Determine count status (only for packaged/bag submissions)
+                bag_count = sub_dict.get('bag_label_count', 0) or 0
+                if bag_count == 0:
+                    sub_dict['count_status'] = 'no_bag'
+                elif abs(bag_running_totals[bag_key] - bag_count) <= 5:
+                    sub_dict['count_status'] = 'match'
+                elif bag_running_totals[bag_key] < bag_count:
+                    sub_dict['count_status'] = 'under'
+                else:
+                    sub_dict['count_status'] = 'over'
             else:
-                sub_dict['count_status'] = 'over'
+                # Machine counts don't have bag running totals
+                sub_dict['running_total'] = total_tablets
+                sub_dict['count_status'] = None
             
             submissions.append(sub_dict)
         
@@ -5993,7 +6018,12 @@ def get_po_submissions(po_id):
             'success': True,
             'po': dict(po),
             'submissions': submissions,
-            'count': len(submissions)
+            'count': len(submissions),
+            'totals': {
+                'machine': machine_total,
+                'packaged_bag': packaged_bag_total,
+                'total': machine_total + packaged_bag_total
+            }
         })
         
     except Exception as e:
