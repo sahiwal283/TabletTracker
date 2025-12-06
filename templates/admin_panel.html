@@ -59,6 +59,32 @@
             </div>
         </div>
 
+        <!-- Machine Configuration Card -->
+        <div class="card hover-lift w-full sm:w-80">
+            <div class="p-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-4">
+                    <svg class="w-7 h-7 text-primary" aria-hidden="true"><use href="#icon-gear" /></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Machine Configuration</h3>
+                <p class="text-sm text-gray-600 text-center mb-4">Configure machine production settings</p>
+                <div class="space-y-3">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Cards Per Turn</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="cards-per-turn-input" 
+                                   value="{{ cards_per_turn }}" 
+                                   min="1" 
+                                   class="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button onclick="saveCardsPerTurn()" 
+                                    class="btn-primary text-xs px-3 py-1.5">
+                                Save
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Number of cards produced in one machine turn</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
 
@@ -276,6 +302,44 @@ async function clearPOData() {
     } finally {
         button.disabled = false;
         button.style.opacity = '1';
+        button.textContent = originalText;
+    }
+}
+
+// Save cards per turn setting
+async function saveCardsPerTurn() {
+    const input = document.getElementById('cards-per-turn-input');
+    const value = parseInt(input.value);
+    
+    if (!value || value < 1) {
+        showError('Cards per turn must be at least 1');
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.textContent;
+    
+    try {
+        button.disabled = true;
+        button.textContent = 'Saving...';
+        
+        const response = await fetch('/api/settings/cards_per_turn', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cards_per_turn: value})
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message || 'Cards per turn saved successfully!');
+        } else {
+            showError(result.error || 'Failed to save setting');
+        }
+    } catch (error) {
+        showError('Failed to save: ' + error.message);
+    } finally {
+        button.disabled = false;
         button.textContent = originalText;
     }
 }

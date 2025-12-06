@@ -362,6 +362,27 @@ def init_db():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # App Settings table for system-wide configuration
+    c.execute('''CREATE TABLE IF NOT EXISTS app_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        setting_key TEXT UNIQUE NOT NULL,
+        setting_value TEXT NOT NULL,
+        description TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # Initialize default settings if they don't exist
+    default_settings = [
+        ('cards_per_turn', '1', 'Number of cards produced in one turn of the machine')
+    ]
+    for key, value, description in default_settings:
+        existing = c.execute('SELECT id FROM app_settings WHERE setting_key = ?', (key,)).fetchone()
+        if not existing:
+            c.execute('''
+                INSERT INTO app_settings (setting_key, setting_value, description)
+                VALUES (?, ?, ?)
+            ''', (key, value, description))
+    
     conn.commit()
     conn.close()
 
