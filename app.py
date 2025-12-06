@@ -3363,6 +3363,7 @@ def rename_category():
             return jsonify({'success': False, 'error': 'New name must be different from old name'}), 400
         
         conn = get_db()
+        conn.row_factory = sqlite3.Row
         
         # Check if new name already exists
         existing = conn.execute('''
@@ -3372,20 +3373,48 @@ def rename_category():
         ''', (new_name,)).fetchone()
         
         if existing:
-            conn.close()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
             return jsonify({'success': False, 'error': 'Category name already exists'}), 400
         
+        # Check if old category exists
+        old_exists = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM tablet_types 
+            WHERE category = ?
+        ''', (old_name,)).fetchone()
+        
+        if old_exists['count'] == 0:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            return jsonify({'success': False, 'error': f'Category "{old_name}" not found'}), 404
+        
         # Update all tablet types with the old category name
-        conn.execute('''
+        cursor = conn.execute('''
             UPDATE tablet_types 
             SET category = ?
             WHERE category = ?
         ''', (new_name, old_name))
         
+        rows_updated = cursor.rowcount
         conn.commit()
-        conn.close()
         
-        return jsonify({'success': True, 'message': f'Category renamed from "{old_name}" to "{new_name}"'})
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Category renamed from "{old_name}" to "{new_name}" ({rows_updated} tablet types updated)'
+        })
     except Exception as e:
         if conn:
             try:
