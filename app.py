@@ -2369,6 +2369,56 @@ def submit_count():
                 pass
         return jsonify({'error': str(e)}), 500
 
+@app.route('/submit_machine_count', methods=['POST'])
+@employee_required
+def submit_machine_count():
+    """Submit machine count reading"""
+    conn = None
+    try:
+        data = request.get_json()
+        
+        tablet_type_id = data.get('tablet_type_id')
+        machine_count = data.get('machine_count')
+        employee_name = data.get('employee_name', '').strip()
+        count_date = data.get('count_date')
+        
+        # Validation
+        if not tablet_type_id:
+            return jsonify({'error': 'Tablet type is required'}), 400
+        if machine_count is None or machine_count < 0:
+            return jsonify({'error': 'Valid machine count is required'}), 400
+        if not employee_name:
+            return jsonify({'error': 'Employee name is required'}), 400
+        if not count_date:
+            return jsonify({'error': 'Date is required'}), 400
+        
+        conn = get_db()
+        
+        # Verify tablet type exists
+        tablet_type = conn.execute('SELECT id FROM tablet_types WHERE id = ?', (tablet_type_id,)).fetchone()
+        if not tablet_type:
+            return jsonify({'error': 'Invalid tablet type'}), 400
+        
+        # Insert machine count record
+        conn.execute('''
+            INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
+            VALUES (?, ?, ?, ?)
+        ''', (tablet_type_id, machine_count, employee_name, count_date))
+        
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Machine count submitted successfully'})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/api/save_product', methods=['POST'])
 @admin_required
 def save_product():
