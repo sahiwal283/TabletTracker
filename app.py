@@ -52,17 +52,16 @@ def get_locale():
             ''', (session.get('employee_id'),)).fetchone()
             if employee and employee['preferred_language'] and employee['preferred_language'] in app.config['LANGUAGES']:
                 session['language'] = employee['preferred_language']
-                conn.close()
                 return employee['preferred_language']
-            conn.close()
         except Exception as e:
             # Continue to fallback if database query fails
+            pass
+        finally:
             if conn:
                 try:
                     conn.close()
                 except:
                     pass
-            pass
     
     # 4. Use session language if available
     if 'language' in session and session['language'] in app.config['LANGUAGES']:
@@ -465,15 +464,15 @@ def get_employee_role(username):
             'SELECT role FROM employees WHERE username = ? AND is_active = 1',
             (username,)
         ).fetchone()
-        conn.close()
         return result['role'] if result else None
     except Exception as e:
+        return None
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return None
 
 def has_permission(username, required_permission):
     """Check if an employee has a specific permission"""
@@ -5422,7 +5421,11 @@ def reassign_all_submissions():
         all_submissions = [dict(row) for row in all_submissions_rows]
         
         if not all_submissions:
-            conn.close()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
             return jsonify({'success': True, 'message': 'No submissions found'})
         
         matched_count = 0
