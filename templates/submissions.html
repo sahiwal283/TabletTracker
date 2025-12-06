@@ -632,22 +632,93 @@ let adminReassignSubmissionId = null;
 
 async function openAdminReassignModal(submissionId, currentPO, productName) {
     adminReassignSubmissionId = submissionId;
+    
+    // Ensure modal exists, create if it doesn't
+    let modal = document.getElementById('admin-reassign-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'admin-reassign-modal';
+        modal.className = 'hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.onclick = function(event) {
+            if (event.target === modal) {
+                closeAdminReassignModal();
+            }
+        };
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-xl font-bold">⚠️ Admin Override - Change PO</h3>
+                            <p class="text-sm text-orange-100 mt-1" id="admin-reassign-modal-subtitle"></p>
+                        </div>
+                        <button onclick="closeAdminReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="p-6">
+                    <div class="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                        <p class="text-sm text-red-800">
+                            <strong>⚠️ ADMIN OVERRIDE WARNING:</strong> This submission has been verified and locked. 
+                            Changing the PO assignment requires admin override confirmation.
+                        </p>
+                        <p class="text-sm text-red-700 mt-2">
+                            Current PO: <strong id="admin-reassign-current-po"></strong>
+                        </p>
+                    </div>
+                    
+                    <!-- Confirmation Section -->
+                    <div id="admin-reassign-confirm-section" class="mb-4">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="admin-reassign-confirm-checkbox" class="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                            <span class="text-sm text-gray-700">I understand this is an admin override and I want to proceed</span>
+                        </label>
+                    </div>
+                    
+                    <!-- PO Selection Section -->
+                    <div id="admin-reassign-pos-section" class="hidden">
+                        <div class="mb-2">
+                            <h4 class="font-semibold text-gray-900">Select New PO:</h4>
+                        </div>
+                        <div id="admin-reassign-pos-list" class="space-y-2 max-h-96 overflow-y-auto">
+                            <!-- PO list will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Now set the content
     const currentText = currentPO ? `Current: ${currentPO}` : 'Currently Unassigned';
-    document.getElementById('admin-reassign-modal-subtitle').textContent = `Product: ${productName} | ${currentText}`;
-    document.getElementById('admin-reassign-current-po').textContent = currentPO || 'Unassigned';
-    document.getElementById('admin-reassign-confirm-checkbox').checked = false;
-    document.getElementById('admin-reassign-confirm-section').classList.remove('hidden');
-    document.getElementById('admin-reassign-pos-section').classList.add('hidden');
-    document.getElementById('admin-reassign-modal').classList.remove('hidden');
+    const subtitleEl = document.getElementById('admin-reassign-modal-subtitle');
+    const currentPoEl = document.getElementById('admin-reassign-current-po');
+    const checkboxEl = document.getElementById('admin-reassign-confirm-checkbox');
+    const confirmSectionEl = document.getElementById('admin-reassign-confirm-section');
+    const posSectionEl = document.getElementById('admin-reassign-pos-section');
+    
+    if (subtitleEl) subtitleEl.textContent = `Product: ${productName} | ${currentText}`;
+    if (currentPoEl) currentPoEl.textContent = currentPO || 'Unassigned';
+    if (checkboxEl) checkboxEl.checked = false;
+    if (confirmSectionEl) confirmSectionEl.classList.remove('hidden');
+    if (posSectionEl) posSectionEl.classList.add('hidden');
+    modal.classList.remove('hidden');
     
     // Watch for checkbox change
-    document.getElementById('admin-reassign-confirm-checkbox').onchange = function() {
-        if (this.checked) {
-            loadAdminReassignPOs(submissionId, productName);
-        } else {
-            document.getElementById('admin-reassign-pos-section').classList.add('hidden');
-        }
-    };
+    if (checkboxEl) {
+        checkboxEl.onchange = function() {
+            if (this.checked) {
+                loadAdminReassignPOs(submissionId, productName);
+            } else {
+                if (posSectionEl) posSectionEl.classList.add('hidden');
+            }
+        };
+    }
 }
 
 async function loadAdminReassignPOs(submissionId, productName) {
