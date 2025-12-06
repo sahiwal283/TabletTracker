@@ -441,6 +441,9 @@ def admin_required(f):
         # Allow if admin authenticated OR if employee authenticated with admin role
         if not (session.get('admin_authenticated') or 
                 (session.get('employee_authenticated') and session.get('employee_role') == 'admin')):
+            # Check if this is an API request (starts with /api/)
+            if request.path.startswith('/api/'):
+                return jsonify({'success': False, 'error': 'Access denied. Admin authentication required.'}), 403
             return redirect(url_for('index'))  # Redirect to unified login
         return f(*args, **kwargs)
     return decorated_function

@@ -468,6 +468,20 @@ async function addCategory(categoryName) {
             })
         });
         
+        // Check if response is OK before parsing JSON
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson.error || errorMsg;
+            } catch {
+                errorMsg = errorText || errorMsg;
+            }
+            alert('Error: ' + errorMsg);
+            return;
+        }
+        
         const result = await response.json();
         if (result.success) {
             alert('Category added successfully! Assign tablet types to make it active.');
@@ -476,6 +490,7 @@ async function addCategory(categoryName) {
             alert('Error: ' + (result.error || 'Failed to add category'));
         }
     } catch (error) {
+        console.error('Add category error:', error);
         alert('Error: ' + error.message);
     }
 }
@@ -530,6 +545,20 @@ async function performDeleteCategory(categoryName) {
             })
         });
         
+        // Check if response is OK before parsing JSON
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson.error || errorMsg;
+            } catch {
+                errorMsg = errorText || errorMsg;
+            }
+            alert('Error: ' + errorMsg);
+            return;
+        }
+        
         const result = await response.json();
         if (result.success) {
             alert(result.message || 'Category deleted successfully!');
@@ -538,6 +567,7 @@ async function performDeleteCategory(categoryName) {
             alert('Error: ' + (result.error || 'Failed to delete category'));
         }
     } catch (error) {
+        console.error('Delete category error:', error);
         alert('Error: ' + error.message);
     }
 }
