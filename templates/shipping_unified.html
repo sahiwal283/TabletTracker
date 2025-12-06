@@ -218,11 +218,12 @@ async function submitReceives(event) {
     
     // Collect all form fields
     for (const [key, value] of formData.entries()) {
-        const parts = key.split('_');
-        if (parts.length === 4 && parts[0] === 'box' && parts[2] === 'bag') {
-            const boxNum = parts[1];
-            const bagNum = parts[3];
-            const fieldType = parts[parts.length - 1]; // 'tablet_type' or 'bag_count'
+        // Match pattern: box_{boxNum}_bag_{bagNum}_tablet_type or box_{boxNum}_bag_{bagNum}_bag_count
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count)$/);
+        if (match) {
+            const boxNum = match[1];
+            const bagNum = match[2];
+            const fieldType = match[3]; // 'tablet_type' or 'bag_count'
             
             if (!boxes[boxNum]) {
                 boxes[boxNum] = {};
