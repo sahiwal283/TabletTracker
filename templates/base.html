@@ -329,10 +329,10 @@
                     </a>
                     {% endif %}
                     
-                    <!-- Shipping - Manager+ -->
+                    <!-- Shipments Received - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-truck" /></svg> Shipping
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
                     </a>
                     {% endif %}
                     
