@@ -63,12 +63,11 @@
             {% endfor %}
             
             <!-- Unassigned tablet types -->
-            {% set unassigned = tablet_types | selectattr('category', 'none') | list %}
-            {% if unassigned %}
             <div class="border border-gray-200 rounded-lg p-4">
                 <h4 class="font-medium text-gray-900 mb-3">Unassigned</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {% for tablet_type in unassigned %}
+                    {% for tablet_type in tablet_types %}
+                    {% if not tablet_type.category or tablet_type.category == '' %}
                     <div class="flex items-center space-x-2 text-sm">
                         <select class="category-select text-xs border border-gray-300 rounded px-2 py-1" 
                                 data-tablet-type-id="{{ tablet_type.id }}"
@@ -80,10 +79,10 @@
                         </select>
                         <span>{{ tablet_type.tablet_type_name }}</span>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>
-            {% endif %}
         </div>
     </div>
 
