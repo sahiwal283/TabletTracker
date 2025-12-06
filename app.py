@@ -512,6 +512,33 @@ def ensure_app_settings_table():
             except:
                 pass
 
+def ensure_submission_type_column():
+    """Ensure submission_type column exists in warehouse_submissions table"""
+    conn = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        # Check if column exists
+        c.execute('PRAGMA table_info(warehouse_submissions)')
+        existing_cols = [row[1] for row in c.fetchall()]
+        if 'submission_type' not in existing_cols:
+            # Add the column
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN submission_type TEXT DEFAULT "packaged"')
+            # Backfill existing records
+            c.execute('UPDATE warehouse_submissions SET submission_type = "packaged" WHERE submission_type IS NULL')
+            conn.commit()
+            print("Added submission_type column to warehouse_submissions table")
+        conn.close()
+    except Exception as e:
+        print(f"Error ensuring submission_type column: {e}")
+        import traceback
+        traceback.print_exc()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 def get_setting(setting_key, default_value=None):
     """Get a setting value from app_settings table"""
     conn = None
@@ -737,6 +764,9 @@ def submit_warehouse():
         # Validate required fields
         if not data.get('product_name'):
             return jsonify({'error': 'product_name is required'}), 400
+        
+        # Ensure submission_type column exists
+        ensure_submission_type_column()
         
         # Get employee name from session
         conn = get_db()
@@ -2450,6 +2480,9 @@ def submit_count():
     try:
         data = request.get_json() if request.is_json else request.form
         
+        # Ensure submission_type column exists
+        ensure_submission_type_column()
+        
         # Validate required fields
         if not data.get('tablet_type'):
             return jsonify({'error': 'tablet_type is required'}), 400
@@ -2598,6 +2631,9 @@ def submit_machine_count():
     conn = None
     try:
         data = request.get_json()
+        
+        # Ensure submission_type column exists
+        ensure_submission_type_column()
         
         tablet_type_id = data.get('tablet_type_id')
         machine_count = data.get('machine_count')
