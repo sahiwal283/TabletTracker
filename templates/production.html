@@ -605,9 +605,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 machineCountForm.reset();
                 // Reset employee name if it was auto-filled
                 const employeeNameField = document.getElementById('machine_employee_name');
-                if (employeeNameField && '{{ employee.full_name if employee else "" }}') {
-                    employeeNameField.value = '{{ employee.full_name if employee else "" }}';
+                {% if employee %}
+                if (employeeNameField) {
+                    employeeNameField.value = '{{ employee.full_name }}';
                 }
+                {% endif %}
             } else {
                 showError(result.error || 'Submission failed');
             }
