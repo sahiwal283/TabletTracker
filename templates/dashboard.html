@@ -1373,17 +1373,30 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
         
         // Filter submissions by inventory_item_id if specified
         // This is more reliable than product name matching since names can differ between Zoho and submissions
-        const filteredSubmissions = inventoryItemId 
+        let filteredSubmissions = inventoryItemId 
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
+        // Apply type filter if specified
+        if (typeFilter === 'machine') {
+            filteredSubmissions = filteredSubmissions.filter(sub => (sub.submission_type || 'packaged') === 'machine');
+        } else if (typeFilter === 'packaged_bag') {
+            filteredSubmissions = filteredSubmissions.filter(sub => {
+                const subType = sub.submission_type || 'packaged';
+                return subType === 'packaged' || subType === 'bag';
+            });
+        }
+        // typeFilter === 'all' or null shows all submissions
         
         // Get product name for display from first submission or from filtered list
         const displayProductName = filteredSubmissions.length > 0 ? filteredSubmissions[0].product_name : '';
         
         // Calculate totals for the filtered submissions (when viewing a specific product)
+        // Use data.totals from API if available, otherwise calculate from filtered submissions
         let totals = null;
-        if (inventoryItemId && filteredSubmissions.length > 0) {
+        if (data.totals) {
+            totals = data.totals;
+        } else if (inventoryItemId && filteredSubmissions.length > 0) {
             totals = {
                 displays_made: 0,
                 packs_remaining: 0,
