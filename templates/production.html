@@ -6,25 +6,96 @@
 <div class="max-w-md mx-auto">
     <!-- Form Toggle Buttons -->
     <div class="flex justify-center mb-6 gap-2">
-        <button id="toggle-production-submission" onclick="switchForm('submission')" 
+        <button id="toggle-machine-count" onclick="switchForm('machine-count')" 
                 class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:shadow-xl">
-            Production Submission
+            Machine Count
+        </button>
+        <button id="toggle-production-submission" onclick="switchForm('submission')" 
+                class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+            Packaged
         </button>
         <button id="toggle-bag-count" onclick="switchForm('bag-count')" 
                 class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
             Bag Count
         </button>
-        <button id="toggle-machine-count" onclick="switchForm('machine-count')" 
-                class="px-6 py-3 rounded-lg font-semibold transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
-            Machine Count
-        </button>
     </div>
 
-    <!-- Production Submission Form (Default) -->
-    <div id="production-submission-form" class="card hover-lift p-8">
+    <!-- Machine Count Form (Default/First) -->
+    <div id="machine-count-form" class="card hover-lift p-8">
+        <div class="text-center mb-8">
+            <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-gear" /></svg></div>
+            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Machine Count</h2>
+            {% if employee %}
+            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
+                <p class="text-green-800 font-semibold flex items-center justify-center">
+                    <span class="text-2xl mr-3">👷</span>
+                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                </p>
+            </div>
+            {% endif %}
+            <p class="text-gray-600">Enter the counter number on the machine for that particular flavor</p>
+        </div>
+        
+        <form id="machine-count-form-submit" class="space-y-4">
+            <!-- Tablet Type Selection -->
+            <div>
+                <label for="machine_tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
+                    Tablet Type *
+                </label>
+                <select id="machine_tablet_type" name="tablet_type_id" required class="form-input">
+                    <option value="">Select tablet type...</option>
+                    {% for tablet_type in tablet_types %}
+                        <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Machine Count -->
+            <div>
+                <label for="machine_count" class="block text-sm font-medium text-gray-700 mb-1">
+                    Machine Count *
+                </label>
+                <input type="number" id="machine_count" name="machine_count" required
+                       class="form-input" min="0" placeholder="Enter counter number from machine">
+            </div>
+            
+            <!-- Employee Name (Auto-filled) -->
+            <div>
+                <label for="machine_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Name *
+                </label>
+                <input type="text" id="machine_employee_name" name="employee_name" required
+                       class="form-input" 
+                       value="{% if employee %}{{ employee.full_name }}{% endif %}"
+                       placeholder="Your name">
+            </div>
+            
+            <!-- Count Date -->
+            <div>
+                <label for="machine_count_date" class="block text-sm font-medium text-gray-700 mb-1">
+                    Date *
+                </label>
+                <input type="date" id="machine_count_date" name="count_date" required
+                       class="form-input" value="{{ today_date }}">
+                <p class="text-xs text-gray-500 mt-1">Change this if submitting for a different date</p>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="w-full py-4 px-6 text-lg font-bold btn-primary mt-8 transform transition-all duration-300 hover:scale-105 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
+                Submit Machine Count
+            </button>
+        </form>
+        
+        <!-- Success/Error Messages -->
+        <div id="machine-count-form-messages" class="mt-4"></div>
+    </div>
+
+    <!-- Packaged Form (Previously Production Submission) -->
+    <div id="production-submission-form" class="card hover-lift p-8 hidden">
         <div class="text-center mb-8">
             <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-box" /></svg></div>
-            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">{{ gettext('Production Submission') }}</h2>
+            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">{{ gettext('Packaged') }}</h2>
             {% if employee %}
             <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
                 <p class="text-green-800 font-semibold flex items-center justify-center">
@@ -281,76 +352,6 @@
         <div id="count-form-messages" class="mt-4"></div>
     </div>
 
-    <!-- Machine Count Form (Hidden by default) -->
-    <div id="machine-count-form" class="card hover-lift p-8 hidden">
-        <div class="text-center mb-8">
-            <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-gear" /></svg></div>
-            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Machine Count</h2>
-            {% if employee %}
-            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
-                <p class="text-green-800 font-semibold flex items-center justify-center">
-                    <span class="text-2xl mr-3">👷</span>
-                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
-                </p>
-            </div>
-            {% endif %}
-            <p class="text-gray-600">Enter the counter number on the machine for that particular flavor</p>
-        </div>
-        
-        <form id="machine-count-form-submit" class="space-y-4">
-            <!-- Tablet Type Selection -->
-            <div>
-                <label for="machine_tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
-                    Tablet Type *
-                </label>
-                <select id="machine_tablet_type" name="tablet_type_id" required class="form-input">
-                    <option value="">Select tablet type...</option>
-                    {% for tablet_type in tablet_types %}
-                        <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <!-- Machine Count -->
-            <div>
-                <label for="machine_count" class="block text-sm font-medium text-gray-700 mb-1">
-                    Machine Count *
-                </label>
-                <input type="number" id="machine_count" name="machine_count" required
-                       class="form-input" min="0" placeholder="Enter counter number from machine">
-            </div>
-            
-            <!-- Employee Name (Auto-filled) -->
-            <div>
-                <label for="machine_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
-                </label>
-                <input type="text" id="machine_employee_name" name="employee_name" required
-                       class="form-input" 
-                       value="{% if employee %}{{ employee.full_name }}{% endif %}"
-                       placeholder="Your name">
-            </div>
-            
-            <!-- Count Date -->
-            <div>
-                <label for="machine_count_date" class="block text-sm font-medium text-gray-700 mb-1">
-                    Date *
-                </label>
-                <input type="date" id="machine_count_date" name="count_date" required
-                       class="form-input" value="{{ today_date }}">
-                <p class="text-xs text-gray-500 mt-1">Change this if submitting for a different date</p>
-            </div>
-            
-            <!-- Submit Button -->
-            <button type="submit" class="w-full py-4 px-6 text-lg font-bold btn-primary mt-8 transform transition-all duration-300 hover:scale-105 flex items-center justify-center">
-                <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
-                Submit Machine Count
-            </button>
-        </form>
-        
-        <!-- Success/Error Messages -->
-        <div id="machine-count-form-messages" class="mt-4"></div>
-    </div>
 </div>
 
 <script>
@@ -375,7 +376,11 @@ function switchForm(formType) {
     });
     
     // Show selected form and highlight button
-    if (formType === 'submission') {
+    if (formType === 'machine-count') {
+        machineCountForm.classList.remove('hidden');
+        machineCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
+        machineCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+    } else if (formType === 'submission') {
         submissionForm.classList.remove('hidden');
         submissionBtn.classList.remove('bg-gray-200', 'text-gray-700');
         submissionBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
@@ -383,10 +388,6 @@ function switchForm(formType) {
         bagCountForm.classList.remove('hidden');
         bagCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
         bagCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
-    } else if (formType === 'machine-count') {
-        machineCountForm.classList.remove('hidden');
-        machineCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
-        machineCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
     }
 }
 

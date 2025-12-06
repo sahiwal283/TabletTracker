@@ -146,6 +146,30 @@ def init_db():
     except:
         pass  # Column already exists
     
+    # Add machine count columns to purchase_orders for separate tracking
+    try:
+        c.execute('ALTER TABLE purchase_orders ADD COLUMN machine_good_count INTEGER DEFAULT 0')
+    except:
+        pass
+    try:
+        c.execute('ALTER TABLE purchase_orders ADD COLUMN machine_damaged_count INTEGER DEFAULT 0')
+    except:
+        pass
+    
+    # Add machine count columns to po_lines for separate tracking
+    c.execute('PRAGMA table_info(po_lines)')
+    existing_po_lines_cols = [row[1] for row in c.fetchall()]
+    if 'machine_good_count' not in existing_po_lines_cols:
+        try:
+            c.execute('ALTER TABLE po_lines ADD COLUMN machine_good_count INTEGER DEFAULT 0')
+        except:
+            pass
+    if 'machine_damaged_count' not in existing_po_lines_cols:
+        try:
+            c.execute('ALTER TABLE po_lines ADD COLUMN machine_damaged_count INTEGER DEFAULT 0')
+        except:
+            pass
+    
     # PO Line Items table
     c.execute('''CREATE TABLE IF NOT EXISTS po_lines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -299,6 +323,18 @@ def init_db():
             print("Added tablet_type_id column to bags table")
         except Exception as e:
             print(f"Note: tablet_type_id column migration: {e}")
+    
+    # Add submission_type column to warehouse_submissions if it doesn't exist
+    c.execute('PRAGMA table_info(warehouse_submissions)')
+    existing_ws_cols = [row[1] for row in c.fetchall()]
+    if 'submission_type' not in existing_ws_cols:
+        try:
+            c.execute('ALTER TABLE warehouse_submissions ADD COLUMN submission_type TEXT DEFAULT "packaged"')
+            # Backfill existing records
+            c.execute('UPDATE warehouse_submissions SET submission_type = "packaged" WHERE submission_type IS NULL')
+            print("Added submission_type column to warehouse_submissions table")
+        except Exception as e:
+            print(f"Note: submission_type column migration: {e}")
     
     # Receiving table - tracks shipment arrival and photos
     c.execute('''CREATE TABLE IF NOT EXISTS receiving (
@@ -734,8 +770,8 @@ def submit_warehouse():
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged')
         ''', (employee_name, data.get('product_name'), inventory_item_id, data.get('box_number'),
               data.get('bag_number'), data.get('bag_label_count'),
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes))
@@ -1007,6 +1043,7 @@ def all_submissions():
                    tt.inventory_item_id, tt.id as tablet_type_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    ws.admin_notes,
+                   COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -2333,8 +2370,8 @@ def submit_count():
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
         ''', (data.get('employee_name'), data.get('tablet_type'), inventory_item_id, data.get('box_number'),
               data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date, admin_notes))
         
@@ -2433,7 +2470,7 @@ def submit_count():
 @app.route('/submit_machine_count', methods=['POST'])
 @employee_required
 def submit_machine_count():
-    """Submit machine count reading"""
+    """Submit machine count reading and create warehouse submission"""
     conn = None
     try:
         data = request.get_json()
@@ -2455,20 +2492,147 @@ def submit_machine_count():
         
         conn = get_db()
         
-        # Verify tablet type exists
-        tablet_type = conn.execute('SELECT id FROM tablet_types WHERE id = ?', (tablet_type_id,)).fetchone()
+        # Verify tablet type exists and get its info
+        tablet_type = conn.execute('''
+            SELECT id, tablet_type_name, inventory_item_id 
+            FROM tablet_types 
+            WHERE id = ?
+        ''', (tablet_type_id,)).fetchone()
         if not tablet_type:
             return jsonify({'error': 'Invalid tablet type'}), 400
         
-        # Insert machine count record
+        tablet_type = dict(tablet_type)
+        
+        # Get a product for this tablet type to get tablets_per_package
+        product = conn.execute('''
+            SELECT product_name, tablets_per_package 
+            FROM product_details 
+            WHERE tablet_type_id = ? 
+            LIMIT 1
+        ''', (tablet_type_id,)).fetchone()
+        
+        if not product:
+            return jsonify({'error': 'No product found for this tablet type. Please configure a product first.'}), 400
+        
+        product = dict(product)
+        tablets_per_package = product.get('tablets_per_package', 0)
+        
+        if tablets_per_package == 0:
+            return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
+        
+        # Get cards_per_turn setting
+        cards_per_turn_setting = get_setting('cards_per_turn', '1')
+        try:
+            cards_per_turn = int(cards_per_turn_setting)
+        except (ValueError, TypeError):
+            cards_per_turn = 1
+        
+        # Calculate total tablets: machine_count (turns) × cards_per_turn × tablets_per_package
+        try:
+            machine_count_int = int(machine_count)
+            total_tablets = machine_count_int * cards_per_turn * tablets_per_package
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid machine count value'}), 400
+        
+        # Insert machine count record (for historical tracking)
         conn.execute('''
             INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
             VALUES (?, ?, ?, ?)
-        ''', (tablet_type_id, machine_count, employee_name, count_date))
+        ''', (tablet_type_id, machine_count_int, employee_name, count_date))
+        
+        # Get inventory_item_id
+        inventory_item_id = tablet_type.get('inventory_item_id')
+        if not inventory_item_id:
+            conn.commit()
+            return jsonify({'warning': 'Tablet type inventory_item_id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
+        
+        # Create warehouse submission with submission_type='machine'
+        conn.execute('''
+            INSERT INTO warehouse_submissions 
+            (employee_name, product_name, inventory_item_id, loose_tablets, submission_date, submission_type)
+            VALUES (?, ?, ?, ?, ?, 'machine')
+        ''', (employee_name, product['product_name'], inventory_item_id, total_tablets, count_date))
+        
+        # Find open PO lines for this inventory item
+        po_lines = conn.execute('''
+            SELECT pl.*, po.closed
+            FROM po_lines pl
+            JOIN purchase_orders po ON pl.po_id = po.id
+            WHERE pl.inventory_item_id = ? AND po.closed = FALSE
+            AND COALESCE(po.internal_status, '') != 'Draft'
+            AND COALESCE(po.internal_status, '') != 'Cancelled'
+            ORDER BY po.po_number ASC
+        ''', (inventory_item_id,)).fetchall()
+        
+        if not po_lines:
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'warning': f'No open PO found for this tablet type. Submission saved.',
+                'message': f'Machine count submitted: {total_tablets} tablets calculated ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
+            })
+        
+        # Get the PO we'll assign to (first available line's PO - oldest PO number)
+        assigned_po_id = po_lines[0]['po_id'] if po_lines else None
+        
+        # Update submission with assigned PO
+        if assigned_po_id:
+            conn.execute('''
+                UPDATE warehouse_submissions 
+                SET assigned_po_id = ?
+                WHERE rowid = last_insert_rowid()
+            ''', (assigned_po_id,))
+        
+        # Only allocate to lines from the ASSIGNED PO
+        assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
+        
+        # Update machine_good_count (separate from regular good_count)
+        if assigned_po_lines:
+            line = assigned_po_lines[0]
+            conn.execute('''
+                UPDATE po_lines 
+                SET machine_good_count = machine_good_count + ?
+                WHERE id = ?
+            ''', (total_tablets, line['id']))
+            print(f"Machine count - Updated PO line {line['id']}: +{total_tablets} tablets (machine)")
+        
+        # Update PO header totals (separate machine counts)
+        updated_pos = set()
+        for line in assigned_po_lines:
+            if line['po_id'] not in updated_pos:
+                totals = conn.execute('''
+                    SELECT 
+                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                        COALESCE(SUM(good_count), 0) as total_good,
+                        COALESCE(SUM(damaged_count), 0) as total_damaged,
+                        COALESCE(SUM(machine_good_count), 0) as total_machine_good,
+                        COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
+                    FROM po_lines 
+                    WHERE po_id = ?
+                ''', (line['po_id'],)).fetchone()
+                
+                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+                
+                conn.execute('''
+                    UPDATE purchase_orders 
+                    SET ordered_quantity = ?, current_good_count = ?, 
+                        current_damaged_count = ?, remaining_quantity = ?,
+                        machine_good_count = ?, machine_damaged_count = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (totals['total_ordered'], totals['total_good'], 
+                      totals['total_damaged'], remaining,
+                      totals['total_machine_good'], totals['total_machine_damaged'],
+                      line['po_id']))
+                
+                updated_pos.add(line['po_id'])
         
         conn.commit()
         
-        return jsonify({'success': True, 'message': 'Machine count submitted successfully'})
+        return jsonify({
+            'success': True, 
+            'message': f'Machine count submitted: {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card). Applied to PO.'
+        })
     except Exception as e:
         import traceback
         traceback.print_exc()

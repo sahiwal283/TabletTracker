@@ -206,6 +206,21 @@
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.created_at|to_est if sub.created_at else 'N/A' }}
                     </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if sub.submission_type == 'machine' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                ⚙️ Machine
+                            </span>
+                        {% elif sub.submission_type == 'bag' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                📋 Bag Count
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                📦 Packaged
+                            </span>
+                        {% endif %}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-900">
                         <div class="flex items-center gap-2">
                             {{ sub.employee_name }}
