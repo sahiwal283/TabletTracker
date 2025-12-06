@@ -613,11 +613,11 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                         ${sub.assigned_po_id ? `
                         <div class="mt-3 flex items-center justify-center gap-2 flex-wrap">
                             <span class="text-xs text-gray-600">PO: ${sub.po_number || 'N/A'}</span>
-                            ${sub.po_verified ? `
+                                ${sub.po_verified ? `
                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-600 text-white">✓ Verified</span>
                                 ${isAdmin ? `
-                                    <button onclick="event.stopPropagation(); openAdminReassignModal(${sub.id}, '${sub.po_number || 'N/A'}', '${sub.product_name}')" 
-                                            class="text-xs text-orange-600 hover:text-orange-800 underline"
+                                    <button onclick="event.stopPropagation(); event.preventDefault(); openAdminReassignModal(${sub.id}, '${(sub.po_number || 'N/A').replace(/'/g, "\\'")}', '${(sub.product_name || '').replace(/'/g, "\\'")}')" 
+                                            class="text-xs text-orange-600 hover:text-orange-800 underline cursor-pointer"
                                             title="Change PO assignment (Admin override - verified submissions)">
                                         🔧 Change PO (Admin)
                                     </button>
@@ -1097,22 +1097,37 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
         document.body.appendChild(modal);
     }
     
-    const currentText = currentPO ? `Current: ${currentPO}` : 'Currently Unassigned';
-    document.getElementById('admin-reassign-modal-subtitle').textContent = `Product: ${productName} | ${currentText}`;
-    document.getElementById('admin-reassign-current-po').textContent = currentPO || 'Unassigned';
-    document.getElementById('admin-reassign-confirm-checkbox').checked = false;
-    document.getElementById('admin-reassign-confirm-section').classList.remove('hidden');
-    document.getElementById('admin-reassign-pos-section').classList.add('hidden');
-    modal.classList.remove('hidden');
-    
-    // Watch for checkbox change
-    document.getElementById('admin-reassign-confirm-checkbox').onchange = function() {
-        if (this.checked) {
-            loadAdminReassignPOs(submissionId, productName);
-        } else {
-            document.getElementById('admin-reassign-pos-section').classList.add('hidden');
+    // Wait for DOM to be ready, then access elements
+    setTimeout(() => {
+        const subtitleEl = document.getElementById('admin-reassign-modal-subtitle');
+        const currentPOEl = document.getElementById('admin-reassign-current-po');
+        const checkboxEl = document.getElementById('admin-reassign-confirm-checkbox');
+        const confirmSectionEl = document.getElementById('admin-reassign-confirm-section');
+        const posSectionEl = document.getElementById('admin-reassign-pos-section');
+        
+        if (!subtitleEl || !currentPOEl || !checkboxEl || !confirmSectionEl || !posSectionEl) {
+            console.error('Admin reassign modal elements not found');
+            alert('Error: Could not initialize admin reassign modal. Please refresh the page.');
+            return;
         }
-    };
+        
+        const currentText = currentPO ? `Current: ${currentPO}` : 'Currently Unassigned';
+        subtitleEl.textContent = `Product: ${productName} | ${currentText}`;
+        currentPOEl.textContent = currentPO || 'Unassigned';
+        checkboxEl.checked = false;
+        confirmSectionEl.classList.remove('hidden');
+        posSectionEl.classList.add('hidden');
+        modal.classList.remove('hidden');
+        
+        // Watch for checkbox change
+        checkboxEl.onchange = function() {
+            if (this.checked) {
+                loadAdminReassignPOs(submissionId, productName);
+            } else {
+                posSectionEl.classList.add('hidden');
+            }
+        };
+    }, 10);
 }
 
 async function loadAdminReassignPOs(submissionId, productName) {
