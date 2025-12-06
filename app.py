@@ -851,9 +851,16 @@ def submit_warehouse():
                 new_internal_status = current_status['internal_status'] if current_status else 'Active'
                 
                 # Auto-progression rules
-                if remaining == 0 and new_internal_status not in ['Complete', 'Reconciled', 'Ready for Payment']:
+                # Only mark as Complete if:
+                # 1. There are items ordered (total_ordered > 0)
+                # 2. Remaining is 0 or less
+                # 3. At least some items have been received (total_good + total_damaged > 0)
+                if (totals['total_ordered'] > 0 and 
+                    remaining <= 0 and 
+                    (totals['total_good'] + totals['total_damaged']) > 0 and
+                    new_internal_status not in ['Complete', 'Reconciled', 'Ready for Payment']):
                     new_internal_status = 'Complete'
-                    print(f"Auto-progressed PO {line['po_id']} to Complete (remaining = 0)")
+                    print(f"Auto-progressed PO {line['po_id']} to Complete (remaining = {remaining}, received = {totals['total_good'] + totals['total_damaged']})")
                 elif totals['total_good'] > 0 and new_internal_status == 'Active':
                     new_internal_status = 'Processing'
                     print(f"Auto-progressed PO {line['po_id']} to Processing (first submission)")
