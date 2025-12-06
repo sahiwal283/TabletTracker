@@ -1307,8 +1307,8 @@ def all_submissions():
             
             submissions_processed.append(sub_dict)
         
-        # Reverse to show newest first in UI
-        all_submissions = list(reversed(submissions_processed))  # All submissions, newest first
+        # Query already orders by DESC (newest first), so use as-is
+        all_submissions = submissions_processed  # All submissions, newest first
         
         # Pagination
         page = request.args.get('page', 1, type=int)
