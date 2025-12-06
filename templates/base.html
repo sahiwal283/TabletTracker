@@ -884,6 +884,115 @@ function organizeTabletTypeDropdown(selectElement) {
         selectElement.value = selectElement.dataset.selectedValue;
     }
 }
+
+// Add search functionality to tablet type dropdown
+function addTabletTypeSearch(selectElement) {
+    if (!selectElement || selectElement.tagName !== 'SELECT') return;
+    
+    // Check if search already added
+    if (selectElement.dataset.searchAdded === 'true') return;
+    selectElement.dataset.searchAdded = 'true';
+    
+    // Create search input wrapper
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative';
+    wrapper.style.position = 'relative';
+    
+    // Create search input
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search tablet types...';
+    searchInput.className = 'form-input mb-2';
+    searchInput.style.marginBottom = '0.5rem';
+    searchInput.style.paddingRight = '2.5rem';
+    
+    // Add search icon
+    const searchIcon = document.createElement('div');
+    searchIcon.innerHTML = `
+        <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+    `;
+    searchIcon.style.position = 'absolute';
+    searchIcon.style.right = '0.75rem';
+    searchIcon.style.top = '50%';
+    searchIcon.style.transform = 'translateY(-50%)';
+    searchIcon.style.pointerEvents = 'none';
+    
+    const searchWrapper = document.createElement('div');
+    searchWrapper.style.position = 'relative';
+    searchWrapper.appendChild(searchInput);
+    searchWrapper.appendChild(searchIcon);
+    
+    // Wrap the select element
+    const parent = selectElement.parentNode;
+    parent.insertBefore(wrapper, selectElement);
+    wrapper.appendChild(searchWrapper);
+    wrapper.appendChild(selectElement);
+    
+    // Filter function
+    function filterOptions(searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+        const optgroups = selectElement.querySelectorAll('optgroup');
+        const options = selectElement.querySelectorAll('option');
+        
+        if (!term) {
+            // Show all
+            optgroups.forEach(optgroup => {
+                optgroup.style.display = '';
+                Array.from(optgroup.options).forEach(opt => {
+                    opt.style.display = '';
+                });
+            });
+            options.forEach(opt => {
+                if (!opt.closest('optgroup')) {
+                    opt.style.display = '';
+                }
+            });
+            return;
+        }
+        
+        // Filter optgroups and options
+        optgroups.forEach(optgroup => {
+            const groupOptions = Array.from(optgroup.options);
+            const matchingOptions = groupOptions.filter(opt => 
+                opt.textContent.toLowerCase().includes(term)
+            );
+            
+            if (matchingOptions.length > 0) {
+                optgroup.style.display = '';
+                groupOptions.forEach(opt => {
+                    opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
+                });
+            } else {
+                optgroup.style.display = 'none';
+            }
+        });
+        
+        // Filter standalone options
+        options.forEach(opt => {
+            if (!opt.closest('optgroup') && opt.value) {
+                opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
+            }
+        });
+    }
+    
+    // Add event listener
+    searchInput.addEventListener('input', function(e) {
+        filterOptions(e.target.value);
+    });
+    
+    // Clear search when select changes
+    selectElement.addEventListener('change', function() {
+        if (selectElement.value) {
+            searchInput.value = '';
+            filterOptions('');
+        }
+    });
+    
+    // Show search input only when dropdown is focused/opened (optional enhancement)
+    // For now, keep it always visible for simplicity
+}
 </script>
 </body>
 </html>

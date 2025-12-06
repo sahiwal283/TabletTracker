@@ -76,6 +76,9 @@
                             // Preserve selected value
                             select.dataset.selectedValue = select.value;
                             organizeTabletTypeDropdown(select);
+                            if (typeof addTabletTypeSearch === 'function') {
+                                addTabletTypeSearch(select);
+                            }
                         }
                     });
                 </script>

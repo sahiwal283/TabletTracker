@@ -334,10 +334,13 @@ function addBag(boxNumber) {
     
     bagsContainer.appendChild(bagDiv);
     
-    // Organize the newly created dropdown
+    // Organize the newly created dropdown and add search
     const select = bagDiv.querySelector('select[name="box_' + boxNumber + '_bag_' + bagNumber + '_tablet_type"]');
     if (select && typeof organizeTabletTypeDropdown === 'function') {
         organizeTabletTypeDropdown(select);
+        if (typeof addTabletTypeSearch === 'function') {
+            addTabletTypeSearch(select);
+        }
     }
 }
 
