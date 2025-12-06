@@ -69,7 +69,7 @@ class ProductionReportGenerator:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def generate_production_report(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> bytes:
+    def generate_production_report(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None, tablet_type_id: int = None) -> bytes:
         """
         Generate comprehensive production report
         
@@ -77,6 +77,7 @@ class ProductionReportGenerator:
             start_date: Start date in YYYY-MM-DD format (optional)
             end_date: End date in YYYY-MM-DD format (optional) 
             po_numbers: List of specific PO numbers to include (optional)
+            tablet_type_id: Filter by specific tablet type ID (optional)
             
         Returns:
             bytes: PDF content
@@ -108,7 +109,7 @@ class ProductionReportGenerator:
             story.append(Spacer(1, 10))
             
             # Get report data
-            report_data = self._get_report_data(start_date, end_date, po_numbers)
+            report_data = self._get_report_data(start_date, end_date, po_numbers, tablet_type_id)
             
             # Executive Summary
             story.extend(self._create_executive_summary(report_data))
@@ -134,22 +135,22 @@ class ProductionReportGenerator:
                     pass
             raise Exception(f"Failed to generate production report: {str(e)}")
 
-    def _get_report_data(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> Dict:
+    def _get_report_data(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None, tablet_type_id: int = None) -> Dict:
         """Gather comprehensive data for the report"""
         conn = None
         try:
             conn = self.get_db_connection()
             
-            # Build date filter
+            # Build date filter (filter by submission date, not PO creation date)
             date_filter = ""
             params = []
             
             if start_date:
-                date_filter += " AND po.created_at >= ?"
+                date_filter += " AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?"
                 params.append(start_date)
             if end_date:
-                date_filter += " AND po.created_at <= ?"
-                params.append(end_date + " 23:59:59")
+                date_filter += " AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?"
+                params.append(end_date)
             
             # Build PO filter
             po_filter = ""
@@ -158,9 +159,22 @@ class ProductionReportGenerator:
                 po_filter = f" AND po.po_number IN ({placeholders})"
                 params.extend(po_numbers)
             
+            # Build tablet type filter
+            tablet_filter = ""
+            if tablet_type_id:
+                tablet_filter = """
+                    AND EXISTS (
+                        SELECT 1 FROM warehouse_submissions ws2
+                        JOIN product_details pd2 ON ws2.product_name = pd2.product_name
+                        WHERE ws2.assigned_po_id = po.id AND pd2.tablet_type_id = ?
+                    )
+                """
+                params.append(tablet_type_id)
+            
             # Get PO data with all related information
+            # Filter by submissions that match date/tablet type criteria
             po_query = f"""
-            SELECT 
+            SELECT DISTINCT
                 po.*,
                 s.tracking_number,
                 s.carrier,
@@ -175,7 +189,8 @@ class ProductionReportGenerator:
             FROM purchase_orders po
             LEFT JOIN shipments s ON po.id = s.po_id
             LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
-            WHERE 1=1 {date_filter} {po_filter}
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE 1=1 {date_filter} {po_filter} {tablet_filter}
             GROUP BY po.id
             ORDER BY po.created_at DESC
             """
@@ -223,7 +238,7 @@ class ProductionReportGenerator:
                 report_data['summary']['efficiency_rate'] = (report_data['summary']['total_produced'] / total_processed * 100) if total_processed > 0 else 0
             
             # Get product breakdown
-            report_data['summary']['product_breakdown'] = self._get_product_breakdown(conn, start_date, end_date, po_numbers)
+            report_data['summary']['product_breakdown'] = self._get_product_breakdown(conn, start_date, end_date, po_numbers, tablet_type_id)
             
             return report_data
         finally:
@@ -233,18 +248,18 @@ class ProductionReportGenerator:
                 except:
                     pass
 
-    def _get_product_breakdown(self, conn: sqlite3.Connection, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> List[Dict]:
+    def _get_product_breakdown(self, conn: sqlite3.Connection, start_date: str = None, end_date: str = None, po_numbers: List[str] = None, tablet_type_id: int = None) -> List[Dict]:
         """Get breakdown of ordered/produced/damaged by product/tablet type"""
         # Build filters
         date_filter = ""
         params = []
         
         if start_date:
-            date_filter += " AND po.created_at >= ?"
+            date_filter += " AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?"
             params.append(start_date)
         if end_date:
-            date_filter += " AND po.created_at <= ?"
-            params.append(end_date + " 23:59:59")
+            date_filter += " AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?"
+            params.append(end_date)
         
         po_filter = ""
         if po_numbers:
@@ -252,8 +267,14 @@ class ProductionReportGenerator:
             po_filter = f" AND po.po_number IN ({placeholders})"
             params.extend(po_numbers)
         
+        tablet_filter = ""
+        if tablet_type_id:
+            tablet_filter = " AND pd.tablet_type_id = ?"
+            params.append(tablet_type_id)
+        
         # Query to get ordered quantities by product from PO lines
         # Group by inventory_item_id to match how counts are calculated/stored
+        # Join with product_details and warehouse_submissions to filter by date and tablet type
         query = f"""
         SELECT 
             COALESCE(pl.line_item_name, 'Unknown') as product_name,
@@ -263,7 +284,9 @@ class ProductionReportGenerator:
             SUM(pl.damaged_count) as damaged
         FROM po_lines pl
         JOIN purchase_orders po ON pl.po_id = po.id
-        WHERE 1=1 {date_filter} {po_filter}
+        LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        WHERE 1=1 {date_filter} {po_filter} {tablet_filter}
         GROUP BY pl.inventory_item_id, pl.line_item_name
         ORDER BY ordered DESC
         """
@@ -807,7 +830,7 @@ class ProductionReportGenerator:
         
         return story
 
-    def generate_vendor_report(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None) -> bytes:
+    def generate_vendor_report(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None, tablet_type_id: int = None) -> bytes:
         """
         Generate vendor report - single page with only Production Breakdown by Product table
         
@@ -815,6 +838,7 @@ class ProductionReportGenerator:
             start_date: Start date in YYYY-MM-DD format (optional)
             end_date: End date in YYYY-MM-DD format (optional) 
             po_numbers: List of specific PO numbers to include (optional)
+            tablet_type_id: Filter by specific tablet type ID (optional)
             
         Returns:
             bytes: PDF content
@@ -846,7 +870,7 @@ class ProductionReportGenerator:
             story.append(Spacer(1, 12))
             
             # Get report data
-            report_data = self._get_report_data(start_date, end_date, po_numbers)
+            report_data = self._get_report_data(start_date, end_date, po_numbers, tablet_type_id)
             
             # Only include Production Breakdown by Product table
             summary = report_data['summary']

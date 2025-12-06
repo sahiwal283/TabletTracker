@@ -91,8 +91,31 @@
             <select id="po_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select a PO...</option>
             </select>
-            <p class="text-xs text-gray-500 mt-0.5">Select a PO to generate its detailed report (optional for vendor report)</p>
+            <p class="text-xs text-gray-500 mt-0.5">Select a PO to generate its detailed report (optional)</p>
         </div>
+        
+        <div>
+            <label for="report_tablet_type" class="block text-xs font-medium text-gray-700 mb-1">Tablet Type</label>
+            <select id="report_tablet_type" name="tablet_type_id" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">All Tablet Types</option>
+                {% for tablet_type in tablet_types %}
+                <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-500 mt-0.5">Filter by specific tablet type (optional)</p>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <label for="report_date_from" class="block text-xs font-medium text-gray-700 mb-1">Date From</label>
+                <input type="date" id="report_date_from" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="report_date_to" class="block text-xs font-medium text-gray-700 mb-1">Date To</label>
+                <input type="date" id="report_date_to" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+        <p class="text-xs text-gray-500">Filter by date range (optional)</p>
         
         <button onclick="generatePOReport()" id="generate-report-btn"
                 class="btn-primary w-full py-2 text-sm font-semibold transform transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -1218,10 +1241,19 @@ async function generatePOReport() {
     
     const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
     
-    // Vendor report doesn't require PO selection
-    if (reportType !== 'vendor' && !selector.value) {
-        showError('Please select a PO first');
-        return;
+    // Production report requires at least one filter (PO, tablet type, or date range)
+    if (reportType !== 'vendor') {
+        const tabletTypeSelect = document.getElementById('report_tablet_type');
+        const dateFrom = document.getElementById('report_date_from');
+        const dateTo = document.getElementById('report_date_to');
+        const hasPO = selector.value;
+        const hasTabletType = tabletTypeSelect && tabletTypeSelect.value;
+        const hasDateRange = (dateFrom && dateFrom.value) || (dateTo && dateTo.value);
+        
+        if (!hasPO && !hasTabletType && !hasDateRange) {
+            showError('Please select at least one filter: PO, Tablet Type, or Date Range');
+            return;
+        }
     }
     
     try {
@@ -1239,9 +1271,25 @@ async function generatePOReport() {
             report_type: reportType
         };
         
-        // Add PO numbers if PO is selected (for production report) or if vendor report with PO
+        // Add PO numbers if PO is selected
         if (selector.value) {
             requestData.po_numbers = [selector.value];
+        }
+        
+        // Add tablet type filter if selected
+        const tabletTypeSelect = document.getElementById('report_tablet_type');
+        if (tabletTypeSelect && tabletTypeSelect.value) {
+            requestData.tablet_type_id = parseInt(tabletTypeSelect.value);
+        }
+        
+        // Add date range filters if provided
+        const dateFrom = document.getElementById('report_date_from');
+        const dateTo = document.getElementById('report_date_to');
+        if (dateFrom && dateFrom.value) {
+            requestData.start_date = dateFrom.value;
+        }
+        if (dateTo && dateTo.value) {
+            requestData.end_date = dateTo.value;
         }
         
         // Make API request
@@ -1309,10 +1357,26 @@ async function generateAllPOsReport() {
             </span>
         `;
         
-        // Generate report with no filters (all POs)
+        // Generate report with filters
         const requestData = {
             report_type: reportType
         };
+        
+        // Add tablet type filter if selected
+        const tabletTypeSelect = document.getElementById('report_tablet_type');
+        if (tabletTypeSelect && tabletTypeSelect.value) {
+            requestData.tablet_type_id = parseInt(tabletTypeSelect.value);
+        }
+        
+        // Add date range filters if provided
+        const dateFrom = document.getElementById('report_date_from');
+        const dateTo = document.getElementById('report_date_to');
+        if (dateFrom && dateFrom.value) {
+            requestData.start_date = dateFrom.value;
+        }
+        if (dateTo && dateTo.value) {
+            requestData.end_date = dateTo.value;
+        }
         
         // Make API request
         const response = await fetch('/api/reports/production', {

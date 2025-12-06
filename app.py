@@ -1084,6 +1084,9 @@ def admin_dashboard():
         # Get closed POs for historical reference (removed from dashboard)
         closed_pos = []
         
+        # Get tablet types for report filters
+        tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
+        
         # Get recent submissions with calculated totals and running bag totals
         submissions_query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
@@ -1164,7 +1167,7 @@ def admin_dashboard():
             WHERE COALESCE(po_assignment_verified, 0) = 0
         ''').fetchone()['count']
         
-        return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count)
+        return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types)
     except Exception as e:
         print(f"Error in admin_dashboard: {e}")
         traceback.print_exc()
@@ -3593,6 +3596,7 @@ def generate_production_report():
         start_date = data.get('start_date')
         end_date = data.get('end_date') 
         po_numbers = data.get('po_numbers', [])
+        tablet_type_id = data.get('tablet_type_id')
         report_type = data.get('report_type', 'production')  # 'production' or 'vendor'
         
         # Validate date formats if provided
@@ -3615,7 +3619,8 @@ def generate_production_report():
             pdf_content = generator.generate_vendor_report(
                 start_date=start_date,
                 end_date=end_date,
-                po_numbers=po_numbers if po_numbers else None
+                po_numbers=po_numbers if po_numbers else None,
+                tablet_type_id=tablet_type_id
             )
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'vendor_report_{timestamp}.pdf'
@@ -3623,7 +3628,8 @@ def generate_production_report():
             pdf_content = generator.generate_production_report(
                 start_date=start_date,
                 end_date=end_date,
-                po_numbers=po_numbers if po_numbers else None
+                po_numbers=po_numbers if po_numbers else None,
+                tablet_type_id=tablet_type_id
             )
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'production_report_{timestamp}.pdf'
