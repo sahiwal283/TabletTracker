@@ -539,6 +539,38 @@ def ensure_submission_type_column():
             except:
                 pass
 
+def ensure_machine_counts_table():
+    """Ensure machine_counts table exists, create if missing"""
+    conn = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        # Check if table exists
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='machine_counts'")
+        if not c.fetchone():
+            # Create the table
+            c.execute('''CREATE TABLE IF NOT EXISTS machine_counts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tablet_type_id INTEGER,
+                machine_count INTEGER NOT NULL,
+                employee_name TEXT NOT NULL,
+                count_date DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
+            )''')
+            conn.commit()
+            print("Created machine_counts table")
+        conn.close()
+    except Exception as e:
+        print(f"Error ensuring machine_counts table: {e}")
+        import traceback
+        traceback.print_exc()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 def get_setting(setting_key, default_value=None):
     """Get a setting value from app_settings table"""
     conn = None
@@ -2632,8 +2664,9 @@ def submit_machine_count():
     try:
         data = request.get_json()
         
-        # Ensure submission_type column exists
+        # Ensure required tables/columns exist
         ensure_submission_type_column()
+        ensure_machine_counts_table()
         
         tablet_type_id = data.get('tablet_type_id')
         machine_count = data.get('machine_count')
