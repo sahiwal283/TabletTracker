@@ -571,6 +571,61 @@ def ensure_machine_counts_table():
             except:
                 pass
 
+def ensure_machine_count_columns():
+    """Ensure machine_good_count and machine_damaged_count columns exist in purchase_orders and po_lines tables"""
+    conn = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        
+        # Check and add columns to purchase_orders table
+        c.execute('PRAGMA table_info(purchase_orders)')
+        po_cols = [row[1] for row in c.fetchall()]
+        
+        if 'machine_good_count' not in po_cols:
+            try:
+                c.execute('ALTER TABLE purchase_orders ADD COLUMN machine_good_count INTEGER DEFAULT 0')
+                print("Added machine_good_count column to purchase_orders table")
+            except Exception as e:
+                print(f"Note: machine_good_count column migration: {e}")
+        
+        if 'machine_damaged_count' not in po_cols:
+            try:
+                c.execute('ALTER TABLE purchase_orders ADD COLUMN machine_damaged_count INTEGER DEFAULT 0')
+                print("Added machine_damaged_count column to purchase_orders table")
+            except Exception as e:
+                print(f"Note: machine_damaged_count column migration: {e}")
+        
+        # Check and add columns to po_lines table
+        c.execute('PRAGMA table_info(po_lines)')
+        po_lines_cols = [row[1] for row in c.fetchall()]
+        
+        if 'machine_good_count' not in po_lines_cols:
+            try:
+                c.execute('ALTER TABLE po_lines ADD COLUMN machine_good_count INTEGER DEFAULT 0')
+                print("Added machine_good_count column to po_lines table")
+            except Exception as e:
+                print(f"Note: machine_good_count column migration: {e}")
+        
+        if 'machine_damaged_count' not in po_lines_cols:
+            try:
+                c.execute('ALTER TABLE po_lines ADD COLUMN machine_damaged_count INTEGER DEFAULT 0')
+                print("Added machine_damaged_count column to po_lines table")
+            except Exception as e:
+                print(f"Note: machine_damaged_count column migration: {e}")
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error ensuring machine count columns: {e}")
+        import traceback
+        traceback.print_exc()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 def get_setting(setting_key, default_value=None):
     """Get a setting value from app_settings table"""
     conn = None
@@ -2667,6 +2722,7 @@ def submit_machine_count():
         # Ensure required tables/columns exist
         ensure_submission_type_column()
         ensure_machine_counts_table()
+        ensure_machine_count_columns()
         
         tablet_type_id = data.get('tablet_type_id')
         machine_count = data.get('machine_count')
