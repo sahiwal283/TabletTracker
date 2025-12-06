@@ -41,7 +41,7 @@
                             {% endif %}
                         </h3>
                         <p class="text-sm text-gray-600">
-                            Received on {{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}
+                            Received on {{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }} at {{ shipment.receiving.received_date[11:19] if shipment.receiving.received_date and shipment.receiving.received_date|length > 10 else '' }} EST
                             {% if shipment.receiving.received_by %}
                             by {{ shipment.receiving.received_by }}
                             {% endif %}

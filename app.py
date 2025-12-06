@@ -22,6 +22,11 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
 
+# Helper function to get current time in EST
+def get_est_timestamp():
+    """Get current timestamp in Eastern Time (EST/EDT)"""
+    return datetime.now(ZoneInfo('America/New_York')).strftime('%Y-%m-%d %H:%M:%S')
+
 # Configure Babel for internationalization
 app.config['LANGUAGES'] = {
     'en': 'English',
@@ -4573,11 +4578,12 @@ def process_receiving():
             
             # TODO: Upload to Zoho (implement after basic workflow is working)
         
-        # Create receiving record
+        # Create receiving record with EST timestamp
+        est_timestamp = get_est_timestamp()
         receiving_cursor = conn.execute('''
-            INSERT INTO receiving (po_id, shipment_id, total_small_boxes, received_by, notes, delivery_photo_path, delivery_photo_zoho_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (shipment['po_id'], shipment_id, total_small_boxes, received_by, notes, photo_path, zoho_photo_id))
+            INSERT INTO receiving (po_id, shipment_id, total_small_boxes, received_by, notes, delivery_photo_path, delivery_photo_zoho_id, received_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (shipment['po_id'], shipment_id, total_small_boxes, received_by, notes, photo_path, zoho_photo_id, est_timestamp))
         
         receiving_id = receiving_cursor.lastrowid
         
@@ -4704,11 +4710,12 @@ def save_receives():
         elif session.get('admin_authenticated'):
             received_by = 'Admin'
         
-        # Create receiving record (with optional PO assignment)
+        # Create receiving record (with optional PO assignment) with EST timestamp
+        est_timestamp = get_est_timestamp()
         receiving_cursor = conn.execute('''
             INSERT INTO receiving (po_id, received_by, received_date, total_small_boxes, notes)
-            VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
-        ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)'))
+            VALUES (?, ?, ?, ?, ?)
+        ''', (po_id if po_id else None, received_by, est_timestamp, len(boxes_data), f'Recorded {len(boxes_data)} box(es)'))
         
         receiving_id = receiving_cursor.lastrowid
         total_bags = 0
