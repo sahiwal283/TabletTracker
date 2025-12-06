@@ -48,6 +48,14 @@
                         <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
                     {% endfor %}
                 </select>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const select = document.getElementById('machine_tablet_type');
+                        if (select) {
+                            organizeTabletTypeDropdown(select);
+                        }
+                    });
+                </script>
             </div>
             
             <!-- Machine Count -->
@@ -270,6 +278,14 @@
                         </option>
                     {% endfor %}
                 </select>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const select = document.getElementById('tablet_type');
+                        if (select) {
+                            organizeTabletTypeDropdown(select);
+                        }
+                    });
+                </script>
             </div>
             
             <!-- Box Number -->

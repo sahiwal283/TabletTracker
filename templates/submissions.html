@@ -69,6 +69,16 @@
                     </option>
                     {% endfor %}
                 </select>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const select = document.getElementById('tablet_type_id');
+                        if (select && typeof organizeTabletTypeDropdown === 'function') {
+                            // Preserve selected value
+                            select.dataset.selectedValue = select.value;
+                            organizeTabletTypeDropdown(select);
+                        }
+                    });
+                </script>
             </div>
             
             <!-- Filter Buttons -->
