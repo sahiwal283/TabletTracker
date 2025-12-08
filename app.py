@@ -2226,12 +2226,14 @@ def shipping_unified():
             ORDER BY tablet_type_name
         ''').fetchall()
         
-        # Get all POs for managers/admin to assign
+        # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
         purchase_orders = []
-        if session.get('employee_role') in ['manager', 'admin']:
+        if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
             purchase_orders = conn.execute('''
                 SELECT id, po_number, closed, internal_status, zoho_status
                 FROM purchase_orders
+                WHERE closed = FALSE
+                AND COALESCE(internal_status, '') != 'Cancelled'
                 ORDER BY po_number DESC
             ''').fetchall()
         
