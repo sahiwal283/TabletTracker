@@ -2340,11 +2340,13 @@ def shipping_unified():
         auto_sync_categories(conn)
         
         # Get all tablet types for the form dropdown (with category)
-        tablet_types = conn.execute('''
+        tablet_types_raw = conn.execute('''
             SELECT id, tablet_type_name, category 
             FROM tablet_types 
             ORDER BY category, tablet_type_name
         ''').fetchall()
+        # Convert Row objects to dicts for JSON serialization
+        tablet_types = [dict(tt) for tt in tablet_types_raw]
         
         # Get all active categories from database
         categories = conn.execute('''
