@@ -3577,6 +3577,33 @@ def update_tablet_type_category():
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/debug/tablet_types', methods=['GET'])
+@admin_required
+def debug_tablet_types():
+    """Debug endpoint to see tablet types with categories"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all tablet types with their categories
+        tablet_types = conn.execute('''
+            SELECT id, tablet_type_name, category 
+            FROM tablet_types 
+            ORDER BY category, tablet_type_name
+        ''').fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'tablet_types': [dict(tt) for tt in tablet_types],
+            'count': len(tablet_types)
+        })
+    except Exception as e:
+        if conn:
+            conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/debug/categories', methods=['GET'])
 @admin_required
 def debug_categories():
