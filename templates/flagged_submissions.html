@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flagged Submissions - TabletTracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <div class="mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">🚩 Flagged Submissions</h1>
+                <p class="text-gray-600 mt-1">Submissions requiring manual review</p>
+            </div>
+            <a href="/dashboard" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                ← Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+                <div class="text-sm text-gray-600">Total Flagged</div>
+                <div class="text-3xl font-bold text-orange-600">{{ stats.total }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+                <div class="text-sm text-gray-600">Unassigned Legacy</div>
+                <div class="text-3xl font-bold text-red-600">{{ stats.unassigned_legacy }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+                <div class="text-sm text-gray-600">Duplicate Bags</div>
+                <div class="text-3xl font-bold text-yellow-600">{{ stats.duplicate_bags }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-gray-500">
+                <div class="text-sm text-gray-600">Other</div>
+                <div class="text-3xl font-bold text-gray-600">{{ stats.other }}</div>
+            </div>
+        </div>
+
+        {% if flagged %}
+        <!-- Flagged Submissions Table -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Box/Bag</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Count</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Flag Reason</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for sub in flagged %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{{ sub.id }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ sub.created_at[:10] if sub.created_at else 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ sub.employee_name }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">
+                            {{ sub.product_name }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {% if sub.box_number and sub.bag_number %}
+                                Box {{ sub.box_number }} / Bag {{ sub.bag_number }}
+                            {% else %}
+                                <span class="text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="px-2 py-1 text-xs rounded-full 
+                                {% if sub.submission_type == 'packaged' %}bg-blue-100 text-blue-800
+                                {% elif sub.submission_type == 'bag' %}bg-green-100 text-green-800
+                                {% elif sub.submission_type == 'machine' %}bg-purple-100 text-purple-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ sub.submission_type or 'packaged' }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {{ sub.calculated_total or 0 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="px-2 py-1 text-xs rounded-full font-medium
+                                {% if sub.flag_reason == 'Unassigned Legacy' %}bg-red-100 text-red-800
+                                {% elif sub.flag_reason == 'Duplicate Bag' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ sub.flag_reason }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {% if sub.po_number %}
+                                PO-{{ sub.po_number }}
+                            {% else %}
+                                <span class="text-gray-400">No PO</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <!-- No Flagged Submissions -->
+        <div class="bg-white rounded-lg shadow p-12 text-center">
+            <div class="text-6xl mb-4">✅</div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">All Clear!</h2>
+            <p class="text-gray-600">No submissions are currently flagged for review.</p>
+        </div>
+        {% endif %}
+
+        <!-- Help Info -->
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="font-semibold text-blue-900 mb-2">ℹ️ About Flagged Submissions</h3>
+            <ul class="text-sm text-blue-800 space-y-1">
+                <li><strong>Unassigned Legacy:</strong> Old submissions without PO or receive assignment (from before v1.68.0)</li>
+                <li><strong>Duplicate Bag:</strong> Multiple receives with the same tablet type, box number, and bag number</li>
+                <li><strong>Action:</strong> Review these submissions and manually assign POs if needed</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
+

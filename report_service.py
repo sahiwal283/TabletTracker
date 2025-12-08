@@ -166,7 +166,11 @@ class ProductionReportGenerator:
                     AND EXISTS (
                         SELECT 1 FROM warehouse_submissions ws2
                         JOIN product_details pd2 ON ws2.product_name = pd2.product_name
-                        WHERE ws2.assigned_po_id = po.id AND pd2.tablet_type_id = ?
+                        LEFT JOIN bags b ON ws2.bag_id = b.id
+                        LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+                        LEFT JOIN receiving r ON sb.receiving_id = r.id
+                        WHERE (ws2.bag_id IS NOT NULL AND r.po_id = po.id OR ws2.assigned_po_id = po.id)
+                        AND pd2.tablet_type_id = ?
                     )
                 """
                 params.append(tablet_type_id)
@@ -188,7 +192,15 @@ class ProductionReportGenerator:
                 MAX(ws.created_at) as last_submission
             FROM purchase_orders po
             LEFT JOIN shipments s ON po.id = s.po_id
-            LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+            LEFT JOIN warehouse_submissions ws ON (
+                po.id = ws.assigned_po_id OR 
+                EXISTS (
+                    SELECT 1 FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    WHERE ws.bag_id = b.id AND r.po_id = po.id
+                )
+            )
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             WHERE 1=1 {date_filter} {po_filter} {tablet_filter}
             GROUP BY po.id
@@ -284,7 +296,15 @@ class ProductionReportGenerator:
             SUM(pl.damaged_count) as damaged
         FROM po_lines pl
         JOIN purchase_orders po ON pl.po_id = po.id
-        LEFT JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
+        LEFT JOIN warehouse_submissions ws ON (
+            po.id = ws.assigned_po_id OR 
+            EXISTS (
+                SELECT 1 FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE ws.bag_id = b.id AND r.po_id = po.id
+            )
+        )
         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
         WHERE 1=1 {date_filter} {po_filter} {tablet_filter}
         GROUP BY pl.inventory_item_id, pl.line_item_name
@@ -322,15 +342,18 @@ class ProductionReportGenerator:
             # Shipment info
             shipment = conn.execute("SELECT * FROM shipments WHERE po_id = ?", (po_id,)).fetchone()
             
-            # Warehouse submissions
+            # Warehouse submissions (support both new bag-based and legacy PO-based)
             submissions = conn.execute("""
                 SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.tablet_type_name
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE ws.assigned_po_id = ?
+                LEFT JOIN bags b ON ws.bag_id = b.id
+                LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+                LEFT JOIN receiving r ON sb.receiving_id = r.id
+                WHERE (ws.bag_id IS NOT NULL AND r.po_id = ?) OR (ws.bag_id IS NULL AND ws.assigned_po_id = ?)
                 ORDER BY ws.created_at
-            """, (po_id,)).fetchall()
+            """, (po_id, po_id)).fetchall()
             
             # Convert to dicts to avoid sqlite3.Row issues
             po_dict = dict(po) if po else {}

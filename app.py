@@ -1444,6 +1444,76 @@ def all_submissions():
         if conn:
             conn.close()
 
+@app.route('/submissions/flagged')
+@role_required('dashboard')
+def flagged_submissions():
+    """View submissions that need review (duplicates, unassigned legacy data)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all submissions flagged for review
+        query = '''
+            SELECT ws.*, 
+                   po.po_number, 
+                   pd.packages_per_display, 
+                   pd.tablets_per_package,
+                   tt.tablet_type_name,
+                   b.bag_label_count as receive_bag_count,
+                   b.bag_number,
+                   sb.box_number,
+                   r.id as receiving_id,
+                   r.received_date,
+                   CASE 
+                       WHEN ws.bag_id IS NULL AND ws.assigned_po_id IS NULL THEN 'Unassigned Legacy'
+                       WHEN ws.bag_id IS NOT NULL THEN 'Duplicate Bag'
+                       ELSE 'Other'
+                   END as flag_reason,
+                   (
+                       CASE ws.submission_type
+                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                                                ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
+                           WHEN 'bag' THEN ws.loose_tablets
+                           WHEN 'machine' THEN ws.loose_tablets
+                           ELSE ws.loose_tablets
+                       END
+                   ) as calculated_total
+            FROM warehouse_submissions ws
+            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            LEFT JOIN bags b ON ws.bag_id = b.id
+            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+            LEFT JOIN receiving r ON sb.receiving_id = r.id
+            WHERE ws.needs_review = 1
+            ORDER BY ws.created_at DESC
+        '''
+        
+        flagged = conn.execute(query).fetchall()
+        flagged_list = [dict(row) for row in flagged]
+        
+        # Get counts by flag reason
+        stats = {
+            'total': len(flagged_list),
+            'unassigned_legacy': sum(1 for f in flagged_list if f['flag_reason'] == 'Unassigned Legacy'),
+            'duplicate_bags': sum(1 for f in flagged_list if f['flag_reason'] == 'Duplicate Bag'),
+            'other': sum(1 for f in flagged_list if f['flag_reason'] == 'Other')
+        }
+        
+        return render_template('flagged_submissions.html', flagged=flagged_list, stats=stats)
+        
+    except Exception as e:
+        print(f"Error in flagged_submissions: {e}")
+        traceback.print_exc()
+        flash('An error occurred while loading flagged submissions.', 'error')
+        return render_template('flagged_submissions.html', flagged=[], stats={'total': 0, 'unassigned_legacy': 0, 'duplicate_bags': 0, 'other': 0})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/submissions/export')
 @role_required('dashboard')
 def export_submissions_csv():
