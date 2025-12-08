@@ -1215,7 +1215,7 @@ def admin_dashboard():
             'draft_pos': 0,
             'total_remaining': 0
         })()
-        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0)
+        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0, tablet_types=[])
     finally:
         if conn:
             try:
