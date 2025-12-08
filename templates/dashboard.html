@@ -334,7 +334,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for sub in submissions %}
-                <tr class="submissions-row {% if not sub.po_verified %}bg-orange-50 border-l-4 border-orange-400{% else %}hover:bg-gray-50{% endif %}" 
+                <tr class="submissions-row {% if not sub.assigned_po_id %}bg-orange-50 border-l-4 border-orange-400{% else %}hover:bg-gray-50{% endif %}" 
                     data-po-closed="{{ 'true' if sub.po_closed else 'false' }}">
                     <td class="px-3 py-2 text-xs text-gray-500">
                         {{ sub.created_at|to_est_time if sub.created_at else 'N/A' }}
