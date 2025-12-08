@@ -1,0 +1,11 @@
+# Ignore all backup files
+*.db
+*.db.gz
+*.sha256
+*.meta.json
+*.log
+*.json
+
+# Keep directory structure
+!.gitignore
+!README.md

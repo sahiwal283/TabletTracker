@@ -1,0 +1,323 @@
+"""
+Shipping and Receiving routes
+"""
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
+import traceback
+from app.utils.db_utils import get_db
+from app.utils.auth_utils import admin_required, role_required
+
+bp = Blueprint('shipping', __name__)
+
+
+@bp.route('/shipping')
+@role_required('shipping')
+def shipping_unified():
+    """Shipments Received page - record shipments that arrive"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all tablet types for the form dropdown
+        tablet_types = conn.execute('''
+            SELECT id, tablet_type_name 
+            FROM tablet_types 
+            ORDER BY tablet_type_name
+        ''').fetchall()
+        
+        # Get all POs for managers/admin to assign
+        purchase_orders = []
+        if session.get('employee_role') in ['manager', 'admin']:
+            purchase_orders = conn.execute('''
+                SELECT id, po_number, closed, internal_status, zoho_status
+                FROM purchase_orders
+                ORDER BY po_number DESC
+            ''').fetchall()
+        
+        # Get all receiving records with their boxes and bags
+        receiving_records = conn.execute('''
+            SELECT r.*, 
+                   COUNT(DISTINCT sb.id) as box_count,
+                   COUNT(DISTINCT b.id) as total_bags,
+                   po.po_number
+            FROM receiving r
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+        ''').fetchall()
+        
+        # Calculate shipment numbers for each PO (numbered sequentially by received_date)
+        # Group shipments by PO and assign numbers
+        po_shipment_counts = {}
+        for rec in receiving_records:
+            po_id = rec['po_id']
+            if po_id:
+                if po_id not in po_shipment_counts:
+                    # Get all shipments for this PO ordered by received_date
+                    po_shipments = conn.execute('''
+                        SELECT id, received_date
+                        FROM receiving
+                        WHERE po_id = ?
+                        ORDER BY received_date ASC, id ASC
+                    ''', (po_id,)).fetchall()
+                    po_shipment_counts[po_id] = {
+                        shipment['id']: idx + 1 
+                        for idx, shipment in enumerate(po_shipments)
+                    }
+        
+        # For each receiving record, get its boxes and bags
+        shipments = []
+        for rec in receiving_records:
+            # Add shipment number if PO is assigned
+            rec_dict = dict(rec)
+            if rec['po_id'] and rec['po_id'] in po_shipment_counts:
+                rec_dict['shipment_number'] = po_shipment_counts[rec['po_id']].get(rec['id'], 1)
+            else:
+                rec_dict['shipment_number'] = None
+            boxes = conn.execute('''
+                SELECT sb.*, COUNT(b.id) as bag_count
+                FROM small_boxes sb
+                LEFT JOIN bags b ON sb.id = b.small_box_id
+                WHERE sb.receiving_id = ?
+                GROUP BY sb.id
+                ORDER BY sb.box_number
+            ''', (rec['id'],)).fetchall()
+            
+            # Get bags for each box with tablet type info
+            boxes_with_bags = []
+            for box in boxes:
+                bags = conn.execute('''
+                    SELECT b.*, tt.tablet_type_name
+                    FROM bags b
+                    LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.small_box_id = ?
+                    ORDER BY b.bag_number
+                ''', (box['id'],)).fetchall()
+                boxes_with_bags.append({
+                    'box': dict(box),
+                    'bags': [dict(bag) for bag in bags]
+                })
+            
+            shipments.append({
+                'receiving': rec_dict,
+                'boxes': boxes_with_bags
+            })
+        
+        return render_template('shipping_unified.html', 
+                             tablet_types=tablet_types,
+                             purchase_orders=purchase_orders,
+                             shipments=shipments,
+                             user_role=session.get('employee_role'))
+                             
+    except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"Error in shipping_unified: {str(e)}\n{error_details}")
+        return render_template('error.html', 
+                             error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/receiving')
+@admin_required  
+def receiving_management_v2():
+    """Receiving management page - REBUILT VERSION"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Simple query first - just check if we can access receiving table
+        try:
+            test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+            receiving_count = test_query['count'] if test_query else 0
+        except Exception as e:
+            return f"""
+            <h2>Database Error (v1.7.6 REBUILT)</h2>
+            <p>Cannot access receiving table: {str(e)}</p>
+            <p><a href="/debug/server-info">Check Database</a></p>
+            """
+        
+        # Get pending shipments (delivered but not yet received)
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        # Get recent receiving history
+        recent_receiving = conn.execute('''
+            SELECT r.*, po.po_number,
+                   COUNT(sb.id) as total_boxes,
+                   SUM(sb.total_bags) as total_bags
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+            LIMIT 20
+        ''').fetchall()
+        
+        return render_template('receiving_management.html', 
+                             pending_shipments=pending_shipments,
+                             recent_receiving=recent_receiving)
+                             
+    except Exception as e:
+        # If template fails, return simple HTML with version
+        return f"""
+        <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
+        <p>Template error: {str(e)}</p>
+        <p><a href="/receiving/debug">View debug info</a></p>
+        <p><a href="/debug/server-info">Check Server Info</a></p>
+        <p><a href="/admin">Back to admin</a></p>
+        """
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/shipments')
+def public_shipments():
+    """Read-only shipment status page for staff (no login required)."""
+    conn = None
+    try:
+        conn = get_db()
+        rows = conn.execute('''
+            SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
+                   s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
+            FROM shipments s
+            JOIN purchase_orders po ON po.id = s.po_id
+            ORDER BY s.updated_at DESC
+            LIMIT 200
+        ''').fetchall()
+        return render_template('shipments_public.html', shipments=rows)
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Error loading public shipments: {str(e)}")
+        print(f"Traceback: {error_trace}")
+        flash('Failed to load shipments. Please try again later.', 'error')
+        return render_template('shipments_public.html', shipments=[])
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+
+@bp.route('/receiving/debug')
+@admin_required
+def receiving_debug():
+    """Debug route to test receiving functionality"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Test database connections
+        po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
+        shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
+        receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+        
+        # Test the actual query
+        pending_shipments = conn.execute('''
+            SELECT s.*, po.po_number
+            FROM shipments s
+            JOIN purchase_orders po ON s.po_id = po.id
+            LEFT JOIN receiving r ON s.id = r.shipment_id
+            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+            ORDER BY s.delivered_at DESC, s.created_at DESC
+        ''').fetchall()
+        
+        debug_info = {
+            'status': 'success',
+            'database_counts': {
+                'purchase_orders': po_count['count'] if po_count else 0,
+                'shipments': shipment_count['count'] if shipment_count else 0,
+                'receiving': receiving_count['count'] if receiving_count else 0
+            },
+            'pending_shipments': len(pending_shipments),
+            'template_exists': 'receiving_management.html exists',
+            'version': '1.7.1'
+        }
+        
+        return f"""
+        <h2>Receiving Debug Info (v1.7.1)</h2>
+        <pre>{debug_info}</pre>
+        <p><a href="/receiving">Go to actual receiving page</a></p>
+        """
+        
+    except Exception as e:
+        return f"""
+        <h2>Receiving Debug Error</h2>
+        <p>Error: {str(e)}</p>
+        <p><a href="/receiving">Try receiving page anyway</a></p>
+        """
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+
+@bp.route('/receiving/<int:receiving_id>')
+@admin_required
+def receiving_details(receiving_id):
+    """View detailed information about a specific receiving record"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get receiving record with PO and shipment info
+        receiving = conn.execute('''
+            SELECT r.*, po.po_number, s.tracking_number, s.carrier
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN shipments s ON r.shipment_id = s.id
+            WHERE r.id = ?
+        ''', (receiving_id,)).fetchone()
+        
+        if not receiving:
+            flash('Receiving record not found', 'error')
+            return redirect(url_for('shipping.receiving_management_v2'))
+        
+        # Get box and bag details
+        boxes = conn.execute('''
+            SELECT sb.*, 
+                   GROUP_CONCAT(b.bag_number) as bag_numbers, 
+                   COUNT(b.id) as bag_count,
+                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
+            FROM small_boxes sb
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            WHERE sb.receiving_id = ?
+            GROUP BY sb.id
+            ORDER BY sb.box_number
+        ''', (receiving_id,)).fetchall()
+        
+        return render_template('receiving_details.html', 
+                             receiving=dict(receiving),
+                             boxes=[dict(box) for box in boxes])
+                             
+    except Exception as e:
+        flash(f'Error loading receiving details: {str(e)}', 'error')
+        return redirect(url_for('shipping.receiving_management_v2'))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
