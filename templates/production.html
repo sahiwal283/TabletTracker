@@ -164,15 +164,6 @@
                        class="form-input" min="1" max="999" placeholder="{{ gettext('Bag #') }}">
             </div>
             
-            <!-- Bag Label Count -->
-            <div>
-                <label for="bag_label_count" class="block text-sm font-medium text-gray-700 mb-1">
-                    {{ gettext('Bag Label Count') }} *
-                </label>
-                <input type="number" id="bag_label_count" name="bag_label_count" required
-                       class="form-input" min="0" placeholder="{{ gettext('Count on the bag label') }}">
-            </div>
-            
             <!-- Production Counts -->
             <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-indigo-100 space-y-4">
                 <div class="flex items-center mb-4">
@@ -193,22 +184,6 @@
                         {{ gettext('Cards Remaining') }} *
                     </label>
                     <input type="number" id="packs_remaining" name="packs_remaining" required
-                           class="form-input" min="0" value="0">
-                </div>
-                
-                <div>
-                    <label for="loose_tablets" class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ gettext('Loose Tablets') }} *
-                    </label>
-                    <input type="number" id="loose_tablets" name="loose_tablets" required
-                           class="form-input" min="0" value="0">
-                </div>
-                
-                <div>
-                    <label for="damaged_tablets" class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ gettext('Damaged Tablets') }} *
-                    </label>
-                    <input type="number" id="damaged_tablets" name="damaged_tablets" required
                            class="form-input" min="0" value="0">
                 </div>
             </div>

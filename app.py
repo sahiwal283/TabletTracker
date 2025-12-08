@@ -939,14 +939,13 @@ def submit_warehouse():
         try:
             displays_made = int(data.get('displays_made', 0) or 0)
             packs_remaining = int(data.get('packs_remaining', 0) or 0)
-            loose_tablets = int(data.get('loose_tablets', 0) or 0)
-            damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+            loose_tablets = 0  # No longer collected from form
+            damaged_tablets = 0  # No longer collected from form
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
         good_tablets = (displays_made * packages_per_display * tablets_per_package + 
-                       packs_remaining * tablets_per_package + 
-                       loose_tablets)
+                       packs_remaining * tablets_per_package)
         
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
@@ -965,8 +964,8 @@ def submit_warehouse():
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged')
         ''', (employee_name, data.get('product_name'), inventory_item_id, data.get('box_number'),
-              data.get('bag_number'), data.get('bag_label_count'),
-              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes))
+              data.get('bag_number'), 0,
+              displays_made, packs_remaining, 0, 0, submission_date, admin_notes))
         
         # Find open PO lines for this inventory item
         print(f"Looking for PO lines with inventory_item_id: {inventory_item_id}")
