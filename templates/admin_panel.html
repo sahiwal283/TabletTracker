@@ -99,20 +99,20 @@
                     SYNC ZOHO POs
                 </span>
             </button>
-            <button onclick="recalculatePOCounts()" 
-                    class="btn-primary py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
-                    title="Recalculate PO counts from current submissions WITHOUT changing any assignments. Safe to run anytime!">
+            <button onclick="lockSoftAssignments()" 
+                    class="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
+                    title="Lock in all soft PO assignments (one-time migration to v1.68+)">
                 <span class="flex items-center justify-center">
-                    <span class="text-base mr-1">🔢</span>
-                    Recalculate Counts
+                    <span class="text-base mr-1">🔒</span>
+                    Lock Soft Assignments
                 </span>
             </button>
-            <button onclick="reassignAllSubmissions()" 
-                    class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
-                    title="⚠️ WARNING: Reassign ALL submissions to POs using correct order. This will clear all current assignments!">
+            <button onclick="viewFlaggedSubmissions()" 
+                    class="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
+                    title="View submissions flagged for review (duplicates, unassigned legacy data)">
                 <span class="flex items-center justify-center">
-                    <span class="text-base mr-1">🔄</span>
-                    Reassign All
+                    <span class="text-base mr-1">🚩</span>
+                    View Flagged
                 </span>
             </button>
             <button onclick="clearPOData()" 
@@ -125,7 +125,7 @@
             </button>
         </div>
         <p class="text-xs text-gray-500 mt-3 text-center">
-            <strong>Clear PO Data:</strong> Start fresh testing • Fix corrupted sync data • Reset all counts to zero
+            <strong>Lock Soft Assignments:</strong> One-time migration to v1.68+ receive-based tracking • <strong>Clear PO Data:</strong> Start fresh testing
         </p>
     </div>
 </div>
@@ -196,9 +196,9 @@ async function syncZohoPOs() {
     }
 }
 
-// Recalculate PO counts
-async function recalculatePOCounts() {
-    if (!confirm('Recalculate all PO counts from current submissions? This will update counts without changing assignments.')) {
+// Lock in soft assignments (one-time migration)
+async function lockSoftAssignments() {
+    if (!confirm('🔒 Lock in all soft PO assignments?\n\nThis will:\n✅ Mark all assigned submissions as verified (locked)\n✅ Flag unassigned submissions for review\n✅ Complete migration to receive-based tracking\n\nThis is a ONE-TIME migration. Continue?')) {
         return;
     }
     
@@ -208,9 +208,9 @@ async function recalculatePOCounts() {
     try {
         button.disabled = true;
         button.style.opacity = '0.6';
-        button.textContent = '🔢 Recalculating...';
+        button.textContent = '🔒 Locking...';
         
-        const response = await fetch('/api/recalculate_po_counts', {
+        const response = await fetch('/api/migrations/lock_soft_assignments', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -218,12 +218,12 @@ async function recalculatePOCounts() {
         const result = await response.json();
         
         if (result.success) {
-            showSuccess(result.message || '✅ Counts recalculated successfully!');
+            showSuccess(result.message || '✅ Soft assignments locked successfully!');
         } else {
-            showError('❌ Recalculation failed: ' + (result.error || 'Unknown error'));
+            showError('❌ Failed: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
-        showError('Recalculation failed: ' + error.message);
+        showError('Failed: ' + error.message);
     } finally {
         button.disabled = false;
         button.style.opacity = '1';
@@ -231,39 +231,9 @@ async function recalculatePOCounts() {
     }
 }
 
-// Reassign all submissions
-async function reassignAllSubmissions() {
-    if (!confirm('⚠️ WARNING: This will clear ALL current PO assignments and reassign all submissions using the correct PO order (by PO number). This cannot be undone. Continue?')) {
-        return;
-    }
-    
-    const button = event.target.closest('button');
-    const originalText = button.textContent;
-    
-    try {
-        button.disabled = true;
-        button.style.opacity = '0.6';
-        button.textContent = '🔄 Reassigning...';
-        
-        const response = await fetch('/api/reassign_all_submissions', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showSuccess(result.message || '✅ All submissions reassigned successfully!');
-        } else {
-            showError('❌ Reassignment failed: ' + (result.error || 'Unknown error'));
-        }
-    } catch (error) {
-        showError('Reassignment failed: ' + error.message);
-    } finally {
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.textContent = originalText;
-    }
+// View flagged submissions
+function viewFlaggedSubmissions() {
+    window.location.href = '/submissions/flagged';
 }
 
 // Clear PO data
