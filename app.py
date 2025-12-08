@@ -2292,12 +2292,21 @@ def shipping_unified():
     try:
         conn = get_db()
         
-        # Get all tablet types for the form dropdown
+        # Get all tablet types for the form dropdown (with category)
         tablet_types = conn.execute('''
-            SELECT id, tablet_type_name 
+            SELECT id, tablet_type_name, category 
             FROM tablet_types 
-            ORDER BY tablet_type_name
+            ORDER BY category, tablet_type_name
         ''').fetchall()
+        
+        # Get all active categories from database
+        categories = conn.execute('''
+            SELECT category_name 
+            FROM categories 
+            WHERE is_active = TRUE 
+            ORDER BY display_order, category_name
+        ''').fetchall()
+        all_categories = [cat['category_name'] for cat in categories]
         
         # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
         purchase_orders = []
@@ -2383,6 +2392,7 @@ def shipping_unified():
         
         return render_template('shipping_unified.html', 
                              tablet_types=tablet_types,
+                             categories=all_categories,
                              purchase_orders=purchase_orders,
                              shipments=shipments,
                              user_role=session.get('employee_role'))

@@ -375,9 +375,29 @@ function addBag(boxNumber) {
                 <select name="box_${boxNumber}_bag_${bagNumber}_tablet_type" 
                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
                     <option value="">Select tablet type...</option>
-                    {% for tablet_type in tablet_types %}
-                    <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                    {% for category in categories %}
+                        <optgroup label="{{ category }}">
+                            {% for tablet_type in tablet_types %}
+                                {% if tablet_type.category == category %}
+                                    <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </optgroup>
                     {% endfor %}
+                    <!-- Uncategorized tablet types -->
+                    {% set has_uncategorized = false %}
+                    {% for tablet_type in tablet_types %}
+                        {% if not tablet_type.category or tablet_type.category == '' %}
+                            {% if not has_uncategorized %}
+                                <optgroup label="⚠️ Uncategorized">
+                                {% set has_uncategorized = true %}
+                            {% endif %}
+                            <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                    {% if has_uncategorized %}
+                        </optgroup>
+                    {% endif %}
                 </select>
             </div>
             <div>
