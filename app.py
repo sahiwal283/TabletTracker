@@ -1988,13 +1988,7 @@ def get_po_lines(po_id):
             SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
         ''', (po_id,)).fetchall()
         
-        # Count unverified submissions for this PO
-        unverified_query = '''
-            SELECT COUNT(*) as count
-            FROM warehouse_submissions
-            WHERE assigned_po_id = ? AND COALESCE(po_assignment_verified, 0) = 0
-        '''
-        unverified_count = conn.execute(unverified_query, (po_id,)).fetchone()
+        # Verification workflow removed - all submissions now link to receives
         
         # Get current PO details including status and parent
         current_po = conn.execute('''
@@ -2071,8 +2065,6 @@ def get_po_lines(po_id):
         
         result = {
             'lines': lines_with_rounds,
-            'has_unverified_submissions': unverified_count['count'] > 0 if unverified_count else False,
-            'unverified_count': unverified_count['count'] if unverified_count else 0,
             'po_status': po_status,
             'overs_po': overs_po,
             'parent_po': parent_po
