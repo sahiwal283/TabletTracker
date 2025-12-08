@@ -3401,22 +3401,8 @@ def rename_category():
                     pass
             return jsonify({'success': False, 'error': 'Category name already exists'}), 400
         
-        # Check if old category exists and get count
-        old_exists = conn.execute('''
-            SELECT COUNT(*) as count
-            FROM tablet_types 
-            WHERE category = ?
-        ''', (old_name,)).fetchone()
-        
-        if old_exists['count'] == 0:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            return jsonify({'success': False, 'error': f'Category "{old_name}" not found or has no tablet types assigned'}), 404
-        
-        # Update all tablet types with the old category name
+        # Update all tablet types with the old category name (if any exist)
+        # Note: If no tablet types have this category, the UPDATE will affect 0 rows, which is fine
         cursor = conn.execute('''
             UPDATE tablet_types 
             SET category = ?
@@ -3425,14 +3411,14 @@ def rename_category():
         
         rows_updated = cursor.rowcount
         
-        # Verify the update worked
+        # Verify the update worked by checking new category exists with expected count
         verify_update = conn.execute('''
             SELECT COUNT(*) as count
             FROM tablet_types 
             WHERE category = ?
         ''', (new_name,)).fetchone()
         
-        if verify_update['count'] != old_exists['count']:
+        if verify_update['count'] != rows_updated:
             conn.rollback()
             if conn:
                 try:
