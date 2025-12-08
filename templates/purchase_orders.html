@@ -20,10 +20,10 @@
 
 <!-- Filter Tabs -->
 <div class="mb-6 flex gap-4">
-    <button onclick="filterPOs('all')" id="btn-all" class="px-6 py-3 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-lg">
+    <button onclick="filterPOs('all')" id="btn-all" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
         All POs (<span id="count-all">{{ purchase_orders|length }}</span>)
     </button>
-    <button onclick="filterPOs('open')" id="btn-open" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
+    <button onclick="filterPOs('open')" id="btn-open" class="px-6 py-3 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-lg">
         Open (<span id="count-open">0</span>)
     </button>
     <button onclick="filterPOs('closed')" id="btn-closed" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
@@ -189,9 +189,9 @@ function filterPOs(status) {
     });
 }
 
-// Initialize counts on page load
+// Initialize counts on page load - default to Open POs for most relevant view
 document.addEventListener('DOMContentLoaded', function() {
-    filterPOs('all');
+    filterPOs('open');
 });
 
 // Modal functions (from dashboard)
