@@ -1360,36 +1360,7 @@ def all_submissions():
         # Get submissions for current page
         submissions = all_submissions[start_idx:end_idx]
         
-        # Count unverified submissions (respecting current filters)
-        unverified_query = '''
-            SELECT COUNT(*) as count
-            FROM warehouse_submissions ws
-            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            WHERE COALESCE(ws.po_assignment_verified, 0) = 0
-        '''
-        unverified_params = []
-        if filter_po_id:
-            unverified_query += ' AND ws.assigned_po_id = ?'
-            unverified_params.append(filter_po_id)
-        if filter_item_id:
-            unverified_query += ' AND tt.inventory_item_id = ?'
-            unverified_params.append(filter_item_id)
-        if filter_date_from:
-            unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
-            unverified_params.append(filter_date_from)
-        if filter_date_to:
-            unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
-            unverified_params.append(filter_date_to)
-        if filter_tablet_type_id:
-            unverified_query += ' AND tt.id = ?'
-            unverified_params.append(filter_tablet_type_id)
-        if filter_submission_type:
-            unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
-            unverified_params.append(filter_submission_type)
-        
-        unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
+        # Verification workflow removed - using receive-based tracking
         
         # Pagination info
         pagination = {
@@ -1433,13 +1404,13 @@ def all_submissions():
         # Get all tablet types for the filter dropdown
         tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
-        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
+        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, tablet_types=tablet_types, 
                              filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
-        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0)
+        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={})
     finally:
         if conn:
             conn.close()
