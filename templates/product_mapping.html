@@ -372,12 +372,11 @@ function toggleCategory(categoryName) {
     }
 }
 
-// Initialize - expand all categories by default
+// Initialize - collapse all categories by default (user can expand as needed)
 document.addEventListener('DOMContentLoaded', function() {
-    // All categories start expanded, no need to do anything
-    // But you can uncomment below to start collapsed:
-    // document.querySelectorAll('.category-content').forEach(content => content.style.display = 'none');
-    // document.querySelectorAll('.category-chevron').forEach(chevron => chevron.style.transform = 'rotate(-90deg)');
+    // Start with all categories collapsed for cleaner initial view
+    document.querySelectorAll('.category-content').forEach(content => content.style.display = 'none');
+    document.querySelectorAll('.category-chevron').forEach(chevron => chevron.style.transform = 'rotate(-90deg)');
 });
 
 // Add new product
