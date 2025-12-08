@@ -980,7 +980,7 @@ async function convertToTwoLevelDropdown(selectElement) {
     
     // Try to fetch configured categories from API
     let groups = {};
-    let groupOrder = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other'];
+    let groupOrder = []; // Will be populated from API, no hardcoded fallback
     
     try {
         const response = await fetch('/api/tablet_types/categories');

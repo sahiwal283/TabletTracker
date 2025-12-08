@@ -1189,7 +1189,7 @@ def submit_warehouse():
         conn.commit()
         
         return jsonify({
-            'success': True,
+            'success': True, 
             'message': 'Submission processed successfully',
             'bag_id': bag['id'],
             'po_number': bag['po_id'],
@@ -3103,7 +3103,7 @@ def submit_count():
             return jsonify({'error': error}), 404
         
         # Insert count record with bag_id (no PO allocation logic)
-        conn.execute('''
+            conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              bag_id, assigned_po_id, needs_review, loose_tablets, 
@@ -3257,7 +3257,7 @@ def submit_machine_count():
             })
         
         # Create warehouse submission with submission_type='machine' and bag_id
-        conn.execute('''
+            conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number,
              bag_id, assigned_po_id, needs_review, loose_tablets, submission_date, admin_notes, submission_type)
@@ -3268,7 +3268,7 @@ def submit_machine_count():
         conn.commit()
         
         return jsonify({
-            'success': True,
+            'success': True, 
             'message': f'Machine count submitted ({machine["machine_name"]}): {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)',
             'bag_id': bag['id'],
             'needs_review': needs_review
@@ -3517,10 +3517,18 @@ def get_tablet_type_categories():
                 categories['Other'] = []
             categories['Other'].extend(unassigned)
         
+        # Get category order from categories table (dynamic, not hardcoded!)
+        category_rows = conn.execute('''
+            SELECT category_name FROM categories 
+            WHERE is_active = TRUE 
+            ORDER BY display_order, category_name
+        ''').fetchall()
+        category_order = [row['category_name'] for row in category_rows]
+        
         return jsonify({
             'success': True,
             'categories': categories,
-            'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'Hyroxi XL', 'Hyroxi Regular', 'Other']
+            'category_order': category_order
         })
     except Exception as e:
         import traceback
@@ -3701,8 +3709,8 @@ def add_category():
         
         if existing:
             if existing['is_active']:
-                conn.close()
-                return jsonify({'success': False, 'error': 'Category already exists'}), 400
+                    conn.close()
+            return jsonify({'success': False, 'error': 'Category already exists'}), 400
             else:
                 # Reactivate inactive category
                 conn.execute('''
@@ -3728,7 +3736,7 @@ def add_category():
         ''', (category_name, new_order))
         
         conn.commit()
-        conn.close()
+                conn.close()
         
         return jsonify({
             'success': True, 
@@ -3778,7 +3786,7 @@ def rename_category():
         ''', (new_name,)).fetchone()
         
         if new_exists:
-            conn.close()
+                    conn.close()
             return jsonify({'success': False, 'error': 'Category name already exists'}), 400
         
         # Update the category name in categories table
@@ -3798,7 +3806,7 @@ def rename_category():
         tablet_types_updated = cursor.rowcount
         
         conn.commit()
-        conn.close()
+                conn.close()
         
         return jsonify({
             'success': True, 
@@ -3848,17 +3856,17 @@ def delete_category():
             WHERE id = ?
         ''', (category['id'],))
         
-        # Remove category from all tablet types (set to NULL)
-        cursor = conn.execute('''
-            UPDATE tablet_types 
-            SET category = NULL
-            WHERE category = ?
-        ''', (category_name,))
-        
+            # Remove category from all tablet types (set to NULL)
+            cursor = conn.execute('''
+                UPDATE tablet_types 
+                SET category = NULL
+                WHERE category = ?
+            ''', (category_name,))
+            
         tablet_types_updated = cursor.rowcount
-        
+            
         conn.commit()
-        conn.close()
+                conn.close()
         
         return jsonify({
             'success': True, 

@@ -148,10 +148,10 @@
             
             <!-- Category Products (Collapsible Content) -->
             <div id="category-{{ category }}" class="category-content">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tablet Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Packages per Display</th>
@@ -159,9 +159,9 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory Item ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Example Calculation</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
                             {% for product in category_products %}
                             <tr class="hover:bg-gray-50" id="product-row-{{ product.id }}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -217,7 +217,7 @@
         
         <!-- Uncategorized Products -->
         {% set uncategorized = [] %}
-        {% for product in products %}
+                    {% for product in products %}
             {% if not product.category or product.category == '' %}
                 {% set _ = uncategorized.append(product) %}
             {% endif %}
@@ -253,53 +253,53 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             {% for product in uncategorized %}
-                            <tr class="hover:bg-gray-50" id="product-row-{{ product.id }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    <span class="product-display" id="name-display-{{ product.id }}">{{ product.product_name }}</span>
-                                    <input type="text" class="form-input product-edit hidden" id="name-edit-{{ product.id }}" value="{{ product.product_name }}">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span class="product-display" id="type-display-{{ product.id }}">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {{ product.tablet_type_name }}
-                                        </span>
-                                    </span>
-                                    <input type="text" list="tablet-types-list-edit" class="form-input product-edit hidden text-sm" 
-                                           id="type-edit-{{ product.id }}" value="{{ product.tablet_type_name }}">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span class="product-display" id="ppd-display-{{ product.id }}">{{ product.packages_per_display }}</span>
-                                    <input type="number" class="form-input product-edit hidden" id="ppd-edit-{{ product.id }}" value="{{ product.packages_per_display }}" min="1">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span class="product-display" id="tpp-display-{{ product.id }}">{{ product.tablets_per_package }}</span>
-                                    <input type="number" class="form-input product-edit hidden" id="tpp-edit-{{ product.id }}" value="{{ product.tablets_per_package }}" min="1">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                                    {{ product.inventory_item_id or 'Not Set' }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-400">
-                                    1 display = {{ product.packages_per_display * product.tablets_per_package }} tablets
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <div class="product-display" id="actions-display-{{ product.id }}">
-                                        <button onclick="editProduct({{ product.id }})" 
-                                                class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
-                                        <button onclick="deleteProduct({{ product.id }})" 
-                                                class="text-red-600 hover:text-red-900">Delete</button>
-                                    </div>
-                                    <div class="product-edit hidden" id="actions-edit-{{ product.id }}">
-                                        <button onclick="saveProduct({{ product.id }})" 
-                                                class="text-green-600 hover:text-green-900 mr-3">Save</button>
-                                        <button onclick="cancelEdit({{ product.id }})" 
-                                                class="text-gray-600 hover:text-gray-900">Cancel</button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                    <tr class="hover:bg-gray-50" id="product-row-{{ product.id }}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <span class="product-display" id="name-display-{{ product.id }}">{{ product.product_name }}</span>
+                            <input type="text" class="form-input product-edit hidden" id="name-edit-{{ product.id }}" value="{{ product.product_name }}">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="product-display" id="type-display-{{ product.id }}">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {{ product.tablet_type_name }}
+                                </span>
+                            </span>
+                            <input type="text" list="tablet-types-list-edit" class="form-input product-edit hidden text-sm" 
+                                   id="type-edit-{{ product.id }}" value="{{ product.tablet_type_name }}">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="product-display" id="ppd-display-{{ product.id }}">{{ product.packages_per_display }}</span>
+                            <input type="number" class="form-input product-edit hidden" id="ppd-edit-{{ product.id }}" value="{{ product.packages_per_display }}" min="1">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="product-display" id="tpp-display-{{ product.id }}">{{ product.tablets_per_package }}</span>
+                            <input type="number" class="form-input product-edit hidden" id="tpp-edit-{{ product.id }}" value="{{ product.tablets_per_package }}" min="1">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                            {{ product.inventory_item_id or 'Not Set' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-400">
+                            1 display = {{ product.packages_per_display * product.tablets_per_package }} tablets
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div class="product-display" id="actions-display-{{ product.id }}">
+                                <button onclick="editProduct({{ product.id }})" 
+                                        class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+                                <button onclick="deleteProduct({{ product.id }})" 
+                                        class="text-red-600 hover:text-red-900">Delete</button>
+                            </div>
+                            <div class="product-edit hidden" id="actions-edit-{{ product.id }}">
+                                <button onclick="saveProduct({{ product.id }})" 
+                                        class="text-green-600 hover:text-green-900 mr-3">Save</button>
+                                <button onclick="cancelEdit({{ product.id }})" 
+                                        class="text-gray-600 hover:text-gray-900">Cancel</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
             </div>
         </div>
         {% endif %}
