@@ -2177,10 +2177,10 @@ def product_mapping():
         
         # Get all products with their tablet type and calculation details
         products = conn.execute('''
-            SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id
+            SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, tt.category
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            ORDER BY tt.tablet_type_name, pd.product_name
+            ORDER BY tt.category, tt.tablet_type_name, pd.product_name
         ''').fetchall()
         
         # Check if category column exists and add it if missing
