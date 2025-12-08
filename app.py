@@ -2819,54 +2819,6 @@ def delete_machine(machine_id):
             except:
                 pass
 
-@app.route('/api/migrations/lock_soft_assignments', methods=['POST'])
-@admin_required
-def lock_soft_assignments():
-    """One-time migration: Lock in all soft PO assignments"""
-    conn = None
-    try:
-        conn = get_db()
-        
-        # Count current soft assignments
-        soft_count = conn.execute('''
-            SELECT COUNT(*) as count 
-            FROM warehouse_submissions 
-            WHERE assigned_po_id IS NOT NULL 
-            AND COALESCE(po_assignment_verified, 0) = 0
-        ''').fetchone()['count']
-        
-        # Lock in all soft assignments
-        conn.execute('''
-            UPDATE warehouse_submissions 
-            SET po_assignment_verified = 1 
-            WHERE assigned_po_id IS NOT NULL 
-            AND COALESCE(po_assignment_verified, 0) = 0
-        ''')
-        
-        # Flag unassigned submissions
-        conn.execute('''
-            UPDATE warehouse_submissions 
-            SET needs_review = 1 
-            WHERE assigned_po_id IS NULL
-            AND bag_id IS NULL
-        ''')
-        
-        conn.commit()
-        
-        return jsonify({
-            'success': True, 
-            'message': f'✅ Locked in {soft_count} soft assignments. Verification workflow is now fully disabled.',
-            'locked_count': soft_count
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-
 @app.route('/admin')
 def admin_panel():
     """Admin panel with quick actions and product management"""

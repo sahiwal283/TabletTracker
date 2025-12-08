@@ -99,14 +99,6 @@
                     SYNC ZOHO POs
                 </span>
             </button>
-            <button onclick="lockSoftAssignments()" 
-                    class="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
-                    title="Lock in all soft PO assignments (one-time migration to v1.68+)">
-                <span class="flex items-center justify-center">
-                    <span class="text-base mr-1">🔒</span>
-                    Lock Soft Assignments
-                </span>
-            </button>
             <button onclick="viewFlaggedSubmissions()" 
                     class="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
                     title="View submissions flagged for review (duplicates, unassigned legacy data)">
@@ -125,7 +117,7 @@
             </button>
         </div>
         <p class="text-xs text-gray-500 mt-3 text-center">
-            <strong>Lock Soft Assignments:</strong> One-time migration to v1.68+ receive-based tracking • <strong>Clear PO Data:</strong> Start fresh testing
+            <strong>Clear PO Data:</strong> Start fresh testing • Fix corrupted sync data • Reset all counts to zero
         </p>
     </div>
 </div>
@@ -189,41 +181,6 @@ async function syncZohoPOs() {
         }
     } catch (error) {
         showError('Sync failed: ' + error.message);
-    } finally {
-        button.disabled = false;
-        button.style.opacity = '1';
-        button.textContent = originalText;
-    }
-}
-
-// Lock in soft assignments (one-time migration)
-async function lockSoftAssignments() {
-    if (!confirm('🔒 Lock in all soft PO assignments?\n\nThis will:\n✅ Mark all assigned submissions as verified (locked)\n✅ Flag unassigned submissions for review\n✅ Complete migration to receive-based tracking\n\nThis is a ONE-TIME migration. Continue?')) {
-        return;
-    }
-    
-    const button = event.target.closest('button');
-    const originalText = button.textContent;
-    
-    try {
-        button.disabled = true;
-        button.style.opacity = '0.6';
-        button.textContent = '🔒 Locking...';
-        
-        const response = await fetch('/api/migrations/lock_soft_assignments', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showSuccess(result.message || '✅ Soft assignments locked successfully!');
-        } else {
-            showError('❌ Failed: ' + (result.error || 'Unknown error'));
-        }
-    } catch (error) {
-        showError('Failed: ' + error.message);
     } finally {
         button.disabled = false;
         button.style.opacity = '1';
