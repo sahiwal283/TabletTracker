@@ -564,6 +564,44 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def auto_sync_categories(conn):
+    """
+    Auto-sync categories from tablet_types to categories table.
+    This ensures all categories in use appear in dropdowns.
+    Called automatically when categories are accessed.
+    """
+    try:
+        # Get all unique categories from tablet_types
+        categories_in_use = conn.execute('''
+            SELECT DISTINCT category 
+            FROM tablet_types 
+            WHERE category IS NOT NULL AND category != ''
+        ''').fetchall()
+        
+        for cat_row in categories_in_use:
+            category_name = cat_row['category']
+            
+            # Check if category exists in categories table
+            existing = conn.execute('''
+                SELECT id FROM categories WHERE category_name = ?
+            ''', (category_name,)).fetchone()
+            
+            if not existing:
+                # Get max display_order
+                max_order = conn.execute('SELECT MAX(display_order) as max FROM categories').fetchone()['max']
+                new_order = (max_order or 0) + 1
+                
+                # Insert new category
+                conn.execute('''
+                    INSERT INTO categories (category_name, display_order, is_active)
+                    VALUES (?, ?, TRUE)
+                ''', (category_name, new_order))
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Warning: Auto-sync categories failed: {e}")
+        # Don't raise - this is a background sync, shouldn't break main functionality
+
 def find_bag_for_submission(conn, tablet_type_id, box_number, bag_number):
     """
     Find matching bag in receives by tablet_type_id, box_number, bag_number.
@@ -983,6 +1021,9 @@ def production_form():
     conn = None
     try:
         conn = get_db()
+        
+        # Auto-sync categories from tablet_types to categories table
+        auto_sync_categories(conn)
         
         # Get product list for dropdown
         products = conn.execute('''
@@ -2210,6 +2251,9 @@ def product_mapping():
                 tt['category'] = None
             category_list = []
         
+        # Auto-sync categories from tablet_types to categories table
+        auto_sync_categories(conn)
+        
         # Get all active categories from database (no more hardcoded lists!)
         categories_from_db = conn.execute('''
             SELECT category_name 
@@ -2291,6 +2335,9 @@ def shipping_unified():
     conn = None
     try:
         conn = get_db()
+        
+        # Auto-sync categories from tablet_types to categories table
+        auto_sync_categories(conn)
         
         # Get all tablet types for the form dropdown (with category)
         tablet_types = conn.execute('''
@@ -2681,7 +2728,7 @@ def manage_cards_per_turn():
                 pass
 
 @app.route('/api/machines', methods=['GET'])
-@admin_required
+@employee_required  # Changed from @admin_required - employees need to see machines to submit counts
 def get_machines():
     """Get all machines"""
     conn = None
@@ -3522,58 +3569,6 @@ def update_tablet_type_category():
         conn.close()
         
         return jsonify({'success': True, 'message': 'Category updated successfully'})
-    except Exception as e:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/categories/sync', methods=['POST'])
-@admin_required
-def sync_categories():
-    """Sync categories from tablet_types to categories table"""
-    conn = None
-    try:
-        conn = get_db()
-        
-        # Get all unique categories from tablet_types
-        categories_in_use = conn.execute('''
-            SELECT DISTINCT category 
-            FROM tablet_types 
-            WHERE category IS NOT NULL AND category != ''
-        ''').fetchall()
-        
-        synced_count = 0
-        for cat_row in categories_in_use:
-            category_name = cat_row['category']
-            
-            # Check if category exists in categories table
-            existing = conn.execute('''
-                SELECT id FROM categories WHERE category_name = ?
-            ''', (category_name,)).fetchone()
-            
-            if not existing:
-                # Get max display_order
-                max_order = conn.execute('SELECT MAX(display_order) as max FROM categories').fetchone()['max']
-                new_order = (max_order or 0) + 1
-                
-                # Insert new category
-                conn.execute('''
-                    INSERT INTO categories (category_name, display_order, is_active)
-                    VALUES (?, ?, TRUE)
-                ''', (category_name, new_order))
-                synced_count += 1
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({
-            'success': True, 
-            'message': f'✅ Synced {synced_count} categor{"y" if synced_count == 1 else "ies"} from tablet types to categories table',
-            'synced_count': synced_count
-        })
     except Exception as e:
         if conn:
             try:
