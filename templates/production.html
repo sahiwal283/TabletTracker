@@ -58,6 +58,17 @@
                 </script>
             </div>
             
+            <!-- Machine Selection -->
+            <div>
+                <label for="machine_id" class="block text-sm font-medium text-gray-700 mb-1">
+                    Machine *
+                </label>
+                <select id="machine_id" name="machine_id" required class="form-input">
+                    <option value="">Select machine...</option>
+                    <!-- Will be populated by JavaScript -->
+                </select>
+            </div>
+            
             <!-- Box Number -->
             <div>
                 <label for="machine_box_number" class="block text-sm font-medium text-gray-700 mb-1">
@@ -744,8 +755,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         const formData = new FormData(machineCountForm);
         const data = Object.fromEntries(formData.entries());
         
-        // Convert tablet_type_id and machine_count to integers
+        // Convert to integers
         data.tablet_type_id = parseInt(data.tablet_type_id);
+        data.machine_id = parseInt(data.machine_id);
         data.machine_count = parseInt(data.machine_count);
         
         const submitBtn = machineCountForm.querySelector('button[type="submit"]');
@@ -775,6 +787,35 @@ document.addEventListener('DOMContentLoaded', async function() {
             submitBtn.textContent = originalText;
         }
     });
+    
+    // Load machines for machine count form
+    async function loadMachines() {
+        try {
+            const response = await fetch('/api/machines');
+            const data = await response.json();
+            
+            if (data.success && data.machines) {
+                const select = document.getElementById('machine_id');
+                if (!select) return;
+                
+                // Keep the "Select machine..." option
+                select.innerHTML = '<option value="">Select machine...</option>';
+                
+                // Add each machine as an option
+                data.machines.forEach(machine => {
+                    const option = document.createElement('option');
+                    option.value = machine.id;
+                    option.textContent = `${machine.machine_name} (${machine.cards_per_turn} cards/turn)`;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Failed to load machines:', error);
+        }
+    }
+    
+    // Load machines on page load
+    loadMachines();
     
     // Initialize with Machine Count form as default
     switchForm('machine-count');

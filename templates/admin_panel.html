@@ -67,22 +67,17 @@
                 </div>
                 <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Machine Configuration</h3>
                 <p class="text-sm text-gray-600 text-center mb-4">Configure machine production settings</p>
-                <div class="space-y-3">
-                    <div class="bg-gray-50 p-3 rounded-lg">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Cards Per Turn</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="cards-per-turn-input" 
-                                   value="{{ cards_per_turn }}" 
-                                   min="1" 
-                                   class="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <button onclick="saveCardsPerTurn()" 
-                                    class="btn-primary text-xs px-3 py-1.5">
-                                Save
-                            </button>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">Number of cards produced in one machine turn</p>
-                    </div>
+                
+                <!-- Machines List -->
+                <div id="machines-list" class="space-y-2 mb-3">
+                    <!-- Will be populated by JavaScript -->
                 </div>
+                
+                <!-- Add Machine Button -->
+                <button onclick="openAddMachineModal()" 
+                        class="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg font-medium hover:from-green-600 hover:to-emerald-600 transition-all shadow-md text-sm">
+                    ➕ Add Machine
+                </button>
             </div>
         </div>
 
@@ -306,55 +301,149 @@ async function clearPOData() {
     }
 }
 
-// Save cards per turn setting
-async function saveCardsPerTurn() {
-    const input = document.getElementById('cards-per-turn-input');
-    const value = parseInt(input.value);
+// Machine Management Functions
+let machines = [];
+let editingMachineId = null;
+
+async function loadMachines() {
+    try {
+        const response = await fetch('/api/machines');
+        const data = await response.json();
+        
+        if (data.success) {
+            machines = data.machines;
+            displayMachines();
+        } else {
+            showError('Failed to load machines');
+        }
+    } catch (error) {
+        console.error('Error loading machines:', error);
+    }
+}
+
+function displayMachines() {
+    const container = document.getElementById('machines-list');
+    if (!container) return;
     
-    if (!value || value < 1) {
+    if (machines.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500 text-center py-2">No machines configured</p>';
+        return;
+    }
+    
+    container.innerHTML = machines.map(machine => `
+        <div class="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <div class="font-medium text-sm text-gray-900">${machine.machine_name}</div>
+                    <div class="text-xs text-gray-500">${machine.cards_per_turn} cards per turn</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openEditMachineModal(${machine.id})" 
+                            class="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                        ✏️ Edit
+                    </button>
+                    <button onclick="deleteMachine(${machine.id}, '${machine.machine_name}')" 
+                            class="text-red-600 hover:text-red-800 text-xs font-medium">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openAddMachineModal() {
+    editingMachineId = null;
+    document.getElementById('machine-modal-title').textContent = 'Add Machine';
+    document.getElementById('machine-name-input').value = '';
+    document.getElementById('machine-cards-input').value = '1';
+    document.getElementById('machine-modal').classList.remove('hidden');
+}
+
+function openEditMachineModal(machineId) {
+    editingMachineId = machineId;
+    const machine = machines.find(m => m.id === machineId);
+    if (!machine) return;
+    
+    document.getElementById('machine-modal-title').textContent = 'Edit Machine';
+    document.getElementById('machine-name-input').value = machine.machine_name;
+    document.getElementById('machine-cards-input').value = machine.cards_per_turn;
+    document.getElementById('machine-modal').classList.remove('hidden');
+}
+
+function closeMachineModal() {
+    document.getElementById('machine-modal').classList.add('hidden');
+    editingMachineId = null;
+}
+
+async function saveMachine() {
+    const name = document.getElementById('machine-name-input').value.trim();
+    const cardsPerTurn = parseInt(document.getElementById('machine-cards-input').value);
+    
+    if (!name) {
+        showError('Machine name is required');
+        return;
+    }
+    
+    if (!cardsPerTurn || cardsPerTurn < 1) {
         showError('Cards per turn must be at least 1');
         return;
     }
     
-    const button = event.target;
-    const originalText = button.textContent;
-    
     try {
-        button.disabled = true;
-        button.textContent = 'Saving...';
+        const url = editingMachineId ? `/api/machines/${editingMachineId}` : '/api/machines';
+        const method = editingMachineId ? 'PUT' : 'POST';
         
-        const response = await fetch('/api/settings/cards_per_turn', {
-            method: 'POST',
+        const response = await fetch(url, {
+            method: method,
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({cards_per_turn: value})
+            body: JSON.stringify({
+                machine_name: name,
+                cards_per_turn: cardsPerTurn
+            })
         });
-        
-        // Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            const text = await response.text();
-            showError('Failed to save: Server returned non-JSON response. Status: ' + response.status);
-            console.error('Non-JSON response:', text.substring(0, 200));
-            return;
-        }
         
         const result = await response.json();
         
         if (result.success) {
-            showSuccess(result.message || 'Cards per turn saved successfully!');
+            showSuccess(result.message);
+            closeMachineModal();
+            loadMachines();
         } else {
-            showError(result.error || 'Failed to save setting');
+            showError(result.error || 'Failed to save machine');
         }
     } catch (error) {
         showError('Failed to save: ' + error.message);
-    } finally {
-        button.disabled = false;
-        button.textContent = originalText;
     }
 }
 
-// Initialize sync button click handler
+async function deleteMachine(machineId, machineName) {
+    if (!confirm(`Delete machine "${machineName}"?\n\nThis will hide the machine from future selections but won't affect historical data.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/machines/${machineId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            loadMachines();
+        } else {
+            showError(result.error || 'Failed to delete machine');
+        }
+    } catch (error) {
+        showError('Failed to delete: ' + error.message);
+    }
+}
+
+// Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    loadMachines();
+    
     const syncBtn = document.getElementById('sync-pos-btn');
     if (syncBtn) {
         syncBtn.addEventListener('click', syncZohoPOs);
@@ -402,4 +491,53 @@ function showMessage(message, type) {
     }, 5000);
 }
 </script>
+
+<!-- Machine Add/Edit Modal -->
+<div id="machine-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeMachineModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-t-lg">
+            <div class="flex justify-between items-center">
+                <h3 id="machine-modal-title" class="text-xl font-bold">Add Machine</h3>
+                <button onclick="closeMachineModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                    ✕
+                </button>
+            </div>
+        </div>
+        <div class="p-6">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Machine Name <span class="text-red-600">*</span>
+                    </label>
+                    <input type="text" id="machine-name-input" 
+                           placeholder="e.g., Machine 1, Production Line A"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Cards Per Turn <span class="text-red-600">*</span>
+                    </label>
+                    <input type="number" id="machine-cards-input" 
+                           min="1" 
+                           value="1"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Number of cards produced in one machine turn</p>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeMachineModal()" 
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button onclick="saveMachine()" 
+                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

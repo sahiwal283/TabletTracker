@@ -459,7 +459,7 @@ def init_db():
     
     # Initialize default settings if they don't exist
     default_settings = [
-        ('cards_per_turn', '1', 'Number of cards produced in one turn of the machine')
+        ('cards_per_turn', '1', 'Number of cards produced in one turn of the machine (LEGACY - use machines table)')
     ]
     for key, value, description in default_settings:
         existing = c.execute('SELECT id FROM app_settings WHERE setting_key = ?', (key,)).fetchone()
@@ -468,6 +468,40 @@ def init_db():
                 INSERT INTO app_settings (setting_key, setting_value, description)
                 VALUES (?, ?, ?)
             ''', (key, value, description))
+    
+    # Machines table - configurable production machines
+    c.execute('''CREATE TABLE IF NOT EXISTS machines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        machine_name TEXT UNIQUE NOT NULL,
+        cards_per_turn INTEGER NOT NULL DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # Initialize default machines if none exist
+    existing_machines = c.execute('SELECT COUNT(*) as count FROM machines').fetchone()
+    if existing_machines['count'] == 0:
+        default_machines = [
+            ('Machine 1', 1),
+            ('Machine 2', 1)
+        ]
+        for machine_name, cards_per_turn in default_machines:
+            c.execute('''
+                INSERT INTO machines (machine_name, cards_per_turn, is_active)
+                VALUES (?, ?, TRUE)
+            ''', (machine_name, cards_per_turn))
+        print("Initialized default machines: Machine 1 and Machine 2")
+    
+    # Add machine_id column to machine_counts table if it doesn't exist
+    c.execute('PRAGMA table_info(machine_counts)')
+    machine_counts_cols = [row[1] for row in c.fetchall()]
+    if 'machine_id' not in machine_counts_cols:
+        try:
+            c.execute('ALTER TABLE machine_counts ADD COLUMN machine_id INTEGER REFERENCES machines(id)')
+            print("Added machine_id column to machine_counts table")
+        except Exception as e:
+            print(f"Note: machine_id column migration: {e}")
     
     conn.commit()
     conn.close()
@@ -2597,6 +2631,155 @@ def manage_cards_per_turn():
             except:
                 pass
 
+@app.route('/api/machines', methods=['GET'])
+@admin_required
+def get_machines():
+    """Get all machines"""
+    conn = None
+    try:
+        conn = get_db()
+        machines = conn.execute('''
+            SELECT * FROM machines 
+            WHERE is_active = TRUE
+            ORDER BY machine_name
+        ''').fetchall()
+        
+        machines_list = [dict(m) for m in machines]
+        return jsonify({'success': True, 'machines': machines_list})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/machines', methods=['POST'])
+@admin_required
+def create_machine():
+    """Create a new machine"""
+    conn = None
+    try:
+        data = request.get_json()
+        machine_name = data.get('machine_name', '').strip()
+        cards_per_turn = data.get('cards_per_turn')
+        
+        if not machine_name:
+            return jsonify({'success': False, 'error': 'Machine name is required'}), 400
+        
+        try:
+            cards_per_turn = int(cards_per_turn)
+            if cards_per_turn < 1:
+                return jsonify({'success': False, 'error': 'Cards per turn must be at least 1'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
+        
+        conn = get_db()
+        
+        # Check if machine name already exists
+        existing = conn.execute('SELECT id FROM machines WHERE machine_name = ?', (machine_name,)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': 'Machine name already exists'}), 400
+        
+        # Create machine
+        conn.execute('''
+            INSERT INTO machines (machine_name, cards_per_turn, is_active)
+            VALUES (?, ?, TRUE)
+        ''', (machine_name, cards_per_turn))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Machine "{machine_name}" created successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/machines/<int:machine_id>', methods=['PUT'])
+@admin_required
+def update_machine(machine_id):
+    """Update a machine's configuration"""
+    conn = None
+    try:
+        data = request.get_json()
+        machine_name = data.get('machine_name', '').strip()
+        cards_per_turn = data.get('cards_per_turn')
+        
+        if not machine_name:
+            return jsonify({'success': False, 'error': 'Machine name is required'}), 400
+        
+        try:
+            cards_per_turn = int(cards_per_turn)
+            if cards_per_turn < 1:
+                return jsonify({'success': False, 'error': 'Cards per turn must be at least 1'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
+        
+        conn = get_db()
+        
+        # Check if machine exists
+        machine = conn.execute('SELECT id FROM machines WHERE id = ?', (machine_id,)).fetchone()
+        if not machine:
+            return jsonify({'success': False, 'error': 'Machine not found'}), 404
+        
+        # Check if new name conflicts with another machine
+        existing = conn.execute('SELECT id FROM machines WHERE machine_name = ? AND id != ?', (machine_name, machine_id)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': 'Machine name already exists'}), 400
+        
+        # Update machine
+        conn.execute('''
+            UPDATE machines 
+            SET machine_name = ?, cards_per_turn = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (machine_name, cards_per_turn, machine_id))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Machine "{machine_name}" updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/machines/<int:machine_id>', methods=['DELETE'])
+@admin_required
+def delete_machine(machine_id):
+    """Soft delete a machine (set is_active = FALSE)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Check if machine exists
+        machine = conn.execute('SELECT machine_name FROM machines WHERE id = ?', (machine_id,)).fetchone()
+        if not machine:
+            return jsonify({'success': False, 'error': 'Machine not found'}), 404
+        
+        # Soft delete (don't actually delete - just mark inactive)
+        conn.execute('''
+            UPDATE machines 
+            SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (machine_id,))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Machine "{machine["machine_name"]}" deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/admin')
 def admin_panel():
     """Admin panel with quick actions and product management"""
@@ -2859,6 +3042,7 @@ def submit_machine_count():
         ensure_machine_count_columns()
         
         tablet_type_id = data.get('tablet_type_id')
+        machine_id = data.get('machine_id')
         machine_count = data.get('machine_count')
         box_number = data.get('box_number', '')
         bag_number = data.get('bag_number', '')
@@ -2869,6 +3053,8 @@ def submit_machine_count():
         # Validation
         if not tablet_type_id:
             return jsonify({'error': 'Tablet type is required'}), 400
+        if not machine_id:
+            return jsonify({'error': 'Machine is required'}), 400
         if machine_count is None or machine_count < 0:
             return jsonify({'error': 'Valid machine count is required'}), 400
         if not box_number:
@@ -2919,12 +3105,18 @@ def submit_machine_count():
         if tablets_per_package == 0:
             return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
         
-        # Get cards_per_turn setting
-        cards_per_turn_setting = get_setting('cards_per_turn', '1')
-        try:
-            cards_per_turn = int(cards_per_turn_setting)
-        except (ValueError, TypeError):
-            cards_per_turn = 1
+        # Get machine configuration
+        machine = conn.execute('''
+            SELECT machine_name, cards_per_turn 
+            FROM machines 
+            WHERE id = ? AND is_active = TRUE
+        ''', (machine_id,)).fetchone()
+        
+        if not machine:
+            return jsonify({'error': 'Machine not found or inactive'}), 400
+        
+        machine = dict(machine)
+        cards_per_turn = machine.get('cards_per_turn', 1)
         
         # Calculate total tablets: machine_count (turns) × cards_per_turn × tablets_per_package
         try:
@@ -2935,9 +3127,9 @@ def submit_machine_count():
         
         # Insert machine count record (for historical tracking)
         conn.execute('''
-            INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date, box_number, bag_number)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (tablet_type_id, machine_count_int, employee_name, count_date, box_number, bag_number))
+            INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date, box_number, bag_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (tablet_type_id, machine_id, machine_count_int, employee_name, count_date, box_number, bag_number))
         
         # Get inventory_item_id
         inventory_item_id = tablet_type.get('inventory_item_id')
@@ -2972,7 +3164,7 @@ def submit_machine_count():
         
         return jsonify({
             'success': True,
-            'message': f'Machine count submitted: {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)',
+            'message': f'Machine count submitted ({machine["machine_name"]}): {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)',
             'bag_id': bag['id'],
             'needs_review': needs_review
         })
