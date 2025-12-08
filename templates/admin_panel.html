@@ -99,14 +99,7 @@
                     SYNC ZOHO POs
                 </span>
             </button>
-            <button onclick="viewFlaggedSubmissions()" 
-                    class="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
-                    title="View submissions flagged for review (duplicates, unassigned legacy data)">
-                <span class="flex items-center justify-center">
-                    <span class="text-base mr-1">🚩</span>
-                    View Flagged
-                </span>
-            </button>
+            <!-- "View Flagged" button removed - no flagged submissions in system -->
             <button onclick="clearPOData()" 
                     class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
                     title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
@@ -188,10 +181,7 @@ async function syncZohoPOs() {
     }
 }
 
-// View flagged submissions
-function viewFlaggedSubmissions() {
-    window.location.href = '/submissions/flagged';
-}
+// "View flagged submissions" function removed - feature not needed
 
 // Clear PO data
 async function clearPOData() {
