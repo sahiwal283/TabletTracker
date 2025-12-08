@@ -69,6 +69,22 @@ def run_comprehensive_migration(db_path='tablet_counter.db'):
         else:
             print("  ℹ categories table already exists")
         
+        # Machine counts table
+        if 'machine_counts' not in existing_tables:
+            c.execute('''CREATE TABLE IF NOT EXISTS machine_counts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tablet_type_id INTEGER,
+                machine_count INTEGER NOT NULL,
+                employee_name TEXT NOT NULL,
+                count_date DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
+            )''')
+            print("✓ Created machine_counts table")
+            migration_log.append("Created machine_counts table")
+        else:
+            print("  ℹ machine_counts table already exists")
+        
         conn.commit()
         print()
         
