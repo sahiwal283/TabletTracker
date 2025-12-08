@@ -3577,6 +3577,38 @@ def update_tablet_type_category():
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/debug/categories', methods=['GET'])
+@admin_required
+def debug_categories():
+    """Debug endpoint to see category data"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get categories from categories table
+        categories_table = conn.execute('''
+            SELECT * FROM categories WHERE is_active = TRUE ORDER BY display_order
+        ''').fetchall()
+        
+        # Get categories from tablet_types
+        categories_in_use = conn.execute('''
+            SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != ''
+        ''').fetchall()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'categories_table': [dict(c) for c in categories_table],
+            'categories_in_tablet_types': [c['category'] for c in categories_in_use],
+            'count_in_table': len(categories_table),
+            'count_in_tablet_types': len(categories_in_use)
+        })
+    except Exception as e:
+        if conn:
+            conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/categories', methods=['GET'])
 @admin_required
 def get_categories():
