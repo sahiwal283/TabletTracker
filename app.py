@@ -2437,13 +2437,6 @@ def shipping_unified():
                 'boxes': boxes_with_bags
             })
         
-        # Debug: Log what we're passing to template
-        print(f"DEBUG: Passing {len(tablet_types)} tablet types to template")
-        print(f"DEBUG: Passing {len(all_categories)} categories to template")
-        print(f"DEBUG: Categories: {all_categories}")
-        mit_a_types = [tt for tt in tablet_types if tt['category'] == 'MIT A']
-        print(f"DEBUG: Found {len(mit_a_types)} MIT A tablet types: {[tt['tablet_type_name'] for tt in mit_a_types]}")
-        
         return render_template('shipping_unified.html', 
                              tablet_types=tablet_types,
                              categories=all_categories,
