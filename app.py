@@ -2741,7 +2741,7 @@ def submit_count():
         # Safe type conversion
         try:
             actual_count = int(data.get('actual_count', 0) or 0)
-            bag_label_count = int(data.get('bag_label_count', 0) or 0)
+            bag_label_count = 0  # No longer collected from form
         except (ValueError, TypeError):
             conn.close()
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
