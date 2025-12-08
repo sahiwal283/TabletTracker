@@ -5834,12 +5834,12 @@ def get_po_submissions(po_id):
     try:
         conn = get_db()
         
-        # Get PO details including machine counts
+        # Get PO details including machine counts and closed status
         po = conn.execute('''
             SELECT po_number, tablet_type, ordered_quantity, 
                    current_good_count, current_damaged_count, remaining_quantity,
                    machine_good_count, machine_damaged_count,
-                   parent_po_number
+                   parent_po_number, closed
             FROM purchase_orders
             WHERE id = ?
         ''', (po_id,)).fetchone()
