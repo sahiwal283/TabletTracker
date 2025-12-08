@@ -503,6 +503,59 @@ def init_db():
         except Exception as e:
             print(f"Note: machine_id column migration: {e}")
     
+    # Categories table - proper category management (no more hardcoded lists!)
+    c.execute('''CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_name TEXT UNIQUE NOT NULL,
+        display_order INTEGER DEFAULT 999,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # Migrate/seed categories
+    existing_categories_count = c.execute('SELECT COUNT(*) as count FROM categories WHERE is_active = TRUE').fetchone()['count']
+    if existing_categories_count == 0:
+        # Get existing categories from tablet_types
+        existing_from_tablet_types = c.execute('''
+            SELECT DISTINCT category 
+            FROM tablet_types 
+            WHERE category IS NOT NULL AND category != ''
+        ''').fetchall()
+        
+        # Default categories with display order
+        default_categories = [
+            ('FIX Energy', 1),
+            ('FIX Focus', 2),
+            ('FIX Relax', 3),
+            ('FIX MAX', 4),
+            ('18mg', 5),
+            ('Hyroxi XL', 6),
+            ('Hyroxi Regular', 7),
+            ('Other', 999)
+        ]
+        
+        # Combine existing and defaults (avoid duplicates)
+        all_categories = set()
+        for cat in existing_from_tablet_types:
+            if cat['category']:
+                all_categories.add(cat['category'])
+        
+        # Add defaults
+        for cat_name, order in default_categories:
+            all_categories.add(cat_name)
+        
+        # Insert all categories
+        for idx, cat_name in enumerate(sorted(all_categories)):
+            # Use default order if available, otherwise use index
+            order = next((order for name, order in default_categories if name == cat_name), idx + 100)
+            c.execute('''
+                INSERT INTO categories (category_name, display_order, is_active)
+                VALUES (?, ?, TRUE)
+            ''', (cat_name, order))
+        
+        print(f"Initialized {len(all_categories)} categories")
+    
     conn.commit()
     conn.close()
 
@@ -2157,28 +2210,14 @@ def product_mapping():
                 tt['category'] = None
             category_list = []
         
-        # Get deleted categories from app_settings
-        deleted_categories_set = set()
-        try:
-            deleted_categories_json = conn.execute('''
-                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
-            ''').fetchone()
-            if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
-        except Exception as e:
-            print(f"Warning: Could not load deleted categories: {e}")
-            # Continue without filtering if there's an error
-        
-        # Default categories (always show these as options, unless deleted)
-        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'Hyroxi XL', 'Hyroxi Regular', 'Other']
-        
-        # Filter out deleted categories from defaults
-        default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
-        
-        # Merge default categories with existing ones, ensuring all defaults are available
-        # This ensures categories are shown even if no tablet types are assigned to them yet
-        all_categories = list(set(default_categories + category_list))
-        all_categories.sort(key=lambda x: (default_categories.index(x) if x in default_categories else len(default_categories), x))
+        # Get all active categories from database (no more hardcoded lists!)
+        categories_from_db = conn.execute('''
+            SELECT category_name 
+            FROM categories 
+            WHERE is_active = TRUE 
+            ORDER BY display_order, category_name
+        ''').fetchall()
+        all_categories = [cat['category_name'] for cat in categories_from_db]
         
         return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=all_categories)
     except Exception as e:
@@ -3526,26 +3565,14 @@ def get_categories():
             ORDER BY category
         ''').fetchall()
         
-        category_list = [cat['category'] for cat in categories] if categories else []
-        
-        # Get deleted categories from app_settings
-        deleted_categories_set = set()
-        try:
-            deleted_categories_json = conn.execute('''
-                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
-            ''').fetchone()
-            if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
-        except Exception as e:
-            print(f"Warning: Could not load deleted categories: {e}")
-            # Continue without filtering if there's an error
-        
-        # Default categories (filter out deleted ones)
-        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'Hyroxi XL', 'Hyroxi Regular', 'Other']
-        default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
-        
-        all_categories = list(set(default_categories + category_list))
-        all_categories.sort(key=lambda x: (default_categories.index(x) if x in default_categories else len(default_categories), x))
+        # Get all active categories from database (no more hardcoded lists!)
+        all_categories_from_db = conn.execute('''
+            SELECT category_name 
+            FROM categories 
+            WHERE is_active = TRUE 
+            ORDER BY display_order, category_name
+        ''').fetchall()
+        all_categories = [cat['category_name'] for cat in all_categories_from_db]
         
         conn.close()
         return jsonify({'success': True, 'categories': all_categories})
@@ -3560,7 +3587,7 @@ def get_categories():
 @app.route('/api/categories', methods=['POST'])
 @admin_required
 def add_category():
-    """Add a new category"""
+    """Add a new category to the categories table"""
     conn = None
     try:
         data = request.get_json()
@@ -3572,32 +3599,45 @@ def add_category():
         conn = get_db()
         conn.row_factory = sqlite3.Row
         
-        # Check if category already exists
+        # Check if category already exists (including inactive ones)
         existing = conn.execute('''
-            SELECT DISTINCT category 
-            FROM tablet_types 
-            WHERE category = ?
+            SELECT id, is_active FROM categories WHERE category_name = ?
         ''', (category_name,)).fetchone()
         
         if existing:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            return jsonify({'success': False, 'error': 'Category already exists'}), 400
-        
-        # Categories are created when tablet types are assigned to them
-        # This endpoint just validates the name - actual creation happens when assigning
-        if conn:
-            try:
+            if existing['is_active']:
                 conn.close()
-            except:
-                pass
+                return jsonify({'success': False, 'error': 'Category already exists'}), 400
+            else:
+                # Reactivate inactive category
+                conn.execute('''
+                    UPDATE categories 
+                    SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (existing['id'],))
+                conn.commit()
+                conn.close()
+                return jsonify({
+                    'success': True, 
+                    'message': f'Category "{category_name}" reactivated successfully!'
+                })
+        
+        # Get max display_order and add new category at the end
+        max_order = conn.execute('SELECT MAX(display_order) as max FROM categories').fetchone()['max']
+        new_order = (max_order or 0) + 1
+        
+        # Insert new category
+        conn.execute('''
+            INSERT INTO categories (category_name, display_order, is_active)
+            VALUES (?, ?, TRUE)
+        ''', (category_name, new_order))
+        
+        conn.commit()
+        conn.close()
         
         return jsonify({
             'success': True, 
-            'message': f'Category "{category_name}" is ready. Assign tablet types to make it active.'
+            'message': f'Category "{category_name}" added successfully!'
         })
     except Exception as e:
         import traceback
@@ -3612,7 +3652,7 @@ def add_category():
 @app.route('/api/categories/rename', methods=['POST'])
 @admin_required
 def rename_category():
-    """Rename a category (updates all tablet types with that category)"""
+    """Rename a category in the categories table (also updates tablet_types)"""
     conn = None
     try:
         data = request.get_json()
@@ -3628,62 +3668,51 @@ def rename_category():
         conn = get_db()
         conn.row_factory = sqlite3.Row
         
+        # Check if old category exists in categories table
+        old_exists = conn.execute('''
+            SELECT id FROM categories WHERE category_name = ?
+        ''', (old_name,)).fetchone()
+        
+        if not old_exists:
+            conn.close()
+            return jsonify({'success': False, 'error': f'Category "{old_name}" not found'}), 404
+        
         # Check if new name already exists
-        existing = conn.execute('''
-            SELECT DISTINCT category 
-            FROM tablet_types 
-            WHERE category = ?
+        new_exists = conn.execute('''
+            SELECT id FROM categories WHERE category_name = ?
         ''', (new_name,)).fetchone()
         
-        if existing:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
+        if new_exists:
+            conn.close()
             return jsonify({'success': False, 'error': 'Category name already exists'}), 400
         
-        # Update all tablet types with the old category name (if any exist)
-        # Note: If no tablet types have this category, the UPDATE will affect 0 rows, which is fine
+        # Update the category name in categories table
+        conn.execute('''
+            UPDATE categories 
+            SET category_name = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE category_name = ?
+        ''', (new_name, old_name))
+        
+        # Also update all tablet types with the old category name
         cursor = conn.execute('''
             UPDATE tablet_types 
             SET category = ?
             WHERE category = ?
         ''', (new_name, old_name))
         
-        rows_updated = cursor.rowcount
-        
-        # Verify the update worked by checking new category exists with expected count
-        verify_update = conn.execute('''
-            SELECT COUNT(*) as count
-            FROM tablet_types 
-            WHERE category = ?
-        ''', (new_name,)).fetchone()
-        
-        if verify_update['count'] != rows_updated:
-            conn.rollback()
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-            return jsonify({'success': False, 'error': 'Failed to update all tablet types. Transaction rolled back.'}), 500
+        tablet_types_updated = cursor.rowcount
         
         conn.commit()
-        
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        conn.close()
         
         return jsonify({
             'success': True, 
-            'message': f'Category renamed from "{old_name}" to "{new_name}" ({rows_updated} tablet types updated)'
+            'message': f'✅ Category renamed from "{old_name}" to "{new_name}" ({tablet_types_updated} tablet types updated)'
         })
     except Exception as e:
         if conn:
             try:
+                conn.rollback()
                 conn.close()
             except:
                 pass
@@ -3692,7 +3721,7 @@ def rename_category():
 @app.route('/api/categories/delete', methods=['POST'])
 @admin_required
 def delete_category():
-    """Delete a category (removes category from all tablet types)"""
+    """Soft delete a category (marks as inactive, removes from tablet types)"""
     conn = None
     try:
         data = request.get_json()
@@ -3704,87 +3733,48 @@ def delete_category():
         conn = get_db()
         conn.row_factory = sqlite3.Row
         
-        # Check if category exists and get count
-        category_exists = conn.execute('''
-            SELECT COUNT(*) as count
-            FROM tablet_types 
-            WHERE category = ?
+        # Check if category exists in categories table
+        category = conn.execute('''
+            SELECT id, is_active FROM categories WHERE category_name = ?
         ''', (category_name,)).fetchone()
         
-        rows_updated = 0
+        if not category:
+            conn.close()
+            return jsonify({'success': False, 'error': f'Category "{category_name}" not found'}), 404
         
-        # Only try to update if there are tablet types with this category
-        if category_exists['count'] > 0:
-            # Remove category from all tablet types (set to NULL)
-            cursor = conn.execute('''
-                UPDATE tablet_types 
-                SET category = NULL
-                WHERE category = ?
-            ''', (category_name,))
-            
-            rows_updated = cursor.rowcount
-            
-            # Verify the update worked
-            verify_delete = conn.execute('''
-                SELECT COUNT(*) as count
-                FROM tablet_types 
-                WHERE category = ?
-            ''', (category_name,)).fetchone()
-            
-            if verify_delete['count'] != 0:
-                conn.rollback()
-                if conn:
-                    try:
-                        conn.close()
-                    except:
-                        pass
-                return jsonify({'success': False, 'error': 'Failed to delete category. Transaction rolled back.'}), 500
+        if not category['is_active']:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Category already deleted'}), 400
         
-        # Commit even if no rows were updated (category was empty)
+        # Soft delete category (mark as inactive)
+        conn.execute('''
+            UPDATE categories 
+            SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (category['id'],))
+        
+        # Remove category from all tablet types (set to NULL)
+        cursor = conn.execute('''
+            UPDATE tablet_types 
+            SET category = NULL
+            WHERE category = ?
+        ''', (category_name,))
+        
+        tablet_types_updated = cursor.rowcount
+        
         conn.commit()
-        
-        # Track deleted category in app_settings so it doesn't reappear
-        try:
-            # Get current deleted categories using correct column names
-            deleted_categories_json = conn.execute('''
-                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
-            ''').fetchone()
-            
-            deleted_categories = set()
-            if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
-            
-            # Add this category to deleted set
-            deleted_categories.add(category_name)
-            
-            # Save back to app_settings using correct column names
-            conn.execute('''
-                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
-                VALUES (?, ?, ?)
-            ''', ('deleted_categories', json.dumps(list(deleted_categories)), 'List of deleted categories that should not appear'))
-            
-            conn.commit()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"Warning: Could not track deleted category: {e}")
-            # Don't fail the request if tracking fails, but log the error
-        
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        conn.close()
         
         return jsonify({
             'success': True, 
-            'message': f'Category "{category_name}" deleted. {rows_updated} tablet type(s) have been unassigned.'
+            'message': f'✅ Category "{category_name}" deleted. {tablet_types_updated} tablet type(s) unassigned.'
         })
     except Exception as e:
         import traceback
         traceback.print_exc()
         if conn:
             try:
+                conn.rollback()
                 conn.close()
             except:
                 pass
