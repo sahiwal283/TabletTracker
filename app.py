@@ -578,6 +578,8 @@ def auto_sync_categories(conn):
             WHERE category IS NOT NULL AND category != ''
         ''').fetchall()
         
+        app.logger.debug(f"Auto-sync: Found {len(categories_in_use)} categories in tablet_types: {[c['category'] for c in categories_in_use]}")
+        
         for cat_row in categories_in_use:
             category_name = cat_row['category']
             
@@ -596,10 +598,14 @@ def auto_sync_categories(conn):
                     INSERT INTO categories (category_name, display_order, is_active)
                     VALUES (?, ?, TRUE)
                 ''', (category_name, new_order))
+                app.logger.info(f"Auto-sync: Added new category '{category_name}' with display_order {new_order}")
         
         conn.commit()
+        app.logger.debug("Auto-sync: Categories synced successfully")
     except Exception as e:
-        print(f"Warning: Auto-sync categories failed: {e}")
+        app.logger.error(f"Auto-sync categories failed: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
         # Don't raise - this is a background sync, shouldn't break main functionality
 
 def find_bag_for_submission(conn, tablet_type_id, box_number, bag_number):
