@@ -3095,6 +3095,7 @@ def submit_machine_count():
         machine_count = data.get('machine_count')
         box_number = data.get('box_number', '')
         bag_number = data.get('bag_number', '')
+        admin_notes = data.get('admin_notes', '').strip() or None  # Convert empty string to NULL
         
         # Automatically set date to current EST date
         count_date = datetime.now(ZoneInfo('America/New_York')).strftime('%Y-%m-%d')
@@ -3204,10 +3205,10 @@ def submit_machine_count():
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number,
-             bag_id, assigned_po_id, needs_review, loose_tablets, submission_date, submission_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine')
+             bag_id, assigned_po_id, needs_review, loose_tablets, submission_date, admin_notes, submission_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine')
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
-              bag['id'], bag['po_id'], needs_review, total_tablets, count_date))
+              bag['id'], bag['po_id'], needs_review, total_tablets, count_date, admin_notes))
         
         conn.commit()
         
