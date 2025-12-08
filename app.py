@@ -2136,7 +2136,7 @@ def product_mapping():
             # Continue without filtering if there's an error
         
         # Default categories (always show these as options, unless deleted)
-        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi Regular', 'Other']
         
         # Filter out deleted categories from defaults
         default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
@@ -3221,7 +3221,7 @@ def get_tablet_type_categories():
         return jsonify({
             'success': True,
             'categories': categories,
-            'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+            'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi Regular', 'Other']
         })
     except Exception as e:
         import traceback
@@ -3299,7 +3299,7 @@ def get_categories():
             # Continue without filtering if there's an error
         
         # Default categories (filter out deleted ones)
-        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi Regular', 'Other']
         default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
         
         all_categories = list(set(default_categories + category_list))
