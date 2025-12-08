@@ -3493,7 +3493,25 @@ def update_tablet_type_category():
         
         conn = get_db()
         
-        # Update category
+        # Ensure category exists in categories table if not None
+        if category:
+            # Check if category exists
+            existing_cat = conn.execute('''
+                SELECT id FROM categories WHERE category_name = ?
+            ''', (category,)).fetchone()
+            
+            if not existing_cat:
+                # Get max display_order and add new category at the end
+                max_order = conn.execute('SELECT MAX(display_order) as max FROM categories').fetchone()['max']
+                new_order = (max_order or 0) + 1
+                
+                # Insert new category
+                conn.execute('''
+                    INSERT INTO categories (category_name, display_order, is_active)
+                    VALUES (?, ?, TRUE)
+                ''', (category, new_order))
+        
+        # Update category in tablet_types
         conn.execute('''
             UPDATE tablet_types 
             SET category = ?
@@ -3504,6 +3522,58 @@ def update_tablet_type_category():
         conn.close()
         
         return jsonify({'success': True, 'message': 'Category updated successfully'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/categories/sync', methods=['POST'])
+@admin_required
+def sync_categories():
+    """Sync categories from tablet_types to categories table"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all unique categories from tablet_types
+        categories_in_use = conn.execute('''
+            SELECT DISTINCT category 
+            FROM tablet_types 
+            WHERE category IS NOT NULL AND category != ''
+        ''').fetchall()
+        
+        synced_count = 0
+        for cat_row in categories_in_use:
+            category_name = cat_row['category']
+            
+            # Check if category exists in categories table
+            existing = conn.execute('''
+                SELECT id FROM categories WHERE category_name = ?
+            ''', (category_name,)).fetchone()
+            
+            if not existing:
+                # Get max display_order
+                max_order = conn.execute('SELECT MAX(display_order) as max FROM categories').fetchone()['max']
+                new_order = (max_order or 0) + 1
+                
+                # Insert new category
+                conn.execute('''
+                    INSERT INTO categories (category_name, display_order, is_active)
+                    VALUES (?, ?, TRUE)
+                ''', (category_name, new_order))
+                synced_count += 1
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'✅ Synced {synced_count} categor{"y" if synced_count == 1 else "ies"} from tablet types to categories table',
+            'synced_count': synced_count
+        })
     except Exception as e:
         if conn:
             try:

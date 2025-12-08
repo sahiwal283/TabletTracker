@@ -99,6 +99,14 @@
                     SYNC ZOHO POs
                 </span>
             </button>
+            <button onclick="syncCategories()" 
+                    class="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
+                    title="Sync categories from tablet types to categories table">
+                <span class="flex items-center justify-center">
+                    <span class="text-base mr-1">🔄</span>
+                    Sync Categories
+                </span>
+            </button>
             <button onclick="viewFlaggedSubmissions()" 
                     class="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-2.5 text-sm font-semibold rounded-lg transform transition-all duration-300 hover:scale-105"
                     title="View submissions flagged for review (duplicates, unassigned legacy data)">
@@ -191,6 +199,41 @@ async function syncZohoPOs() {
 // View flagged submissions
 function viewFlaggedSubmissions() {
     window.location.href = '/submissions/flagged';
+}
+
+// Sync categories from tablet_types to categories table
+async function syncCategories() {
+    if (!confirm('Sync categories from tablet types to categories table?\n\nThis will add any categories currently in use (like custom categories) to the categories table so they appear in all dropdowns.')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.innerHTML = '<span class="flex items-center justify-center"><span class="text-base mr-1">🔄</span>Syncing...</span>';
+        
+        const response = await fetch('/api/categories/sync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message || '✅ Categories synced successfully!');
+        } else {
+            showError('❌ Sync failed: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        showError('Sync failed: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.innerHTML = originalText;
+    }
 }
 
 // Clear PO data
