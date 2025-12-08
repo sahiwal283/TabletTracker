@@ -616,16 +616,6 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                         ${sub.assigned_po_id ? `
                         <div class="mt-3 flex items-center justify-center gap-2 flex-wrap">
                             <span class="text-xs text-gray-600">PO: ${sub.po_number || 'N/A'}</span>
-                                ${sub.po_verified ? `
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-600 text-white">✓ Verified</span>
-                                ${isAdmin ? `
-                                    <button onclick="event.stopPropagation(); event.preventDefault(); openAdminReassignModal(${sub.id}, '${(sub.po_number || 'N/A').replace(/'/g, "\\'")}', '${(sub.product_name || '').replace(/'/g, "\\'")}')" 
-                                            class="text-xs text-orange-600 hover:text-orange-800 underline cursor-pointer"
-                                            title="Change PO assignment (Admin override - verified submissions)">
-                                        🔧 Change PO (Admin)
-                                    </button>
-                                ` : ''}
-                            ` : ''}
                         </div>
                         ` : ''}
                         
@@ -833,16 +823,6 @@ function filterSubmissionsInModal(filterType) {
                 ${sub.assigned_po_id ? `
                 <div class="mt-3 flex items-center justify-center gap-2 flex-wrap">
                     <span class="text-xs text-gray-600">PO: ${sub.po_number || 'N/A'}</span>
-                    ${sub.po_verified ? `
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-600 text-white">✓ Verified</span>
-                        ${isAdmin ? `
-                            <button onclick="event.stopPropagation(); event.preventDefault(); openAdminReassignModal(${sub.id}, '${(sub.po_number || 'N/A').replace(/'/g, "\\'")}', '${(sub.product_name || '').replace(/'/g, "\\'")}')" 
-                                    class="text-xs text-orange-600 hover:text-orange-800 underline cursor-pointer"
-                                    title="Change PO assignment (Admin override - verified submissions)">
-                                🔧 Change PO (Admin)
-                            </button>
-                        ` : ''}
-                    ` : ''}
                 </div>
                 ` : ''}
                 
@@ -1325,7 +1305,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
                 <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
                     <div class="flex justify-between items-center">
                         <div>
-                            <h3 class="text-xl font-bold">⚠️ Admin Override: Reassign Verified Submission</h3>
+                            <h3 class="text-xl font-bold">🔧 Admin: Change PO Assignment</h3>
                             <p class="text-sm text-orange-100 mt-1" id="admin-reassign-modal-subtitle"></p>
                         </div>
                         <button onclick="closeAdminReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">

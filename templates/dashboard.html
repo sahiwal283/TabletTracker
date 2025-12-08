@@ -402,29 +402,6 @@
                                         <span class="text-xs text-green-600">✓</span>
                                     {% endif %}
                                 </div>
-                                {% if sub.po_verified %}
-                                    <span class="text-xs text-green-600 font-semibold">✓ Verified</span>
-                                    {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
-                                    <button onclick="openAdminReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
-                                            class="text-xs text-orange-600 hover:text-orange-800 underline"
-                                            title="Change PO assignment (Admin override - verified submissions)">
-                                        🔧 Change (Admin)
-                                    </button>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="flex items-center gap-1">
-                                        <button onclick="approveSubmission({{ sub.id }})" 
-                                                class="text-xs bg-green-600 hover:bg-green-700 text-white px-1.5 py-0.5 rounded"
-                                                title="Approve">
-                                            ✓
-                                        </button>
-                                        <button onclick="openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
-                                                class="text-xs text-blue-600 hover:text-blue-800 underline"
-                                                title="Change">
-                                            Change
-                                        </button>
-                                    </div>
-                                {% endif %}
                             </div>
                         {% else %}
                             <div class="flex flex-col gap-1">
@@ -2232,7 +2209,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
                 <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
                     <div class="flex justify-between items-center">
                         <div>
-                            <h3 class="text-xl font-bold">🔧 Admin: Change Verified PO Assignment</h3>
+                            <h3 class="text-xl font-bold">🔧 Admin: Change PO Assignment</h3>
                             <p class="text-sm text-orange-100 mt-1" id="admin-reassign-modal-subtitle"></p>
                         </div>
                         <button onclick="closeAdminReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">✕</button>

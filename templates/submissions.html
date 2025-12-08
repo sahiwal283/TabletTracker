@@ -313,22 +313,6 @@
                                         ✓ Open
                                     </span>
                                 {% endif %}
-                                {% if sub.po_verified %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-green-600 text-white" title="PO assignment verified and locked">
-                                        ✓ Verified
-                                    </span>
-                                {% else %}
-                                    <button onclick="approveSubmission({{ sub.id }})" 
-                                            class="text-sm bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded"
-                                            title="Approve this PO assignment">
-                                        ✓ Approve
-                                    </button>
-                                    <button onclick="openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}')" 
-                                            class="text-sm text-blue-600 hover:text-blue-800 underline"
-                                            title="Change PO assignment">
-                                        Change
-                                    </button>
-                                {% endif %}
                                 <!-- Admin/Manager Edit button -->
                                 {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}
                                     <button onclick="openEditSubmissionModal({{ sub.id }})" 
@@ -635,7 +619,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
                 <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
                     <div class="flex justify-between items-center">
                         <div>
-                            <h3 class="text-xl font-bold">⚠️ Admin Override - Change PO</h3>
+                            <h3 class="text-xl font-bold">🔧 Admin: Change PO Assignment</h3>
                             <p class="text-sm text-orange-100 mt-1" id="admin-reassign-modal-subtitle"></p>
                         </div>
                         <button onclick="closeAdminReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
