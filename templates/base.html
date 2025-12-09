@@ -719,12 +719,11 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             adminNotesTextarea.value = sub.admin_notes || '';
         }
         
-        // Show/hide admin change PO section for verified submissions
+        // Show admin change PO section for all submissions (verification workflow removed)
         // Note: This modal is only accessible to admins/managers (API enforces this)
         const adminChangePoSection = document.getElementById('admin-change-po-section');
-        const isVerified = sub.po_verified || sub.po_assignment_verified || sub.po_assignment_verified === 1;
         
-        if (adminChangePoSection && isVerified) {
+        if (adminChangePoSection) {
             adminChangePoSection.classList.remove('hidden');
             const currentPoDisplay = document.getElementById('edit-current-po-display');
             if (currentPoDisplay) {
