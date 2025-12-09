@@ -3130,7 +3130,7 @@ def submit_count():
               data.get('bag_number'), bag['id'], bag['po_id'], needs_review,
               actual_count, submission_date, admin_notes))
         
-            conn.commit()
+        conn.commit()
         
         return jsonify({
             'success': True,
@@ -3725,7 +3725,7 @@ def add_category():
         
         if existing:
             if existing['is_active']:
-            return jsonify({'success': False, 'error': 'Category already exists'}), 400
+                return jsonify({'success': False, 'error': 'Category already exists'}), 400
             else:
                 # Reactivate inactive category
                 conn.execute('''
@@ -3865,15 +3865,15 @@ def delete_category():
             WHERE id = ?
         ''', (category['id'],))
         
-            # Remove category from all tablet types (set to NULL)
-            cursor = conn.execute('''
-                UPDATE tablet_types 
-                SET category = NULL
-                WHERE category = ?
-            ''', (category_name,))
-            
+        # Remove category from all tablet types (set to NULL)
+        cursor = conn.execute('''
+            UPDATE tablet_types 
+            SET category = NULL
+            WHERE category = ?
+        ''', (category_name,))
+        
         tablet_types_updated = cursor.rowcount
-            
+        
         conn.commit()
         
         return jsonify({
