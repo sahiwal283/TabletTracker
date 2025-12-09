@@ -276,6 +276,7 @@
 let boxCounter = 0;
 let bagCounter = {};
 let currentReceivingId = null;
+let currentPoId = null;
 
 // Store categories and tablet types from server (converted from Jinja2 to JavaScript)
 const categories = {{ categories | tojson }};
@@ -546,11 +547,12 @@ async function submitReceives(event) {
     }
 }
 
-function openAssignPOModal(receivingId, currentPoId) {
+function openAssignPOModal(receivingId, currentPoIdParam) {
     currentReceivingId = receivingId;
+    currentPoId = currentPoIdParam;
     const select = document.getElementById('assign-po-select');
     if (select) {
-        select.value = currentPoId || '';
+        select.value = currentPoIdParam || '';
         document.getElementById('assign-po-modal').classList.remove('hidden');
     }
 }
@@ -559,6 +561,7 @@ function closeAssignPOModal(event) {
     if (!event || event.target === event.currentTarget || event.target.closest('button')) {
         document.getElementById('assign-po-modal').classList.add('hidden');
         currentReceivingId = null;
+        currentPoId = null;
     }
 }
 
@@ -638,7 +641,24 @@ async function savePOAssignment() {
     }
     
     const select = document.getElementById('assign-po-select');
-    const poId = select.value || null;
+    const newPoId = select.value || null;
+    
+    // Validation: Check if PO is actually changing
+    const currentPoIdStr = currentPoId ? String(currentPoId) : '';
+    const newPoIdStr = newPoId ? String(newPoId) : '';
+    
+    if (currentPoIdStr === newPoIdStr) {
+        alert('⚠️ No changes detected. The selected PO is already assigned to this receive.');
+        return;
+    }
+    
+    // Confirmation dialog
+    const currentPoText = currentPoId ? `PO-${select.options[select.selectedIndex]?.text?.split('-')[1]?.trim() || currentPoId}` : 'No PO';
+    const newPoText = newPoId ? select.options[select.selectedIndex]?.text || 'Unknown PO' : 'No PO';
+    
+    if (!confirm(`⚠️ Change PO Assignment?\n\nFrom: ${currentPoText === 'No PO' ? 'Unassigned' : currentPoText}\nTo: ${newPoText === 'No PO' ? 'Unassigned' : newPoText}\n\nThis may affect submission linking. Continue?`)) {
+        return;
+    }
     
     try {
         const response = await fetch(`/api/receiving/${currentReceivingId}/assign_po`, {
@@ -647,7 +667,7 @@ async function savePOAssignment() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                po_id: poId ? parseInt(poId) : null
+                po_id: newPoId ? parseInt(newPoId) : null
             })
         });
         
