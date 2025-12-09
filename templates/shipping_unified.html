@@ -775,7 +775,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         
                         modalContent += `
                             <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
-                                 onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${box.box_number}, ${bag.bag_number});"
+                                 onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});"
                                  title="Click to view submissions for Box ${box.box_number}, Bag ${bag.bag_number}">
                                 <div class="flex justify-between items-center mb-2">
                                     <div class="flex items-center gap-2">
@@ -858,7 +858,7 @@ function closeReceiveDetailsModal(event) {
 // Submissions modal functions
 let typeFilter = null;
 
-async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, boxNumber = null, bagNumber = null) {
+async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, bagId = null, boxNumber = null, bagNumber = null) {
     try {
         const response = await fetch(`/api/po/${poId}/submissions`);
         const data = await response.json();
@@ -873,11 +873,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
-        // Further filter by box and bag if specified
-        if (boxNumber !== null && bagNumber !== null) {
-            filteredSubmissions = filteredSubmissions.filter(sub => 
-                sub.box_number === boxNumber && sub.bag_number === bagNumber
-            );
+        // Further filter by bag_id if specified (unique identifier for specific bag in specific receive)
+        if (bagId !== null) {
+            filteredSubmissions = filteredSubmissions.filter(sub => sub.bag_id === bagId);
         }
         
         const allSubmissions = [...filteredSubmissions];
@@ -910,7 +908,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                             <div class="flex-1 ${receiveId ? 'text-center' : ''}">
                                 <h3 class="text-xl font-bold">📋 Submissions for ${receiveId ? receiveName : poName}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
-                                ${boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
+                                ${bagId !== null && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s)</p>
                             </div>
                             <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">✕</button>

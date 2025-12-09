@@ -1388,9 +1388,47 @@ def admin_dashboard():
             FROM purchase_orders
         ''').fetchone()
         
-        # Verification workflow removed - now using receive-based tracking
+        # Find submissions that need review (duplicate flavor + box + bag combinations)
+        # These are submissions where the same inventory_item_id, box_number, and bag_number appear multiple times
+        # but don't have a bag_id (not properly linked to a specific receive)
+        submissions_needing_review = conn.execute('''
+            WITH duplicate_combos AS (
+                SELECT inventory_item_id, box_number, bag_number, COUNT(*) as submission_count
+                FROM warehouse_submissions
+                WHERE bag_id IS NULL
+                AND inventory_item_id IS NOT NULL
+                AND box_number IS NOT NULL
+                AND bag_number IS NOT NULL
+                GROUP BY inventory_item_id, box_number, bag_number
+                HAVING COUNT(*) > 1
+            )
+            SELECT ws.*, 
+                   po.po_number,
+                   dc.submission_count as duplicate_count,
+                   (
+                       CASE ws.submission_type
+                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                                                ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
+                           WHEN 'bag' THEN ws.loose_tablets
+                           WHEN 'machine' THEN ws.loose_tablets
+                           ELSE ws.loose_tablets + ws.damaged_tablets
+                       END
+                   ) as calculated_total
+            FROM warehouse_submissions ws
+            INNER JOIN duplicate_combos dc 
+                ON ws.inventory_item_id = dc.inventory_item_id
+                AND ws.box_number = dc.box_number
+                AND ws.bag_number = dc.bag_number
+            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.bag_id IS NULL
+            ORDER BY ws.inventory_item_id, ws.box_number, ws.bag_number, ws.created_at DESC
+        ''').fetchall()
         
-        return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, tablet_types=tablet_types)
+        # Convert to list of dicts
+        review_submissions = [dict(row) for row in submissions_needing_review]
+        
+        return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, tablet_types=tablet_types, submissions_needing_review=review_submissions)
     except Exception as e:
         print(f"Error in admin_dashboard: {e}")
         traceback.print_exc()
@@ -1402,7 +1440,7 @@ def admin_dashboard():
             'draft_pos': 0,
             'total_remaining': 0
         })()
-        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, tablet_types=[])
+        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, tablet_types=[], submissions_needing_review=[])
     finally:
         if conn:
             try:
@@ -6069,7 +6107,7 @@ def get_receive_details(receive_id):
             if box_number not in products[inventory_item_id]['boxes']:
                 products[inventory_item_id]['boxes'][box_number] = {}
             
-            # Get submission counts for this specific bag
+            # Get submission counts for this specific bag using bag_id (unique identifier)
             machine_count = conn.execute('''
                 SELECT COALESCE(SUM(
                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -6078,12 +6116,9 @@ def get_receive_details(receive_id):
                 ), 0) as total_machine
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                WHERE ws.inventory_item_id = ? 
-                AND ws.box_number = ?
-                AND ws.bag_number = ?
+                WHERE ws.bag_id = ?
                 AND ws.submission_type = 'machine'
-                AND ws.assigned_po_id = ?
-            ''', (inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
+            ''', (bag['id'],)).fetchone()
             
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
@@ -6093,12 +6128,9 @@ def get_receive_details(receive_id):
                 ), 0) as total_packaged
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                WHERE ws.inventory_item_id = ? 
-                AND ws.box_number = ?
-                AND ws.bag_number = ?
+                WHERE ws.bag_id = ?
                 AND ws.submission_type IN ('packaged', 'bag')
-                AND ws.assigned_po_id = ?
-            ''', (inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
+            ''', (bag['id'],)).fetchone()
             
             products[inventory_item_id]['boxes'][box_number][bag_number] = {
                 'bag_id': bag['id'],
