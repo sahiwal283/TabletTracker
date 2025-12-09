@@ -3713,7 +3713,6 @@ def add_category():
                     WHERE id = ?
                 ''', (existing['id'],))
                 conn.commit()
-                conn.close()
                 return jsonify({
                     'success': True, 
                     'message': f'Category "{category_name}" reactivated successfully!'
@@ -3730,7 +3729,6 @@ def add_category():
         ''', (category_name, new_order))
         
         conn.commit()
-                conn.close()
         
         return jsonify({
             'success': True, 
@@ -3739,12 +3737,13 @@ def add_category():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/categories/rename', methods=['POST'])
 @admin_required
