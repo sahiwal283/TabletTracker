@@ -2172,7 +2172,7 @@ def get_po_lines(po_id):
                     'po_number': parent_po_record['po_number']
                 }
         
-        # Calculate round numbers for each line item
+        # Calculate round numbers and received counts for each line item
         lines_with_rounds = []
         for line in lines:
             line_dict = dict(line)
@@ -2195,6 +2195,18 @@ def get_po_lines(po_id):
                         break
             
             line_dict['round_number'] = round_number
+            
+            # Get received count from bags (bag_label_count sum for this PO and inventory_item_id)
+            received_count = conn.execute('''
+                SELECT COALESCE(SUM(b.bag_label_count), 0) as total_received
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE r.po_id = ? AND tt.inventory_item_id = ?
+            ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
+            
+            line_dict['received_count'] = received_count['total_received'] if received_count else 0
             lines_with_rounds.append(line_dict)
         
         result = {

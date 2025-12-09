@@ -1762,8 +1762,8 @@ async function viewPODetailsModal(poId, poNumber) {
             modalContent += '<div class="grid grid-cols-1 gap-4">';
             
             lines.forEach(line => {
-                const remaining = line.quantity_ordered - line.good_count - line.damaged_count;
-                const received = line.good_count + line.damaged_count;
+                const received = line.received_count || 0;
+                const remaining = line.quantity_ordered - received;
                 const progressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
                 const isOver = remaining < 0;
                 const displayValue = Math.abs(remaining);
@@ -1804,8 +1804,8 @@ async function viewPODetailsModal(poId, poNumber) {
                                     <div class="text-lg font-bold text-green-600">${line.good_count.toLocaleString()}</div>
                                 </div>
                                 <div class="text-center">
-                                    <div class="text-xs text-red-600 font-medium">Damaged</div>
-                                    <div class="text-lg font-bold text-red-600">${line.damaged_count.toLocaleString()}</div>
+                                    <div class="text-xs text-indigo-600 font-medium">Received</div>
+                                    <div class="text-lg font-bold text-indigo-600">${received.toLocaleString()}</div>
                                 </div>
                                 <div class="text-center">
                                     <div class="text-xs ${labelColor} font-medium">${labelText}</div>
