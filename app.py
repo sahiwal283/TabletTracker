@@ -3770,7 +3770,6 @@ def rename_category():
         ''', (old_name,)).fetchone()
         
         if not old_exists:
-            conn.close()
             return jsonify({'success': False, 'error': f'Category "{old_name}" not found'}), 404
         
         # Check if new name already exists
@@ -3779,7 +3778,6 @@ def rename_category():
         ''', (new_name,)).fetchone()
         
         if new_exists:
-                    conn.close()
             return jsonify({'success': False, 'error': 'Category name already exists'}), 400
         
         # Update the category name in categories table
@@ -3799,20 +3797,19 @@ def rename_category():
         tablet_types_updated = cursor.rowcount
         
         conn.commit()
-                conn.close()
         
         return jsonify({
             'success': True, 
             'message': f'✅ Category renamed from "{old_name}" to "{new_name}" ({tablet_types_updated} tablet types updated)'
         })
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
-                conn.rollback()
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/categories/delete', methods=['POST'])
 @admin_required
@@ -3835,11 +3832,9 @@ def delete_category():
         ''', (category_name,)).fetchone()
         
         if not category:
-            conn.close()
             return jsonify({'success': False, 'error': f'Category "{category_name}" not found'}), 404
         
         if not category['is_active']:
-            conn.close()
             return jsonify({'success': False, 'error': 'Category already deleted'}), 400
         
         # Soft delete category (mark as inactive)
@@ -3849,17 +3844,16 @@ def delete_category():
             WHERE id = ?
         ''', (category['id'],))
         
-            # Remove category from all tablet types (set to NULL)
-            cursor = conn.execute('''
-                UPDATE tablet_types 
-                SET category = NULL
-                WHERE category = ?
-            ''', (category_name,))
-            
+        # Remove category from all tablet types (set to NULL)
+        cursor = conn.execute('''
+            UPDATE tablet_types 
+            SET category = NULL
+            WHERE category = ?
+        ''', (category_name,))
+        
         tablet_types_updated = cursor.rowcount
-            
+        
         conn.commit()
-                conn.close()
         
         return jsonify({
             'success': True, 
@@ -3868,13 +3862,13 @@ def delete_category():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
-                conn.rollback()
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/add_tablet_type', methods=['POST'])
 def add_tablet_type():
