@@ -5455,6 +5455,86 @@ def approve_submission_assignment(submission_id):
 
 
 
+@app.route('/api/bag/<int:bag_id>/submissions', methods=['GET'])
+@role_required('dashboard')
+def get_bag_submissions(bag_id):
+    """Get all submissions for a specific bag (for duplicate review)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        submissions = conn.execute('''
+            SELECT ws.*, 
+                   (
+                       CASE ws.submission_type
+                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                                                ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
+                           WHEN 'bag' THEN ws.loose_tablets
+                           WHEN 'machine' THEN ws.loose_tablets
+                           ELSE ws.loose_tablets + ws.damaged_tablets
+                       END
+                   ) as total_tablets
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.bag_id = ?
+            ORDER BY ws.created_at DESC
+        ''', (bag_id,)).fetchall()
+        
+        return jsonify({
+            'success': True,
+            'submissions': [dict(row) for row in submissions]
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/submission/<int:submission_id>', methods=['DELETE'])
+@role_required('dashboard')
+def delete_submission(submission_id):
+    """Delete a submission (for removing duplicates)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Check if submission exists
+        submission = conn.execute('''
+            SELECT id FROM warehouse_submissions WHERE id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        # Delete the submission
+        conn.execute('DELETE FROM warehouse_submissions WHERE id = ?', (submission_id,))
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission deleted successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/api/submission/<int:submission_id>/details', methods=['GET'])
 @admin_required
 def get_submission_details(submission_id):
