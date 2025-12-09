@@ -1329,8 +1329,8 @@ def admin_dashboard():
             
             submissions_processed.append(sub_dict)
         
-        # Show only last 10 most recent submissions on dashboard
-        submissions = list(reversed(submissions_processed[-10:]))  # Last 10, newest first
+        # Show only first 10 most recent submissions on dashboard (query already orders DESC)
+        submissions = submissions_processed[:10]  # First 10, already newest first from DESC query
         
         # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
         stats = conn.execute('''
