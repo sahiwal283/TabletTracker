@@ -3723,8 +3723,7 @@ def add_category():
         
         if existing:
             if existing['is_active']:
-                    conn.close()
-            return jsonify({'success': False, 'error': 'Category already exists'}), 400
+                return jsonify({'success': False, 'error': 'Category already exists'}), 400
             else:
                 # Reactivate inactive category
                 conn.execute('''
