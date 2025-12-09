@@ -731,73 +731,98 @@ async function viewReceiveDetails(receiveId, receiveName) {
                 </div>
             `;
         } else {
-            modalContent += '<div class="space-y-4">';
+            modalContent += '<div class="space-y-6">';
             
             products.forEach(product => {
-                const totalCounted = product.machine_count + product.packaged_count;
-                const difference = totalCounted - product.received_count;
-                const percentComplete = product.received_count > 0 
-                    ? Math.round((totalCounted / product.received_count) * 100) 
-                    : 0;
-                
-                // Determine status colors - always show "Remaining"
-                const displayValue = product.received_count - totalCounted;
-                let bgColor = 'bg-gray-50';
-                let labelColor = 'text-gray-600';
-                
-                if (displayValue <= 0) {
-                    bgColor = 'bg-green-50';
-                    labelColor = 'text-green-600';
-                } else if (percentComplete >= 75) {
-                    bgColor = 'bg-yellow-50';
-                    labelColor = 'text-yellow-600';
-                }
-                
+                // Product header
                 modalContent += `
-                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
-                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}');"
-                         title="Click to view submissions for this product">
-                        <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h4 class="font-semibold text-gray-900 text-base">${product.tablet_type_name}</h4>
-                                <p class="text-xs text-gray-500 mt-1">💡 Click to view submissions</p>
-                            </div>
-                        </div>
-                        
-                        <!-- Progress Bar -->
-                        <div class="mb-3">
-                            <div class="flex justify-between text-xs text-gray-600 mb-1">
-                                <span>Progress</span>
-                                <span class="font-medium">${percentComplete}%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="h-2 rounded-full transition-all ${percentComplete >= 100 ? 'bg-green-500' : percentComplete >= 75 ? 'bg-yellow-500' : 'bg-blue-500'}"
-                                     style="width: ${Math.min(percentComplete, 100)}%"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- Stats Grid -->
-                        <div class="grid grid-cols-3 gap-3 text-center">
-                            <div class="bg-indigo-50 rounded-lg p-3">
-                                <div class="text-xs text-indigo-600 mb-1">Received</div>
-                                <div class="text-lg font-bold text-indigo-600">${product.received_count.toLocaleString()}</div>
-                            </div>
-                            <div class="bg-green-50 rounded-lg p-3">
-                                <div class="text-xs text-green-600 mb-1">Counted</div>
-                                <div class="text-base font-bold text-green-600 flex items-center justify-center gap-1">
-                                    <span>${(product.machine_count || 0).toLocaleString()}</span>
-                                    <span class="text-gray-400 font-normal">|</span>
-                                    <span>${(product.packaged_count || 0).toLocaleString()}</span>
-                                </div>
-                                <div class="text-xs text-gray-500 mt-0.5">Machine | Packaged</div>
-                            </div>
-                            <div class="${bgColor} rounded-lg p-3">
-                                <div class="text-xs ${labelColor} mb-1">Remaining</div>
-                                <div class="text-lg font-bold ${labelColor}">${displayValue.toLocaleString()}</div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="border-2 border-gray-300 rounded-lg p-4">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">
+                            🧪 ${product.tablet_type_name}
+                        </h3>
                 `;
+                
+                // Loop through each box
+                product.boxes.forEach(box => {
+                    modalContent += `
+                        <div class="mb-4 ml-4">
+                            <div class="flex items-center gap-2 mb-3">
+                                <h4 class="font-semibold text-gray-700">📦 Box ${box.box_number}</h4>
+                                <div class="flex-1 border-t border-gray-300"></div>
+                            </div>
+                            <div class="space-y-3 ml-4">
+                    `;
+                    
+                    // Loop through each bag in the box
+                    box.bags.forEach(bag => {
+                        const totalCounted = bag.machine_count + bag.packaged_count;
+                        const remaining = bag.received_count - totalCounted;
+                        const percentComplete = bag.received_count > 0 
+                            ? Math.round((totalCounted / bag.received_count) * 100) 
+                            : 0;
+                        
+                        // Determine status colors
+                        let bgColor = 'bg-gray-50';
+                        let labelColor = 'text-gray-600';
+                        
+                        if (remaining <= 0) {
+                            bgColor = 'bg-green-50';
+                            labelColor = 'text-green-600';
+                        } else if (percentComplete >= 75) {
+                            bgColor = 'bg-yellow-50';
+                            labelColor = 'text-yellow-600';
+                        }
+                        
+                        modalContent += `
+                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
+                                 onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${box.box_number}, ${bag.bag_number});"
+                                 title="Click to view submissions for Box ${box.box_number}, Bag ${bag.bag_number}">
+                                <div class="flex justify-between items-center mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-700">🎒 Bag ${bag.bag_number}</span>
+                                        <span class="text-xs text-gray-500">💡 Click for submissions</span>
+                                    </div>
+                                    <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                </div>
+                                
+                                <!-- Progress Bar -->
+                                <div class="mb-2">
+                                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                        <div class="h-1.5 rounded-full transition-all ${percentComplete >= 100 ? 'bg-green-500' : percentComplete >= 75 ? 'bg-yellow-500' : 'bg-blue-500'}"
+                                             style="width: ${Math.min(percentComplete, 100)}%"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Compact Stats -->
+                                <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                                    <div class="bg-indigo-50 rounded px-2 py-1">
+                                        <div class="text-indigo-600 font-semibold">${bag.received_count.toLocaleString()}</div>
+                                        <div class="text-gray-500">Received</div>
+                                    </div>
+                                    <div class="bg-blue-50 rounded px-2 py-1">
+                                        <div class="text-blue-600 font-semibold">${(bag.machine_count || 0).toLocaleString()}</div>
+                                        <div class="text-gray-500">Machine</div>
+                                    </div>
+                                    <div class="bg-purple-50 rounded px-2 py-1">
+                                        <div class="text-purple-600 font-semibold">${(bag.packaged_count || 0).toLocaleString()}</div>
+                                        <div class="text-gray-500">Packaged</div>
+                                    </div>
+                                    <div class="${bgColor} rounded px-2 py-1">
+                                        <div class="${labelColor} font-semibold">${remaining.toLocaleString()}</div>
+                                        <div class="text-gray-500">Remaining</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    modalContent += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                modalContent += '</div>';
             });
             
             modalContent += '</div>';
@@ -833,7 +858,7 @@ function closeReceiveDetailsModal(event) {
 // Submissions modal functions
 let typeFilter = null;
 
-async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null) {
+async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, boxNumber = null, bagNumber = null) {
     try {
         const response = await fetch(`/api/po/${poId}/submissions`);
         const data = await response.json();
@@ -847,6 +872,13 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         let filteredSubmissions = inventoryItemId 
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
+        
+        // Further filter by box and bag if specified
+        if (boxNumber !== null && bagNumber !== null) {
+            filteredSubmissions = filteredSubmissions.filter(sub => 
+                sub.box_number === boxNumber && sub.bag_number === bagNumber
+            );
+        }
         
         const allSubmissions = [...filteredSubmissions];
         
@@ -878,6 +910,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                             <div class="flex-1 ${receiveId ? 'text-center' : ''}">
                                 <h3 class="text-xl font-bold">📋 Submissions for ${receiveId ? receiveName : poName}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
+                                ${boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s)</p>
                             </div>
                             <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">✕</button>

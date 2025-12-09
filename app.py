@@ -6006,27 +6006,26 @@ def get_receive_details(receive_id):
             ORDER BY sb.box_number, b.bag_number
         ''', (receive_id,)).fetchall()
         
-        # Group bags by product and calculate totals
-        product_totals = {}
+        # Group by product -> box -> bag
+        products = {}
         for bag in bags:
             inventory_item_id = bag['inventory_item_id']
             tablet_type_name = bag['tablet_type_name']
+            box_number = bag['box_number']
+            bag_number = bag['bag_number']
             bag_label_count = bag['bag_label_count'] or 0
             
-            if inventory_item_id not in product_totals:
-                product_totals[inventory_item_id] = {
+            if inventory_item_id not in products:
+                products[inventory_item_id] = {
                     'tablet_type_name': tablet_type_name,
                     'inventory_item_id': inventory_item_id,
-                    'received_count': 0,
-                    'machine_count': 0,
-                    'packaged_count': 0
+                    'boxes': {}
                 }
-            product_totals[inventory_item_id]['received_count'] += bag_label_count
-        
-        # Get submission counts for each product in this receive
-        # Submissions are linked to bags, which are linked to boxes, which are linked to receives
-        for inventory_item_id, product_data in product_totals.items():
-            # Get machine count
+            
+            if box_number not in products[inventory_item_id]['boxes']:
+                products[inventory_item_id]['boxes'][box_number] = {}
+            
+            # Get submission counts for this specific bag
             machine_count = conn.execute('''
                 SELECT COALESCE(SUM(
                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -6036,13 +6035,12 @@ def get_receive_details(receive_id):
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.inventory_item_id = ? 
+                AND ws.box_number = ?
+                AND ws.bag_number = ?
                 AND ws.submission_type = 'machine'
                 AND ws.assigned_po_id = ?
-            ''', (inventory_item_id, receive_dict['po_id'])).fetchone()
+            ''', (inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
             
-            product_data['machine_count'] = machine_count['total_machine'] if machine_count else 0
-            
-            # Get packaged count
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -6052,19 +6050,44 @@ def get_receive_details(receive_id):
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.inventory_item_id = ? 
+                AND ws.box_number = ?
+                AND ws.bag_number = ?
                 AND ws.submission_type IN ('packaged', 'bag')
                 AND ws.assigned_po_id = ?
-            ''', (inventory_item_id, receive_dict['po_id'])).fetchone()
+            ''', (inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
             
-            product_data['packaged_count'] = packaged_count['total_packaged'] if packaged_count else 0
+            products[inventory_item_id]['boxes'][box_number][bag_number] = {
+                'bag_id': bag['id'],
+                'received_count': bag_label_count,
+                'machine_count': machine_count['total_machine'] if machine_count else 0,
+                'packaged_count': packaged_count['total_packaged'] if packaged_count else 0
+            }
         
-        # Convert to list for JSON response
-        products = list(product_totals.values())
+        # Convert nested dict to list format for easier frontend handling
+        products_list = []
+        for inventory_item_id, product_data in products.items():
+            product_entry = {
+                'tablet_type_name': product_data['tablet_type_name'],
+                'inventory_item_id': inventory_item_id,
+                'boxes': []
+            }
+            for box_number, bags_in_box in sorted(product_data['boxes'].items()):
+                box_entry = {
+                    'box_number': box_number,
+                    'bags': []
+                }
+                for bag_number, bag_data in sorted(bags_in_box.items()):
+                    box_entry['bags'].append({
+                        'bag_number': bag_number,
+                        **bag_data
+                    })
+                product_entry['boxes'].append(box_entry)
+            products_list.append(product_entry)
         
         return jsonify({
             'success': True,
             'receive': receive_dict,
-            'products': products
+            'products': products_list
         })
         
     except Exception as e:
