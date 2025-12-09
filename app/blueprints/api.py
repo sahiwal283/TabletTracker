@@ -609,18 +609,24 @@ def refresh_shipment(shipment_id: int):
 
 @bp.route('/api/shipment/<int:shipment_id>', methods=['GET'])
 def get_shipment(shipment_id: int):
+    conn = None
     try:
         conn = get_db()
         row = conn.execute('''
             SELECT id, po_id, tracking_number, carrier, shipped_date, estimated_delivery, actual_delivery, notes
             FROM shipments WHERE id = ?
         ''', (shipment_id,)).fetchone()
-        conn.close()
         if not row:
             return jsonify({'success': False, 'error': 'Not found'}), 404
         return jsonify({'success': True, 'shipment': dict(row)})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -631,15 +637,15 @@ def delete_shipment(shipment_id: int):
         conn = get_db()
         conn.execute('DELETE FROM shipments WHERE id = ?', (shipment_id,))
         conn.commit()
-        conn.close()
         return jsonify({'success': True})
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
@@ -670,7 +676,6 @@ def save_shipment():
             try:
                 shipment_id = int(shipment_id)
             except (ValueError, TypeError):
-                conn.close()
                 return jsonify({'success': False, 'error': 'Invalid shipment_id'}), 400
                 
             # Update existing specific shipment
@@ -725,16 +730,16 @@ def save_shipment():
                 except Exception as exc:
                     print('UPS refresh error:', exc)
 
-        conn.close()
         return jsonify({'success': True, 'message': 'Shipment saved; tracking refreshed if supported'})
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
@@ -1045,7 +1050,6 @@ def submit_count():
         ''', (data.get('tablet_type'),)).fetchone()
         
         if not tablet_type:
-            conn.close()
             return jsonify({'error': 'Tablet type not found'}), 400
         
         # Convert Row to dict for safe access
@@ -1056,7 +1060,6 @@ def submit_count():
             actual_count = int(data.get('actual_count', 0) or 0)
             bag_label_count = int(data.get('bag_label_count', 0) or 0)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
         # Get submission_date (defaults to today if not provided)
@@ -1068,7 +1071,6 @@ def submit_count():
         # Insert count record WITH inventory_item_id
         inventory_item_id = tablet_type.get('inventory_item_id')
         if not inventory_item_id:
-            conn.close()
             return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
             
         conn.execute('''
@@ -1095,7 +1097,6 @@ def submit_count():
         
         if not po_lines:
             conn.commit()
-            conn.close()
             return jsonify({'warning': 'No open PO found for this tablet type', 'submission_saved': True})
         
         # Get the PO we'll assign to (first available line's PO - oldest PO number)
@@ -1156,20 +1157,19 @@ def submit_count():
                 updated_pos.add(po_id)
         
         conn.commit()
-        conn.close()
         
         message = f'Count submitted successfully! Applied {actual_count} tablets to PO'
         
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @bp.route('/submit_machine_count', methods=['POST'])
 @employee_required
@@ -1396,7 +1396,6 @@ def save_product():
             try:
                 product_id = int(data['id'])
             except (ValueError, TypeError):
-                conn.close()
                 return jsonify({'success': False, 'error': 'Invalid product ID'}), 400
                 
             conn.execute('''
@@ -1414,17 +1413,17 @@ def save_product():
             message = f"Created {product_name}"
         
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 

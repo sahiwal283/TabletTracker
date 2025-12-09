@@ -3063,7 +3063,6 @@ def submit_count():
         ''', (data.get('tablet_type'),)).fetchone()
         
         if not tablet_type:
-            conn.close()
             return jsonify({'error': 'Tablet type not found'}), 400
         
         # Convert Row to dict for safe access
@@ -3074,7 +3073,6 @@ def submit_count():
             actual_count = int(data.get('actual_count', 0) or 0)
             bag_label_count = 0  # No longer collected from form
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
         # Get submission_date (defaults to today if not provided)
@@ -3087,10 +3085,8 @@ def submit_count():
         inventory_item_id = tablet_type.get('inventory_item_id')
         tablet_type_id = tablet_type.get('id')
         if not inventory_item_id:
-            conn.close()
             return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
         if not tablet_type_id:
-            conn.close()
             return jsonify({'error': 'Tablet type_id not found'}), 400
         
         # Find matching bag in receives
@@ -3099,11 +3095,10 @@ def submit_count():
         )
         
         if error:
-            conn.close()
             return jsonify({'error': error}), 404
         
         # Insert count record with bag_id (no PO allocation logic)
-            conn.execute('''
+        conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              bag_id, assigned_po_id, needs_review, loose_tablets, 
@@ -3114,7 +3109,6 @@ def submit_count():
               actual_count, submission_date, admin_notes))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -3124,13 +3118,13 @@ def submit_count():
         })
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/submit_machine_count', methods=['POST'])
 @employee_required
@@ -5431,7 +5425,6 @@ def edit_submission(submission_id):
         ''', (submission_id,)).fetchone()
         
         if not submission:
-            conn.close()
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
         old_po_id = submission['assigned_po_id']
@@ -5446,7 +5439,6 @@ def edit_submission(submission_id):
         ''', (submission['product_name'],)).fetchone()
         
         if not product:
-            conn.close()
             return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
         
         # Convert Row to dict for safe access
@@ -5457,7 +5449,6 @@ def edit_submission(submission_id):
         tablets_per_package = product.get('tablets_per_package')
         
         if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
-            conn.close()
             return jsonify({'success': False, 'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
         
         # Convert to int after validation
@@ -5465,7 +5456,6 @@ def edit_submission(submission_id):
             packages_per_display = int(packages_per_display)
             tablets_per_package = int(tablets_per_package)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'success': False, 'error': 'Invalid numeric values for product configuration'}), 400
         
         # Calculate old totals to subtract
@@ -5481,7 +5471,6 @@ def edit_submission(submission_id):
             loose_tablets = int(data.get('loose_tablets', 0) or 0)
             damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
         
         # Calculate new totals
@@ -5543,7 +5532,6 @@ def edit_submission(submission_id):
                       totals['total_damaged'], remaining, old_po_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -5555,12 +5543,13 @@ def edit_submission(submission_id):
         error_trace = traceback.format_exc()
         print(f"❌ EDIT SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/delete', methods=['POST'])
 @admin_required
