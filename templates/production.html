@@ -149,7 +149,7 @@
                     <label for="product_base" class="block text-sm font-medium text-gray-700 mb-1">
                         {{ gettext('Product Type') }} *
                     </label>
-                    <select id="product_base" name="product_base" required class="form-input">
+                    <select id="product_base" name="product_base" class="form-input">
                         <option value="">{{ gettext('Select product type...') }}</option>
                     </select>
                 </div>
@@ -649,6 +649,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Production Submission Form submission
     if (warehouseForm) warehouseForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        // Validate that product_name is populated (set by two-level dropdown)
+        const productNameField = document.getElementById('product_name');
+        if (!productNameField || !productNameField.value) {
+            showError('Please select a product');
+            return;
+        }
         
         const formData = new FormData(warehouseForm);
         const data = Object.fromEntries(formData.entries());

@@ -1149,8 +1149,9 @@ async function convertToTwoLevelDropdown(selectElement) {
         });
     });
     
-    // Hide original select
+    // Hide original select and remove required attribute (prevents "not focusable" error)
     selectElement.style.display = 'none';
+    selectElement.removeAttribute('required');
     
     // Create wrapper
     const wrapper = document.createElement('div');
@@ -1168,7 +1169,7 @@ async function convertToTwoLevelDropdown(selectElement) {
     itemSelect.className = selectElement.className;
     itemSelect.id = selectElement.id + '_item';
     itemSelect.name = selectElement.name;
-    itemSelect.required = selectElement.required;
+    itemSelect.required = true; // Always required - this is the actual selection field
     itemSelect.innerHTML = '<option value="">Select tablet type...</option>';
     itemSelect.style.display = 'none';
     
