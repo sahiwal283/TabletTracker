@@ -4251,7 +4251,6 @@ def edit_submission(submission_id):
         ''', (submission_id,)).fetchone()
         
         if not submission:
-            conn.close()
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
         old_po_id = submission['assigned_po_id']
@@ -4266,7 +4265,6 @@ def edit_submission(submission_id):
         ''', (submission['product_name'],)).fetchone()
         
         if not product:
-            conn.close()
             return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
         
         # Convert Row to dict for safe access
@@ -4277,7 +4275,6 @@ def edit_submission(submission_id):
         tablets_per_package = product.get('tablets_per_package')
         
         if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
-            conn.close()
             return jsonify({'success': False, 'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
         
         # Convert to int after validation
@@ -4285,7 +4282,6 @@ def edit_submission(submission_id):
             packages_per_display = int(packages_per_display)
             tablets_per_package = int(tablets_per_package)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'success': False, 'error': 'Invalid numeric values for product configuration'}), 400
         
         # Calculate old totals to subtract
@@ -4301,7 +4297,6 @@ def edit_submission(submission_id):
             loose_tablets = int(data.get('loose_tablets', 0) or 0)
             damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
         except (ValueError, TypeError):
-            conn.close()
             return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
         
         # Calculate new totals
@@ -4363,7 +4358,6 @@ def edit_submission(submission_id):
                       totals['total_damaged'], remaining, old_po_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -4371,16 +4365,22 @@ def edit_submission(submission_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ EDIT SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 
 

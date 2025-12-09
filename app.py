@@ -5532,6 +5532,11 @@ def edit_submission(submission_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ EDIT SUBMISSION ERROR: {str(e)}")
