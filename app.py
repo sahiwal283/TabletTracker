@@ -2212,12 +2212,12 @@ def get_po_lines(po_id):
             # Calculate total tablets: (displays_made * packages_per_display * tablets_per_package) + (packs_remaining * tablets_per_package) + loose_tablets
             machine_count = conn.execute('''
                 SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(tt.packages_per_display, 0) * COALESCE(tt.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(tt.tablets_per_package, 0)) +
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
                     COALESCE(ws.loose_tablets, 0)
                 ), 0) as total_machine
                 FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
                 AND ws.submission_type = 'machine'
@@ -2229,12 +2229,12 @@ def get_po_lines(po_id):
             # Calculate total tablets: (displays_made * packages_per_display * tablets_per_package) + (packs_remaining * tablets_per_package) + loose_tablets
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(tt.packages_per_display, 0) * COALESCE(tt.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(tt.tablets_per_package, 0)) +
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
                     COALESCE(ws.loose_tablets, 0)
                 ), 0) as total_packaged
                 FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
                 AND ws.submission_type IN ('packaged', 'bag')
@@ -6029,12 +6029,12 @@ def get_receive_details(receive_id):
             # Get machine count
             machine_count = conn.execute('''
                 SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(tt.packages_per_display, 0) * COALESCE(tt.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(tt.tablets_per_package, 0)) +
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
                     COALESCE(ws.loose_tablets, 0)
                 ), 0) as total_machine
                 FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.inventory_item_id = ? 
                 AND ws.submission_type = 'machine'
                 AND ws.assigned_po_id = ?
@@ -6045,12 +6045,12 @@ def get_receive_details(receive_id):
             # Get packaged count
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(tt.packages_per_display, 0) * COALESCE(tt.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(tt.tablets_per_package, 0)) +
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
                     COALESCE(ws.loose_tablets, 0)
                 ), 0) as total_packaged
                 FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.inventory_item_id = ? 
                 AND ws.submission_type IN ('packaged', 'bag')
                 AND ws.assigned_po_id = ?
