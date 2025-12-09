@@ -5786,7 +5786,7 @@ def edit_submission(submission_id):
 
 @app.route('/api/submission/<int:submission_id>/delete', methods=['POST'])
 @admin_required
-def delete_submission(submission_id):
+def delete_submission_admin(submission_id):
     """Delete a submission and remove its counts from PO (Admin only)"""
     conn = None
     try:
