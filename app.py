@@ -1388,23 +1388,22 @@ def admin_dashboard():
             FROM purchase_orders
         ''').fetchone()
         
-        # Find submissions that need review (duplicate flavor + box + bag combinations)
-        # These are submissions where the same inventory_item_id, box_number, and bag_number appear multiple times
-        # but don't have a bag_id (not properly linked to a specific receive)
+        # Find submissions that need review (duplicate bag submissions)
+        # These are submissions where the same bag_id has been counted multiple times
+        # Only flag bags that are properly linked (bag_id IS NOT NULL)
         submissions_needing_review = conn.execute('''
-            WITH duplicate_combos AS (
-                SELECT inventory_item_id, box_number, bag_number, COUNT(*) as submission_count
+            WITH duplicate_bags AS (
+                SELECT bag_id, COUNT(*) as submission_count
                 FROM warehouse_submissions
-                WHERE bag_id IS NULL
-                AND inventory_item_id IS NOT NULL
-                AND box_number IS NOT NULL
-                AND bag_number IS NOT NULL
-                GROUP BY inventory_item_id, box_number, bag_number
+                WHERE bag_id IS NOT NULL
+                GROUP BY bag_id
                 HAVING COUNT(*) > 1
             )
             SELECT ws.*, 
                    po.po_number,
-                   dc.submission_count as duplicate_count,
+                   db.submission_count as duplicate_count,
+                   b.bag_number,
+                   sb.box_number,
                    (
                        CASE ws.submission_type
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
@@ -1415,14 +1414,12 @@ def admin_dashboard():
                        END
                    ) as calculated_total
             FROM warehouse_submissions ws
-            INNER JOIN duplicate_combos dc 
-                ON ws.inventory_item_id = dc.inventory_item_id
-                AND ws.box_number = dc.box_number
-                AND ws.bag_number = dc.bag_number
+            INNER JOIN duplicate_bags db ON ws.bag_id = db.bag_id
+            LEFT JOIN bags b ON ws.bag_id = b.id
+            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            WHERE ws.bag_id IS NULL
-            ORDER BY ws.inventory_item_id, ws.box_number, ws.bag_number, ws.created_at DESC
+            ORDER BY ws.bag_id, ws.created_at DESC
         ''').fetchall()
         
         # Convert to list of dicts
