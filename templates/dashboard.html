@@ -176,7 +176,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for po in active_pos %}
-                {% set receive_name = po.po_number + '-' + po.receive_name if po.receive_name else po.po_number %}
+                {% set receive_name = po.po_number + '-' + (po.receive_number|string if po.receive_number else '1') %}
                 <tr class="hover:bg-gray-100 cursor-pointer po-row" data-po-index="{{ loop.index }}" data-receive-id="{{ po.id }}" onclick="viewReceiveDetails({{ po.id }}, '{{ receive_name|e }}')">
                     <td class="px-2 py-2 font-medium text-gray-900">
                         {{ receive_name }}

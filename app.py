@@ -1220,6 +1220,14 @@ def admin_dashboard():
             SELECT r.*,
                    po.po_number,
                    po.id as po_id,
+                   -- Calculate receive number (which shipment # for this PO)
+                   (
+                       SELECT COUNT(*) + 1
+                       FROM receiving r2
+                       WHERE r2.po_id = r.po_id
+                       AND (r2.received_date < r.received_date 
+                            OR (r2.received_date = r.received_date AND r2.id < r.id))
+                   ) as receive_number,
                    COUNT(DISTINCT b.id) as bag_count,
                    COALESCE(SUM(b.bag_label_count), 0) as total_received,
                    COUNT(DISTINCT ws.id) as submission_count,
@@ -1260,14 +1268,16 @@ def admin_dashboard():
             LEFT JOIN small_boxes sb ON sb.receiving_id = r.id
             LEFT JOIN bags b ON b.small_box_id = sb.id
             LEFT JOIN warehouse_submissions ws ON ws.bag_id = b.id
-            WHERE r.received = TRUE
+            WHERE r.received_date IS NOT NULL
             AND r.id IS NOT NULL
             GROUP BY r.id
             HAVING submission_count > 0
             ORDER BY r.received_date DESC
             LIMIT 10
         '''
+        print("📊 Executing active receives query...")
         active_pos = conn.execute(active_receives_query).fetchall()
+        print(f"✅ Found {len(active_pos)} active receives")
         
         # Get closed POs for historical reference (removed from dashboard)
         closed_pos = []
