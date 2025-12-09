@@ -5921,7 +5921,15 @@ def get_possible_receives(submission_id):
         if not submission:
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
+        # Debug logging
+        print(f"🔍 Finding possible receives for submission {submission_id}")
+        print(f"   tablet_type_id: {submission['tablet_type_id']}")
+        print(f"   box_number: {submission['box_number']}")
+        print(f"   bag_number: {submission['bag_number']}")
+        print(f"   inventory_item_id: {submission['inventory_item_id']}")
+        
         # Find all matching bags (flavor + box + bag)
+        # Must match the exact same logic as find_bag_for_submission
         matching_bags = conn.execute('''
             SELECT b.id as bag_id, 
                    sb.box_number, 
@@ -5942,6 +5950,8 @@ def get_possible_receives(submission_id):
             AND b.bag_number = ?
             ORDER BY r.received_date DESC
         ''', (submission['tablet_type_id'], submission['box_number'], submission['bag_number'])).fetchall()
+        
+        print(f"   Found {len(matching_bags)} matching bags")
         
         # Calculate receive_number for each
         receives = []
