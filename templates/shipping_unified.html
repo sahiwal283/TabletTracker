@@ -25,7 +25,7 @@
     {% if shipments %}
     <div class="space-y-4">
         {% for shipment in shipments %}
-        <div class="card">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -59,11 +59,11 @@
                         </div>
                         {% if user_role in ['manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
-                            <button onclick="openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
+                            <button onclick="event.stopPropagation(); openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
                                 {% if shipment.receiving.po_number %}Change PO{% else %}Assign PO{% endif %}
                             </button>
-                            <button onclick="openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', '{{ shipment.receiving.po_number or 'No PO' }}')" 
+                            <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', '{{ shipment.receiving.po_number or 'No PO' }}')" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
                                 Delete
                             </button>
@@ -682,6 +682,155 @@ async function savePOAssignment() {
         }
     } catch (error) {
         alert('Error updating PO assignment: ' + error.message);
+    }
+}
+
+// View Receive Details Modal
+async function viewReceiveDetails(receiveId, receiveName) {
+    try {
+        const response = await fetch(`/api/receive/${receiveId}/details`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Error loading receive details: ' + (data.error || 'Unknown error'));
+            return;
+        }
+        
+        const receive = data.receive;
+        const products = data.products;
+        
+        // Build modal content
+        let modalContent = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceiveDetailsModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="text-xl font-bold">📦 Receive Details: ${receiveName}</h3>
+                                <p class="text-sm text-blue-100 mt-1">
+                                    Received on ${receive.received_date ? new Date(receive.received_date).toLocaleDateString() : 'Unknown'} 
+                                    ${receive.received_by ? 'by ' + receive.received_by : ''}
+                                </p>
+                            </div>
+                            <button onclick="closeReceiveDetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        `;
+        
+        if (products.length === 0) {
+            modalContent += `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No products found in this receive</p>
+                </div>
+            `;
+        } else {
+            modalContent += '<div class="space-y-4">';
+            
+            products.forEach(product => {
+                const totalCounted = product.machine_count + product.packaged_count;
+                const difference = totalCounted - product.received_count;
+                const percentComplete = product.received_count > 0 
+                    ? Math.round((totalCounted / product.received_count) * 100) 
+                    : 0;
+                
+                // Determine status colors
+                let bgColor = 'bg-gray-50';
+                let labelColor = 'text-gray-600';
+                let labelText = 'Remaining';
+                let displayValue = product.received_count - totalCounted;
+                
+                if (totalCounted >= product.received_count) {
+                    bgColor = 'bg-green-50';
+                    labelColor = 'text-green-600';
+                    labelText = 'Complete';
+                    displayValue = 0;
+                } else if (percentComplete >= 75) {
+                    bgColor = 'bg-yellow-50';
+                    labelColor = 'text-yellow-600';
+                }
+                
+                modalContent += `
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-semibold text-gray-900 text-base">${product.tablet_type_name}</h4>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar -->
+                        <div class="mb-3">
+                            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                <span>Progress</span>
+                                <span class="font-medium">${percentComplete}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full transition-all ${percentComplete >= 100 ? 'bg-green-500' : percentComplete >= 75 ? 'bg-yellow-500' : 'bg-blue-500'}"
+                                     style="width: ${Math.min(percentComplete, 100)}%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                            <div class="bg-indigo-50 rounded-lg p-3">
+                                <div class="text-xs text-indigo-600 mb-1">Received</div>
+                                <div class="text-lg font-bold text-indigo-600">${product.received_count.toLocaleString()}</div>
+                            </div>
+                            <div class="bg-green-50 rounded-lg p-3">
+                                <div class="text-xs text-green-600 mb-1">Counted</div>
+                                <div class="text-base font-bold text-green-600 flex items-center justify-center gap-1">
+                                    <span>${(product.machine_count || 0).toLocaleString()}</span>
+                                    <span class="text-gray-400 font-normal">|</span>
+                                    <span>${(product.packaged_count || 0).toLocaleString()}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-0.5">Machine | Packaged</div>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-3">
+                                <div class="text-xs text-blue-600 mb-1">Total Counted</div>
+                                <div class="text-lg font-bold text-blue-600">${totalCounted.toLocaleString()}</div>
+                            </div>
+                            <div class="${bgColor} rounded-lg p-3">
+                                <div class="text-xs ${labelColor} mb-1">${labelText}</div>
+                                <div class="text-lg font-bold ${labelColor}">${displayValue.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            modalContent += '</div>';
+        }
+        
+        modalContent += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'receive-details-modal';
+        modalDiv.innerHTML = modalContent;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading receive details:', error);
+        alert('Failed to load receive details: ' + error.message);
+    }
+}
+
+function closeReceiveDetailsModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('receive-details-modal');
+        if (modal) {
+            modal.remove();
+        }
     }
 }
 </script>

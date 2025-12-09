@@ -6003,6 +6003,107 @@ def get_po_receives(po_id):
             except:
                 pass
 
+@app.route('/api/receive/<int:receive_id>/details', methods=['GET'])
+@role_required('shipping')
+def get_receive_details(receive_id):
+    """Get receive details with submission counts (similar to PO details modal)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get receive details with PO info
+        receive = conn.execute('''
+            SELECT r.*, po.po_number, po.id as po_id
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.id = ?
+        ''', (receive_id,)).fetchone()
+        
+        if not receive:
+            return jsonify({'error': 'Receive not found'}), 404
+        
+        receive_dict = dict(receive)
+        
+        # Get all bags in this receive with their counts and tablet types
+        bags = conn.execute('''
+            SELECT b.*, tt.tablet_type_name, tt.inventory_item_id, sb.box_number
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE sb.receiving_id = ?
+            ORDER BY sb.box_number, b.bag_number
+        ''', (receive_id,)).fetchall()
+        
+        # Group bags by product and calculate totals
+        product_totals = {}
+        for bag in bags:
+            inventory_item_id = bag['inventory_item_id']
+            tablet_type_name = bag['tablet_type_name']
+            bag_label_count = bag['bag_label_count'] or 0
+            
+            if inventory_item_id not in product_totals:
+                product_totals[inventory_item_id] = {
+                    'tablet_type_name': tablet_type_name,
+                    'inventory_item_id': inventory_item_id,
+                    'received_count': 0,
+                    'machine_count': 0,
+                    'packaged_count': 0
+                }
+            product_totals[inventory_item_id]['received_count'] += bag_label_count
+        
+        # Get submission counts for each product in this receive
+        # Submissions are linked to bags, which are linked to boxes, which are linked to receives
+        for inventory_item_id, product_data in product_totals.items():
+            # Get machine count
+            machine_count = conn.execute('''
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(ws.packages_per_display, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    COALESCE(ws.loose_tablets, 0)
+                ), 0) as total_machine
+                FROM warehouse_submissions ws
+                WHERE ws.inventory_item_id = ? 
+                AND ws.submission_type = 'machine'
+                AND ws.assigned_po_id = ?
+            ''', (inventory_item_id, receive_dict['po_id'])).fetchone()
+            
+            product_data['machine_count'] = machine_count['total_machine'] if machine_count else 0
+            
+            # Get packaged count
+            packaged_count = conn.execute('''
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(ws.packages_per_display, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    COALESCE(ws.loose_tablets, 0)
+                ), 0) as total_packaged
+                FROM warehouse_submissions ws
+                WHERE ws.inventory_item_id = ? 
+                AND ws.submission_type IN ('packaged', 'bag')
+                AND ws.assigned_po_id = ?
+            ''', (inventory_item_id, receive_dict['po_id'])).fetchone()
+            
+            product_data['packaged_count'] = packaged_count['total_packaged'] if packaged_count else 0
+        
+        # Convert to list for JSON response
+        products = list(product_totals.values())
+        
+        return jsonify({
+            'success': True,
+            'receive': receive_dict,
+            'products': products
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/api/po/<int:po_id>/submissions', methods=['GET'])
 @role_required('dashboard')
 def get_po_submissions(po_id):
