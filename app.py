@@ -3128,7 +3128,7 @@ def submit_count():
               data.get('bag_number'), bag['id'], bag['po_id'], needs_review,
               actual_count, submission_date, admin_notes))
         
-            conn.commit()
+        conn.commit()
         
         return jsonify({
             'success': True,
