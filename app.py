@@ -2207,6 +2207,29 @@ def get_po_lines(po_id):
             ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
             
             line_dict['received_count'] = received_count['total_received'] if received_count else 0
+            
+            # Get machine count (from machine_counts table via warehouse_submissions)
+            machine_count = conn.execute('''
+                SELECT COALESCE(SUM(ws.loose_tablets), 0) as total_machine
+                FROM warehouse_submissions ws
+                WHERE ws.assigned_po_id = ? 
+                AND ws.inventory_item_id = ? 
+                AND ws.submission_type = 'machine'
+            ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
+            
+            line_dict['machine_count'] = machine_count['total_machine'] if machine_count else 0
+            
+            # Get packaged count (from packaged and bag count submissions)
+            packaged_count = conn.execute('''
+                SELECT COALESCE(SUM(ws.loose_tablets), 0) as total_packaged
+                FROM warehouse_submissions ws
+                WHERE ws.assigned_po_id = ? 
+                AND ws.inventory_item_id = ? 
+                AND ws.submission_type IN ('packaged', 'bag')
+            ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
+            
+            line_dict['packaged_count'] = packaged_count['total_packaged'] if packaged_count else 0
+            
             lines_with_rounds.append(line_dict)
         
         result = {

@@ -1800,8 +1800,13 @@ async function viewPODetailsModal(poId, poNumber) {
                                     <div class="text-lg font-bold text-gray-900">${line.quantity_ordered.toLocaleString()}</div>
                                 </div>
                                 <div class="text-center">
-                                    <div class="text-xs text-green-600 font-medium">Good</div>
-                                    <div class="text-lg font-bold text-green-600">${line.good_count.toLocaleString()}</div>
+                                    <div class="text-xs text-green-600 font-medium">Counted</div>
+                                    <div class="text-base font-bold text-green-600 flex items-center justify-center gap-1">
+                                        <span>${(line.machine_count || 0).toLocaleString()}</span>
+                                        <span class="text-gray-400 font-normal">|</span>
+                                        <span>${(line.packaged_count || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-0.5">Machine | Packaged</div>
                                 </div>
                                 <div class="text-center">
                                     <div class="text-xs text-indigo-600 font-medium">Received</div>
