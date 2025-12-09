@@ -611,37 +611,34 @@ def auto_sync_categories(conn):
 def find_bag_for_submission(conn, tablet_type_id, box_number, bag_number):
     """
     Find matching bag in receives by tablet_type_id, box_number, bag_number.
-    Returns: (bag_row, needs_review_flag, error_message)
+    
+    If exactly 1 match: Returns bag, assigns automatically
+    If 2+ matches: Returns None for bag, flags for manual review
+    If 0 matches: Returns error
+    
+    Returns: (bag_row or None, needs_review_flag, error_message)
     """
-    bag = conn.execute('''
-        SELECT b.*, sb.box_number, sb.receiving_id, r.po_id
+    # Check for duplicates FIRST (same tablet_type + box + bag in multiple receives)
+    matching_bags = conn.execute('''
+        SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
         FROM bags b
         JOIN small_boxes sb ON b.small_box_id = sb.id
         JOIN receiving r ON sb.receiving_id = r.id
         WHERE b.tablet_type_id = ? 
         AND sb.box_number = ? 
         AND b.bag_number = ?
-        AND b.status = 'Available'
         ORDER BY r.received_date DESC
-        LIMIT 1
-    ''', (tablet_type_id, box_number, bag_number)).fetchone()
+    ''', (tablet_type_id, box_number, bag_number)).fetchall()
     
-    if not bag:
+    if not matching_bags:
         return None, False, f'No receive found for this product, Box #{box_number}, Bag #{bag_number}. Please check receiving records or contact your manager.'
     
-    # Check for duplicates (same tablet_type + box + bag in multiple receives)
-    duplicate_count = conn.execute('''
-        SELECT COUNT(*) as count
-        FROM bags b
-        JOIN small_boxes sb ON b.small_box_id = sb.id
-        WHERE b.tablet_type_id = ? 
-        AND sb.box_number = ? 
-        AND b.bag_number = ?
-    ''', (tablet_type_id, box_number, bag_number)).fetchone()['count']
+    # If exactly 1 match: auto-assign
+    if len(matching_bags) == 1:
+        return matching_bags[0], False, None
     
-    needs_review = duplicate_count > 1
-    
-    return bag, needs_review, None
+    # If 2+ matches: needs manual review, don't auto-assign
+    return None, True, None
 
 # Helper function to require login for admin views
 def admin_required(f):
@@ -1175,7 +1172,11 @@ def submit_warehouse():
         if error:
             return jsonify({'error': error}), 404
         
-        # Insert submission record with bag_id (no verification needed)
+        # If needs_review, bag will be None (ambiguous submission)
+        bag_id = bag['id'] if bag else None
+        po_id = bag['po_id'] if bag else None
+        
+        # Insert submission record with bag_id (or NULL if needs review)
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
@@ -1183,16 +1184,18 @@ def submit_warehouse():
              loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged')
         ''', (employee_name, data.get('product_name'), inventory_item_id, data.get('box_number'),
-              data.get('bag_number'), bag['id'], bag['po_id'], needs_review,
+              data.get('bag_number'), bag_id, po_id, needs_review,
               displays_made, packs_remaining, 0, 0, submission_date, admin_notes))
         
         conn.commit()
         
+        message = 'Submission flagged for manager review - multiple matching receives found.' if needs_review else 'Submission processed successfully'
+        
         return jsonify({
             'success': True, 
-            'message': 'Submission processed successfully',
-            'bag_id': bag['id'],
-            'po_number': bag['po_id'],
+            'message': message,
+            'bag_id': bag_id,
+            'po_number': po_id,
             'needs_review': needs_review
         })
         
@@ -1388,22 +1391,12 @@ def admin_dashboard():
             FROM purchase_orders
         ''').fetchone()
         
-        # Find submissions that need review (duplicate bag submissions)
-        # These are submissions where the same bag_id has been counted multiple times
-        # Only flag bags that are properly linked (bag_id IS NOT NULL)
+        # Find submissions that need review (ambiguous submissions)
+        # These are submissions where flavor + box + bag match multiple receives
+        # They have needs_review=TRUE and bag_id=NULL (not yet assigned)
         submissions_needing_review = conn.execute('''
-            WITH duplicate_bags AS (
-                SELECT bag_id, COUNT(*) as submission_count
-                FROM warehouse_submissions
-                WHERE bag_id IS NOT NULL
-                GROUP BY bag_id
-                HAVING COUNT(*) > 1
-            )
             SELECT ws.*, 
-                   po.po_number,
-                   db.submission_count as duplicate_count,
-                   b.bag_number,
-                   sb.box_number,
+                   tt.tablet_type_name,
                    (
                        CASE ws.submission_type
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
@@ -1414,12 +1407,10 @@ def admin_dashboard():
                        END
                    ) as calculated_total
             FROM warehouse_submissions ws
-            INNER JOIN duplicate_bags db ON ws.bag_id = db.bag_id
-            LEFT JOIN bags b ON ws.bag_id = b.id
-            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
-            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+            LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            ORDER BY ws.bag_id, ws.created_at DESC
+            WHERE ws.needs_review = TRUE
+            ORDER BY ws.created_at DESC
         ''').fetchall()
         
         # Convert to list of dicts
@@ -3199,7 +3190,11 @@ def submit_count():
         if error:
             return jsonify({'error': error}), 404
         
-        # Insert count record with bag_id (no PO allocation logic)
+        # If needs_review, bag will be None (ambiguous submission)
+        bag_id = bag['id'] if bag else None
+        po_id = bag['po_id'] if bag else None
+        
+        # Insert count record with bag_id (or NULL if needs review)
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
@@ -3207,15 +3202,17 @@ def submit_count():
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
         ''', (employee_name, data.get('tablet_type'), inventory_item_id, data.get('box_number'),
-              data.get('bag_number'), bag['id'], bag['po_id'], needs_review,
+              data.get('bag_number'), bag_id, po_id, needs_review,
               actual_count, submission_date, admin_notes))
         
         conn.commit()
         
+        message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Count submitted successfully!'
+        
         return jsonify({
             'success': True,
-            'message': 'Count submitted successfully!',
-            'bag_id': bag['id'],
+            'message': message,
+            'bag_id': bag_id,
             'needs_review': needs_review
         })
         
@@ -3352,21 +3349,29 @@ def submit_machine_count():
                 'message': f'Machine count recorded ({total_tablets} tablets) but not linked to receive: {error}'
             })
         
-        # Create warehouse submission with submission_type='machine' and bag_id
-            conn.execute('''
+        # If needs_review, bag will be None (ambiguous submission)
+        bag_id = bag['id'] if bag else None
+        po_id = bag['po_id'] if bag else None
+        
+        # Create warehouse submission with submission_type='machine' and bag_id (or NULL if needs review)
+        conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number,
              bag_id, assigned_po_id, needs_review, loose_tablets, submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine')
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
-              bag['id'], bag['po_id'], needs_review, total_tablets, count_date, admin_notes))
+              bag_id, po_id, needs_review, total_tablets, count_date, admin_notes))
         
         conn.commit()
         
+        base_message = f'Machine count submitted ({machine["machine_name"]}): {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
+        if needs_review:
+            base_message += ' - Flagged for manager review (multiple matching receives found)'
+        
         return jsonify({
             'success': True, 
-            'message': f'Machine count submitted ({machine["machine_name"]}): {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)',
-            'bag_id': bag['id'],
+            'message': base_message,
+            'bag_id': bag_id,
             'needs_review': needs_review
         })
     except Exception as e:
@@ -5884,6 +5889,144 @@ def delete_submission_admin(submission_id):
         error_trace = traceback.format_exc()
         print(f"❌ DELETE SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/submission/<int:submission_id>/possible-receives', methods=['GET'])
+@role_required('dashboard')
+def get_possible_receives(submission_id):
+    """Get all possible receives that match a submission's flavor, box, bag"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get submission details
+        submission = conn.execute('''
+            SELECT ws.*, tt.id as tablet_type_id, tt.tablet_type_name
+            FROM warehouse_submissions ws
+            LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+            WHERE ws.id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        # Find all matching bags (flavor + box + bag)
+        matching_bags = conn.execute('''
+            SELECT b.id as bag_id, 
+                   sb.box_number, 
+                   b.bag_number, 
+                   b.bag_label_count,
+                   r.id as receive_id,
+                   r.received_date,
+                   po.po_number,
+                   po.id as po_id,
+                   tt.tablet_type_name
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            JOIN purchase_orders po ON r.po_id = po.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE b.tablet_type_id = ? 
+            AND sb.box_number = ? 
+            AND b.bag_number = ?
+            ORDER BY r.received_date DESC
+        ''', (submission['tablet_type_id'], submission['box_number'], submission['bag_number'])).fetchall()
+        
+        # Calculate receive_number for each
+        receives = []
+        for bag in matching_bags:
+            # Calculate which receive # this is for the PO
+            receive_number = conn.execute('''
+                SELECT COUNT(*) + 1
+                FROM receiving r2
+                WHERE r2.po_id = ?
+                AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                     OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                         AND r2.id < ?))
+            ''', (bag['po_id'], bag['receive_id'], bag['receive_id'], bag['receive_id'])).fetchone()[0]
+            
+            receives.append({
+                'bag_id': bag['bag_id'],
+                'receive_id': bag['receive_id'],
+                'receive_name': f"{bag['po_number']}-{receive_number}",
+                'po_number': bag['po_number'],
+                'received_date': bag['received_date'],
+                'box_number': bag['box_number'],
+                'bag_number': bag['bag_number'],
+                'bag_label_count': bag['bag_label_count'],
+                'tablet_type_name': bag['tablet_type_name']
+            })
+        
+        return jsonify({
+            'success': True,
+            'submission': dict(submission),
+            'possible_receives': receives
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/api/submission/<int:submission_id>/assign-receive', methods=['POST'])
+@role_required('dashboard')
+def assign_submission_to_receive(submission_id):
+    """Assign a submission to a specific receive bag"""
+    conn = None
+    try:
+        conn = get_db()
+        data = request.get_json()
+        bag_id = data.get('bag_id')
+        
+        if not bag_id:
+            return jsonify({'success': False, 'error': 'bag_id is required'}), 400
+        
+        # Get bag details
+        bag = conn.execute('''
+            SELECT b.*, r.po_id
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            WHERE b.id = ?
+        ''', (bag_id,)).fetchone()
+        
+        if not bag:
+            return jsonify({'success': False, 'error': 'Bag not found'}), 404
+        
+        # Update submission
+        conn.execute('''
+            UPDATE warehouse_submissions
+            SET bag_id = ?, assigned_po_id = ?, needs_review = FALSE
+            WHERE id = ?
+        ''', (bag_id, bag['po_id'], submission_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission assigned successfully'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         if conn:
             try:
                 conn.rollback()
