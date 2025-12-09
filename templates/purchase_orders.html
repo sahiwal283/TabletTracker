@@ -449,11 +449,11 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
-                            <button onclick="closeSubmissionsModal(); viewPODetailsModal(${poId}, '${data.po.po_number}');" 
-                                    class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                                    title="Back to PO details">
-                                ← Back
-                            </button>
+                                <button onclick="closeSubmissionsModal(); viewPODetailsModal(${poId}, '${data.po.po_number}');" 
+                                        class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                                        title="Back to PO details">
+                                    ← Back
+                                </button>
                             <div class="flex-1 text-center">
                                 <h3 class="text-xl font-bold">📋 Submissions for ${data.po.po_number}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
@@ -603,22 +603,22 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                                 </div>
                             ` : `
                                 <!-- Packaged/Bag Count Display -->
-                                <div>
-                                    <div class="text-xs text-gray-500">Displays Made</div>
-                                    <div class="font-medium text-blue-600">${sub.displays_made || 0}</div>
-                                </div>
-                                <div>
-                                    <div class="text-xs text-gray-500">Cards Remaining</div>
-                                    <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
-                                </div>
-                                <div>
-                                    <div class="text-xs text-gray-500">Loose Tablets</div>
-                                    <div class="font-medium text-blue-600">${sub.loose_tablets || 0}</div>
-                                </div>
-                                <div>
-                                    <div class="text-xs text-gray-500">Damaged Tablets</div>
-                                    <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
-                                </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Displays Made</div>
+                                <div class="font-medium text-blue-600">${sub.displays_made || 0}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Cards Remaining</div>
+                                <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Loose Tablets</div>
+                                <div class="font-medium text-blue-600">${sub.loose_tablets || 0}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Damaged Tablets</div>
+                                <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
+                            </div>
                             `}
                         </div>
                         
