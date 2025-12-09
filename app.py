@@ -2209,8 +2209,13 @@ def get_po_lines(po_id):
             line_dict['received_count'] = received_count['total_received'] if received_count else 0
             
             # Get machine count (from machine_counts table via warehouse_submissions)
+            # Calculate total tablets: (displays_made * packages_per_display * tablets_per_package) + (packs_remaining * tablets_per_package) + loose_tablets
             machine_count = conn.execute('''
-                SELECT COALESCE(SUM(ws.loose_tablets), 0) as total_machine
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(ws.packages_per_display, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    COALESCE(ws.loose_tablets, 0)
+                ), 0) as total_machine
                 FROM warehouse_submissions ws
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
@@ -2220,8 +2225,13 @@ def get_po_lines(po_id):
             line_dict['machine_count'] = machine_count['total_machine'] if machine_count else 0
             
             # Get packaged count (from packaged and bag count submissions)
+            # Calculate total tablets: (displays_made * packages_per_display * tablets_per_package) + (packs_remaining * tablets_per_package) + loose_tablets
             packaged_count = conn.execute('''
-                SELECT COALESCE(SUM(ws.loose_tablets), 0) as total_packaged
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(ws.packages_per_display, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(ws.tablets_per_package, 0)) +
+                    COALESCE(ws.loose_tablets, 0)
+                ), 0) as total_packaged
                 FROM warehouse_submissions ws
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
@@ -3147,7 +3157,7 @@ def submit_count():
               data.get('bag_number'), bag['id'], bag['po_id'], needs_review,
               actual_count, submission_date, admin_notes))
         
-        conn.commit()
+            conn.commit()
         
         return jsonify({
             'success': True,
@@ -3290,7 +3300,7 @@ def submit_machine_count():
             })
         
         # Create warehouse submission with submission_type='machine' and bag_id
-        conn.execute('''
+            conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number,
              bag_id, assigned_po_id, needs_review, loose_tablets, submission_date, admin_notes, submission_type)
@@ -3742,8 +3752,8 @@ def add_category():
         
         if existing:
             if existing['is_active']:
-                conn.close()
-                return jsonify({'success': False, 'error': 'Category already exists'}), 400
+                    conn.close()
+            return jsonify({'success': False, 'error': 'Category already exists'}), 400
             else:
                 # Reactivate inactive category
                 conn.execute('''
@@ -3883,15 +3893,15 @@ def delete_category():
             WHERE id = ?
         ''', (category['id'],))
         
-        # Remove category from all tablet types (set to NULL)
-        cursor = conn.execute('''
-            UPDATE tablet_types 
-            SET category = NULL
-            WHERE category = ?
-        ''', (category_name,))
-        
+            # Remove category from all tablet types (set to NULL)
+            cursor = conn.execute('''
+                UPDATE tablet_types 
+                SET category = NULL
+                WHERE category = ?
+            ''', (category_name,))
+            
         tablet_types_updated = cursor.rowcount
-        
+            
         conn.commit()
         
         return jsonify({
