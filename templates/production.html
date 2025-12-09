@@ -801,12 +801,20 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Load machines for machine count form
     async function loadMachines() {
         try {
+            console.log('Loading machines from API...');
             const response = await fetch('/api/machines');
             const data = await response.json();
             
+            console.log('Machines API response:', data);
+            
             if (data.success && data.machines) {
                 const select = document.getElementById('machine_id');
-                if (!select) return;
+                if (!select) {
+                    console.error('Machine select element not found');
+                    return;
+                }
+                
+                console.log(`Found ${data.machines.length} machines`);
                 
                 // Keep the "Select machine..." option
                 select.innerHTML = '<option value="">Select machine...</option>';
@@ -817,7 +825,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                     option.value = machine.id;
                     option.textContent = `${machine.machine_name} (${machine.cards_per_turn} cards/turn)`;
                     select.appendChild(option);
+                    console.log(`Added machine: ${machine.machine_name}`);
                 });
+            } else {
+                console.error('API call unsuccessful or no machines:', data);
             }
         } catch (error) {
             console.error('Failed to load machines:', error);
