@@ -60,22 +60,31 @@
     </div>
     
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Row 1: Report Type, PO Selector, Tablet Type -->
+        <!-- Row 1: Report Type, PO/Receive Selector, Tablet Type -->
         <div>
             <label for="report_type_selector" class="block text-xs font-medium text-gray-700 mb-1">Report Type</label>
-            <select id="report_type_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select id="report_type_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="handleReportTypeChange()">
                 <option value="vendor" selected>Vendor Report</option>
                 <option value="production">Production Report</option>
+                <option value="receive">Receive Report</option>
             </select>
             <p class="text-xs text-gray-500 mt-0.5">Select report type</p>
         </div>
         
-        <div>
+        <div id="po_selector_container">
             <label for="po_selector" class="block text-xs font-medium text-gray-700 mb-1">Select Purchase Order</label>
             <select id="po_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select a PO...</option>
             </select>
             <p class="text-xs text-gray-500 mt-0.5">Select a PO to generate its detailed report (optional)</p>
+        </div>
+        
+        <div id="receive_selector_container" class="hidden">
+            <label for="receive_selector" class="block text-xs font-medium text-gray-700 mb-1">Select Receive</label>
+            <select id="receive_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Select a receive...</option>
+            </select>
+            <p class="text-xs text-gray-500 mt-0.5">Select a receive to generate its detailed report</p>
         </div>
         
         <div>
@@ -1158,22 +1167,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     if (reportTypeSelector && generateBtnText) {
-        reportTypeSelector.addEventListener('change', function() {
-            const reportType = this.value;
-            if (reportType === 'vendor') {
-                generateBtnText.textContent = 'Generate Vendor Report';
-                // Vendor report doesn't require PO selection
-                if (generateBtn) {
-                    generateBtn.disabled = false;
-                }
-            } else {
-                generateBtnText.textContent = 'Generate PO Report';
-                // Production report requires PO selection
-                if (generateBtn && poSelector) {
-                    generateBtn.disabled = !poSelector.value;
-                }
-            }
-        });
+        reportTypeSelector.addEventListener('change', handleReportTypeChange);
     }
     
     // Setup PO selector listener
@@ -1226,6 +1220,69 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Handle report type change
+function handleReportTypeChange() {
+    const reportType = document.getElementById('report_type_selector').value;
+    const generateBtnText = document.getElementById('generate-report-btn-text');
+    const generateBtn = document.getElementById('generate-report-btn');
+    const poSelectorContainer = document.getElementById('po_selector_container');
+    const receiveSelectorContainer = document.getElementById('receive_selector_container');
+    const receiveSelector = document.getElementById('receive_selector');
+    
+    if (reportType === 'vendor') {
+        generateBtnText.textContent = 'Generate Vendor Report';
+        poSelectorContainer.classList.remove('hidden');
+        receiveSelectorContainer.classList.add('hidden');
+        generateBtn.disabled = false;
+    } else if (reportType === 'production') {
+        generateBtnText.textContent = 'Generate Production Report';
+        poSelectorContainer.classList.remove('hidden');
+        receiveSelectorContainer.classList.add('hidden');
+        generateBtn.disabled = !document.getElementById('po_selector').value;
+    } else if (reportType === 'receive') {
+        generateBtnText.textContent = 'Generate Receive Report';
+        poSelectorContainer.classList.add('hidden');
+        receiveSelectorContainer.classList.remove('hidden');
+        generateBtn.disabled = !receiveSelector.value;
+        // Load receives if not already loaded
+        if (receiveSelector.options.length === 1) {
+            fetchReceives();
+        }
+    }
+}
+
+// Fetch receives for the dropdown
+async function fetchReceives() {
+    try {
+        const response = await fetch('/api/receives/list');
+        const data = await response.json();
+        
+        if (!data.success) {
+            console.error('Error fetching receives:', data.error);
+            return;
+        }
+        
+        const receiveSelector = document.getElementById('receive_selector');
+        receiveSelector.innerHTML = '<option value="">Select a receive...</option>';
+        
+        data.receives.forEach(receive => {
+            const option = document.createElement('option');
+            option.value = receive.id;
+            option.textContent = `${receive.receive_name} - ${receive.po_number}${receive.received_date ? ' (' + new Date(receive.received_date).toLocaleDateString() + ')' : ''}`;
+            receiveSelector.appendChild(option);
+        });
+        
+        // Add change listener
+        receiveSelector.addEventListener('change', function() {
+            const generateBtn = document.getElementById('generate-report-btn');
+            generateBtn.disabled = !this.value;
+        });
+        
+    } catch (error) {
+        console.error('Error fetching receives:', error);
+    }
+}
+
 async function generatePOReport() {
     const selector = document.getElementById('po_selector');
     const reportTypeSelector = document.getElementById('report_type_selector');
@@ -1234,8 +1291,17 @@ async function generatePOReport() {
     
     const reportType = reportTypeSelector ? reportTypeSelector.value : 'vendor';
     
+    // Receive report requires a receive selection
+    if (reportType === 'receive') {
+        const receiveSelector = document.getElementById('receive_selector');
+        if (!receiveSelector.value) {
+            showError('Please select a receive to generate its report');
+            return;
+        }
+    }
+    
     // Production report requires at least one filter (PO, tablet type, or date range)
-    if (reportType !== 'vendor') {
+    if (reportType === 'production') {
         const tabletTypeSelect = document.getElementById('report_tablet_type');
         const dateFrom = document.getElementById('report_date_from');
         const dateTo = document.getElementById('report_date_to');
@@ -1263,6 +1329,12 @@ async function generatePOReport() {
         const requestData = {
             report_type: reportType
         };
+        
+        // Add receive_id if this is a receive report
+        if (reportType === 'receive') {
+            const receiveSelector = document.getElementById('receive_selector');
+            requestData.receive_id = parseInt(receiveSelector.value);
+        }
         
         // Add PO numbers if PO is selected
         if (selector.value) {

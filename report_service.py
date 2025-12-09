@@ -971,6 +971,169 @@ class ProductionReportGenerator:
             raise Exception(f"Failed to generate vendor report: {str(e)}")
 
 # Example usage and testing
+    def generate_receive_report(self, receive_id: int) -> bytes:
+        """
+        Generate report for a specific receive showing all bags and their submission counts
+        
+        Args:
+            receive_id: The receive ID to generate report for
+            
+        Returns:
+            PDF report as bytes
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        try:
+            # Get receive details
+            receive = cursor.execute('''
+                SELECT r.*, po.po_number, po.id as po_id,
+                       (SELECT COUNT(*) + 1
+                        FROM receiving r2
+                        WHERE r2.po_id = r.po_id
+                        AND (r2.received_date < r.received_date 
+                             OR (r2.received_date = r.received_date AND r2.id < r.id))
+                       ) as receive_number
+                FROM receiving r
+                LEFT JOIN purchase_orders po ON r.po_id = po.id
+                WHERE r.id = ?
+            ''', (receive_id,)).fetchone()
+            
+            if not receive:
+                raise ValueError(f'Receive with ID {receive_id} not found')
+            
+            receive_name = f"{receive['po_number']}-{receive['receive_number']}"
+            
+            # Get all bags with their submission counts
+            bags_data = cursor.execute('''
+                SELECT b.*, 
+                       tt.tablet_type_name,
+                       sb.box_number,
+                       -- Machine count
+                       COALESCE((
+                           SELECT SUM(
+                               (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                               (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                               COALESCE(ws.loose_tablets, 0)
+                           )
+                           FROM warehouse_submissions ws
+                           LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                           WHERE ws.bag_id = b.id AND ws.submission_type = 'machine'
+                       ), 0) as machine_count,
+                       -- Packaged count
+                       COALESCE((
+                           SELECT SUM(
+                               (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                               (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                               COALESCE(ws.loose_tablets, 0)
+                           )
+                           FROM warehouse_submissions ws
+                           LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                           WHERE ws.bag_id = b.id AND ws.submission_type IN ('packaged', 'bag')
+                       ), 0) as packaged_count,
+                       -- Damaged count
+                       COALESCE((
+                           SELECT SUM(COALESCE(ws.damaged_tablets, 0))
+                           FROM warehouse_submissions ws
+                           WHERE ws.bag_id = b.id
+                       ), 0) as damaged_count
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE sb.receiving_id = ?
+                ORDER BY sb.box_number, b.bag_number
+            ''', (receive_id,)).fetchall()
+            
+            # Create PDF
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+            elements = []
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=self.styles['Heading1'],
+                fontSize=18,
+                textColor=colors.HexColor('#1e40af'),
+                spaceAfter=12,
+                alignment=1  # Center
+            )
+            elements.append(Paragraph(f"Receive Report: {receive_name}", title_style))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            # Receive info
+            info_data = [
+                ['PO Number:', receive['po_number']],
+                ['Received Date:', receive['received_date'] or 'N/A'],
+                ['Received By:', receive['received_by'] or 'N/A'],
+                ['Total Boxes:', str(len(set(bag['box_number'] for bag in bags_data)))],
+                ['Total Bags:', str(len(bags_data))]
+            ]
+            
+            info_table = Table(info_data, colWidths=[1.5*inch, 4*inch])
+            info_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            elements.append(info_table)
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Bags table
+            table_data = [[
+                'Box', 'Bag', 'Product', 'Received', 'Machine', 'Packaged', 'Damaged', 'Total Counted', 'Remaining', '% Complete'
+            ]]
+            
+            for bag in bags_data:
+                received = bag['bag_label_count'] or 0
+                machine = bag['machine_count']
+                packaged = bag['packaged_count']
+                damaged = bag['damaged_count']
+                total_counted = machine + packaged
+                remaining = received - total_counted
+                percent_complete = round((total_counted / received * 100) if received > 0 else 0, 1)
+                
+                table_data.append([
+                    str(bag['box_number']),
+                    str(bag['bag_number']),
+                    bag['tablet_type_name'],
+                    f"{received:,}",
+                    f"{machine:,}",
+                    f"{packaged:,}",
+                    f"{damaged:,}",
+                    f"{total_counted:,}",
+                    f"{remaining:,}",
+                    f"{percent_complete}%"
+                ])
+            
+            table = Table(table_data, colWidths=[0.4*inch, 0.4*inch, 1.8*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.6*inch, 0.8*inch, 0.7*inch, 0.7*inch])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f3f4f6')]),
+            ]))
+            elements.append(table)
+            
+            # Build PDF
+            doc.build(elements)
+            pdf_content = buffer.getvalue()
+            buffer.close()
+            
+            return pdf_content
+            
+        finally:
+            conn.close()
+
 if __name__ == "__main__":
     generator = ProductionReportGenerator()
     

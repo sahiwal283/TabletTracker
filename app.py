@@ -4458,7 +4458,8 @@ def generate_production_report():
         end_date = data.get('end_date') 
         po_numbers = data.get('po_numbers', [])
         tablet_type_id = data.get('tablet_type_id')
-        report_type = data.get('report_type', 'production')  # 'production' or 'vendor'
+        receive_id = data.get('receive_id')
+        report_type = data.get('report_type', 'production')  # 'production', 'vendor', or 'receive'
         
         # Validate date formats if provided
         if start_date:
@@ -4476,6 +4477,8 @@ def generate_production_report():
         # Generate report
         generator = ProductionReportGenerator()
         
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
         if report_type == 'vendor':
             pdf_content = generator.generate_vendor_report(
                 start_date=start_date,
@@ -4483,8 +4486,12 @@ def generate_production_report():
                 po_numbers=po_numbers if po_numbers else None,
                 tablet_type_id=tablet_type_id
             )
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'vendor_report_{timestamp}.pdf'
+        elif report_type == 'receive':
+            if not receive_id:
+                return jsonify({'error': 'Receive ID is required for receive reports'}), 400
+            pdf_content = generator.generate_receive_report(receive_id=receive_id)
+            filename = f'receive_report_{timestamp}.pdf'
         else:
             pdf_content = generator.generate_production_report(
                 start_date=start_date,
@@ -4492,7 +4499,6 @@ def generate_production_report():
                 po_numbers=po_numbers if po_numbers else None,
                 tablet_type_id=tablet_type_id
             )
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'production_report_{timestamp}.pdf'
         
         # Return PDF as download
@@ -5454,6 +5460,55 @@ def approve_submission_assignment(submission_id):
                 pass
 
 
+
+@app.route('/api/receives/list', methods=['GET'])
+@role_required('dashboard')
+def get_receives_list():
+    """Get list of all receives for reporting"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        receives = conn.execute('''
+            SELECT r.id, 
+                   r.received_date,
+                   po.po_number,
+                   r.po_id,
+                   (SELECT COUNT(*) + 1
+                    FROM receiving r2
+                    WHERE r2.po_id = r.po_id
+                    AND (r2.received_date < r.received_date 
+                         OR (r2.received_date = r.received_date AND r2.id < r.id))
+                   ) as receive_number
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.received_date IS NOT NULL
+            ORDER BY r.received_date DESC, r.id DESC
+            LIMIT 100
+        ''').fetchall()
+        
+        receives_list = []
+        for r in receives:
+            receive_dict = dict(r)
+            # Create receive name like "PO-00164-1"
+            receive_dict['receive_name'] = f"{receive_dict['po_number']}-{receive_dict['receive_number']}"
+            receives_list.append(receive_dict)
+        
+        return jsonify({
+            'success': True,
+            'receives': receives_list
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/api/bag/<int:bag_id>/submissions', methods=['GET'])
 @role_required('dashboard')
