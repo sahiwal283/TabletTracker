@@ -3863,15 +3863,15 @@ def delete_category():
             WHERE id = ?
         ''', (category['id'],))
         
-            # Remove category from all tablet types (set to NULL)
-            cursor = conn.execute('''
-                UPDATE tablet_types 
-                SET category = NULL
-                WHERE category = ?
-            ''', (category_name,))
-            
+        # Remove category from all tablet types (set to NULL)
+        cursor = conn.execute('''
+            UPDATE tablet_types 
+            SET category = NULL
+            WHERE category = ?
+        ''', (category_name,))
+        
         tablet_types_updated = cursor.rowcount
-            
+        
         conn.commit()
         
         return jsonify({
