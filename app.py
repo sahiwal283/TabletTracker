@@ -1215,24 +1215,59 @@ def admin_dashboard():
     try:
         conn = get_db()
         
-        # Get active POs that have submissions assigned (last 10)
-        active_pos_query = '''
-            SELECT po.*, 
-                   COUNT(DISTINCT pl.id) as line_count,
-                   COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
-                   COALESCE(po.internal_status, 'Active') as status_display,
-                   COUNT(DISTINCT ws.id) as submission_count
-            FROM purchase_orders po
-            LEFT JOIN po_lines pl ON po.id = pl.po_id
-            INNER JOIN warehouse_submissions ws ON po.id = ws.assigned_po_id
-            WHERE po.closed = FALSE
-            AND COALESCE(po.internal_status, '') != 'Cancelled'
-            GROUP BY po.id
+        # Get active receives that have submissions assigned (last 10)
+        active_receives_query = '''
+            SELECT r.*,
+                   po.po_number,
+                   po.id as po_id,
+                   COUNT(DISTINCT b.id) as bag_count,
+                   COALESCE(SUM(b.bag_label_count), 0) as total_received,
+                   COUNT(DISTINCT ws.id) as submission_count,
+                   -- Calculate good count from submissions
+                   COALESCE((
+                       SELECT SUM(
+                           (COALESCE(ws2.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                           (COALESCE(ws2.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                           COALESCE(ws2.loose_tablets, 0)
+                       )
+                       FROM warehouse_submissions ws2
+                       LEFT JOIN product_details pd ON ws2.product_name = pd.product_name
+                       LEFT JOIN bags b2 ON ws2.bag_id = b2.id
+                       LEFT JOIN small_boxes sb2 ON b2.small_box_id = sb2.id
+                       WHERE sb2.receiving_id = r.id
+                   ), 0) as current_good_count,
+                   -- Calculate damaged count
+                   COALESCE((
+                       SELECT SUM(COALESCE(ws2.damaged_tablets, 0))
+                       FROM warehouse_submissions ws2
+                       LEFT JOIN bags b2 ON ws2.bag_id = b2.id
+                       LEFT JOIN small_boxes sb2 ON b2.small_box_id = sb2.id
+                       WHERE sb2.receiving_id = r.id
+                   ), 0) as current_damaged_count,
+                   -- Get primary tablet type (most common in this receive)
+                   (
+                       SELECT tt.tablet_type_name
+                       FROM bags b3
+                       JOIN small_boxes sb3 ON b3.small_box_id = sb3.id
+                       JOIN tablet_types tt ON b3.tablet_type_id = tt.id
+                       WHERE sb3.receiving_id = r.id
+                       GROUP BY tt.tablet_type_name
+                       ORDER BY COUNT(*) DESC
+                       LIMIT 1
+                   ) as tablet_type
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON sb.receiving_id = r.id
+            LEFT JOIN bags b ON b.small_box_id = sb.id
+            LEFT JOIN warehouse_submissions ws ON ws.bag_id = b.id
+            WHERE r.received = TRUE
+            AND r.id IS NOT NULL
+            GROUP BY r.id
             HAVING submission_count > 0
-            ORDER BY po.po_number DESC
+            ORDER BY r.received_date DESC
             LIMIT 10
         '''
-        active_pos = conn.execute(active_pos_query).fetchall()
+        active_pos = conn.execute(active_receives_query).fetchall()
         
         # Get closed POs for historical reference (removed from dashboard)
         closed_pos = []
