@@ -2350,35 +2350,6 @@ def tablet_types_config():
             except:
                 pass
 
-@app.route('/admin/shipments')
-@admin_required
-def shipments_management():
-    """Shipment tracking management page"""
-    conn = None
-    try:
-        conn = get_db()
-        
-        # Get all POs with optional shipment info
-        pos_with_shipments = conn.execute('''
-            SELECT po.*, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
-                   s.last_checkpoint, s.shipped_date, s.estimated_delivery, s.actual_delivery,
-                   s.notes as shipment_notes
-            FROM purchase_orders po
-            LEFT JOIN shipments s ON po.id = s.po_id
-            ORDER BY po.po_number DESC
-        ''').fetchall()
-        
-        return render_template('shipments_management.html', pos_with_shipments=pos_with_shipments)
-    except Exception as e:
-        flash(f'Error loading shipments: {str(e)}', 'error')
-        return render_template('shipments_management.html', pos_with_shipments=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-
 @app.route('/shipping')
 @role_required('shipping')
 def shipping_unified():
