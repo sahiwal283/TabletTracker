@@ -199,6 +199,13 @@ async function viewPODetailsModal(poId, poNumber) {
     try {
         const response = await fetch(`/api/po_lines/${poId}`);
         const data = await response.json();
+        
+        // Check for error response
+        if (data.error) {
+            alert('Failed to load PO details: ' + data.error);
+            return;
+        }
+        
         const lines = data.lines || data; // Handle both new format and legacy format
         const hasUnverified = data.has_unverified_submissions || false;
         const unverifiedCount = data.unverified_count || 0;
