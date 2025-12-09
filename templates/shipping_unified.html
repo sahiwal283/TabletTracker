@@ -874,8 +874,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             : data.submissions;
         
         // Further filter by bag_id if specified (unique identifier for specific bag in specific receive)
-        if (bagId !== null) {
-            filteredSubmissions = filteredSubmissions.filter(sub => sub.bag_id === bagId);
+        // Also match older submissions without bag_id by box/bag numbers
+        if (bagId !== null && boxNumber !== null && bagNumber !== null) {
+            filteredSubmissions = filteredSubmissions.filter(sub => 
+                sub.bag_id === bagId || 
+                (sub.bag_id === null && sub.box_number === boxNumber && sub.bag_number === bagNumber)
+            );
         }
         
         const allSubmissions = [...filteredSubmissions];

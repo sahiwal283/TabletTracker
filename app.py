@@ -6107,7 +6107,8 @@ def get_receive_details(receive_id):
             if box_number not in products[inventory_item_id]['boxes']:
                 products[inventory_item_id]['boxes'][box_number] = {}
             
-            # Get submission counts for this specific bag using bag_id (unique identifier)
+            # Get submission counts for this specific bag
+            # Match by bag_id first (most accurate), fall back to box/bag/po for older submissions
             machine_count = conn.execute('''
                 SELECT COALESCE(SUM(
                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -6116,9 +6117,18 @@ def get_receive_details(receive_id):
                 ), 0) as total_machine
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                WHERE ws.bag_id = ?
-                AND ws.submission_type = 'machine'
-            ''', (bag['id'],)).fetchone()
+                WHERE ws.submission_type = 'machine'
+                AND (
+                    ws.bag_id = ?
+                    OR (
+                        ws.bag_id IS NULL
+                        AND ws.inventory_item_id = ?
+                        AND ws.box_number = ?
+                        AND ws.bag_number = ?
+                        AND ws.assigned_po_id = ?
+                    )
+                )
+            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
             
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
@@ -6128,9 +6138,18 @@ def get_receive_details(receive_id):
                 ), 0) as total_packaged
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                WHERE ws.bag_id = ?
-                AND ws.submission_type IN ('packaged', 'bag')
-            ''', (bag['id'],)).fetchone()
+                WHERE ws.submission_type IN ('packaged', 'bag')
+                AND (
+                    ws.bag_id = ?
+                    OR (
+                        ws.bag_id IS NULL
+                        AND ws.inventory_item_id = ?
+                        AND ws.box_number = ?
+                        AND ws.bag_number = ?
+                        AND ws.assigned_po_id = ?
+                    )
+                )
+            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
             
             products[inventory_item_id]['boxes'][box_number][bag_number] = {
                 'bag_id': bag['id'],
