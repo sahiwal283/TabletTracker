@@ -740,17 +740,14 @@ async function viewReceiveDetails(receiveId, receiveName) {
                     ? Math.round((totalCounted / product.received_count) * 100) 
                     : 0;
                 
-                // Determine status colors
+                // Determine status colors - always show "Remaining"
+                const displayValue = product.received_count - totalCounted;
                 let bgColor = 'bg-gray-50';
                 let labelColor = 'text-gray-600';
-                let labelText = 'Remaining';
-                let displayValue = product.received_count - totalCounted;
                 
-                if (totalCounted >= product.received_count) {
+                if (displayValue <= 0) {
                     bgColor = 'bg-green-50';
                     labelColor = 'text-green-600';
-                    labelText = 'Complete';
-                    displayValue = 0;
                 } else if (percentComplete >= 75) {
                     bgColor = 'bg-yellow-50';
                     labelColor = 'text-yellow-600';
@@ -780,7 +777,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         </div>
                         
                         <!-- Stats Grid -->
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                        <div class="grid grid-cols-3 gap-3 text-center">
                             <div class="bg-indigo-50 rounded-lg p-3">
                                 <div class="text-xs text-indigo-600 mb-1">Received</div>
                                 <div class="text-lg font-bold text-indigo-600">${product.received_count.toLocaleString()}</div>
@@ -794,12 +791,8 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                 </div>
                                 <div class="text-xs text-gray-500 mt-0.5">Machine | Packaged</div>
                             </div>
-                            <div class="bg-blue-50 rounded-lg p-3">
-                                <div class="text-xs text-blue-600 mb-1">Total Counted</div>
-                                <div class="text-lg font-bold text-blue-600">${totalCounted.toLocaleString()}</div>
-                            </div>
                             <div class="${bgColor} rounded-lg p-3">
-                                <div class="text-xs ${labelColor} mb-1">${labelText}</div>
+                                <div class="text-xs ${labelColor} mb-1">Remaining</div>
                                 <div class="text-lg font-bold ${labelColor}">${displayValue.toLocaleString()}</div>
                             </div>
                         </div>
