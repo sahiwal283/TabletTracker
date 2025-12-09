@@ -647,7 +647,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     
     // Production Submission Form submission
-    warehouseForm.addEventListener('submit', async function(e) {
+    if (warehouseForm) warehouseForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const formData = new FormData(warehouseForm);
@@ -681,6 +681,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             submitBtn.textContent = originalText;
         }
     });
+    }
 
     // Bag Count Form
     const countForm = document.getElementById('count-form');
@@ -690,6 +691,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Update comparison when counts change
     function updateComparison() {
+        if (!bagLabelInput || !actualCountInput) return;
+        
         const bagLabel = parseInt(bagLabelInput.value) || 0;
         const actualCount = parseInt(actualCountInput.value) || 0;
         
@@ -711,17 +714,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                 varianceDisplay.className = 'font-medium text-red-600';
             }
             
-            countComparison.classList.remove('hidden');
+            if (countComparison) countComparison.classList.remove('hidden');
         } else {
-            countComparison.classList.add('hidden');
+            if (countComparison) countComparison.classList.add('hidden');
         }
     }
     
-    bagLabelInput.addEventListener('input', updateComparison);
-    actualCountInput.addEventListener('input', updateComparison);
+    // Only add event listeners if elements exist
+    if (bagLabelInput) bagLabelInput.addEventListener('input', updateComparison);
+    if (actualCountInput) actualCountInput.addEventListener('input', updateComparison);
     
     // Bag Count Form submission
-    countForm.addEventListener('submit', async function(e) {
+    if (countForm) countForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const formData = new FormData(countForm);
@@ -755,11 +759,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             submitBtn.textContent = originalText;
         }
     });
+    }
 
     // Machine Count Form
     const machineCountForm = document.getElementById('machine-count-form-submit');
     
-    machineCountForm.addEventListener('submit', async function(e) {
+    if (machineCountForm) machineCountForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const formData = new FormData(machineCountForm);
@@ -797,6 +802,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             submitBtn.textContent = originalText;
         }
     });
+    }
     
     // Load machines for machine count form
     async function loadMachines() {
