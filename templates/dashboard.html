@@ -219,51 +219,51 @@
                     <td class="px-2 py-2 text-center">
                         {% if po.status_display == 'Cancelled' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800">
-                                ❌
+                                Cancelled
                             </span>
                         {% elif po.status_display == 'Complete' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">
-                                ✅
+                                Complete
                             </span>
                         {% elif po.status_display == 'Closed' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800">
-                                🔒
+                                Closed
                             </span>
                         {% elif po.status_display == 'Reconciled' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800">
-                                📋
+                                Reconciled
                             </span>
                         {% elif po.status_display == 'Ready for Payment' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-800">
-                                💰
+                                Ready for Payment
                             </span>
                         {% elif po.status_display == 'Processing' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
-                                ⚙️
+                                Processing
                             </span>
                         {% elif po.status_display == 'Received' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-teal-100 text-teal-800">
-                                📦
+                                Received
                             </span>
                         {% elif po.status_display == 'Partially Received' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-800">
-                                📦
+                                Partially Received
                             </span>
                         {% elif po.status_display == 'Shipped' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-800">
-                                🚚
+                                Shipped
                             </span>
                         {% elif po.status_display == 'Draft' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600">
-                                📝
+                                Draft
                             </span>
                         {% elif po.status_display == 'Issued' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
-                                📤
+                                Issued
                             </span>
                         {% else %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800">
-                                •
+                                {{ po.status_display or 'Active' }}
                             </span>
                         {% endif %}
                     </td>
