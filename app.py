@@ -3290,7 +3290,7 @@ def submit_machine_count():
             })
         
         # Create warehouse submission with submission_type='machine' and bag_id
-            conn.execute('''
+        conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number,
              bag_id, assigned_po_id, needs_review, loose_tablets, submission_date, admin_notes, submission_type)
