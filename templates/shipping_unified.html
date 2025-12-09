@@ -755,7 +755,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
-                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}');"
+                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}');"
                          title="Click to view submissions for this product">
                         <div class="flex justify-between items-start mb-3">
                             <div>
@@ -833,7 +833,7 @@ function closeReceiveDetailsModal(event) {
 // Submissions modal functions
 let typeFilter = null;
 
-async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
+async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null) {
     try {
         const response = await fetch(`/api/po/${poId}/submissions`);
         const data = await response.json();
@@ -868,7 +868,14 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                 <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
-                            <div class="flex-1">
+                            ${receiveId ? `
+                                <button onclick="closeSubmissionsModal(); viewReceiveDetails(${receiveId}, '${receiveName}');" 
+                                        class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                                        title="Back to receive details">
+                                    ← Back
+                                </button>
+                            ` : ''}
+                            <div class="flex-1 ${receiveId ? 'text-center' : ''}">
                                 <h3 class="text-xl font-bold">📋 Submissions for ${poName}</h3>
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s)</p>
