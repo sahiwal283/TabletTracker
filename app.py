@@ -5372,15 +5372,12 @@ def approve_submission_assignment(submission_id):
         ''', (submission_id,)).fetchone()
         
         if not submission:
-            conn.close()
             return jsonify({'error': 'Submission not found'}), 404
         
         if submission['po_assignment_verified']:
-            conn.close()
             return jsonify({'error': 'Submission already verified and locked'}), 400
         
         if not submission['assigned_po_id']:
-            conn.close()
             return jsonify({'error': 'Cannot approve unassigned submission'}), 400
         
         # Mark as verified/locked
@@ -5391,7 +5388,6 @@ def approve_submission_assignment(submission_id):
         ''', (submission_id,))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -5399,13 +5395,18 @@ def approve_submission_assignment(submission_id):
         })
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 
 
@@ -5430,10 +5431,7 @@ def get_submission_details(submission_id):
         ''', (submission_id,)).fetchone()
         
         if not submission:
-            conn.close()
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
-        
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -5445,12 +5443,13 @@ def get_submission_details(submission_id):
         error_trace = traceback.format_exc()
         print(f"❌ GET SUBMISSION ERROR: {str(e)}")
         print(error_trace)
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/edit', methods=['POST'])
 @admin_required
