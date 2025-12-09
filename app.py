@@ -2784,8 +2784,12 @@ def get_machines():
         ''').fetchall()
         
         machines_list = [dict(m) for m in machines]
+        app.logger.info(f"🔧 GET /api/machines - Found {len(machines_list)} active machines")
+        for m in machines_list:
+            app.logger.info(f"   Machine: {m.get('machine_name')} (ID: {m.get('id')}, cards_per_turn: {m.get('cards_per_turn')})")
         return jsonify({'success': True, 'machines': machines_list})
     except Exception as e:
+        app.logger.error(f"❌ GET /api/machines error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
