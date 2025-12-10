@@ -33,8 +33,27 @@ def get_bag_submissions(bag_id):
     try:
         conn = get_db()
         
+        # Get bag details first
+        bag = conn.execute('''
+            SELECT b.*, tt.inventory_item_id, sb.box_number, r.po_id
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE b.id = ?
+        ''', (bag_id,)).fetchone()
+        
+        if not bag:
+            return jsonify({'error': 'Bag not found'}), 404
+        
+        # Query for submissions that match either:
+        # 1. Have bag_id directly assigned
+        # 2. Match on inventory_item_id + box_number + bag_number + po_id
         submissions = conn.execute('''
             SELECT ws.*, 
+                   pd.product_name as pd_product_name,
+                   pd.packages_per_display,
+                   pd.tablets_per_package,
                    (
                        CASE ws.submission_type
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
@@ -46,9 +65,18 @@ def get_bag_submissions(bag_id):
                    ) as total_tablets
             FROM warehouse_submissions ws
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            WHERE ws.bag_id = ?
+            WHERE (
+                ws.bag_id = ?
+                OR (
+                    ws.bag_id IS NULL
+                    AND ws.inventory_item_id = ?
+                    AND ws.box_number = ?
+                    AND ws.bag_number = ?
+                    AND ws.assigned_po_id = ?
+                )
+            )
             ORDER BY ws.created_at DESC
-        ''', (bag_id,)).fetchall()
+        ''', (bag_id, bag['inventory_item_id'], bag['box_number'], bag['bag_number'], bag['po_id'])).fetchall()
         
         return jsonify({
             'success': True,
