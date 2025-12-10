@@ -5889,18 +5889,42 @@ def get_possible_receives(submission_id):
     try:
         conn = get_db()
         
-        # Get submission details
+        # Get submission details - get tablet_type_id from product_details (more reliable)
         submission = conn.execute('''
-            SELECT ws.*, tt.id as tablet_type_id, tt.tablet_type_name
+            SELECT ws.*, 
+                   COALESCE(pd.tablet_type_id, tt.id) as tablet_type_id, 
+                   COALESCE(tt.tablet_type_name, 'Unknown') as tablet_type_name
             FROM warehouse_submissions ws
-            LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id OR ws.inventory_item_id = tt.inventory_item_id
             WHERE ws.id = ?
         ''', (submission_id,)).fetchone()
         
         if not submission:
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
+        # Debug logging
+        print(f"🔍 Finding possible receives for submission {submission_id}")
+        print(f"   tablet_type_id: {submission.get('tablet_type_id')}")
+        print(f"   box_number: {submission.get('box_number')}")
+        print(f"   bag_number: {submission.get('bag_number')}")
+        print(f"   product_name: {submission.get('product_name')}")
+        print(f"   inventory_item_id: {submission.get('inventory_item_id')}")
+        
+        if not submission.get('tablet_type_id'):
+            return jsonify({
+                'success': False, 
+                'error': f'Could not determine tablet_type_id for submission. Product: {submission.get("product_name")}, inventory_item_id: {submission.get("inventory_item_id")}'
+            }), 400
+        
+        if not submission.get('box_number') or not submission.get('bag_number'):
+            return jsonify({
+                'success': False, 
+                'error': 'Submission missing box_number or bag_number. Cannot find matching receives.'
+            }), 400
+        
         # Find all matching bags (flavor + box + bag)
+        # Must match the exact same logic as find_bag_for_submission
         matching_bags = conn.execute('''
             SELECT b.id as bag_id, 
                    sb.box_number, 
@@ -5921,6 +5945,8 @@ def get_possible_receives(submission_id):
             AND b.bag_number = ?
             ORDER BY r.received_date DESC
         ''', (submission['tablet_type_id'], submission['box_number'], submission['bag_number'])).fetchall()
+        
+        print(f"   Found {len(matching_bags)} matching bags")
         
         # Calculate receive_number for each
         receives = []
