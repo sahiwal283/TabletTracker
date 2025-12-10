@@ -215,8 +215,8 @@
                     </td>
                     <td class="px-2 py-2">
                         {% set received = po.total_received or 0 %}
+                        {% set progress_percent = ((total_counted / received) * 100) | round(1) if received > 0 else 0 %}
                         {% if received > 0 %}
-                            {% set progress_percent = ((total_counted / received) * 100) | round(1) %}
                             <div class="flex items-center justify-center">
                                 <div class="w-16 bg-gray-200 rounded-full h-1.5 mr-1">
                                     <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{ [progress_percent, 100]|min }}%"></div>
@@ -232,7 +232,7 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">
                                 Complete
                             </span>
-                        {% elif progress_percent >= 75 %}
+                        {% elif received > 0 and progress_percent >= 75 %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-800">
                                 Nearly Done
                             </span>
