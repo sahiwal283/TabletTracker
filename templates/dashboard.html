@@ -2231,21 +2231,17 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
         posList.innerHTML = '<div class="text-center py-4"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div></div>';
         
         // RECEIVE-BASED TRACKING: Always try to find receives first if submission has box/bag
-        // Check if submission has box_number and bag_number by fetching submission details
-        try {
-            const submissionResponse = await fetch(`/api/submission/${submissionId}/details`);
-            const submissionData = await submissionResponse.json();
+        // If needs_review is true OR submission is unassigned, try receives first
+        if (needsReview || !currentPO) {
+            const response = await fetch(`/api/submission/${submissionId}/possible-receives`);
+            const data = await response.json();
             
-            const hasBoxBag = submissionData.submission && 
-                             submissionData.submission.box_number && 
-                             submissionData.submission.bag_number;
-            
-            // If submission has box/bag OR needs_review, try receives first
-            if (hasBoxBag || needsReview) {
-                const response = await fetch(`/api/submission/${submissionId}/possible-receives`);
-                const data = await response.json();
+            if (data.success) {
+                // Check if submission has box/bag from the response
+                const submission = data.submission || {};
+                const hasBoxBag = submission.box_number && submission.bag_number;
                 
-                if (data.success && data.possible_receives && data.possible_receives.length > 0) {
+                if (data.possible_receives && data.possible_receives.length > 0) {
                     // Found receives - show them
                     posList.innerHTML = '';
                     
@@ -2290,19 +2286,26 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
                     return; // Exit early, we're done
                 }
                 // If no receives found but has box/bag, show error message
-                if (hasBoxBag && (!data.success || !data.possible_receives || data.possible_receives.length === 0)) {
+                if (hasBoxBag && (!data.possible_receives || data.possible_receives.length === 0)) {
                     posList.innerHTML = `
                         <div class="text-center py-8 text-gray-500">
                             <p>No matching receives found for this submission</p>
-                            <p class="text-xs mt-2">Box: ${submissionData.submission.box_number}, Bag: ${submissionData.submission.bag_number}</p>
+                            <p class="text-xs mt-2">Box: ${submission.box_number}, Bag: ${submission.bag_number}</p>
+                            ${data.error ? `<p class="text-xs text-red-500 mt-1">Error: ${data.error}</p>` : ''}
+                        </div>
+                    `;
+                    return;
+                }
+                // If error occurred, show it
+                if (!data.success) {
+                    posList.innerHTML = `
+                        <div class="text-center py-8 text-gray-500">
+                            <p>Error loading possible receives: ${data.error || 'Unknown error'}</p>
                         </div>
                     `;
                     return;
                 }
             }
-        } catch (error) {
-            console.error('Error checking for receives:', error);
-            // Fall through to PO-based logic
         }
         
         // Fall back to PO-based assignment if no receives found or no box/bag
