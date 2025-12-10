@@ -146,4 +146,3 @@ def restore_production_data():
 
 if __name__ == '__main__':
     restore_production_data()
-
