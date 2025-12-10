@@ -33,6 +33,7 @@ def submissions_list():
                    pd.packages_per_display, pd.tablets_per_package,
                    tt.inventory_item_id, tt.id as tablet_type_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
+                   COALESCE(ws.needs_review, 0) as needs_review,
                    ws.admin_notes,
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,

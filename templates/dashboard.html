@@ -462,10 +462,10 @@
                         {% else %}
                             <div class="flex flex-col gap-1">
                                 <span class="text-gray-400 italic text-xs">Unassigned</span>
-                                <button onclick="openReassignModal({{ sub.id }}, null, '{{ sub.product_name }}')" 
+                                <button onclick="openReassignModal({{ sub.id }}, null, '{{ sub.product_name }}', {{ sub.needs_review|default(0)|int }})" 
                                         class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-1.5 py-0.5 rounded"
-                                        title="Assign to PO">
-                                    Assign
+                                        title="{% if sub.needs_review %}Assign to Receive{% else %}Assign to PO{% endif %}">
+                                    {% if sub.needs_review %}Assign Receive{% else %}Assign{% endif %}
                                 </button>
                             </div>
                         {% endif %}
@@ -2221,99 +2221,187 @@ async function approveSubmission(submissionId) {
 }
 
 // Reassignment functions
-async function openReassignModal(submissionId, currentPO, productName) {
+async function openReassignModal(submissionId, currentPO, productName, needsReview = 0) {
     try {
         const currentText = currentPO ? `Current: ${currentPO}` : 'Currently Unassigned';
         document.getElementById('reassign-modal-subtitle').textContent = `Product: ${productName} | ${currentText}`;
         document.getElementById('reassign-modal').classList.remove('hidden');
         
-        // Fetch available POs for this submission
-        const response = await fetch(`/api/submission/${submissionId}/available_pos`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            showError(data.error || 'Failed to load available POs');
-            return;
-        }
-        
-        // Build PO list
         const posList = document.getElementById('reassign-pos-list');
-        posList.innerHTML = '';
+        posList.innerHTML = '<div class="text-center py-4"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div></div>';
         
-        if (data.available_pos.length === 0) {
-            posList.innerHTML = `
-                <div class="text-center py-8 text-gray-500">
-                    <p>No POs found for this product</p>
-                </div>
-            `;
-            return;
-        }
-        
-        data.available_pos.forEach(po => {
-            const isCurrent = po.id === data.current_po_id;
-            let statusColor, statusLabel;
-            if (po.status === 'Cancelled') {
-                statusColor = 'bg-red-100 text-red-700';
-                statusLabel = '❌ Cancelled';
-            } else if (po.closed) {
-                statusColor = 'bg-gray-100 text-gray-700';
-                statusLabel = '🔒 Closed';
-            } else {
-                statusColor = 'bg-green-100 text-green-700';
-                statusLabel = '✓ Open';
+        // If needs_review is true, fetch possible receives instead of POs
+        if (needsReview) {
+            const response = await fetch(`/api/submission/${submissionId}/possible-receives`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                showError(data.error || 'Failed to load possible receives');
+                posList.innerHTML = '';
+                return;
             }
             
-            const poDiv = document.createElement('div');
-            poDiv.className = `border rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors ${isCurrent ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`;
-            poDiv.onclick = () => reassignSubmission(submissionId, po.id);
+            posList.innerHTML = '';
             
-            poDiv.innerHTML = `
-                <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="font-bold text-lg text-gray-900">${po.po_number}</span>
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColor}">
-                                ${statusLabel}
-                            </span>
-                            ${isCurrent ? '<span class="text-xs text-blue-600 font-bold">CURRENT</span>' : ''}
-                        </div>
-                        <div class="grid grid-cols-4 gap-3 text-sm">
-                            <div>
-                                <div class="text-xs text-gray-500">Ordered</div>
-                                <div class="font-medium">${po.ordered.toLocaleString()}</div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-green-600">Good</div>
-                                <div class="font-medium text-green-600">${po.good.toLocaleString()}</div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-red-600">Damaged</div>
-                                <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
-                            </div>
-                            <div>
-                                ${(() => {
-                                    const isOver = po.remaining < 0;
-                                    const displayValue = Math.abs(po.remaining);
-                                    const labelText = isOver ? 'Overs' : 'Remaining';
-                                    const labelColor = isOver ? 'text-purple-600' : 'text-blue-600';
-                                    return `
-                                        <div class="text-xs ${labelColor}">${labelText}</div>
-                                        <div class="font-medium ${labelColor}">${displayValue.toLocaleString()}</div>
-                                    `;
-                                })()}
-                            </div>
-                        </div>
+            if (data.possible_receives.length === 0) {
+                posList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No matching receives found for this submission</p>
                     </div>
-                    ${!isCurrent ? '<div class="text-2xl">→</div>' : ''}
-                </div>
-            `;
+                `;
+                return;
+            }
             
-            posList.appendChild(poDiv);
-        });
+            // Update modal title for receives
+            document.querySelector('#reassign-modal h3').textContent = '🔄 Assign Submission to Receive';
+            document.querySelector('#reassign-modal .text-sm').textContent = 'Select the correct receive for this submission. Multiple receives match this box/bag combination.';
+            
+            data.possible_receives.forEach(receive => {
+                const receiveDiv = document.createElement('div');
+                receiveDiv.className = 'border rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors border-gray-300';
+                receiveDiv.onclick = () => assignSubmissionToReceive(submissionId, receive.bag_id);
+                
+                const receiveDate = receive.received_date ? new Date(receive.received_date).toLocaleDateString() : 'N/A';
+                
+                receiveDiv.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="font-bold text-lg text-gray-900">${receive.receive_name}</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                    📦 Receive
+                                </span>
+                            </div>
+                            <div class="text-sm text-gray-600 mb-2">
+                                <div><strong>PO:</strong> ${receive.po_number}</div>
+                                <div><strong>Received:</strong> ${receiveDate}</div>
+                                <div><strong>Box/Bag:</strong> ${receive.box_number}/${receive.bag_number}</div>
+                                <div><strong>Bag Label Count:</strong> ${(receive.bag_label_count || 0).toLocaleString()}</div>
+                            </div>
+                        </div>
+                        <div class="text-2xl">→</div>
+                    </div>
+                `;
+                
+                posList.appendChild(receiveDiv);
+            });
+        } else {
+            // Original PO-based logic for non-review submissions
+            document.querySelector('#reassign-modal h3').textContent = '🔄 Reassign Submission to PO';
+            document.querySelector('#reassign-modal .text-sm').textContent = 'Select the correct PO for this submission. Only POs containing this product are shown. Counts will be automatically updated.';
+            
+            const response = await fetch(`/api/submission/${submissionId}/available_pos`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                showError(data.error || 'Failed to load available POs');
+                posList.innerHTML = '';
+                return;
+            }
+            
+            posList.innerHTML = '';
+            
+            if (data.available_pos.length === 0) {
+                posList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No POs found for this product</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            data.available_pos.forEach(po => {
+                const isCurrent = po.id === data.current_po_id;
+                let statusColor, statusLabel;
+                if (po.status === 'Cancelled') {
+                    statusColor = 'bg-red-100 text-red-700';
+                    statusLabel = '❌ Cancelled';
+                } else if (po.closed) {
+                    statusColor = 'bg-gray-100 text-gray-700';
+                    statusLabel = '🔒 Closed';
+                } else {
+                    statusColor = 'bg-green-100 text-green-700';
+                    statusLabel = '✓ Open';
+                }
+                
+                const poDiv = document.createElement('div');
+                poDiv.className = `border rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors ${isCurrent ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`;
+                poDiv.onclick = () => reassignSubmission(submissionId, po.id);
+                
+                poDiv.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="font-bold text-lg text-gray-900">${po.po_number}</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColor}">
+                                    ${statusLabel}
+                                </span>
+                                ${isCurrent ? '<span class="text-xs text-blue-600 font-bold">CURRENT</span>' : ''}
+                            </div>
+                            <div class="grid grid-cols-4 gap-3 text-sm">
+                                <div>
+                                    <div class="text-xs text-gray-500">Ordered</div>
+                                    <div class="font-medium">${po.ordered.toLocaleString()}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-green-600">Good</div>
+                                    <div class="font-medium text-green-600">${po.good.toLocaleString()}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-red-600">Damaged</div>
+                                    <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
+                                </div>
+                                <div>
+                                    ${(() => {
+                                        const isOver = po.remaining < 0;
+                                        const displayValue = Math.abs(po.remaining);
+                                        const labelText = isOver ? 'Overs' : 'Remaining';
+                                        const labelColor = isOver ? 'text-purple-600' : 'text-blue-600';
+                                        return `
+                                            <div class="text-xs ${labelColor}">${labelText}</div>
+                                            <div class="font-medium ${labelColor}">${displayValue.toLocaleString()}</div>
+                                        `;
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                        ${!isCurrent ? '<div class="text-2xl">→</div>' : ''}
+                    </div>
+                `;
+                
+                posList.appendChild(poDiv);
+            });
+        }
         
     } catch (error) {
-        console.error('Error loading available POs:', error);
-        showError('Failed to load available POs: ' + error.message);
+        console.error('Error loading assignment options:', error);
+        showError('Failed to load assignment options: ' + error.message);
+    }
+}
+
+async function assignSubmissionToReceive(submissionId, bagId) {
+    if (!confirm('Are you sure you want to assign this submission to this receive? The PO will be automatically set from the receive.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/assign-receive`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({bag_id: bagId})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(data.message || 'Submission assigned successfully');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.error || 'Failed to assign submission');
+        }
+    } catch (error) {
+        console.error('Error assigning submission:', error);
+        showError('Failed to assign submission: ' + error.message);
     }
 }
 

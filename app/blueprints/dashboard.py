@@ -55,6 +55,7 @@ def dashboard_view():
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
+                   COALESCE(ws.needs_review, 0) as needs_review,
                    ws.admin_notes,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                    (
