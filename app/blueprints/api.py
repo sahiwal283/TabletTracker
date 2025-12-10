@@ -5889,7 +5889,7 @@ def get_possible_receives(submission_id):
     try:
         conn = get_db()
         
-        # Get submission details - match v1.88.6 approach: simple join on inventory_item_id
+        # Get submission details
         submission = conn.execute('''
             SELECT ws.*, tt.id as tablet_type_id, tt.tablet_type_name
             FROM warehouse_submissions ws
@@ -5910,12 +5910,27 @@ def get_possible_receives(submission_id):
         print(f"   bag_number: {submission_dict.get('bag_number')}")
         print(f"   inventory_item_id: {submission_dict.get('inventory_item_id')}")
         
-        # Match v1.88.6: Don't check for NULL tablet_type_id, just proceed
-        # If NULL, the query will return 0 results (which is fine)
         if not submission_dict.get('box_number') or not submission_dict.get('bag_number'):
             return jsonify({
                 'success': False, 
                 'error': 'Submission missing box_number or bag_number. Cannot find matching receives.'
+            }), 400
+        
+        # Get tablet_type_id - if not found via JOIN, try to get it from inventory_item_id
+        tablet_type_id = submission_dict.get('tablet_type_id')
+        if not tablet_type_id and submission_dict.get('inventory_item_id'):
+            # Try to get tablet_type_id from inventory_item_id
+            tt_row = conn.execute('''
+                SELECT id FROM tablet_types WHERE inventory_item_id = ?
+            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+            if tt_row:
+                tablet_type_id = tt_row['id']
+                print(f"   Found tablet_type_id via inventory_item_id lookup: {tablet_type_id}")
+        
+        if not tablet_type_id:
+            return jsonify({
+                'success': False,
+                'error': f'Could not determine tablet_type_id for submission. Product: {submission_dict.get("product_name")}, inventory_item_id: {submission_dict.get("inventory_item_id")}'
             }), 400
         
         # Find all matching bags (flavor + box + bag)
@@ -5939,7 +5954,7 @@ def get_possible_receives(submission_id):
             AND sb.box_number = ? 
             AND b.bag_number = ?
             ORDER BY r.received_date DESC
-        ''', (submission_dict.get('tablet_type_id'), submission_dict['box_number'], submission_dict['bag_number'])).fetchall()
+        ''', (tablet_type_id, submission_dict['box_number'], submission_dict['bag_number'])).fetchall()
         
         print(f"   Found {len(matching_bags)} matching bags")
         
