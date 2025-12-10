@@ -2592,10 +2592,162 @@ if (typeof window.syncZohoPOs === 'undefined') {
     };
 }
 
-// View receive details modal (similar to shipping page)
+// View receive details modal (matches receiving.html implementation)
 async function viewReceiveDetails(receiveId, receiveName) {
-    // Redirect to shipping page with the receive modal open
-    window.location.href = `/shipping?open_receive=${receiveId}`;
+    try {
+        const response = await fetch(`/api/receive/${receiveId}/details`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Error loading receive details: ' + (data.error || 'Unknown error'));
+            return;
+        }
+        
+        const receive = data.receive;
+        const products = data.products;
+        
+        // Build modal content (same as receiving.html)
+        let modalContent = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceiveDetailsModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="text-xl font-bold">📦 Receive Details: ${receiveName}</h3>
+                                <p class="text-sm text-blue-100 mt-1">
+                                    Received on ${receive.received_date ? (() => {
+                                        const date = new Date(receive.received_date + ' UTC');
+                                        const estDate = new Date(date.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+                                        const dateStr = estDate.toLocaleDateString('en-US', {year: 'numeric', month: '2-digit', day: '2-digit'});
+                                        const timeStr = estDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+                                        return dateStr + ' at ' + timeStr;
+                                    })() : 'Unknown'} EST
+                                    ${receive.received_by ? 'by ' + receive.received_by : ''}
+                                </p>
+                            </div>
+                            <button onclick="closeReceiveDetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        `;
+        
+        if (!products || products.length === 0) {
+            modalContent += `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No products found for this receive</p>
+                </div>
+            `;
+        } else {
+            products.forEach((product, productIdx) => {
+                modalContent += `
+                    <div class="mb-6 border border-gray-200 rounded-lg p-4">
+                        <h4 class="font-bold text-lg text-gray-900 mb-3">${product.product_name}</h4>
+                        <div class="space-y-3">
+                `;
+                
+                product.boxes.forEach((box, boxIdx) => {
+                    modalContent += `
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-semibold text-gray-700">📦 Box ${box.box_number}</span>
+                                <span class="text-xs text-gray-500">${box.bags.length} bag${box.bags.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div class="space-y-2 ml-4">
+                    `;
+                    
+                    box.bags.forEach((bag, bagIdx) => {
+                        const receivedCount = bag.received_count || 0;
+                        const machineCount = bag.machine_count || 0;
+                        const packagedCount = bag.packaged_count || 0;
+                        const totalCounted = machineCount + packagedCount;
+                        const remaining = receivedCount - totalCounted;
+                        const percentComplete = receivedCount > 0 ? Math.round((totalCounted / receivedCount) * 100) : 0;
+                        
+                        let bgColor = 'bg-gray-50';
+                        let labelColor = 'text-gray-600';
+                        if (percentComplete >= 100) {
+                            bgColor = 'bg-green-50';
+                            labelColor = 'text-green-600';
+                        } else if (percentComplete >= 75) {
+                            bgColor = 'bg-yellow-50';
+                            labelColor = 'text-yellow-600';
+                        }
+                        
+                        modalContent += `
+                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
+                                 onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});"
+                                 title="Click to view submissions for Box ${box.box_number}, Bag ${bag.bag_number}">
+                                <div class="flex justify-between items-center mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-700">🎒 Bag ${bag.bag_number}</span>
+                                        <span class="text-xs text-gray-500">💡 Click for submissions</span>
+                                    </div>
+                                    <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                </div>
+                                
+                                <div class="grid grid-cols-4 gap-2 text-xs">
+                                    <div class="bg-indigo-50 rounded px-2 py-1">
+                                        <div class="text-indigo-600 font-semibold">${receivedCount.toLocaleString()}</div>
+                                        <div class="text-gray-500">Received</div>
+                                    </div>
+                                    <div class="bg-blue-50 rounded px-2 py-1">
+                                        <div class="text-blue-600 font-semibold">${machineCount.toLocaleString()}</div>
+                                        <div class="text-gray-500">Machine</div>
+                                    </div>
+                                    <div class="bg-purple-50 rounded px-2 py-1">
+                                        <div class="text-purple-600 font-semibold">${packagedCount.toLocaleString()}</div>
+                                        <div class="text-gray-500">Packaged</div>
+                                    </div>
+                                    <div class="${bgColor} rounded px-2 py-1">
+                                        <div class="${labelColor} font-semibold">${remaining.toLocaleString()}</div>
+                                        <div class="text-gray-500">Remaining</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    modalContent += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                modalContent += `
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        modalContent += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if present
+        const existingModal = document.getElementById('receive-details-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'receive-details-modal';
+        modalDiv.innerHTML = modalContent;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading receive details:', error);
+        alert('Failed to load receive details: ' + error.message);
+    }
 }
 
 function closeReceiveDetailsModal(event) {
