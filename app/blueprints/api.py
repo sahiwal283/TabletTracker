@@ -46,6 +46,21 @@ def get_bag_submissions(bag_id):
         if not bag:
             return jsonify({'error': 'Bag not found'}), 404
         
+        current_app.logger.info(f"🔍 GET /api/bag/{bag_id}/submissions")
+        current_app.logger.info(f"   Bag criteria: inventory_item_id={bag['inventory_item_id']}, box={bag['box_number']}, bag={bag['bag_number']}, po_id={bag['po_id']}")
+        
+        # First, check ALL submissions for this PO to see what's there
+        all_po_subs = conn.execute('''
+            SELECT id, submission_type, inventory_item_id, box_number, bag_number, assigned_po_id, bag_id,
+                   loose_tablets, displays_made, packs_remaining
+            FROM warehouse_submissions
+            WHERE assigned_po_id = ?
+        ''', (bag['po_id'],)).fetchall()
+        
+        current_app.logger.info(f"   Found {len(all_po_subs)} total submissions for PO {bag['po_id']}:")
+        for sub in all_po_subs:
+            current_app.logger.info(f"      ID {sub['id']}: type={sub['submission_type']}, inv={sub['inventory_item_id']}, box={sub['box_number']}, bag={sub['bag_number']}, bag_id={sub['bag_id']}")
+        
         # Query for submissions that match either:
         # 1. Have bag_id directly assigned
         # 2. Match on inventory_item_id + box_number + bag_number + po_id
@@ -77,6 +92,8 @@ def get_bag_submissions(bag_id):
             )
             ORDER BY ws.created_at DESC
         ''', (bag_id, bag['inventory_item_id'], bag['box_number'], bag['bag_number'], bag['po_id'])).fetchall()
+        
+        current_app.logger.info(f"   Matched {len(submissions)} submissions")
         
         return jsonify({
             'success': True,
