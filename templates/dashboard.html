@@ -2593,7 +2593,8 @@ if (typeof window.syncZohoPOs === 'undefined') {
 }
 
 // View receive details modal (matches receiving.html implementation)
-async function viewReceiveDetails(receiveId, receiveName) {
+// Make sure function is globally accessible
+window.viewReceiveDetails = async function(receiveId, receiveName) {
     try {
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();
