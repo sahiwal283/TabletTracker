@@ -2734,14 +2734,12 @@ async function viewAmbiguousSubmission(submissionId) {
         const submission = data.submission;
         const receives = data.possible_receives || [];
         
+        console.log('🔍 viewAmbiguousSubmission - Full API response:', data);
         console.log('🔍 viewAmbiguousSubmission - receives:', receives);
         console.log('🔍 viewAmbiguousSubmission - receives length:', receives.length);
+        console.log('🔍 viewAmbiguousSubmission - submission:', submission);
         
-        // Check if receives is empty
-        if (!receives || receives.length === 0) {
-            alert('No matching receives found for this submission. This may indicate a data issue.');
-            return;
-        }
+        // Don't return early - show modal even if empty so user can see the issue
         
         // Calculate submission count
         let submissionCount = 0;
