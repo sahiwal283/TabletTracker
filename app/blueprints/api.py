@@ -740,7 +740,6 @@ def update_tablet_type_inventory():
             ''', (inventory_item_id, tablet_type_id)).fetchone()
             
             if existing:
-                conn.close()
                 return jsonify({
                     'success': False, 
                     'error': f'Inventory ID already used by {existing["tablet_type_name"]}'
@@ -753,17 +752,22 @@ def update_tablet_type_inventory():
             ''', (inventory_item_id, tablet_type_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': 'Tablet type updated successfully'})
         
     except Exception as e:
         if conn:
             try:
-                conn.close()
+                conn.rollback()
             except:
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -3788,11 +3792,6 @@ def reassign_all_submissions():
         all_submissions = [dict(row) for row in all_submissions_rows]
         
         if not all_submissions:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
             return jsonify({'success': True, 'message': 'No submissions found'})
         
         matched_count = 0
