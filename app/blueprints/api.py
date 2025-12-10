@@ -1893,10 +1893,19 @@ def get_tablet_type_categories():
                 categories['Other'] = []
             categories['Other'].extend(unassigned)
         
+        # Build dynamic category_order from actual categories, maintaining preferred order
+        preferred_order = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', 'Hyroxi Regular', 'Hyroxi XL', 'MIT A', 'Other']
+        category_order = [cat for cat in preferred_order if cat in categories]
+        
+        # Add any categories not in preferred_order
+        for cat in sorted(categories.keys()):
+            if cat not in category_order:
+                category_order.append(cat)
+        
         return jsonify({
             'success': True,
             'categories': categories,
-            'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+            'category_order': category_order
         })
     except Exception as e:
         if conn:
