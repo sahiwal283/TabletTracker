@@ -2732,7 +2732,16 @@ async function viewAmbiguousSubmission(submissionId) {
         }
         
         const submission = data.submission;
-        const receives = data.possible_receives;
+        const receives = data.possible_receives || [];
+        
+        console.log('🔍 viewAmbiguousSubmission - receives:', receives);
+        console.log('🔍 viewAmbiguousSubmission - receives length:', receives.length);
+        
+        // Check if receives is empty
+        if (!receives || receives.length === 0) {
+            alert('No matching receives found for this submission. This may indicate a data issue.');
+            return;
+        }
         
         // Calculate submission count
         let submissionCount = 0;
