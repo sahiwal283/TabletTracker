@@ -2780,7 +2780,18 @@ async function viewAmbiguousSubmission(submissionId) {
                         <div class="space-y-3">
         `;
         
-        receives.forEach((rcv, index) => {
+        if (!receives || receives.length === 0) {
+            modalHTML += `
+                <div class="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+                    <p class="text-lg font-medium">No matching receives found</p>
+                    <p class="text-sm mt-2">Box: ${submission.box_number || 'N/A'}, Bag: ${submission.bag_number || 'N/A'}</p>
+                    <p class="text-xs mt-2 text-gray-400">This submission may not have matching receives in the system.</p>
+                    <p class="text-xs mt-1 text-gray-400">Check the browser console (F12) for debug information.</p>
+                </div>
+            `;
+        } else {
+            receives.forEach((rcv, index) => {
+                console.log('🔍 Processing receive:', rcv);
             modalHTML += `
                 <div class="border-2 border-gray-300 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-all"
                      onclick="assignSubmissionToReceive(${submissionId}, ${rcv.bag_id}, '${rcv.receive_name}')">
