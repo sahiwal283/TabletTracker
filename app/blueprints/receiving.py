@@ -19,11 +19,14 @@ def receiving_list():
         
         # Get all tablet types for the form dropdown
         tablet_types_rows = conn.execute('''
-            SELECT id, tablet_type_name 
+            SELECT id, tablet_type_name, category
             FROM tablet_types 
             ORDER BY tablet_type_name
         ''').fetchall()
         tablet_types = [dict(row) for row in tablet_types_rows]
+        
+        # Get unique categories for dropdown grouping
+        categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
         
         # Get all POs for managers/admin to assign
         purchase_orders = []
@@ -108,6 +111,7 @@ def receiving_list():
         
         return render_template('receiving.html', 
                              tablet_types=tablet_types,
+                             categories=categories,
                              purchase_orders=purchase_orders,
                              shipments=shipments,
                              user_role=session.get('employee_role'))
