@@ -118,6 +118,9 @@ class MigrationRunner:
         # admin_notes column
         self._add_column_if_not_exists('warehouse_submissions', 'admin_notes', 'TEXT')
         
+        # Backfill missing data (runs after all columns are added)
+        self._backfill_warehouse_submissions_data()
+        
         # submission_type column with backfill
         try:
             if not self._column_exists('warehouse_submissions', 'submission_type'):
@@ -285,3 +288,48 @@ class MigrationRunner:
                 if 'duplicate column' not in error_msg and 'no such table' not in error_msg:
                     print(f"Error adding column {column_name} to {table_name}: {str(e)}")
                     raise
+    
+    def _backfill_warehouse_submissions_data(self):
+        """Backfill missing bag_id and inventory_item_id for legacy submissions"""
+        try:
+            # Backfill inventory_item_id from product_details -> tablet_types
+            # This handles cases where the initial backfill might have missed some
+            updated_inv = self.c.execute('''
+                UPDATE warehouse_submissions 
+                SET inventory_item_id = (
+                    SELECT tt.inventory_item_id 
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name = warehouse_submissions.product_name
+                    LIMIT 1
+                )
+                WHERE (inventory_item_id IS NULL OR inventory_item_id = '')
+                AND product_name IS NOT NULL
+                AND product_name != ''
+            ''')
+            if updated_inv.rowcount > 0:
+                print(f"✓ Backfilled {updated_inv.rowcount} missing inventory_item_id values")
+            
+            # Backfill bag_id from bags table
+            # Match by bag_number and small_box_id relationship
+            updated_bag = self.c.execute('''
+                UPDATE warehouse_submissions 
+                SET bag_id = (
+                    SELECT b.id
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    WHERE b.bag_number = warehouse_submissions.bag_number
+                    AND r.po_id = warehouse_submissions.assigned_po_id
+                    LIMIT 1
+                )
+                WHERE bag_id IS NULL
+                AND bag_number IS NOT NULL
+                AND assigned_po_id IS NOT NULL
+            ''')
+            if updated_bag.rowcount > 0:
+                print(f"✓ Backfilled {updated_bag.rowcount} missing bag_id values")
+            
+        except Exception as e:
+            # Backfill is non-critical - log but don't fail migration
+            print(f"Note: Could not backfill some warehouse_submissions data: {str(e)}")
