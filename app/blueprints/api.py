@@ -5908,15 +5908,10 @@ def get_possible_receives(submission_id):
         print(f"   tablet_type_id: {submission_dict.get('tablet_type_id')}")
         print(f"   box_number: {submission_dict.get('box_number')}")
         print(f"   bag_number: {submission_dict.get('bag_number')}")
-        print(f"   product_name: {submission_dict.get('product_name')}")
         print(f"   inventory_item_id: {submission_dict.get('inventory_item_id')}")
         
-        if not submission_dict.get('tablet_type_id'):
-            return jsonify({
-                'success': False, 
-                'error': f'Could not determine tablet_type_id for submission. Product: {submission_dict.get("product_name")}, inventory_item_id: {submission_dict.get("inventory_item_id")}'
-            }), 400
-        
+        # Match v1.88.6: Don't check for NULL tablet_type_id, just proceed
+        # If NULL, the query will return 0 results (which is fine)
         if not submission_dict.get('box_number') or not submission_dict.get('bag_number'):
             return jsonify({
                 'success': False, 
@@ -5944,7 +5939,7 @@ def get_possible_receives(submission_id):
             AND sb.box_number = ? 
             AND b.bag_number = ?
             ORDER BY r.received_date DESC
-        ''', (submission_dict['tablet_type_id'], submission_dict['box_number'], submission_dict['bag_number'])).fetchall()
+        ''', (submission_dict.get('tablet_type_id'), submission_dict['box_number'], submission_dict['bag_number'])).fetchall()
         
         print(f"   Found {len(matching_bags)} matching bags")
         

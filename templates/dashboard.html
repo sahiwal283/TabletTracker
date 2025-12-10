@@ -2719,6 +2719,11 @@ async function viewAmbiguousSubmission(submissionId) {
     try {
         // Fetch submission and possible receives
         const response = await fetch(`/api/submission/${submissionId}/possible-receives`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (!data.success) {
