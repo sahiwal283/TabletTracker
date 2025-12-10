@@ -11,11 +11,17 @@ import traceback
 import csv
 import io
 from functools import wraps
+import sys
+import os
+sys.path.insert(0, os.path.dirname(__file__))
+
 from config import Config
-from app.services.zoho_service import zoho_api
+# Import services from their new locations
+from app.services import zoho_service, tracking_service, report_service
+zoho_api = zoho_service.zoho_api
+refresh_shipment_row = tracking_service.refresh_shipment_row
+ProductionReportGenerator = report_service.ProductionReportGenerator
 from __version__ import __version__, __title__, __description__
-from app.services.tracking_service import refresh_shipment_row
-from app.services.report_service import ProductionReportGenerator
 from flask_babel import Babel, gettext, ngettext, lazy_gettext, get_locale
 
 app = Flask(__name__)
@@ -110,6 +116,18 @@ def after_request(response):
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
+
+# Register Blueprints
+from app.blueprints import auth, admin, dashboard, production, submissions, purchase_orders, shipping, api as api_bp
+
+app.register_blueprint(auth.bp)
+app.register_blueprint(admin.bp)
+app.register_blueprint(dashboard.bp)
+app.register_blueprint(production.bp)
+app.register_blueprint(submissions.bp)
+app.register_blueprint(purchase_orders.bp)
+app.register_blueprint(shipping.bp)
+app.register_blueprint(api_bp.bp)
 
 # Database setup
 def init_db():
