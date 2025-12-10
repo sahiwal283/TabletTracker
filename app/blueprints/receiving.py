@@ -28,12 +28,14 @@ def receiving_list():
         # Get unique categories for dropdown grouping
         categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
         
-        # Get all POs for managers/admin to assign
+        # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
         purchase_orders = []
-        if session.get('employee_role') in ['manager', 'admin']:
+        if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
             po_rows = conn.execute('''
                 SELECT id, po_number, closed, internal_status, zoho_status
                 FROM purchase_orders
+                WHERE closed = FALSE
+                AND COALESCE(internal_status, '') != 'Cancelled'
                 ORDER BY po_number DESC
             ''').fetchall()
             purchase_orders = [dict(row) for row in po_rows]
