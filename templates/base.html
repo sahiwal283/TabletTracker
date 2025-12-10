@@ -435,12 +435,22 @@
         function showSuccess(message) {
             const alert = document.createElement('div');
             alert.className = 'fixed top-6 right-6 bg-gradient-to-r from-emerald-500 to-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-50 transform transition-all duration-500 scale-0';
-            alert.innerHTML = `
-                <div class="flex items-center">
-                    <span class="text-2xl mr-3">✅</span>
-                    <span class="font-semibold">${message}</span>
-                </div>
-            `;
+            
+            // Create structure safely to prevent XSS
+            const container = document.createElement('div');
+            container.className = 'flex items-center';
+            
+            const icon = document.createElement('span');
+            icon.className = 'text-2xl mr-3';
+            icon.textContent = '✅';
+            
+            const text = document.createElement('span');
+            text.className = 'font-semibold';
+            text.textContent = message; // textContent automatically escapes HTML
+            
+            container.appendChild(icon);
+            container.appendChild(text);
+            alert.appendChild(container);
             document.body.appendChild(alert);
             
             // Animate in
@@ -456,12 +466,22 @@
         function showError(message) {
             const alert = document.createElement('div');
             alert.className = 'fixed top-6 right-6 bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-4 rounded-xl shadow-2xl z-50 transform transition-all duration-500 scale-0';
-            alert.innerHTML = `
-                <div class="flex items-center">
-                    <span class="text-2xl mr-3">⚠️</span>
-                    <span class="font-semibold">${message}</span>
-                </div>
-            `;
+            
+            // Create structure safely to prevent XSS
+            const container = document.createElement('div');
+            container.className = 'flex items-center';
+            
+            const icon = document.createElement('span');
+            icon.className = 'text-2xl mr-3';
+            icon.textContent = '⚠️';
+            
+            const text = document.createElement('span');
+            text.className = 'font-semibold';
+            text.textContent = message; // textContent automatically escapes HTML
+            
+            container.appendChild(icon);
+            container.appendChild(text);
+            alert.appendChild(container);
             document.body.appendChild(alert);
             
             // Animate in
