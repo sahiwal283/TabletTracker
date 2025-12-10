@@ -18,7 +18,8 @@ import traceback
 class BackupConfig:
     """Configuration for backup system"""
     # Database settings
-    DB_PATH = 'tablet_counter.db'
+    # Check both old and new locations for compatibility
+    DB_PATH = 'database/tablet_counter.db' if os.path.exists('database/tablet_counter.db') else 'tablet_counter.db'
     
     # Backup directories
     PRIMARY_BACKUP_DIR = 'backups/primary'
