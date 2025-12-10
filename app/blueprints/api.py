@@ -5964,7 +5964,7 @@ def get_possible_receives(submission_id):
             receives.append({
                 'bag_id': bag['bag_id'],
                 'receive_id': bag['receive_id'],
-                'receive_name': f"{bag['po_number']}-{receive_number}",
+                'receive_name': f"{bag['po_number']}-{receive_number}-{bag['bag_number']}",
                 'po_number': bag['po_number'],
                 'received_date': bag['received_date'],
                 'box_number': bag['box_number'],
