@@ -124,7 +124,7 @@ def dashboard_view():
         
         return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types)
     except Exception as e:
-        print(f"Error in admin_dashboard: {e}")
+        print(f"Error in dashboard_view: {e}")
         traceback.print_exc()
         flash('An error occurred while loading the dashboard. Please try again.', 'error')
         # Create default stats dict to match expected structure (SQLite Row-like object)

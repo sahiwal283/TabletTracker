@@ -11,6 +11,7 @@ import io
 import os
 import re
 import requests
+import sqlite3
 from config import Config
 from __version__ import __version__, __title__, __description__
 from flask_babel import gettext, ngettext, get_locale
