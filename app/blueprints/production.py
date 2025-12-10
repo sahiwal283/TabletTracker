@@ -31,10 +31,13 @@ def production_form():
         ''').fetchall()
         
         # Get all tablet types for bag count dropdown
-        tablet_types = conn.execute('''
+        tablet_types_raw = conn.execute('''
             SELECT * FROM tablet_types 
             ORDER BY tablet_type_name
         ''').fetchall()
+        
+        # Convert to list of dicts for proper JSON serialization
+        tablet_types = [dict(tt) for tt in tablet_types_raw]
         
         # Get employee info for display (handle admin users)
         employee = None
