@@ -974,6 +974,8 @@ function toggleRecentSubmissions() {
 
 function toggleClosedSubmissions() {
     const checkbox = document.getElementById('show-closed-submissions');
+    if (!checkbox) return; // Guard clause: checkbox doesn't exist
+    
     const rows = document.querySelectorAll('.submissions-row');
     
     rows.forEach(row => {
