@@ -13,7 +13,7 @@ bp = Blueprint('submissions', __name__)
 
 @bp.route('/submissions')
 @role_required('dashboard')
-def all_submissions():
+def submissions_list():
     """Full submissions page showing all submissions"""
     conn = None
     try:

@@ -11,7 +11,7 @@ bp = Blueprint('purchase_orders', __name__)
 
 @bp.route('/purchase-orders')
 @role_required('dashboard')
-def all_purchase_orders():
+def purchase_orders_list():
     """Full purchase orders page showing all POs with filtering"""
     conn = None
     try:
@@ -86,4 +86,4 @@ def purchase_orders_deprecated():
     """DEPRECATED: Use /purchase-orders instead"""
     import logging
     logging.warning("Route /purchase_orders is deprecated, use /purchase-orders instead")
-    return all_purchase_orders()
+    return purchase_orders_list()

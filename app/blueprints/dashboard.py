@@ -11,7 +11,7 @@ bp = Blueprint('dashboard', __name__)
 
 @bp.route('/dashboard')
 @role_required('dashboard')
-def admin_dashboard():
+def dashboard_view():
     """Desktop dashboard for managers/admins"""
     conn = None
     try:
