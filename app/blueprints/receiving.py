@@ -18,20 +18,22 @@ def receiving_list():
         conn = get_db()
         
         # Get all tablet types for the form dropdown
-        tablet_types = conn.execute('''
+        tablet_types_rows = conn.execute('''
             SELECT id, tablet_type_name 
             FROM tablet_types 
             ORDER BY tablet_type_name
         ''').fetchall()
+        tablet_types = [dict(row) for row in tablet_types_rows]
         
         # Get all POs for managers/admin to assign
         purchase_orders = []
         if session.get('employee_role') in ['manager', 'admin']:
-            purchase_orders = conn.execute('''
+            po_rows = conn.execute('''
                 SELECT id, po_number, closed, internal_status, zoho_status
                 FROM purchase_orders
                 ORDER BY po_number DESC
             ''').fetchall()
+            purchase_orders = [dict(row) for row in po_rows]
         
         # Get all receiving records with their boxes and bags
         receiving_records = conn.execute('''
