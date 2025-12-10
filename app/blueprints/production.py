@@ -10,8 +10,42 @@ from app.utils.route_helpers import (
     get_setting, ensure_submission_type_column,
     ensure_machine_counts_table, ensure_machine_count_columns
 )
+from app.utils.receive_tracking import find_bag_for_submission
 
 bp = Blueprint('production', __name__)
+
+
+def find_bag_for_submission(conn, tablet_type_id, box_number, bag_number):
+    """
+    Find matching bag in receives by tablet_type_id, box_number, bag_number.
+    
+    If exactly 1 match: Returns bag, assigns automatically
+    If 2+ matches: Returns None for bag, flags for manual review
+    If 0 matches: Returns error
+    
+    Returns: (bag_row or None, needs_review_flag, error_message)
+    """
+    # Check for duplicates FIRST (same tablet_type + box + bag in multiple receives)
+    matching_bags = conn.execute('''
+        SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
+        FROM bags b
+        JOIN small_boxes sb ON b.small_box_id = sb.id
+        JOIN receiving r ON sb.receiving_id = r.id
+        WHERE b.tablet_type_id = ? 
+        AND sb.box_number = ? 
+        AND b.bag_number = ?
+        ORDER BY r.received_date DESC
+    ''', (tablet_type_id, box_number, bag_number)).fetchall()
+    
+    if not matching_bags:
+        return None, False, f'No receive found for this product, Box #{box_number}, Bag #{bag_number}. Please check receiving records or contact your manager.'
+    
+    # If exactly 1 match: auto-assign
+    if len(matching_bags) == 1:
+        return dict(matching_bags[0]), False, None
+    
+    # If 2+ matches: needs manual review, don't auto-assign
+    return None, True, None
 
 
 @bp.route('/production')
@@ -166,47 +200,72 @@ def submit_warehouse():
         inventory_item_id = product.get('inventory_item_id')
         if not inventory_item_id:
             return jsonify({'error': 'Product inventory_item_id not found'}), 400
+        
+        # Get tablet_type_id for receive-based matching
+        tablet_type_id = product.get('tablet_type_id')
+        if not tablet_type_id:
+            return jsonify({'error': 'Product tablet_type_id not found'}), 400
+        
+        box_number = data.get('box_number')
+        bag_number = data.get('bag_number')
+        
+        # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
+        bag = None
+        needs_review = False
+        error_message = None
+        assigned_po_id = None
+        bag_id = None
+        
+        if box_number and bag_number:
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, box_number, bag_number)
             
+            if bag:
+                # Exact match found - auto-assign
+                bag_id = bag['id']
+                assigned_po_id = bag['po_id']
+                bag_label_count = bag.get('bag_label_count', 0)
+                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
+            elif needs_review:
+                # Multiple matches - needs manual review
+                print(f"⚠️ Multiple receives found for Box {box_number}, Bag {bag_number} - needs review")
+            elif error_message:
+                # No match found
+                print(f"❌ {error_message}")
+        
+        # Insert submission with bag_id and po_id if matched
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged')
-        ''', (employee_name, data.get('product_name'), inventory_item_id, data.get('box_number'),
-              data.get('bag_number'), data.get('bag_label_count'),
-              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes))
+             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
+             submission_type, bag_id, assigned_po_id, needs_review)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?)
+        ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
+              bag.get('bag_label_count', 0) if bag else data.get('bag_label_count'),
+              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
+              bag_id, assigned_po_id, needs_review))
         
-        # Find open PO lines for this inventory item
-        print(f"Looking for PO lines with inventory_item_id: {inventory_item_id}")
-        # Order by PO number (oldest PO numbers first) since they represent issue order
-        # Exclude Draft POs - only assign to Issued/Active POs
-        # Note: We do NOT filter by available quantity - POs can receive more than ordered
+        # If no receive match, submission is saved but not assigned (user can assign manually later)
+        if not assigned_po_id:
+            conn.commit()
+            if error_message:
+                return jsonify({
+                    'warning': error_message,
+                    'submission_saved': True,
+                    'needs_review': needs_review
+                })
+            else:
+                return jsonify({
+                    'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
+                    'submission_saved': True
+                })
+        
+        # Get PO lines for the matched PO to update counts
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
-            WHERE pl.inventory_item_id = ? AND po.closed = FALSE
-            AND COALESCE(po.internal_status, '') != 'Draft'
-            AND COALESCE(po.internal_status, '') != 'Cancelled'
-            ORDER BY po.po_number ASC
-        ''', (inventory_item_id,)).fetchall()
-        
-        print(f"Found {len(po_lines)} matching PO lines")
-        
-        if not po_lines:
-            conn.commit()
-            return jsonify({'warning': f'No open PO found for this tablet type (inventory_item_id: {inventory_item_id})', 'submission_saved': True})
-        
-        # Get the PO we'll assign to (first available line's PO - oldest PO number)
-        assigned_po_id = po_lines[0]['po_id'] if po_lines else None
-        
-        # Update submission with assigned PO
-        if assigned_po_id:
-            conn.execute('''
-                UPDATE warehouse_submissions 
-                SET assigned_po_id = ?
-                WHERE rowid = last_insert_rowid()
-            ''', (assigned_po_id,))
+            WHERE pl.inventory_item_id = ? AND po.id = ?
+        ''', (inventory_item_id, assigned_po_id)).fetchall()
         
         # IMPORTANT: Only allocate counts to lines from the ASSIGNED PO
         # This ensures older POs are completely filled before newer ones receive submissions
@@ -555,48 +614,75 @@ def submit_machine_count():
             VALUES (?, ?, ?, ?)
         ''', (tablet_type_id, machine_count_int, employee_name, count_date))
         
-        # Get inventory_item_id
+        # Get inventory_item_id and tablet_type_id
         inventory_item_id = tablet_type.get('inventory_item_id')
-        if not inventory_item_id:
+        tablet_type_id = tablet_type.get('id')
+        
+        if not inventory_item_id or not tablet_type_id:
             conn.commit()
-            return jsonify({'warning': 'Tablet type inventory_item_id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
+            return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
+        
+        # Get box/bag numbers from form data
+        box_number = data.get('box_number')
+        bag_number = data.get('bag_number')
+        
+        # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
+        bag = None
+        needs_review = False
+        error_message = None
+        assigned_po_id = None
+        bag_id = None
+        
+        if box_number and bag_number:
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, box_number, bag_number)
+            
+            if bag:
+                # Exact match found - auto-assign
+                bag_id = bag['id']
+                assigned_po_id = bag['po_id']
+                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
+            elif needs_review:
+                # Multiple matches - needs manual review
+                print(f"⚠️ Multiple receives found for Box {box_number}, Bag {bag_number} - needs review")
+            elif error_message:
+                # No match found
+                print(f"❌ {error_message}")
         
         # Create warehouse submission with submission_type='machine'
         conn.execute('''
             INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, loose_tablets, submission_date, submission_type)
-            VALUES (?, ?, ?, ?, ?, 'machine')
-        ''', (employee_name, product['product_name'], inventory_item_id, total_tablets, count_date))
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, loose_tablets, 
+             submission_date, submission_type, bag_id, assigned_po_id, needs_review)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?)
+        ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number, 
+              total_tablets, count_date, bag_id, assigned_po_id, needs_review))
         
-        # Find open PO lines for this inventory item
+        # If no receive match, submission is saved but not assigned
+        if not assigned_po_id:
+            conn.commit()
+            if error_message:
+                return jsonify({
+                    'success': True,
+                    'warning': error_message,
+                    'submission_saved': True,
+                    'needs_review': needs_review,
+                    'message': f'Machine count submitted: {total_tablets} tablets calculated ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
+                    'submission_saved': True,
+                    'message': f'Machine count submitted: {total_tablets} tablets calculated ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
+                })
+        
+        # Get PO lines for the matched PO to update counts
         po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
-            WHERE pl.inventory_item_id = ? AND po.closed = FALSE
-            AND COALESCE(po.internal_status, '') != 'Draft'
-            AND COALESCE(po.internal_status, '') != 'Cancelled'
-            ORDER BY po.po_number ASC
-        ''', (inventory_item_id,)).fetchall()
-        
-        if not po_lines:
-            conn.commit()
-            return jsonify({
-                'success': True, 
-                'warning': f'No open PO found for this tablet type. Submission saved.',
-                'message': f'Machine count submitted: {total_tablets} tablets calculated ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
-            })
-        
-        # Get the PO we'll assign to (first available line's PO - oldest PO number)
-        assigned_po_id = po_lines[0]['po_id'] if po_lines else None
-        
-        # Update submission with assigned PO
-        if assigned_po_id:
-            conn.execute('''
-                UPDATE warehouse_submissions 
-                SET assigned_po_id = ?
-                WHERE rowid = last_insert_rowid()
-            ''', (assigned_po_id,))
+            WHERE pl.inventory_item_id = ? AND po.id = ?
+        ''', (inventory_item_id, assigned_po_id)).fetchall()
         
         # Only allocate to lines from the ASSIGNED PO
         assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
