@@ -2624,7 +2624,7 @@ def generate_production_report():
                 return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
         
         # Generate report
-        generator = ProductionReportGenerator()
+        generator = ProductionReportGenerator(db_path=Config.DATABASE_PATH)
         
         if report_type == 'vendor':
             pdf_content = generator.generate_vendor_report(
@@ -2798,11 +2798,13 @@ def server_debug_info():
         # Check current working directory
         cwd = os.getcwd()
         
-        # Check if template exists
-        template_exists = os.path.exists('templates/receiving_management.html')
+        # Check if template exists (using absolute path)
+        template_path = os.path.join(current_app.root_path, '..', 'templates', 'receiving_management.html')
+        template_path = os.path.abspath(template_path)
+        template_exists = os.path.exists(template_path)
         
-        # Find database path and check what tables exist
-        db_path = 'tablettracker.db'
+        # Find database path and check what tables exist (use Config.DATABASE_PATH)
+        db_path = Config.DATABASE_PATH
         db_full_path = os.path.abspath(db_path)
         db_exists = os.path.exists(db_path)
         
@@ -3128,8 +3130,9 @@ def process_receiving():
         
         if delivery_photo and delivery_photo.filename:
             # Save photo locally
-            # Create uploads directory if it doesn't exist
-            upload_dir = 'static/uploads/receiving'
+            # Create uploads directory if it doesn't exist (using absolute path)
+            upload_dir = os.path.join(current_app.root_path, '..', 'static', 'uploads', 'receiving')
+            upload_dir = os.path.abspath(upload_dir)
             os.makedirs(upload_dir, exist_ok=True)
             
             # Generate unique filename

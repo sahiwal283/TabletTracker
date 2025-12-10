@@ -23,8 +23,9 @@ from typing import Dict, List, Optional, Tuple
 class ProductionReportGenerator:
     """Generates comprehensive production cycle reports with detailed metrics"""
     
-    def __init__(self, db_path: str = 'tablet_counter.db'):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        from config import Config
+        self.db_path = db_path or Config.DATABASE_PATH
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
     
