@@ -935,7 +935,16 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                 </button>
                             ` : ''}
                             <div class="flex-1 ${receiveId ? 'text-center' : ''}">
-                                <h3 class="text-xl font-bold">📋 Submissions for ${receiveId ? receiveName : poName}</h3>
+                                ${(() => {
+                                    // If viewing a specific bag, construct the full receive name: PO-receive-box-bag
+                                    if (bagId !== null && boxNumber !== null && bagNumber !== null && receiveName) {
+                                        // receiveName format is already PO-receive, so add box-bag
+                                        const bagReceiveName = `${receiveName}-${boxNumber}-${bagNumber}`;
+                                        return `<h3 class="text-xl font-bold">📋 Submissions for ${bagReceiveName}</h3>`;
+                                    }
+                                    // Otherwise use receiveName or poName
+                                    return `<h3 class="text-xl font-bold">📋 Submissions for ${receiveId ? receiveName : poName}</h3>`;
+                                })()}
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 ${bagId !== null && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s) total</p>

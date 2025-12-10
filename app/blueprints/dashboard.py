@@ -192,7 +192,32 @@ def dashboard_view():
             WHERE COALESCE(po_assignment_verified, 0) = 0
         ''').fetchone()['count']
         
-        return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types)
+        # Find submissions that need review (ambiguous submissions)
+        # These are submissions where flavor + box + bag match multiple receives
+        # They have needs_review=TRUE and bag_id=NULL (not yet assigned)
+        submissions_needing_review = conn.execute('''
+            SELECT ws.*, 
+                   tt.tablet_type_name,
+                   (
+                       CASE ws.submission_type
+                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                                                ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
+                           WHEN 'bag' THEN ws.loose_tablets
+                           WHEN 'machine' THEN ws.loose_tablets
+                           ELSE ws.loose_tablets + ws.damaged_tablets
+                       END
+                   ) as calculated_total
+            FROM warehouse_submissions ws
+            LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE COALESCE(ws.needs_review, 0) = 1
+            ORDER BY ws.created_at DESC
+        ''').fetchall()
+        
+        # Convert to list of dicts
+        review_submissions = [dict(row) for row in submissions_needing_review]
+        
+        return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types, submissions_needing_review=review_submissions)
     except Exception as e:
         print(f"Error in dashboard_view: {e}")
         traceback.print_exc()
