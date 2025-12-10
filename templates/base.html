@@ -303,17 +303,24 @@
                     </a>
             </h1>
                 <div class="hidden md:flex space-x-6">
-                    <!-- Always visible for employees -->
-                    <a href="{{ url_for('production_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Production
-                    </a>
-                    
                     <!-- Dashboard - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
                     {% endif %}
+                    
+                    <!-- Shipments Received - Manager+ -->
+                    {% if session.employee_role in ['manager', 'admin'] %}
+                    <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
+                    </a>
+                    {% endif %}
+                    
+                    <!-- Production - Always visible for employees -->
+                    <a href="{{ url_for('production_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Production
+                    </a>
                     
                     <!-- Submissions - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
@@ -326,13 +333,6 @@
                     {% if session.employee_role in ['manager', 'admin'] %}
                     <a href="{{ url_for('all_purchase_orders') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders
-                    </a>
-                    {% endif %}
-                    
-                    <!-- Shipments Received - Manager+ -->
-                    {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('shipping_unified') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
                     </a>
                     {% endif %}
                     
@@ -378,12 +378,20 @@
             </div>
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
-                <a href="{{ url_for('production_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
                 {% if session.employee_role in ['manager', 'admin'] %}
                 <a href="{{ url_for('admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
+                <a href="{{ url_for('shipping_unified') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received</a>
+                {% endif %}
+                <a href="{{ url_for('production_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
+                {% if session.employee_role in ['manager', 'admin'] %}
                 <a href="{{ url_for('all_submissions') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-list" /></svg> Submissions</a>
                 <a href="{{ url_for('all_purchase_orders') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders</a>
+                {% endif %}
+                {% if session.employee_role == 'admin' %}
                 <a href="{{ url_for('admin_panel') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-gear" /></svg> Admin</a>
+                {% endif %}
+                {% if session.employee_authenticated or session.admin_authenticated %}
+                <a href="{{ url_for('logout') }}" class="block hover:text-red-300 transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-red-500 hover:bg-opacity-20"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-logout" /></svg> Logout</a>
                 {% endif %}
             </div>
         </div>
