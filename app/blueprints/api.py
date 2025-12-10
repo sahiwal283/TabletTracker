@@ -5075,11 +5075,14 @@ def to_est_time_filter(dt_string):
 @bp.app_context_processor
 def inject_version():
     """Make version information available to all templates"""
+    locale = get_locale()
+    # Convert Locale object to string if needed
+    current_lang = str(locale) if hasattr(locale, 'language') else locale
     return {
         'version': lambda: __version__,
         'app_title': __title__,
         'app_description': __description__,
-        'current_language': get_locale(),
+        'current_language': current_lang,
         'languages': current_app.config['LANGUAGES'],
         'gettext': gettext,
         'ngettext': ngettext
