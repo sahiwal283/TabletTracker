@@ -146,7 +146,7 @@
             <div class="flex items-center">
                 <span class="text-3xl mr-4">📦</span>
                 <h3 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Active Receives</h3>
-                <span class="ml-3 text-sm text-gray-500">(with submissions, last {{ active_pos|length }})</span>
+                <span class="ml-3 text-sm text-gray-500">(with submissions, last {{ active_receives|length }})</span>
             </div>
             <a href="/shipping" class="btn-primary px-4 py-2 text-sm font-medium">
                 📦 View All Receives
@@ -184,28 +184,28 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                {% for po in active_pos %}
-                {% set receive_name = po.po_number + '-' + (po.receive_number|string if po.receive_number else '1') %}
-                <tr class="hover:bg-gray-100 cursor-pointer po-row" data-po-index="{{ loop.index }}" data-receive-id="{{ po.id }}" onclick="viewReceiveDetails({{ po.id }}, '{{ receive_name|e }}')">
+                {% for receive in active_receives %}
+                {% set receive_name = receive.po_number + '-' + (receive.receive_number|string if receive.receive_number else '1') %}
+                <tr class="hover:bg-gray-100 cursor-pointer po-row" data-po-index="{{ loop.index }}" data-receive-id="{{ receive.id }}" onclick="viewReceiveDetails({{ receive.id }}, '{{ receive_name|e }}')">
                     <td class="px-2 py-2 font-medium text-gray-900">
                         {{ receive_name }}
                     </td>
                     <td class="px-2 py-2 text-gray-500 max-w-xs">
-                        <div class="truncate" title="{{ po.tablet_type or 'N/A' }}">
-                            {{ po.tablet_type or 'N/A' }}
+                        <div class="truncate" title="{{ receive.tablet_type or 'N/A' }}">
+                            {{ receive.tablet_type or 'N/A' }}
                         </div>
                     </td>
                     <td class="px-2 py-2 text-center text-gray-500">
-                        {{ "{:,}".format(po.total_received) if po.total_received else '0' }}
+                        {{ "{:,}".format(receive.total_received) if receive.total_received else '0' }}
                     </td>
                     <td class="px-2 py-2 text-center text-green-600">
-                        {{ "{:,}".format(po.current_good_count) if po.current_good_count else '0' }}
+                        {{ "{:,}".format(receive.current_good_count) if receive.current_good_count else '0' }}
                     </td>
                     <td class="px-2 py-2 text-center text-red-600">
-                        {{ "{:,}".format(po.current_damaged_count) if po.current_damaged_count else '0' }}
+                        {{ "{:,}".format(receive.current_damaged_count) if receive.current_damaged_count else '0' }}
                     </td>
-                    {% set total_counted = (po.current_good_count or 0) + (po.current_damaged_count or 0) %}
-                    {% set remaining = (po.total_received or 0) - total_counted %}
+                    {% set total_counted = (receive.current_good_count or 0) + (receive.current_damaged_count or 0) %}
+                    {% set remaining = (receive.total_received or 0) - total_counted %}
                     <td class="px-2 py-2 text-center {% if remaining < 0 %}text-purple-600{% else %}text-blue-600{% endif %}">
                         {% if remaining < 0 %}
                             +{{ "{:,}".format(remaining|abs) }}
@@ -214,7 +214,7 @@
                         {% endif %}
                     </td>
                     <td class="px-2 py-2">
-                        {% set received = po.total_received or 0 %}
+                        {% set received = receive.total_received or 0 %}
                         {% set progress_percent = ((total_counted / received) * 100) | round(1) if received > 0 else 0 %}
                         {% if received > 0 %}
                             <div class="flex items-center justify-center">

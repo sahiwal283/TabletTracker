@@ -17,7 +17,7 @@ def dashboard_view():
     try:
         conn = get_db()
         
-        # Get active POs that have submissions assigned (last 10)
+        # Get active POs that have submissions assigned (last 10) - for PO section
         active_pos_query = '''
             SELECT po.*, 
                    COUNT(DISTINCT pl.id) as line_count,
@@ -36,12 +36,71 @@ def dashboard_view():
         '''
         active_pos = conn.execute(active_pos_query).fetchall()
         
-        # Get active receives with submission counts (for dashboard widget)
-        # Simplified query to avoid errors
+        # Get active receives that have submissions assigned (last 2)
+        active_receives_query = '''
+            SELECT r.*,
+                   po.po_number,
+                   po.id as po_id,
+                   -- Calculate receive number (which shipment # for this PO)
+                   (
+                       SELECT COUNT(*) + 1
+                       FROM receiving r2
+                       WHERE r2.po_id = r.po_id
+                       AND (r2.received_date < r.received_date 
+                            OR (r2.received_date = r.received_date AND r2.id < r.id))
+                   ) as receive_number,
+                   COUNT(DISTINCT b.id) as bag_count,
+                   COALESCE(SUM(b.bag_label_count), 0) as total_received,
+                   COUNT(DISTINCT ws.id) as submission_count,
+                   -- Calculate good count from submissions (via bag_id)
+                   COALESCE((
+                       SELECT SUM(
+                           (COALESCE(ws2.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                           (COALESCE(ws2.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                           COALESCE(ws2.loose_tablets, 0)
+                       )
+                       FROM warehouse_submissions ws2
+                       LEFT JOIN product_details pd ON ws2.product_name = pd.product_name
+                       LEFT JOIN bags b2 ON ws2.bag_id = b2.id
+                       LEFT JOIN small_boxes sb2 ON b2.small_box_id = sb2.id
+                       WHERE sb2.receiving_id = r.id
+                   ), 0) as current_good_count,
+                   -- Calculate damaged count from submissions (via bag_id)
+                   COALESCE((
+                       SELECT SUM(COALESCE(ws2.damaged_tablets, 0))
+                       FROM warehouse_submissions ws2
+                       LEFT JOIN bags b2 ON ws2.bag_id = b2.id
+                       LEFT JOIN small_boxes sb2 ON b2.small_box_id = sb2.id
+                       WHERE sb2.receiving_id = r.id
+                   ), 0) as current_damaged_count,
+                   -- Get primary tablet type (most common in this receive)
+                   (
+                       SELECT tt.tablet_type_name
+                       FROM bags b3
+                       JOIN small_boxes sb3 ON b3.small_box_id = sb3.id
+                       JOIN tablet_types tt ON b3.tablet_type_id = tt.id
+                       WHERE sb3.receiving_id = r.id
+                       GROUP BY tt.tablet_type_name
+                       ORDER BY COUNT(*) DESC
+                       LIMIT 1
+                   ) as tablet_type
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON sb.receiving_id = r.id
+            LEFT JOIN bags b ON b.small_box_id = sb.id
+            LEFT JOIN warehouse_submissions ws ON ws.bag_id = b.id
+            WHERE r.received_date IS NOT NULL
+            AND r.id IS NOT NULL
+            GROUP BY r.id
+            HAVING submission_count > 0
+            ORDER BY r.received_date DESC
+            LIMIT 2
+        '''
         try:
-            active_receives = []
+            active_receives = conn.execute(active_receives_query).fetchall()
         except Exception as e:
             print(f"Error loading active receives: {e}")
+            traceback.print_exc()
             active_receives = []
         
         # Get closed POs for historical reference (removed from dashboard)
