@@ -56,6 +56,7 @@ def dashboard_view():
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    ws.admin_notes,
+                   COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -64,6 +65,7 @@ def dashboard_view():
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN bags b ON ws.bag_id = b.id
             ORDER BY ws.created_at ASC
         '''
         submissions_raw = conn.execute(submissions_query).fetchall()
