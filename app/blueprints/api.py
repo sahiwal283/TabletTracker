@@ -43,6 +43,11 @@ def sync_zoho_pos():
             return jsonify({'error': message, 'success': False}), 400
             
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ Sync Zoho POs error: {str(e)}")
@@ -155,6 +160,11 @@ def create_overs_po(po_id):
             }), 500
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -223,6 +233,11 @@ def get_overs_po_info(po_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -335,6 +350,11 @@ def get_po_lines(po_id):
         
         return jsonify(result)
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': f'Failed to get PO lines: {str(e)}'}), 500
     finally:
         if conn:
@@ -369,6 +389,11 @@ def product_mapping():
                 conn.commit()
                 has_category_column = True
             except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
                 print(f"Warning: Could not add category column: {e}")
         
         # Get tablet types for dropdown
@@ -395,6 +420,11 @@ def product_mapping():
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
         except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
             print(f"Warning: Could not load deleted categories: {e}")
             # Continue without filtering if there's an error
         
@@ -411,6 +441,11 @@ def product_mapping():
         
         return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=all_categories)
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         flash(f'Error loading product mapping: {str(e)}', 'error')
         return render_template('product_mapping.html', products=[], tablet_types=[])
     finally:
@@ -436,6 +471,11 @@ def tablet_types_config():
         
         return render_template('tablet_types_config.html', tablet_types=tablet_types)
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         flash(f'Error loading tablet types: {str(e)}', 'error')
         return render_template('tablet_types_config.html', tablet_types=[])
     finally:
@@ -547,6 +587,11 @@ def shipping_unified():
                              user_role=session.get('employee_role'))
                              
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_details = traceback.format_exc()
         current_app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
@@ -572,6 +617,11 @@ def refresh_shipment(shipment_id: int):
             return jsonify(result)
         return jsonify(result), 400
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -595,6 +645,11 @@ def get_shipment(shipment_id: int):
             return jsonify({'success': False, 'error': 'Not found'}), 404
         return jsonify({'success': True, 'shipment': dict(row)})
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -614,6 +669,11 @@ def delete_shipment(shipment_id: int):
         conn.commit()
         return jsonify({'success': True})
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -708,6 +768,11 @@ def save_shipment():
         return jsonify({'success': True, 'message': 'Shipment saved; tracking refreshed if supported'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -840,6 +905,11 @@ def manage_cards_per_turn():
             })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -870,6 +940,11 @@ def admin_panel():
         conn.close()
         return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         if conn:
@@ -1142,6 +1217,11 @@ def submit_count():
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -1332,6 +1412,11 @@ def submit_machine_count():
             'message': f'Machine count submitted: {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card). Applied to PO.'
         })
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -1396,6 +1481,11 @@ def save_product():
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -1590,6 +1680,11 @@ def get_tablet_type_categories():
             'category_order': ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
         })
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1665,6 +1760,11 @@ def get_categories():
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
         except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
             print(f"Warning: Could not load deleted categories: {e}")
             # Continue without filtering if there's an error
         
@@ -1730,6 +1830,11 @@ def add_category():
             'message': f'Category "{category_name}" is ready. Assign tablet types to make it active.'
         })
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         if conn:
@@ -1913,6 +2018,11 @@ def delete_category():
             
             conn.commit()
         except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
             import traceback
             traceback.print_exc()
             print(f"Warning: Could not track deleted category: {e}")
@@ -1929,6 +2039,11 @@ def delete_category():
             'message': f'Category "{category_name}" deleted. {rows_updated} tablet type(s) have been unassigned.'
         })
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         if conn:
@@ -1987,6 +2102,11 @@ def add_tablet_type():
         return jsonify({'success': True, 'message': f'Added tablet type: {tablet_type_name}'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -2018,6 +2138,11 @@ def delete_tablet_type(tablet_type_id):
         return jsonify({'success': True, 'message': f'Deleted {tablet_type["tablet_type_name"]} and its products'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Employee Management Routes for Admin
@@ -2064,6 +2189,11 @@ def add_employee():
         return jsonify({'success': True, 'message': f'Added employee: {full_name}'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -2114,6 +2244,11 @@ def update_employee_role(employee_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -2154,6 +2289,11 @@ def toggle_employee(employee_id):
         return jsonify({'success': True, 'message': f'{employee["full_name"]} {status_text}'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -2188,6 +2328,11 @@ def delete_employee(employee_id):
         return jsonify({'success': True, 'message': f'Deleted employee: {employee["full_name"]}'})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -2264,6 +2409,11 @@ def refresh_products():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -2309,6 +2459,11 @@ def get_po_tracking(po_id):
             })
             
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
 
 
@@ -2348,6 +2503,11 @@ def find_organization_id():
             })
             
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({
             'success': False,
             'error': f'Error finding organizations: {str(e)}'
@@ -2383,6 +2543,11 @@ def test_zoho_connection():
             })
             
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({
             'success': False,
             'error': f'Connection test failed: {str(e)}'
@@ -2483,6 +2648,11 @@ def generate_production_report():
         return response
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         print(f"Report generation error: {str(e)}")
         return jsonify({
             'success': False,
@@ -2576,6 +2746,11 @@ def get_po_summary_for_reports():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"Error in get_po_summary_for_reports: {e}")
@@ -2656,6 +2831,11 @@ def server_debug_info():
         """
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return f"<h2>Server Debug Error</h2><p>{str(e)}</p>"
 
 @bp.route('/receiving/debug')
@@ -2700,6 +2880,11 @@ def receiving_debug():
         """
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return f"""
         <h2>Receiving Debug Error</h2>
         <p>Error: {str(e)}</p>
@@ -2725,6 +2910,11 @@ def receiving_management_v2():
             test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
             receiving_count = test_query['count'] if test_query else 0
         except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
             return f"""
             <h2>Database Error (v1.7.6 REBUILT)</h2>
             <p>Cannot access receiving table: {str(e)}</p>
@@ -2759,6 +2949,11 @@ def receiving_management_v2():
                              recent_receiving=recent_receiving)
                              
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         # If template fails, return simple HTML with version
         return f"""
         <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
@@ -2813,6 +3008,11 @@ def receiving_details(receiving_id):
                              boxes=[dict(box) for box in boxes])
                              
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         flash(f'Error loading receiving details: {str(e)}', 'error')
         return redirect(url_for('receiving_management_v2'))
     finally:
@@ -2867,6 +3067,11 @@ def delete_receiving(receiving_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'success': False, 'error': f'Failed to delete receiving record: {str(e)}'}), 500
     finally:
         if conn:
@@ -3011,6 +3216,11 @@ def process_receiving():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': f'Failed to process receiving: {str(e)}'}), 500
     finally:
         if conn:
@@ -3050,6 +3260,11 @@ def save_receives():
                 conn.execute('ALTER TABLE bags ADD COLUMN tablet_type_id INTEGER')
                 conn.commit()
             except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
                 print(f"Warning: Could not add tablet_type_id column: {e}")
         
         # Get current user name
@@ -3115,6 +3330,11 @@ def save_receives():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -3169,6 +3389,11 @@ def assign_po_to_receiving(receiving_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -3213,6 +3438,11 @@ def get_available_boxes_bags(po_id):
         
         return jsonify({'boxes': boxes})
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -3760,6 +3990,11 @@ def admin_reassign_verified_submission(submission_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -3930,6 +4165,11 @@ def reassign_all_submissions():
                 
                 matched_count += 1
             except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
                 print(f"Error processing submission {submission.get('id')}: {e}")
                 continue
         
@@ -3966,6 +4206,11 @@ def reassign_all_submissions():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌❌❌ REASSIGN ERROR: {str(e)}")
@@ -4145,6 +4390,11 @@ def recalculate_po_counts():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         error_trace = traceback.format_exc()
         print(f"❌ RECALCULATE ERROR: {str(e)}")
         print(error_trace)
@@ -4195,6 +4445,11 @@ def get_submission_details(submission_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ GET SUBMISSION ERROR: {str(e)}")
@@ -4459,6 +4714,11 @@ def delete_submission(submission_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ DELETE SUBMISSION ERROR: {str(e)}")
@@ -4513,6 +4773,11 @@ def delete_po(po_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ DELETE PO ERROR: {str(e)}")
@@ -4592,6 +4857,11 @@ def resync_unassigned_submissions():
                     print(f"⚠️  No inventory_item_id for: {submission['product_name']}")
                     continue
             except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
                 print(f"❌ Error processing submission {submission.get('id', 'unknown')}: {e}")
                 continue
             
@@ -4681,6 +4951,11 @@ def resync_unassigned_submissions():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌❌❌ RESYNC ERROR: {str(e)}")
@@ -4764,6 +5039,11 @@ def get_po_receives(po_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -4977,6 +5257,11 @@ def get_po_submissions(po_id):
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"❌ Error fetching PO submissions: {str(e)}")
@@ -5026,6 +5311,11 @@ def to_est_filter(dt_string):
         # Format as YYYY-MM-DD HH:MM:SS
         return est_dt.strftime('%Y-%m-%d %H:%M:%S')
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         print(f"Error converting datetime to EST: {e}")
         return dt_string if isinstance(dt_string, str) else 'N/A'
 
@@ -5064,6 +5354,11 @@ def to_est_time_filter(dt_string):
         # Format as HH:MM:SS
         return est_dt.strftime('%H:%M:%S')
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         print(f"Error converting datetime to EST: {e}")
         if isinstance(dt_string, str):
             # Fallback: try to extract time portion

@@ -285,6 +285,11 @@ def submit_warehouse():
         })
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         print(f"Error in submit_warehouse: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -445,6 +450,11 @@ def submit_count():
         return jsonify({'success': True, 'message': message})
         
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -636,6 +646,11 @@ def submit_machine_count():
             'message': f'Machine count submitted: {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card). Applied to PO.'
         })
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     finally:
