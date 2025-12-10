@@ -5903,21 +5903,24 @@ def get_possible_receives(submission_id):
         if not submission:
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
+        # Convert Row to dict for easier access
+        submission_dict = dict(submission)
+        
         # Debug logging
         print(f"🔍 Finding possible receives for submission {submission_id}")
-        print(f"   tablet_type_id: {submission.get('tablet_type_id')}")
-        print(f"   box_number: {submission.get('box_number')}")
-        print(f"   bag_number: {submission.get('bag_number')}")
-        print(f"   product_name: {submission.get('product_name')}")
-        print(f"   inventory_item_id: {submission.get('inventory_item_id')}")
+        print(f"   tablet_type_id: {submission_dict.get('tablet_type_id')}")
+        print(f"   box_number: {submission_dict.get('box_number')}")
+        print(f"   bag_number: {submission_dict.get('bag_number')}")
+        print(f"   product_name: {submission_dict.get('product_name')}")
+        print(f"   inventory_item_id: {submission_dict.get('inventory_item_id')}")
         
-        if not submission.get('tablet_type_id'):
+        if not submission_dict.get('tablet_type_id'):
             return jsonify({
                 'success': False, 
-                'error': f'Could not determine tablet_type_id for submission. Product: {submission.get("product_name")}, inventory_item_id: {submission.get("inventory_item_id")}'
+                'error': f'Could not determine tablet_type_id for submission. Product: {submission_dict.get("product_name")}, inventory_item_id: {submission_dict.get("inventory_item_id")}'
             }), 400
         
-        if not submission.get('box_number') or not submission.get('bag_number'):
+        if not submission_dict.get('box_number') or not submission_dict.get('bag_number'):
             return jsonify({
                 'success': False, 
                 'error': 'Submission missing box_number or bag_number. Cannot find matching receives.'
@@ -5944,7 +5947,7 @@ def get_possible_receives(submission_id):
             AND sb.box_number = ? 
             AND b.bag_number = ?
             ORDER BY r.received_date DESC
-        ''', (submission['tablet_type_id'], submission['box_number'], submission['bag_number'])).fetchall()
+        ''', (submission_dict['tablet_type_id'], submission_dict['box_number'], submission_dict['bag_number'])).fetchall()
         
         print(f"   Found {len(matching_bags)} matching bags")
         
@@ -5975,7 +5978,7 @@ def get_possible_receives(submission_id):
         
         return jsonify({
             'success': True,
-            'submission': dict(submission),
+            'submission': submission_dict,
             'possible_receives': receives
         })
         
