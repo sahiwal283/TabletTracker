@@ -16,10 +16,10 @@ import csv
 import io
 from functools import wraps
 from config import Config
-from zoho_integration import zoho_api
+from app.services.zoho_service import zoho_api
 from __version__ import __version__, __title__, __description__
-from tracking_service import refresh_shipment_row
-from report_service import ProductionReportGenerator
+from app.services.tracking_service import refresh_shipment_row
+from app.services.report_service import ProductionReportGenerator
 from app.utils.db_utils import get_db
 from app.utils.auth_utils import admin_required, role_required, employee_required, verify_password, hash_password, get_employee_role, has_permission, ROLE_PERMISSIONS
 from app.models.database import init_db

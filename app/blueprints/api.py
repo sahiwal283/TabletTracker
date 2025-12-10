@@ -1,18 +1,22 @@
 """
 API routes - all /api/* endpoints
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, make_response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, make_response, current_app
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import json
 import traceback
 import csv
 import io
 import os
+import re
 import requests
 from config import Config
-from zoho_integration import zoho_api
-from tracking_service import refresh_shipment_row
-from report_service import ProductionReportGenerator
+from __version__ import __version__, __title__, __description__
+from flask_babel import gettext, ngettext, get_locale
+from app.services.zoho_service import zoho_api
+from app.services.tracking_service import refresh_shipment_row
+from app.services.report_service import ProductionReportGenerator
 from app.utils.db_utils import get_db
 from app.utils.auth_utils import admin_required, role_required, employee_required
 from app.utils.route_helpers import get_setting, ensure_app_settings_table, ensure_submission_type_column
@@ -545,7 +549,7 @@ def shipping_unified():
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
+        current_app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
         return render_template('error.html', 
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
     finally:
@@ -888,7 +892,7 @@ def admin_login():
         session['employee_role'] = 'admin'  # Set admin role for navigation
         session['login_time'] = datetime.now().isoformat()
         session.permanent = True  # Make session permanent
-        app.permanent_session_lifetime = timedelta(hours=8)  # 8 hour timeout
+        current_app.permanent_session_lifetime = timedelta(hours=8)  # 8 hour timeout
         
         return redirect('/admin') if request.form else jsonify({'success': True})
     else:
@@ -942,7 +946,7 @@ def employee_login_post():
             session['employee_username'] = employee['username']
             session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
             session.permanent = True
-            app.permanent_session_lifetime = timedelta(hours=8)
+            current_app.permanent_session_lifetime = timedelta(hours=8)
             
             return redirect(url_for('production.warehouse_form')) if request.form else jsonify({'success': True})
         else:
@@ -2202,7 +2206,7 @@ def set_language():
         language = data.get('language', '').strip()
         
         # Validate language
-        if language not in app.config['LANGUAGES']:
+        if language not in current_app.config['LANGUAGES']:
             return jsonify({'success': False, 'error': 'Invalid language'}), 400
         
         # Set session language with manual override flag
@@ -2221,17 +2225,17 @@ def set_language():
                 ''', (language, session.get('employee_id')))
                 conn.commit()
                 conn.close()
-                app.logger.info(f"Language preference saved to database: {language} for employee {session.get('employee_id')}")
+                current_app.logger.info(f"Language preference saved to database: {language} for employee {session.get('employee_id')}")
             except Exception as e:
-                app.logger.error(f"Failed to save language preference to database: {str(e)}")
+                current_app.logger.error(f"Failed to save language preference to database: {str(e)}")
                 # Continue without database save - session is still set
         
-        app.logger.info(f"Language manually set to {language} for session")
+        current_app.logger.info(f"Language manually set to {language} for session")
         
         return jsonify({'success': True, 'message': f'Language set to {language}'})
         
     except Exception as e:
-        app.logger.error(f"Language setting error: {str(e)}")
+        current_app.logger.error(f"Language setting error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -4987,7 +4991,7 @@ def get_po_submissions(po_id):
 
 # ===== TEMPLATE CONTEXT PROCESSORS =====
 
-@app.template_filter('to_est')
+@bp.app_template_filter('to_est')
 def to_est_filter(dt_string):
     """Convert UTC datetime string to Eastern Time (EST/EDT)"""
     if not dt_string:
@@ -5025,7 +5029,7 @@ def to_est_filter(dt_string):
         print(f"Error converting datetime to EST: {e}")
         return dt_string if isinstance(dt_string, str) else 'N/A'
 
-@app.template_filter('to_est_time')
+@bp.app_template_filter('to_est_time')
 def to_est_time_filter(dt_string):
     """Convert UTC datetime string to Eastern Time, showing only time portion"""
     if not dt_string:
@@ -5068,7 +5072,7 @@ def to_est_time_filter(dt_string):
                 return parts[1].split('.')[0] if '.' in parts[1] else parts[1]
         return 'N/A'
 
-@app.context_processor
+@bp.app_context_processor
 def inject_version():
     """Make version information available to all templates"""
     return {
@@ -5076,11 +5080,10 @@ def inject_version():
         'app_title': __title__,
         'app_description': __description__,
         'current_language': get_locale(),
-        'languages': app.config['LANGUAGES'],
+        'languages': current_app.config['LANGUAGES'],
         'gettext': gettext,
         'ngettext': ngettext
     }
 
-if __name__ == '__main__':
-    init_db()
-    app.run(debug=True, port=5002)
+# Note: This blueprint is registered in app/__init__.py
+# To run the application, use: flask run or python app.py
