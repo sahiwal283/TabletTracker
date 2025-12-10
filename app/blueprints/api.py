@@ -4115,7 +4115,6 @@ def recalculate_po_counts():
         ''')
         
         conn.commit()
-        conn.close()
         
         # Build response message
         message = f'Successfully recalculated counts for {updated_count} PO lines. No assignments were changed.'
@@ -4147,11 +4146,14 @@ def recalculate_po_counts():
         print(f"❌ RECALCULATE ERROR: {str(e)}")
         print(error_trace)
         if conn:
+            conn.rollback()
+        return jsonify({'error': str(e), 'trace': error_trace}), 500
+    finally:
+        if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 
 

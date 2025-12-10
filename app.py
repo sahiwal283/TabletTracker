@@ -5364,6 +5364,12 @@ def update_submission_date():
         if not submission_id or not submission_date:
             return jsonify({'error': 'Missing submission_id or submission_date'}), 400
         
+        # Validate submission_id is numeric
+        try:
+            submission_id = int(submission_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid submission_id - must be numeric'}), 400
+        
         conn = get_db()
         
         # Update the submission date
@@ -5374,7 +5380,6 @@ def update_submission_date():
         ''', (submission_date, submission_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -5382,13 +5387,15 @@ def update_submission_date():
         })
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        if conn:
+            conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/available_pos', methods=['GET'])
 @role_required('dashboard')
@@ -5408,12 +5415,10 @@ def get_available_pos_for_submission(submission_id):
         ''', (submission_id,)).fetchone()
         
         if not submission:
-            conn.close()
             return jsonify({'error': 'Submission not found'}), 404
         
         inventory_item_id = submission['inventory_item_id']
         if not inventory_item_id:
-            conn.close()
             return jsonify({'error': 'Could not determine product inventory_item_id'}), 400
         
         # Get all POs (open and closed) that have this inventory_item_id
@@ -5428,8 +5433,6 @@ def get_available_pos_for_submission(submission_id):
             ORDER BY po.po_number DESC
         ''', (inventory_item_id,)).fetchall()
         
-        conn.close()
-        
         pos_list = []
         for po in pos:
             pos_list.append({
@@ -5443,8 +5446,6 @@ def get_available_pos_for_submission(submission_id):
                 'remaining': (po['ordered_quantity'] or 0) - (po['current_good_count'] or 0) - (po['current_damaged_count'] or 0)
             })
         
-        conn.close()
-        
         return jsonify({
             'success': True,
             'available_pos': pos_list,
@@ -5453,13 +5454,13 @@ def get_available_pos_for_submission(submission_id):
         })
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/submission/<int:submission_id>/approve', methods=['POST'])
 @role_required('dashboard')
