@@ -414,15 +414,17 @@
                             <span class="text-gray-400">No Bag</span>
                         {% else %}
                             <div class="{% if sub.count_status == 'match' %}text-green-600{% elif sub.count_status == 'under' %}text-yellow-600{% else %}text-red-600{% endif %} font-medium">
-                                <div>{{ sub.box_number }}/{{ sub.bag_number }}</div>
-                                <div>Ct: {{ sub.bag_label_count }}</div>
-                                <div class="font-semibold">Run: {{ sub.running_total }}</div>
+                                <div>🏷️ {{ sub.box_number }}/{{ sub.bag_number }}</div>
+                                <div>Bag: {{ sub.bag_label_count if sub.bag_label_count else (sub.receive_bag_count if sub.receive_bag_count else 0) }}</div>
+                                <div>Mch: {{ sub.machine_running_total if sub.machine_running_total else 0 }}</div>
+                                <div>Pkg: {{ sub.packaged_running_total if sub.packaged_running_total else 0 }}</div>
+                                <div class="font-semibold">Tot: {{ sub.running_total }}</div>
                                 {% if sub.count_status == 'match' %}
                                     <div class="font-bold">✓ Match</div>
                                 {% elif sub.count_status == 'under' %}
-                                    <div class="font-bold">⚠️ Under</div>
+                                    <div class="font-bold">⚠️ Under ({{ sub.tablet_difference }})</div>
                                 {% else %}
-                                    <div class="font-bold">❌ Over</div>
+                                    <div class="font-bold">❌ Over (+{{ sub.tablet_difference }})</div>
                                 {% endif %}
                             </div>
                         {% endif %}

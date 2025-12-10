@@ -1336,43 +1336,67 @@ def admin_dashboard():
         '''
         submissions_raw = conn.execute(submissions_query).fetchall()
         
-        # Calculate running totals by bag PER PO (each PO has its own physical bags)
-        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+        # Calculate running totals by bag using bag_id (with legacy fallback)
+        # Track machine and packaged totals separately
+        bag_running_totals_machine = {}  # Key: bag_id or (po_id, product_name, "box/bag")
+        bag_running_totals_packaged = {}  # Key: bag_id or (po_id, product_name, "box/bag")
         submissions_processed = []
         
         for sub in submissions_raw:
             sub_dict = dict(sub)
-            # Create bag identifier from box_number/bag_number
-            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-            # Key includes PO ID so each PO tracks its own bag totals independently
-            bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+            
+            # Use bag_id as primary key, fallback to legacy key for old submissions
+            bag_id = sub_dict.get('bag_id')
+            if bag_id:
+                bag_key = bag_id
+            else:
+                # Legacy fallback: use (po_id, product_name, "box/bag") tuple
+                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+                bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
             
             # Individual calculation for this submission
             individual_calc = sub_dict.get('calculated_total', 0) or 0
+            submission_type = sub_dict.get('submission_type', 'packaged')
             
-            # Update running total for this bag
-            if bag_key not in bag_running_totals:
-                bag_running_totals[bag_key] = 0
-            bag_running_totals[bag_key] += individual_calc
+            # Initialize running totals for this bag if not exists
+            if bag_key not in bag_running_totals_machine:
+                bag_running_totals_machine[bag_key] = 0
+            if bag_key not in bag_running_totals_packaged:
+                bag_running_totals_packaged[bag_key] = 0
             
-            # Add running total and comparison fields
+            # Update appropriate running total based on submission type
+            if submission_type == 'machine':
+                bag_running_totals_machine[bag_key] += individual_calc
+            else:  # 'packaged' or 'bag'
+                bag_running_totals_packaged[bag_key] += individual_calc
+            
+            # Calculate totals
+            machine_running_total = bag_running_totals_machine[bag_key]
+            packaged_running_total = bag_running_totals_packaged[bag_key]
+            total_running_total = machine_running_total + packaged_running_total
+            
+            # Add running total fields
             sub_dict['individual_calc'] = individual_calc
-            sub_dict['running_total'] = bag_running_totals[bag_key]
+            sub_dict['machine_running_total'] = machine_running_total
+            sub_dict['packaged_running_total'] = packaged_running_total
+            sub_dict['running_total'] = total_running_total
             
-            # Compare running total to bag label count
-            bag_count = sub_dict.get('bag_label_count', 0) or 0
-            running_total = bag_running_totals[bag_key]
+            # Compare running total to bag label count (exact match, no tolerance)
+            # Use receive_bag_count from bags table (more reliable than submission field)
+            bag_count = sub_dict.get('receive_bag_count', 0) or sub_dict.get('bag_label_count', 0) or 0
             
-            # Determine status
+            # Determine status with exact match logic
             if bag_count == 0:
                 sub_dict['count_status'] = 'no_bag'
-            elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+            elif total_running_total == bag_count:
                 sub_dict['count_status'] = 'match'
-            elif running_total < bag_count:
+            elif total_running_total < bag_count:
                 sub_dict['count_status'] = 'under'
             else:
                 sub_dict['count_status'] = 'over'
             
+            # Calculate tablet difference for display
+            sub_dict['tablet_difference'] = total_running_total - bag_count if bag_count > 0 else 0
             sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
             
             submissions_processed.append(sub_dict)
@@ -1508,43 +1532,66 @@ def all_submissions():
         
         submissions_raw = conn.execute(query, params).fetchall()
         
-        # Calculate running totals by bag PER PO (each PO has its own physical bags)
-        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+        # Calculate running totals by bag using bag_id (with legacy fallback)
+        # Track machine and packaged totals separately
+        bag_running_totals_machine = {}  # Key: bag_id or (po_id, product_name, "box/bag")
+        bag_running_totals_packaged = {}  # Key: bag_id or (po_id, product_name, "box/bag")
         submissions_processed = []
         
         for sub in submissions_raw:
             sub_dict = dict(sub)
-            # Create bag identifier from box_number/bag_number
-            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-            # Key includes PO ID so each PO tracks its own bag totals independently
-            bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+            
+            # Use bag_id as primary key, fallback to legacy key for old submissions
+            bag_id = sub_dict.get('bag_id')
+            if bag_id:
+                bag_key = bag_id
+            else:
+                # Legacy fallback: use (po_id, product_name, "box/bag") tuple
+                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+                bag_key = (sub_dict.get('po_id_for_filter'), sub_dict.get('product_name'), bag_identifier)
             
             # Individual calculation for this submission
             individual_calc = sub_dict.get('calculated_total', 0) or 0
+            submission_type = sub_dict.get('submission_type', 'packaged')
             
-            # Update running total for this bag
-            if bag_key not in bag_running_totals:
-                bag_running_totals[bag_key] = 0
-            bag_running_totals[bag_key] += individual_calc
+            # Initialize running totals for this bag if not exists
+            if bag_key not in bag_running_totals_machine:
+                bag_running_totals_machine[bag_key] = 0
+            if bag_key not in bag_running_totals_packaged:
+                bag_running_totals_packaged[bag_key] = 0
             
-            # Add running total and comparison fields
+            # Update appropriate running total based on submission type
+            if submission_type == 'machine':
+                bag_running_totals_machine[bag_key] += individual_calc
+            else:  # 'packaged' or 'bag'
+                bag_running_totals_packaged[bag_key] += individual_calc
+            
+            # Calculate totals
+            machine_running_total = bag_running_totals_machine[bag_key]
+            packaged_running_total = bag_running_totals_packaged[bag_key]
+            total_running_total = machine_running_total + packaged_running_total
+            
+            # Add running total fields
             sub_dict['individual_calc'] = individual_calc
-            sub_dict['running_total'] = bag_running_totals[bag_key]
+            sub_dict['machine_running_total'] = machine_running_total
+            sub_dict['packaged_running_total'] = packaged_running_total
+            sub_dict['running_total'] = total_running_total
             
-            # Compare running total to bag label count
+            # Compare running total to bag label count (exact match, no tolerance)
             bag_count = sub_dict.get('bag_label_count', 0) or 0
-            running_total = bag_running_totals[bag_key]
             
-            # Determine status
+            # Determine status with exact match logic
             if bag_count == 0:
                 sub_dict['count_status'] = 'no_bag'
-            elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+            elif total_running_total == bag_count:
                 sub_dict['count_status'] = 'match'
-            elif running_total < bag_count:
+            elif total_running_total < bag_count:
                 sub_dict['count_status'] = 'under'
             else:
                 sub_dict['count_status'] = 'over'
             
+            # Calculate tablet difference for display
+            sub_dict['tablet_difference'] = total_running_total - bag_count if bag_count > 0 else 0
             sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
             
             submissions_processed.append(sub_dict)
