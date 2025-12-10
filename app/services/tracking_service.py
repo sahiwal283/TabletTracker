@@ -178,53 +178,62 @@ def normalize_fedex_response(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def refresh_shipment_row(conn, shipment_id: int) -> Dict[str, Any]:
     """Fetch shipment, call provider, and persist results."""
-    cur = conn.cursor()
-    row = cur.execute(
-        "SELECT id, tracking_number, carrier, carrier_code FROM shipments WHERE id = ?",
-        (shipment_id,),
-    ).fetchone()
-    if not row:
-        return {"success": False, "error": "Shipment not found"}
+    try:
+        cur = conn.cursor()
+        row = cur.execute(
+            "SELECT id, tracking_number, carrier, carrier_code FROM shipments WHERE id = ?",
+            (shipment_id,),
+        ).fetchone()
+        if not row:
+            return {"success": False, "error": "Shipment not found"}
 
-    tracking_number = row[1]
-    carrier = (row[2] or "").lower()
-    carrier_code = (row[3] or "").lower()
+        tracking_number = row[1]
+        carrier = (row[2] or "").lower()
+        carrier_code = (row[3] or "").lower()
 
-    # Currently support UPS and FedEx
-    if carrier in ("ups",) or carrier_code in ("ups", "ups_ground", "ups_air"):
-        client = UPSTrackingClient()
-        raw = client.track(tracking_number)
-        norm = normalize_ups_response(raw)
-    elif carrier in ("fedex", "fed ex", "fx") or carrier_code in ("fedex", "fx"):
-        client = FedExTrackingClient()
-        try:
+        # Currently support UPS and FedEx
+        if carrier in ("ups",) or carrier_code in ("ups", "ups_ground", "ups_air"):
+            client = UPSTrackingClient()
             raw = client.track(tracking_number)
-            norm = normalize_fedex_response(raw)
-        except Exception as exc:
-            return {"success": False, "error": str(exc)}
-    else:
-        return {"success": False, "error": f"Carrier not supported: {carrier or carrier_code}"}
+            norm = normalize_ups_response(raw)
+        elif carrier in ("fedex", "fed ex", "fx") or carrier_code in ("fedex", "fx"):
+            client = FedExTrackingClient()
+            try:
+                raw = client.track(tracking_number)
+                norm = normalize_fedex_response(raw)
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+        else:
+            return {"success": False, "error": f"Carrier not supported: {carrier or carrier_code}"}
 
-    cur.execute(
-        """
-        UPDATE shipments SET 
-            tracking_status = ?, 
-            estimated_delivery = COALESCE(?, estimated_delivery),
-            delivered_at = COALESCE(?, delivered_at),
-            last_checkpoint = ?,
-            last_checked_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-        """,
-        (
-            norm.get("tracking_status"),
-            norm.get("estimated_delivery"),
-            norm.get("delivered_at"),
-            norm.get("last_checkpoint"),
-            shipment_id,
-        ),
-    )
-    conn.commit()
+        cur.execute(
+            """
+            UPDATE shipments SET 
+                tracking_status = ?, 
+                estimated_delivery = COALESCE(?, estimated_delivery),
+                delivered_at = COALESCE(?, delivered_at),
+                last_checkpoint = ?,
+                last_checked_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                norm.get("tracking_status"),
+                norm.get("estimated_delivery"),
+                norm.get("delivered_at"),
+                norm.get("last_checkpoint"),
+                shipment_id,
+            ),
+        )
+        conn.commit()
 
-    return {"success": True, "shipment_id": shipment_id, "data": norm}
+        return {"success": True, "shipment_id": shipment_id, "data": norm}
+    
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return {"success": False, "error": str(e)}
 

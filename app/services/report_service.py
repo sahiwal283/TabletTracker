@@ -1132,7 +1132,11 @@ class ProductionReportGenerator:
             return pdf_content
             
         finally:
-            conn.close()
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
 
 if __name__ == "__main__":
     generator = ProductionReportGenerator()
