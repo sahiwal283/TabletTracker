@@ -4146,7 +4146,10 @@ def recalculate_po_counts():
         print(f"❌ RECALCULATE ERROR: {str(e)}")
         print(error_trace)
         if conn:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
     finally:
         if conn:

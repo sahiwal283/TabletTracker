@@ -556,8 +556,21 @@ def init_db():
         
         print(f"Initialized {len(all_categories)} categories")
     
-    conn.commit()
-    conn.close()
+    # Commit and close with error handling
+    try:
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Database commit error during initialization: {str(e)}")
+        try:
+            conn.rollback()
+        except:
+            pass
+        raise  # Re-raise to ensure init failures are visible
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
 
 def get_db():
     conn = sqlite3.connect('tablet_counter.db')
@@ -5388,7 +5401,10 @@ def update_submission_date():
         
     except Exception as e:
         if conn:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except:
+                pass
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
