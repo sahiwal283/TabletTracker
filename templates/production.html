@@ -775,6 +775,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         const formData = new FormData(machineCountForm);
         const data = Object.fromEntries(formData.entries());
         
+        // Automatically set today's date if not provided
+        if (!data.count_date) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            data.count_date = `${year}-${month}-${day}`;
+        }
+        
         // Convert to integers
         data.tablet_type_id = parseInt(data.tablet_type_id);
         data.machine_id = parseInt(data.machine_id);
