@@ -29,7 +29,7 @@ def find_bag_for_submission(conn, tablet_type_id, box_number, bag_number):
     
     # If exactly 1 match: auto-assign
     if len(matching_bags) == 1:
-        return matching_bags[0], False, None
+        return dict(matching_bags[0]), False, None
     
     # If 2+ matches: needs manual review, don't auto-assign
     return None, True, None
