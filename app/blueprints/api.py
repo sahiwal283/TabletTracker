@@ -25,6 +25,47 @@ from app.utils.route_helpers import get_setting, ensure_app_settings_table, ensu
 bp = Blueprint('api', __name__)
 
 
+@bp.route('/api/bag/<int:bag_id>/submissions', methods=['GET'])
+@role_required('dashboard')
+def get_bag_submissions(bag_id):
+    """Get all submissions for a specific bag (for duplicate review)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        submissions = conn.execute('''
+            SELECT ws.*, 
+                   (
+                       CASE ws.submission_type
+                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                                                ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
+                           WHEN 'bag' THEN ws.loose_tablets
+                           WHEN 'machine' THEN ws.loose_tablets
+                           ELSE ws.loose_tablets + ws.damaged_tablets
+                       END
+                   ) as total_tablets
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.bag_id = ?
+            ORDER BY ws.created_at DESC
+        ''', (bag_id,)).fetchall()
+        
+        return jsonify({
+            'success': True,
+            'submissions': [dict(row) for row in submissions]
+        })
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
 @bp.route('/api/receive/<int:receive_id>/details', methods=['GET'])
 @role_required('shipping')
 def get_receive_details(receive_id):
