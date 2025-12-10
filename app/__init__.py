@@ -106,7 +106,7 @@ def create_app(config_class=Config):
         return response
     
     # Register Blueprints
-    from app.blueprints import auth, admin, dashboard, production, submissions, purchase_orders, shipping, api as api_bp
+    from app.blueprints import auth, admin, dashboard, production, submissions, purchase_orders, receiving, api as api_bp
     
     app.register_blueprint(auth.bp)
     app.register_blueprint(admin.bp)
@@ -114,7 +114,7 @@ def create_app(config_class=Config):
     app.register_blueprint(production.bp)
     app.register_blueprint(submissions.bp)
     app.register_blueprint(purchase_orders.bp)
-    app.register_blueprint(shipping.bp)
+    app.register_blueprint(receiving.bp)
     app.register_blueprint(api_bp.bp)
     
     return app

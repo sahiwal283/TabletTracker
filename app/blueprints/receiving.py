@@ -1,18 +1,18 @@
 """
-Shipping and Receiving routes
+Receiving routes - shipment receiving and tracking
 """
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
 import traceback
 from app.utils.db_utils import get_db
 from app.utils.auth_utils import admin_required, role_required
 
-bp = Blueprint('shipping', __name__)
+bp = Blueprint('receiving', __name__)
 
 
-@bp.route('/shipping')
+@bp.route('/receiving')
 @role_required('shipping')
-def shipping_unified():
-    """Shipments Received page - record shipments that arrive"""
+def receiving_list():
+    """Receiving page - record shipments that arrive"""
     conn = None
     try:
         conn = get_db()
@@ -104,7 +104,7 @@ def shipping_unified():
                 'boxes': boxes_with_bags
             })
         
-        return render_template('shipping_unified.html', 
+        return render_template('receiving.html', 
                              tablet_types=tablet_types,
                              purchase_orders=purchase_orders,
                              shipments=shipments,
@@ -321,3 +321,12 @@ def receiving_details(receiving_id):
             except:
                 pass
 
+
+# Backwards-compatible route alias (deprecated)
+@bp.route('/shipping')
+@role_required('shipping')
+def shipping_unified():
+    """DEPRECATED: Use /receiving instead. Redirects for backwards compatibility."""
+    import logging
+    logging.warning("Route /shipping is deprecated, use /receiving instead")
+    return receiving_list()

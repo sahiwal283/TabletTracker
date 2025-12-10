@@ -9,7 +9,7 @@ from app.utils.auth_utils import role_required
 bp = Blueprint('purchase_orders', __name__)
 
 
-@bp.route('/purchase_orders')
+@bp.route('/purchase-orders')
 @role_required('dashboard')
 def all_purchase_orders():
     """Full purchase orders page showing all POs with filtering"""
@@ -78,3 +78,12 @@ def all_purchase_orders():
             except:
                 pass
 
+
+# Backwards-compatible route alias (deprecated)
+@bp.route('/purchase_orders')
+@role_required('dashboard')
+def purchase_orders_deprecated():
+    """DEPRECATED: Use /purchase-orders instead"""
+    import logging
+    logging.warning("Route /purchase_orders is deprecated, use /purchase-orders instead")
+    return all_purchase_orders()

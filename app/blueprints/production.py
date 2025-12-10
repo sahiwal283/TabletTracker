@@ -81,7 +81,7 @@ def count_form():
     return redirect(url_for('production.production_form'))
 
 
-@bp.route('/submit_warehouse', methods=['POST'])
+@bp.route('/api/submissions/packaged', methods=['POST'])
 @employee_required
 def submit_warehouse():
     """Process warehouse submission and update PO counts"""
@@ -296,7 +296,7 @@ def submit_warehouse():
                 pass
 
 
-@bp.route('/submit_count', methods=['POST'])
+@bp.route('/api/submissions/bag-count', methods=['POST'])
 def submit_count():
     """Process manual count submission for PO close-outs"""
     conn = None
@@ -454,7 +454,7 @@ def submit_count():
                 pass
 
 
-@bp.route('/submit_machine_count', methods=['POST'])
+@bp.route('/api/submissions/machine-count', methods=['POST'])
 @employee_required
 def submit_machine_count():
     """Submit machine count reading and create warehouse submission"""
@@ -645,3 +645,28 @@ def submit_machine_count():
             except:
                 pass
 
+
+# Backwards-compatible route aliases (deprecated)
+@bp.route('/submit_warehouse', methods=['POST'])
+@employee_required
+def submit_warehouse_deprecated():
+    """DEPRECATED: Use /api/submissions/packaged instead"""
+    import logging
+    logging.warning("Route /submit_warehouse is deprecated, use /api/submissions/packaged instead")
+    return submit_warehouse()
+
+@bp.route('/submit_count', methods=['POST'])
+@employee_required
+def submit_count_deprecated():
+    """DEPRECATED: Use /api/submissions/bag-count instead"""
+    import logging
+    logging.warning("Route /submit_count is deprecated, use /api/submissions/bag-count instead")
+    return submit_count()
+
+@bp.route('/submit_machine_count', methods=['POST'])
+@employee_required
+def submit_machine_count_deprecated():
+    """DEPRECATED: Use /api/submissions/machine-count instead"""
+    import logging
+    logging.warning("Route /submit_machine_count is deprecated, use /api/submissions/machine-count instead")
+    return submit_machine_count()
