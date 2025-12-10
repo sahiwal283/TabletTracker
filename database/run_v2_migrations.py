@@ -4,6 +4,7 @@ Run v2.0 migrations on production database
 """
 import sys
 import os
+import sqlite3
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,13 +18,21 @@ def run_migrations():
     try:
         # Import the migration system
         from app.models.migrations import MigrationRunner
-        from app.models.database import get_db
+        from config import Config
         
         print("STEP 1: Initializing database connection...")
         print("-" * 80)
         
-        # Get database connection
-        conn = get_db()
+        # Get database path from config
+        db_path = Config.DATABASE_PATH
+        print(f"Database path: {db_path}")
+        
+        if not os.path.exists(db_path):
+            print(f"❌ Database not found at: {db_path}")
+            return False
+        
+        # Connect to database
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         print("✓ Database connection established")
@@ -34,7 +43,7 @@ def run_migrations():
         
         # Run migrations
         migration_runner = MigrationRunner(cursor)
-        migration_runner.run_all_migrations()
+        migration_runner.run_all()  # Note: method is run_all(), not run_all_migrations()
         
         print()
         print("STEP 3: Committing changes...")
