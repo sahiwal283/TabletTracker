@@ -5394,7 +5394,8 @@ def get_po_submissions(po_id):
                     ws.submission_date,
                     ws.box_number,
                     ws.bag_number,
-                    ws.bag_label_count,
+                    ws.bag_id,
+                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                     ws.admin_notes,
                     pd.packages_per_display,
                     pd.tablets_per_package,
@@ -5408,6 +5409,7 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+                LEFT JOIN bags b ON ws.bag_id = b.id
                 WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
@@ -5425,7 +5427,8 @@ def get_po_submissions(po_id):
                     ws.created_at as submission_date,
                     ws.box_number,
                     ws.bag_number,
-                    ws.bag_label_count,
+                    ws.bag_id,
+                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                     ws.admin_notes,
                     pd.packages_per_display,
                     pd.tablets_per_package,
@@ -5439,6 +5442,7 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+                LEFT JOIN bags b ON ws.bag_id = b.id
                 WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
