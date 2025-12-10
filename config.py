@@ -30,7 +30,8 @@ class Config:
     FEDEX_BASE = os.environ.get('FEDEX_BASE', 'https://apis.fedex.com')
     
     # Database
-    DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///tablet_counter.db'
+    DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'database', 'tablet_counter.db')
+    DATABASE_URL = os.environ.get('DATABASE_URL') or f'sqlite:///{DATABASE_PATH}'
     
     # Security settings
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'

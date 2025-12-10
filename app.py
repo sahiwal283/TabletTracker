@@ -12,10 +12,10 @@ import csv
 import io
 from functools import wraps
 from config import Config
-from zoho_integration import zoho_api
+from app.services.zoho_service import zoho_api
 from __version__ import __version__, __title__, __description__
-from tracking_service import refresh_shipment_row
-from report_service import ProductionReportGenerator
+from app.services.tracking_service import refresh_shipment_row
+from app.services.report_service import ProductionReportGenerator
 from flask_babel import Babel, gettext, ngettext, lazy_gettext, get_locale
 
 app = Flask(__name__)
@@ -113,7 +113,7 @@ def after_request(response):
 
 # Database setup
 def init_db():
-    conn = sqlite3.connect('tablet_counter.db')
+    conn = sqlite3.connect(Config.DATABASE_PATH)
     c = conn.cursor()
     
     # Purchase Orders table
@@ -573,7 +573,7 @@ def init_db():
             pass
 
 def get_db():
-    conn = sqlite3.connect('tablet_counter.db')
+    conn = sqlite3.connect(Config.DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
