@@ -1555,16 +1555,21 @@ def get_or_create_tablet_type():
             tablet_type_id = cursor.lastrowid
             conn.commit()
         
-        conn.close()
         return jsonify({'success': True, 'tablet_type_id': tablet_type_id})
         
     except Exception as e:
         if conn:
             try:
-                conn.close()
+                conn.rollback()
             except:
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -3490,7 +3495,6 @@ def create_sample_receiving_data():
         shipment_id = shipment_cursor.lastrowid
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -3500,13 +3504,18 @@ def create_sample_receiving_data():
         })
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': f'Failed to create sample data: {str(e)}'}), 500
 
 
 
