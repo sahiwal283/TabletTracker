@@ -5889,14 +5889,11 @@ def get_possible_receives(submission_id):
     try:
         conn = get_db()
         
-        # Get submission details - get tablet_type_id from product_details (more reliable)
+        # Get submission details - match v1.88.6 approach: simple join on inventory_item_id
         submission = conn.execute('''
-            SELECT ws.*, 
-                   COALESCE(pd.tablet_type_id, tt.id) as tablet_type_id, 
-                   COALESCE(tt.tablet_type_name, 'Unknown') as tablet_type_name
+            SELECT ws.*, tt.id as tablet_type_id, tt.tablet_type_name
             FROM warehouse_submissions ws
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id OR ws.inventory_item_id = tt.inventory_item_id
+            LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
             WHERE ws.id = ?
         ''', (submission_id,)).fetchone()
         
