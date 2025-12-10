@@ -133,16 +133,25 @@ def product_mapping():
             print(f"Warning: Could not load deleted categories: {e}")
             # Continue without filtering if there's an error
         
-        # Default categories (always show these as options, unless deleted)
-        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', 'Hyroxi Regular', 'Hyroxi XL', 'MIT A', 'Other']
+        # Get category order from app_settings (or use alphabetical as fallback)
+        try:
+            category_order_json = conn.execute('''
+                SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
+            ''').fetchone()
+            if category_order_json and category_order_json['setting_value']:
+                preferred_order = json.loads(category_order_json['setting_value'])
+            else:
+                # No saved order - use alphabetical
+                preferred_order = sorted(category_list)
+        except Exception as e:
+            print(f"Warning: Could not load category order: {e}")
+            preferred_order = sorted(category_list)
         
-        # Filter out deleted categories from defaults
-        default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
+        # Filter out deleted categories from the list
+        all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
         
-        # Merge default categories with existing ones, ensuring all defaults are available
-        # This ensures categories are shown even if no tablet types are assigned to them yet
-        all_categories = list(set(default_categories + category_list))
-        all_categories.sort(key=lambda x: (default_categories.index(x) if x in default_categories else len(default_categories), x))
+        # Sort by preferred order (categories not in preferred_order go at the end alphabetically)
+        all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
         
         return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=all_categories)
     except Exception as e:
