@@ -193,11 +193,11 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         }
     </style>
-</head>
     
     <!-- Shared JavaScript utilities -->
     <script src="{{ url_for('static', filename='js/api-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal-manager.js') }}"></script>
+</head>
 <body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">    
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -309,7 +309,7 @@
                 <div class="hidden md:flex space-x-6">
                     <!-- Dashboard - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('dashboard.admin_dashboard') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                    <a href="{{ url_for('dashboard.dashboard_view') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
                     {% endif %}
@@ -358,7 +358,7 @@
                     <div class="relative ml-4">
                         <button onclick="toggleLanguageMenu()" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                             <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-language" /></svg>
-                            <span class="hidden sm:inline">{{ current_language.upper() }}</span>
+                            <span class="hidden sm:inline">{{ (current_language.language if current_language is not string else current_language) | upper }}</span>
                         </button>
                         <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
                             {% for code, name in languages.items() %}
@@ -383,7 +383,7 @@
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-2">
                 {% if session.employee_role in ['manager', 'admin'] %}
-                <a href="{{ url_for('dashboard.admin_dashboard') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
+                <a href="{{ url_for('dashboard.dashboard_view') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
                 <a href="{{ url_for('receiving.receiving_list') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received</a>
                 {% endif %}
                 <a href="{{ url_for('production.production_form') }}" class="block hover:text-primary transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10"><svg class="inline w-5 h-5 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
