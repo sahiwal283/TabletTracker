@@ -134,7 +134,7 @@ def product_mapping():
             # Continue without filtering if there's an error
         
         # Default categories (always show these as options, unless deleted)
-        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', '18mg', 'XL', 'Hyroxi', 'Other']
+        default_categories = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', 'Hyroxi Regular', 'Hyroxi XL', 'MIT A', 'Other']
         
         # Filter out deleted categories from defaults
         default_categories = [cat for cat in default_categories if cat not in deleted_categories_set]
