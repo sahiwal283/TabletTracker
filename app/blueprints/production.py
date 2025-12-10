@@ -15,39 +15,6 @@ from app.utils.receive_tracking import find_bag_for_submission
 bp = Blueprint('production', __name__)
 
 
-def find_bag_for_submission(conn, tablet_type_id, box_number, bag_number):
-    """
-    Find matching bag in receives by tablet_type_id, box_number, bag_number.
-    
-    If exactly 1 match: Returns bag, assigns automatically
-    If 2+ matches: Returns None for bag, flags for manual review
-    If 0 matches: Returns error
-    
-    Returns: (bag_row or None, needs_review_flag, error_message)
-    """
-    # Check for duplicates FIRST (same tablet_type + box + bag in multiple receives)
-    matching_bags = conn.execute('''
-        SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
-        FROM bags b
-        JOIN small_boxes sb ON b.small_box_id = sb.id
-        JOIN receiving r ON sb.receiving_id = r.id
-        WHERE b.tablet_type_id = ? 
-        AND sb.box_number = ? 
-        AND b.bag_number = ?
-        ORDER BY r.received_date DESC
-    ''', (tablet_type_id, box_number, bag_number)).fetchall()
-    
-    if not matching_bags:
-        return None, False, f'No receive found for this product, Box #{box_number}, Bag #{bag_number}. Please check receiving records or contact your manager.'
-    
-    # If exactly 1 match: auto-assign
-    if len(matching_bags) == 1:
-        return dict(matching_bags[0]), False, None
-    
-    # If 2+ matches: needs manual review, don't auto-assign
-    return None, True, None
-
-
 @bp.route('/production')
 @employee_required
 def production_form():
@@ -244,107 +211,34 @@ def submit_warehouse():
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
               bag_id, assigned_po_id, needs_review))
         
-        # If no receive match, submission is saved but not assigned (user can assign manually later)
-        if not assigned_po_id:
-            conn.commit()
-            if error_message:
-                return jsonify({
-                    'warning': error_message,
-                    'submission_saved': True,
-                    'needs_review': needs_review
-                })
-            else:
-                return jsonify({
-                    'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
-                    'submission_saved': True
-                })
-        
-        # Get PO lines for the matched PO to update counts
-        po_lines = conn.execute('''
-            SELECT pl.*, po.closed
-            FROM po_lines pl
-            JOIN purchase_orders po ON pl.po_id = po.id
-            WHERE pl.inventory_item_id = ? AND po.id = ?
-        ''', (inventory_item_id, assigned_po_id)).fetchall()
-        
-        # IMPORTANT: Only allocate counts to lines from the ASSIGNED PO
-        # This ensures older POs are completely filled before newer ones receive submissions
-        assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
-        
-        # Allocate counts to PO lines from the assigned PO only
-        # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
-        if assigned_po_lines:
-            line = assigned_po_lines[0]  # Apply to first line from this PO
-            
-            # Update the line with all counts from this submission
-            conn.execute('''
-                UPDATE po_lines 
-                SET good_count = good_count + ?, damaged_count = damaged_count + ?
-                WHERE id = ?
-            ''', (good_tablets, damaged_tablets, line['id']))
-            
-            print(f"Updated PO line {line['id']}: +{good_tablets} good, +{damaged_tablets} damaged")
-        
-        # Update PO header totals and auto-progress internal status
-        updated_pos = set()
-        for line in assigned_po_lines:
-            if line['po_id'] not in updated_pos:
-                # Get totals for this PO
-                totals = conn.execute('''
-                    SELECT 
-                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                        COALESCE(SUM(good_count), 0) as total_good,
-                        COALESCE(SUM(damaged_count), 0) as total_damaged
-                    FROM po_lines 
-                    WHERE po_id = ?
-                ''', (line['po_id'],)).fetchone()
-                
-                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
-                
-                # Auto-progress internal status based on your workflow
-                current_status = conn.execute(
-                    'SELECT internal_status FROM purchase_orders WHERE id = ?',
-                    (line['po_id'],)
-                ).fetchone()
-                
-                new_internal_status = current_status['internal_status'] if current_status else 'Active'
-                
-                # Auto-progression rules
-                # Only mark as Complete if:
-                # 1. There are items ordered (total_ordered > 0)
-                # 2. Remaining is 0 or less
-                # 3. At least some items have been received (total_good + total_damaged > 0)
-                if (totals['total_ordered'] > 0 and 
-                    remaining <= 0 and 
-                    (totals['total_good'] + totals['total_damaged']) > 0 and
-                    new_internal_status not in ['Complete', 'Reconciled', 'Ready for Payment']):
-                    new_internal_status = 'Complete'
-                    print(f"Auto-progressed PO {line['po_id']} to Complete (remaining = {remaining}, received = {totals['total_good'] + totals['total_damaged']})")
-                elif totals['total_good'] > 0 and new_internal_status == 'Active':
-                    new_internal_status = 'Processing'
-                    print(f"Auto-progressed PO {line['po_id']} to Processing (first submission)")
-                
-                print(f"PO {line['po_id']}: Ordered={totals['total_ordered']}, Good={totals['total_good']}, Damaged={totals['total_damaged']}, Remaining={remaining}, Status={new_internal_status}")
-                
-                conn.execute('''
-                    UPDATE purchase_orders 
-                    SET ordered_quantity = ?, current_good_count = ?, 
-                        current_damaged_count = ?, remaining_quantity = ?,
-                        internal_status = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ''', (totals['total_ordered'], totals['total_good'], 
-                      totals['total_damaged'], remaining, new_internal_status, line['po_id']))
-                
-                updated_pos.add(line['po_id'])
-        
         conn.commit()
         
-        return jsonify({
-            'success': True, 
-            'good_applied': good_tablets,
-            'damaged_applied': damaged_tablets,
-            'message': 'Submission processed successfully'
-        })
+        # Return appropriate message based on matching result
+        if error_message:
+            return jsonify({
+                'success': True,
+                'warning': error_message,
+                'submission_saved': True,
+                'needs_review': needs_review,
+                'bag_id': bag_id,
+                'po_id': assigned_po_id
+            })
+        elif needs_review:
+            return jsonify({
+                'success': True,
+                'message': 'Submission flagged for manager review - multiple matching receives found.',
+                'bag_id': bag_id,
+                'po_id': assigned_po_id,
+                'needs_review': needs_review
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'Submission processed successfully',
+                'bag_id': bag_id,
+                'po_id': assigned_po_id,
+                'needs_review': needs_review
+            })
         
     except Exception as e:
         if conn:
