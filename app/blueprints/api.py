@@ -5575,5 +5575,404 @@ def inject_version():
         'ngettext': ngettext
     }
 
+@bp.route('/api/machines', methods=['GET'])
+@employee_required  # Employees need to see machines to submit counts
+def get_machines():
+    """Get all machines"""
+    conn = None
+    try:
+        conn = get_db()
+        machines = conn.execute('''
+            SELECT * FROM machines 
+            WHERE is_active = TRUE
+            ORDER BY machine_name
+        ''').fetchall()
+        
+        machines_list = [dict(m) for m in machines]
+        current_app.logger.info(f"🔧 GET /api/machines - Found {len(machines_list)} active machines")
+        for m in machines_list:
+            current_app.logger.info(f"   Machine: {m.get('machine_name')} (ID: {m.get('id')}, cards_per_turn: {m.get('cards_per_turn')})")
+        return jsonify({'success': True, 'machines': machines_list})
+    except Exception as e:
+        current_app.logger.error(f"❌ GET /api/machines error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/machines', methods=['POST'])
+@admin_required
+def create_machine():
+    """Create a new machine"""
+    conn = None
+    try:
+        data = request.get_json()
+        machine_name = data.get('machine_name', '').strip()
+        cards_per_turn = data.get('cards_per_turn')
+        
+        if not machine_name:
+            return jsonify({'success': False, 'error': 'Machine name is required'}), 400
+        
+        try:
+            cards_per_turn = int(cards_per_turn)
+            if cards_per_turn < 1:
+                return jsonify({'success': False, 'error': 'Cards per turn must be at least 1'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
+        
+        conn = get_db()
+        
+        # Check if machine name already exists
+        existing = conn.execute('SELECT id FROM machines WHERE machine_name = ?', (machine_name,)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': 'Machine name already exists'}), 400
+        
+        # Create machine
+        conn.execute('''
+            INSERT INTO machines (machine_name, cards_per_turn, is_active)
+            VALUES (?, ?, TRUE)
+        ''', (machine_name, cards_per_turn))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Machine "{machine_name}" created successfully'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/machines/<int:machine_id>', methods=['PUT'])
+@admin_required
+def update_machine(machine_id):
+    """Update a machine's configuration"""
+    conn = None
+    try:
+        data = request.get_json()
+        machine_name = data.get('machine_name', '').strip()
+        cards_per_turn = data.get('cards_per_turn')
+        
+        if not machine_name:
+            return jsonify({'success': False, 'error': 'Machine name is required'}), 400
+        
+        try:
+            cards_per_turn = int(cards_per_turn)
+            if cards_per_turn < 1:
+                return jsonify({'success': False, 'error': 'Cards per turn must be at least 1'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
+        
+        conn = get_db()
+        
+        # Check if machine exists
+        machine = conn.execute('SELECT id FROM machines WHERE id = ?', (machine_id,)).fetchone()
+        if not machine:
+            return jsonify({'success': False, 'error': 'Machine not found'}), 404
+        
+        # Check if new name conflicts with another machine
+        existing = conn.execute('SELECT id FROM machines WHERE machine_name = ? AND id != ?', (machine_name, machine_id)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': 'Machine name already exists'}), 400
+        
+        # Update machine
+        conn.execute('''
+            UPDATE machines 
+            SET machine_name = ?, cards_per_turn = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (machine_name, cards_per_turn, machine_id))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Machine "{machine_name}" updated successfully'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/machines/<int:machine_id>', methods=['DELETE'])
+@admin_required
+def delete_machine(machine_id):
+    """Soft delete a machine (set is_active = FALSE)"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Check if machine exists
+        machine = conn.execute('SELECT machine_name FROM machines WHERE id = ?', (machine_id,)).fetchone()
+        if not machine:
+            return jsonify({'success': False, 'error': 'Machine not found'}), 404
+        
+        # Soft delete (don't actually delete - just mark inactive)
+        conn.execute('''
+            UPDATE machines 
+            SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (machine_id,))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Machine "{machine["machine_name"]}" deleted successfully'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/receives/list', methods=['GET'])
+@role_required('dashboard')
+def get_receives_list():
+    """Get list of all receives for reporting"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        receives = conn.execute('''
+            SELECT r.id, 
+                   r.received_date,
+                   po.po_number,
+                   r.po_id,
+                   (SELECT COUNT(*) + 1
+                    FROM receiving r2
+                    WHERE r2.po_id = r.po_id
+                    AND (r2.received_date < r.received_date 
+                         OR (r2.received_date = r.received_date AND r2.id < r.id))
+                   ) as receive_number
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.received_date IS NOT NULL
+            ORDER BY r.received_date DESC, r.id DESC
+            LIMIT 100
+        ''').fetchall()
+        
+        receives_list = []
+        for r in receives:
+            receive_dict = dict(r)
+            # Create receive name like "PO-00164-1"
+            receive_dict['receive_name'] = f"{receive_dict['po_number']}-{receive_dict['receive_number']}"
+            receives_list.append(receive_dict)
+        
+        return jsonify({
+            'success': True,
+            'receives': receives_list
+        })
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/submission/<int:submission_id>', methods=['DELETE'])
+@role_required('dashboard')
+def delete_submission_alt(submission_id):
+    """Delete a submission (for removing duplicates) - DELETE method"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Check if submission exists
+        submission = conn.execute('''
+            SELECT id FROM warehouse_submissions WHERE id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        # Delete the submission
+        conn.execute('DELETE FROM warehouse_submissions WHERE id = ?', (submission_id,))
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission deleted successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/submission/<int:submission_id>/possible-receives', methods=['GET'])
+@role_required('dashboard')
+def get_possible_receives(submission_id):
+    """Get all possible receives that match a submission's flavor, box, bag"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get submission details
+        submission = conn.execute('''
+            SELECT ws.*, tt.id as tablet_type_id, tt.tablet_type_name
+            FROM warehouse_submissions ws
+            LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+            WHERE ws.id = ?
+        ''', (submission_id,)).fetchone()
+        
+        if not submission:
+            return jsonify({'success': False, 'error': 'Submission not found'}), 404
+        
+        # Find all matching bags (flavor + box + bag)
+        matching_bags = conn.execute('''
+            SELECT b.id as bag_id, 
+                   sb.box_number, 
+                   b.bag_number, 
+                   b.bag_label_count,
+                   r.id as receive_id,
+                   r.received_date,
+                   po.po_number,
+                   po.id as po_id,
+                   tt.tablet_type_name
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            JOIN purchase_orders po ON r.po_id = po.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE b.tablet_type_id = ? 
+            AND sb.box_number = ? 
+            AND b.bag_number = ?
+            ORDER BY r.received_date DESC
+        ''', (submission['tablet_type_id'], submission['box_number'], submission['bag_number'])).fetchall()
+        
+        # Calculate receive_number for each
+        receives = []
+        for bag in matching_bags:
+            # Calculate which receive # this is for the PO
+            receive_number = conn.execute('''
+                SELECT COUNT(*) + 1
+                FROM receiving r2
+                WHERE r2.po_id = ?
+                AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                     OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                         AND r2.id < ?))
+            ''', (bag['po_id'], bag['receive_id'], bag['receive_id'], bag['receive_id'])).fetchone()[0]
+            
+            receives.append({
+                'bag_id': bag['bag_id'],
+                'receive_id': bag['receive_id'],
+                'receive_name': f"{bag['po_number']}-{receive_number}",
+                'po_number': bag['po_number'],
+                'received_date': bag['received_date'],
+                'box_number': bag['box_number'],
+                'bag_number': bag['bag_number'],
+                'bag_label_count': bag['bag_label_count'],
+                'tablet_type_name': bag['tablet_type_name']
+            })
+        
+        return jsonify({
+            'success': True,
+            'submission': dict(submission),
+            'possible_receives': receives
+        })
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/submission/<int:submission_id>/assign-receive', methods=['POST'])
+@role_required('dashboard')
+def assign_submission_to_receive(submission_id):
+    """Assign a submission to a specific receive bag"""
+    conn = None
+    try:
+        conn = get_db()
+        data = request.get_json()
+        bag_id = data.get('bag_id')
+        
+        if not bag_id:
+            return jsonify({'success': False, 'error': 'bag_id is required'}), 400
+        
+        # Get bag details
+        bag = conn.execute('''
+            SELECT b.*, r.po_id
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            WHERE b.id = ?
+        ''', (bag_id,)).fetchone()
+        
+        if not bag:
+            return jsonify({'success': False, 'error': 'Bag not found'}), 404
+        
+        # Update submission
+        conn.execute('''
+            UPDATE warehouse_submissions
+            SET bag_id = ?, assigned_po_id = ?, needs_review = FALSE
+            WHERE id = ?
+        ''', (bag_id, bag['po_id'], submission_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Submission assigned successfully'
+        })
+        
+    except Exception as e:
+        traceback.print_exc()
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
 # Note: This blueprint is registered in app/__init__.py
 # To run the application, use: flask run or python app.py
