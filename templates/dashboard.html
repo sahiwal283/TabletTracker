@@ -1378,7 +1378,24 @@ async function generatePOReport() {
         
         // Generate filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const reportName = reportType === 'vendor' ? 'vendor_report' : 'production_report';
+        let reportName, reportTypeName, contextText;
+        
+        if (reportType === 'vendor') {
+            reportName = 'vendor_report';
+            reportTypeName = 'Vendor';
+            contextText = selector.value ? ` for ${selector.value}` : '';
+        } else if (reportType === 'receive') {
+            const receiveSelector = document.getElementById('receive_selector');
+            const receiveName = receiveSelector.options[receiveSelector.selectedIndex].text;
+            reportName = 'receive_report';
+            reportTypeName = 'Receive';
+            contextText = ` for ${receiveName}`;
+        } else {
+            reportName = 'production_report';
+            reportTypeName = 'Production';
+            contextText = selector.value ? ` for ${selector.value}` : '';
+        }
+        
         const poSuffix = selector.value ? `_${selector.value}` : '';
         a.download = `${poSuffix}${reportName}_${timestamp}.pdf`;
         
@@ -1387,9 +1404,7 @@ async function generatePOReport() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        const reportTypeName = reportType === 'vendor' ? 'Vendor' : 'Production';
-        const poText = selector.value ? ` for ${selector.value}` : '';
-        showSuccess(`${reportTypeName} report${poText} generated successfully!`);
+        showSuccess(`${reportTypeName} report${contextText} generated successfully!`);
         
     } catch (error) {
         console.error('Report generation error:', error);
