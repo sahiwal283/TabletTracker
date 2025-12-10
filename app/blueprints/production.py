@@ -259,7 +259,7 @@ def submit_warehouse():
 
 @bp.route('/api/submissions/bag-count', methods=['POST'])
 def submit_count():
-    """Process manual count submission for PO close-outs"""
+    """Process manual count submission for PO close-outs - RECEIVE-BASED TRACKING"""
     conn = None
     try:
         data = request.get_json() if request.is_json else request.form
@@ -301,7 +301,6 @@ def submit_count():
         # Safe type conversion
         try:
             actual_count = int(data.get('actual_count', 0) or 0)
-            bag_label_count = int(data.get('bag_label_count', 0) or 0)
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
@@ -311,99 +310,48 @@ def submit_count():
         # Get admin_notes if user is admin or manager
         admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
         
-        # Insert count record WITH inventory_item_id
+        # Get inventory_item_id and tablet_type_id
         inventory_item_id = tablet_type.get('inventory_item_id')
+        tablet_type_id = tablet_type.get('id')
         if not inventory_item_id:
             return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
-            
+        if not tablet_type_id:
+            return jsonify({'error': 'Tablet type_id not found'}), 400
+        
+        # RECEIVE-BASED TRACKING: Find matching bag in receives
+        bag, needs_review, error_message = find_bag_for_submission(
+            conn, tablet_type_id, data.get('box_number'), data.get('bag_number')
+        )
+        
+        if error_message:
+            return jsonify({'error': error_message}), 404
+        
+        # If needs_review, bag will be None (ambiguous submission)
+        bag_id = bag['id'] if bag else None
+        assigned_po_id = bag['po_id'] if bag else None
+        
+        # Insert count record with bag_id (or NULL if needs review)
         conn.execute('''
             INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, submission_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, 
+             bag_id, assigned_po_id, needs_review, loose_tablets, 
+             submission_date, admin_notes, submission_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
         ''', (employee_name, data.get('tablet_type'), inventory_item_id, data.get('box_number'),
-              data.get('bag_number'), bag_label_count, 0, 0, actual_count, 0, submission_date, admin_notes))
-        
-        # Find open PO lines for this inventory item
-        # Order by PO number (oldest PO numbers first) since they represent issue order
-        # Exclude Draft POs - only assign to Issued/Active POs
-        # Note: We do NOT filter by available quantity - POs can receive more than ordered
-        po_lines = conn.execute('''
-            SELECT pl.*, po.closed
-            FROM po_lines pl
-            JOIN purchase_orders po ON pl.po_id = po.id
-            WHERE pl.inventory_item_id = ? AND po.closed = FALSE
-            AND COALESCE(po.internal_status, '') != 'Draft'
-            AND COALESCE(po.internal_status, '') != 'Cancelled'
-            ORDER BY po.po_number ASC
-        ''', (tablet_type['inventory_item_id'],)).fetchall()
-        
-        if not po_lines:
-            conn.commit()
-            return jsonify({'warning': 'No open PO found for this tablet type', 'submission_saved': True})
-        
-        # Get the PO we'll assign to (first available line's PO - oldest PO number)
-        assigned_po_id = po_lines[0]['po_id'] if po_lines else None
-        
-        # Update submission with assigned PO
-        if assigned_po_id:
-            conn.execute('''
-                UPDATE warehouse_submissions 
-                SET assigned_po_id = ?
-                WHERE rowid = last_insert_rowid()
-            ''', (assigned_po_id,))
-        
-        # IMPORTANT: Only allocate counts to lines from the ASSIGNED PO
-        # This ensures older POs are completely filled before newer ones receive submissions
-        assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
-        
-        # Allocate count to PO lines from the assigned PO only
-        # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
-        if assigned_po_lines:
-            line = assigned_po_lines[0]  # Apply to first line from this PO
-            
-            # Update the line with all counts from this submission
-            conn.execute('''
-                UPDATE po_lines 
-                SET good_count = good_count + ?
-                WHERE id = ?
-            ''', (actual_count, line['id']))
-            
-            print(f"Manual count - Updated PO line {line['id']}: +{actual_count} tablets")
-        
-        # Update PO header totals
-        updated_pos = set()
-        for line in assigned_po_lines:
-            if line['po_id'] not in updated_pos:
-                po_id = line['po_id']
-                totals = conn.execute('''
-                    SELECT 
-                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                        COALESCE(SUM(good_count), 0) as total_good,
-                        COALESCE(SUM(damaged_count), 0) as total_damaged
-                    FROM po_lines 
-                    WHERE po_id = ?
-                ''', (po_id,)).fetchone()
-                
-                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
-                print(f"Manual count - PO {po_id}: Ordered={totals['total_ordered']}, Good={totals['total_good']}, Damaged={totals['total_damaged']}, Remaining={remaining}")
-                
-                conn.execute('''
-                    UPDATE purchase_orders 
-                    SET ordered_quantity = ?, current_good_count = ?, 
-                        current_damaged_count = ?, remaining_quantity = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ''', (totals['total_ordered'], totals['total_good'], 
-                      totals['total_damaged'], remaining, po_id))
-                
-                updated_pos.add(po_id)
+              data.get('bag_number'), bag_id, assigned_po_id, needs_review,
+              actual_count, submission_date, admin_notes))
         
         conn.commit()
         
-        message = f'Count submitted successfully! Applied {actual_count} tablets to PO'
+        message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Count submitted successfully!'
         
-        return jsonify({'success': True, 'message': message})
+        return jsonify({
+            'success': True,
+            'message': message,
+            'bag_id': bag_id,
+            'po_id': assigned_po_id,
+            'needs_review': needs_review
+        })
         
     except Exception as e:
         if conn:
