@@ -1485,6 +1485,7 @@ def all_submissions():
                    ws.admin_notes,
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
+                   b.bag_label_count as receive_bag_count,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -1494,6 +1495,7 @@ def all_submissions():
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            LEFT JOIN bags b ON ws.bag_id = b.id
             WHERE 1=1
         '''
         
