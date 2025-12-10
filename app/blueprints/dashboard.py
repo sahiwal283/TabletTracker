@@ -36,6 +36,58 @@ def dashboard_view():
         '''
         active_pos = conn.execute(active_pos_query).fetchall()
         
+        # Get active receives with submission counts (for dashboard widget)
+        active_receives_query = '''
+            SELECT r.id,
+                   COALESCE(po.po_number || '-' || (
+                       SELECT COUNT(*) 
+                       FROM receiving r2 
+                       WHERE r2.po_id = r.po_id 
+                       AND r2.received_date <= r.received_date
+                   ), 'Unassigned-' || r.id) as receive_name,
+                   r.received_date,
+                   GROUP_CONCAT(DISTINCT tt.tablet_type_name, ', ') as tablet_types,
+                   COUNT(DISTINCT b.id) as total_bags,
+                   COALESCE(SUM(b.bag_label_count), 0) as total_received,
+                   COUNT(DISTINCT CASE WHEN ws.submission_type = 'machine' THEN ws.id END) as machine_submissions,
+                   COUNT(DISTINCT CASE WHEN ws.submission_type IN ('packaged', 'bag') THEN ws.id END) as packaged_submissions,
+                   COALESCE(SUM(CASE WHEN ws.submission_type = 'machine' THEN 
+                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) +
+                       ws.loose_tablets
+                   END), 0) as total_machine_count,
+                   COALESCE(SUM(CASE WHEN ws.submission_type IN ('packaged', 'bag') THEN 
+                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) +
+                       ws.loose_tablets
+                   END), 0) as total_packaged_count,
+                   (COALESCE(SUM(b.bag_label_count), 0) - 
+                    COALESCE(SUM(CASE WHEN ws.submission_type IN ('machine', 'packaged', 'bag') THEN 
+                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) +
+                       ws.loose_tablets
+                    END), 0)) as remaining
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
+            LEFT JOIN bags b ON sb.id = b.small_box_id
+            LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            LEFT JOIN warehouse_submissions ws ON ws.bag_id = b.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE r.id IN (
+                SELECT DISTINCT r2.id
+                FROM receiving r2
+                JOIN small_boxes sb2 ON r2.id = sb2.receiving_id
+                JOIN bags b2 ON sb2.id = b2.small_box_id
+                LEFT JOIN warehouse_submissions ws2 ON ws2.bag_id = b2.id
+                WHERE ws2.id IS NOT NULL
+            )
+            GROUP BY r.id
+            ORDER BY r.received_date DESC
+            LIMIT 2
+        '''
+        active_receives = conn.execute(active_receives_query).fetchall()
+        
         # Get closed POs for historical reference (removed from dashboard)
         closed_pos = []
         
@@ -122,7 +174,7 @@ def dashboard_view():
             WHERE COALESCE(po_assignment_verified, 0) = 0
         ''').fetchone()['count']
         
-        return render_template('dashboard.html', active_pos=active_pos, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types)
+        return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types)
     except Exception as e:
         print(f"Error in dashboard_view: {e}")
         traceback.print_exc()
@@ -134,7 +186,7 @@ def dashboard_view():
             'draft_pos': 0,
             'total_remaining': 0
         })()
-        return render_template('dashboard.html', active_pos=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0, tablet_types=[])
+        return render_template('dashboard.html', active_pos=[], active_receives=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0, tablet_types=[])
     finally:
         if conn:
             try:
