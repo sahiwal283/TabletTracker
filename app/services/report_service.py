@@ -1135,7 +1135,7 @@ class ProductionReportGenerator:
         finally:
             if conn:
                 try:
-            conn.close()
+                    conn.close()
                 except:
                     pass
 
