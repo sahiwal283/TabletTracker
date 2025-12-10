@@ -899,25 +899,26 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         // Calculate totals for filter buttons
         let machineTotal = 0;
         let packagedBagTotal = 0;
-        let grandTotal = 0;
+        let machineCount = 0;
+        let packagedBagCount = 0;
         
         filteredSubmissions.forEach(sub => {
             const total = sub.total_tablets || 0;
             const subType = sub.submission_type || 'packaged';
             
-            grandTotal += total;
-            
             if (subType === 'machine') {
                 machineTotal += total;
+                machineCount++;
             } else if (subType === 'packaged' || subType === 'bag') {
                 packagedBagTotal += total;
+                packagedBagCount++;
             }
         });
         
         const totals = {
             machine: machineTotal,
             packaged_bag: packagedBagTotal,
-            total: grandTotal
+            total_count: filteredSubmissions.length
         };
         
         // Build modal HTML (abbreviated version - just shows list)
@@ -952,7 +953,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                     <button onclick="filterSubmissionsInModal('all')" 
                                             class="bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'all' || !typeFilter ? 'ring-2 ring-green-300' : ''}">
                                         <span class="text-xs text-green-200">📊 Total:</span>
-                                        <span class="text-sm font-semibold text-white ml-1">${totals.total.toLocaleString()}</span>
+                                        <span class="text-sm font-semibold text-white ml-1">${totals.total_count} submissions</span>
                                     </button>
                                 </div>
                             </div>

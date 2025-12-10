@@ -1575,7 +1575,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null) {
                                         <button onclick="filterSubmissionsInModal('all')" 
                                                 class="bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${!typeFilter || typeFilter === 'all' ? 'ring-2 ring-green-300' : ''}">
                                             <span class="text-xs text-green-200">📊 Total:</span>
-                                            <span class="text-sm font-semibold text-white ml-1">${data.totals.total.toLocaleString()}</span>
+                                            <span class="text-sm font-semibold text-white ml-1">${filteredSubmissions.length} submissions</span>
                                         </button>
                                     </div>
                                 ` : ''}
