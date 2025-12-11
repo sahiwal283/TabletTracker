@@ -4744,7 +4744,8 @@ def get_submission_details(submission_id):
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    pd.packages_per_display, pd.tablets_per_package,
-                   b.bag_label_count, r.id as receive_id, r.received_date,
+                   COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count, 
+                   r.id as receive_id, r.received_date,
                    (
                        SELECT COUNT(*) + 1
                        FROM receiving r2
