@@ -4787,22 +4787,6 @@ def get_submission_details(submission_id):
             submission_dict['total_tablets'] = calculated_total
         
         conn.close()
-        else:
-            # For packaged/bag submissions: calculate from displays and packs
-            packages_per_display = submission_dict.get('packages_per_display', 0) or 0
-            tablets_per_package = submission_dict.get('tablets_per_package', 0) or 0
-            displays_made = submission_dict.get('displays_made', 0) or 0
-            packs_remaining = submission_dict.get('packs_remaining', 0) or 0
-            loose_tablets = submission_dict.get('loose_tablets', 0) or 0
-            damaged_tablets = submission_dict.get('damaged_tablets', 0) or 0
-            
-            calculated_total = (
-                (displays_made * packages_per_display * tablets_per_package) +
-                (packs_remaining * tablets_per_package) +
-                loose_tablets + damaged_tablets
-            )
-            submission_dict['individual_calc'] = calculated_total
-            submission_dict['total_tablets'] = calculated_total
         
         return jsonify({
             'success': True,
