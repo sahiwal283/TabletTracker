@@ -4964,7 +4964,9 @@ def get_submission_details(submission_id):
             submission_dict['bag_running_total'] = bag_running_total
             submission_dict['machine_running_total'] = machine_running_total
             submission_dict['packaged_running_total'] = packaged_running_total
-            submission_dict['running_total'] = total_running_total
+            # Total should only include packaged counts (tablets actually in the bag)
+            # Machine counts are consumed, bag counts are just inventory
+            submission_dict['running_total'] = packaged_running_total
             
             # Calculate count status and tablet difference
             # Use packaged_running_total for comparison - machine counts are consumed, not in bag
