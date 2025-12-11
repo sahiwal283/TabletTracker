@@ -1555,13 +1555,22 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
+                                ${receiveId && receiveName ? `
+                                <button onclick="closeSubmissionsModal(); viewReceiveDetails(${receiveId}, '${receiveName}');" 
+                                        class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                                        title="Back to receive details">
+                                    ← Back
+                                </button>
+                                ` : `
                                 <button onclick="closeSubmissionsModal(); viewPODetailsModal(${poId}, '${data.po.po_number}');" 
                                         class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                                         title="Back to PO details">
                                     ← Back
                                 </button>
+                                `}
                             <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📋 Submissions for ${data.po.po_number}</h3>
+                                <h3 class="text-xl font-bold">📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}` : `for ${data.po.po_number}`}</h3>
+                                ${receiveName && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">
                                     ${filteredSubmissions.length} submission(s) total
