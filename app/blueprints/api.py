@@ -2931,7 +2931,8 @@ def generate_production_report():
         end_date = data.get('end_date') 
         po_numbers = data.get('po_numbers', [])
         tablet_type_id = data.get('tablet_type_id')
-        report_type = data.get('report_type', 'production')  # 'production' or 'vendor'
+        report_type = data.get('report_type', 'production')  # 'production', 'vendor', or 'receive'
+        receive_id = data.get('receive_id')
         
         # Validate date formats if provided
         if start_date:
@@ -2958,6 +2959,12 @@ def generate_production_report():
             )
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'vendor_report_{timestamp}.pdf'
+        elif report_type == 'receive':
+            if not receive_id:
+                return jsonify({'error': 'Receive ID is required for receive reports'}), 400
+            pdf_content = generator.generate_receive_report(receive_id=receive_id)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'receive_report_{timestamp}.pdf'
         else:
             pdf_content = generator.generate_production_report(
                 start_date=start_date,
