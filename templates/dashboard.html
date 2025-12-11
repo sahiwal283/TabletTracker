@@ -1644,11 +1644,13 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     return date.toLocaleString('en-US', { timeZone: 'America/New_York', month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
                 };
                 
-                // Check if user is admin for edit functionality
+                // Always allow viewing details, edit only if admin and PO not closed
                 const isAdmin = {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}true{% else %}false{% endif %};
-                const clickHandler = isAdmin ? `onclick="openEditSubmissionFromPO(${sub.id}, ${poId}, '${inventoryItemId || ''}')"` : '';
-                const cursorClass = isAdmin ? 'cursor-pointer' : '';
-                const editHint = isAdmin ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
+                const poIsClosed = data.po && data.po.closed === true;
+                const canEdit = isAdmin && !poIsClosed;
+                const clickHandler = `onclick="event.stopPropagation(); closeSubmissionsModal(); viewSubmissionDetails(${sub.id}, 'submissions-modal', 'viewPOSubmissions', [${poId}, '${poName}', ${inventoryItemId ? `'${inventoryItemId}'` : 'null'}, ${receiveId ? receiveId : 'null'}, ${receiveName ? `'${receiveName}'` : 'null'}, ${bagId !== null ? bagId : 'null'}, ${boxNumber !== null ? boxNumber : 'null'}, ${bagNumber !== null ? bagNumber : 'null'}, ${typeFilter ? `'${typeFilter}'` : 'null'}])"`;
+                const cursorClass = 'cursor-pointer';
+                const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
                 
                 // Determine submission type badge
                 const submissionType = sub.submission_type || 'packaged';
