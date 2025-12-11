@@ -1574,7 +1574,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                 </button>
                                 `}
                             <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}` : `for ${data.po.po_number}`}</h3>
+                                <h3 class="text-xl font-bold">📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}-${boxNumber}-${bagNumber}` : (receiveName ? `for ${receiveName}` : `for ${data.po.po_number}`)}</h3>
                                 ${receiveName && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">
@@ -1758,11 +1758,14 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         
         // Add "View All Submissions" button if viewing filtered results
         if (inventoryItemId && data.submissions.length > filteredSubmissions.length) {
+            const buttonText = receiveName 
+                ? `📋 View All Submissions for this Receive (${data.submissions.length} total)`
+                : `📋 View All Submissions for this PO (${data.submissions.length} total)`;
             modalContent += `
                 <div class="mt-6 flex justify-center border-t pt-4">
-                    <button onclick="closeSubmissionsModal(); viewPOSubmissions(${poId}, '${poName}', null);" 
+                    <button onclick="closeSubmissionsModal(); viewPOSubmissions(${poId}, '${poName}', null${receiveId ? `, ${receiveId}, '${receiveName}'` : ''});" 
                             class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-lg transition-colors">
-                        📋 View All Submissions for this PO (${data.submissions.length} total)
+                        ${buttonText}
                     </button>
                 </div>
             `;
