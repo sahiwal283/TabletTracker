@@ -4721,24 +4721,72 @@ def get_submission_details(submission_id):
             conn.close()
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
-        # Get cards_per_turn setting for machine submissions
-        cards_per_turn_setting = conn.execute(
-            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-            ('cards_per_turn',)
-        ).fetchone()
-        cards_per_turn = int(cards_per_turn_setting['setting_value']) if cards_per_turn_setting else 1
-        
-        conn.close()
-        
         submission_dict = dict(submission)
         submission_type = submission_dict.get('submission_type', 'packaged')
         
-        # Calculate total based on submission type
+        # Get machine information for machine submissions
+        machine_name = None
+        cards_per_turn = None
+        
         if submission_type == 'machine':
+            # Try to find machine from machine_counts table by matching submission details
+            # Match on tablet_type_id, machine_count (displays_made), employee_name, and count_date
+            tablet_type = conn.execute('''
+                SELECT id FROM tablet_types WHERE inventory_item_id = ?
+            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+            
+            if tablet_type:
+                tablet_type_id = tablet_type['id']
+                machine_count_record = conn.execute('''
+                    SELECT mc.machine_id, m.machine_name, m.cards_per_turn
+                    FROM machine_counts mc
+                    LEFT JOIN machines m ON mc.machine_id = m.id
+                    WHERE mc.tablet_type_id = ?
+                    AND mc.machine_count = ?
+                    AND mc.employee_name = ?
+                    AND DATE(mc.count_date) = DATE(?)
+                    ORDER BY mc.created_at DESC
+                    LIMIT 1
+                ''', (tablet_type_id, 
+                      submission_dict.get('displays_made'),
+                      submission_dict.get('employee_name'),
+                      submission_dict.get('submission_date') or submission_dict.get('created_at'))).fetchone()
+                
+                if machine_count_record:
+                    machine_name = machine_count_record.get('machine_name')
+                    cards_per_turn = machine_count_record.get('cards_per_turn')
+            
+            # Fallback to app_settings if machine not found
+            if not cards_per_turn:
+                cards_per_turn_setting = conn.execute(
+                    'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+                    ('cards_per_turn',)
+                ).fetchone()
+                cards_per_turn = int(cards_per_turn_setting['setting_value']) if cards_per_turn_setting else 1
+            
             # For machine submissions: total is stored in loose_tablets
             submission_dict['individual_calc'] = submission_dict.get('loose_tablets', 0) or 0
             submission_dict['total_tablets'] = submission_dict['individual_calc']
             submission_dict['cards_per_turn'] = cards_per_turn
+            submission_dict['machine_name'] = machine_name
+        else:
+            # For packaged/bag submissions: calculate from displays and packs
+            packages_per_display = submission_dict.get('packages_per_display', 0) or 0
+            tablets_per_package = submission_dict.get('tablets_per_package', 0) or 0
+            displays_made = submission_dict.get('displays_made', 0) or 0
+            packs_remaining = submission_dict.get('packs_remaining', 0) or 0
+            loose_tablets = submission_dict.get('loose_tablets', 0) or 0
+            damaged_tablets = submission_dict.get('damaged_tablets', 0) or 0
+            
+            calculated_total = (
+                (displays_made * packages_per_display * tablets_per_package) +
+                (packs_remaining * tablets_per_package) +
+                loose_tablets + damaged_tablets
+            )
+            submission_dict['individual_calc'] = calculated_total
+            submission_dict['total_tablets'] = calculated_total
+        
+        conn.close()
         else:
             # For packaged/bag submissions: calculate from displays and packs
             packages_per_display = submission_dict.get('packages_per_display', 0) or 0
