@@ -28,6 +28,7 @@ def submissions_list():
         filter_submission_type = request.args.get('submission_type', type=str)
         
         # Build query with optional filters
+        # Get receive number (shipment_number) same way receiving page calculates it
         query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter,
                    pd.packages_per_display, pd.tablets_per_package,
@@ -46,7 +47,7 @@ def submissions_list():
                        WHERE r2.po_id = r.po_id
                        AND (r2.received_date < r.received_date 
                             OR (r2.received_date = r.received_date AND r2.id < r.id))
-                   ) as receive_number,
+                   ) as shipment_number,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -137,10 +138,11 @@ def submissions_list():
             
             sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
             
-            # Build receive name (po#-receive#-box#-bag#) from data already in query
+            # Build receive name in format: PO-receive-box-bag (same as receiving page)
             receive_name = None
-            if sub_dict.get('receive_id') and sub_dict.get('po_number') and sub_dict.get('receive_number'):
-                receive_name = f"{sub_dict.get('po_number')}-{sub_dict.get('receive_number')}-{sub_dict.get('box_number', '')}-{sub_dict.get('bag_number', '')}"
+            if sub_dict.get('receive_id') and sub_dict.get('po_number') and sub_dict.get('shipment_number'):
+                # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2)
+                receive_name = f"{sub_dict.get('po_number')}-{sub_dict.get('shipment_number')}-{sub_dict.get('box_number', '')}-{sub_dict.get('bag_number', '')}"
             
             sub_dict['receive_name'] = receive_name
             
