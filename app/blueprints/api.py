@@ -4715,7 +4715,8 @@ def get_submission_details(submission_id):
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
                        COALESCE(ws.loose_tablets, 0) + COALESCE(ws.damaged_tablets, 0)
-                   ) as calculated_total
+                   ) as calculated_total,
+                   ws.damaged_tablets
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
