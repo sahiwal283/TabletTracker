@@ -540,8 +540,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                 const canEdit = isAdmin && !poIsClosed;
                 const clickHandler = canEdit ? `onclick="openEditSubmissionFromPO(${sub.id}, ${poId}, '${inventoryItemId || ''}')"` : '';
                 const cursorClass = canEdit ? 'cursor-pointer' : '';
-                const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : 
-                                 (poIsClosed && isAdmin ? '<div class="text-xs text-gray-400 italic mt-2 flex items-center gap-1"><span>🔒</span> <span>Locked (PO Closed)</span></div>' : '');
+                const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
                 
                 // Determine submission type badge
                 const submissionType = sub.submission_type || 'packaged';
@@ -763,8 +762,7 @@ function filterSubmissionsInModal(filterType) {
         const canEdit = isAdmin && !poIsClosed;
         const clickHandler = canEdit ? `onclick="openEditSubmissionFromPO(${sub.id}, ${data.poId}, '${data.inventoryItemId || ''}')"` : '';
         const cursorClass = canEdit ? 'cursor-pointer' : '';
-        const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : 
-                         (poIsClosed && isAdmin ? '<div class="text-xs text-gray-400 italic mt-2 flex items-center gap-1"><span>🔒</span> <span>Locked (PO Closed)</span></div>' : '');
+        const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
         
         const submissionType = sub.submission_type || 'packaged';
         let typeBadge = '';
