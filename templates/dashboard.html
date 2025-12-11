@@ -329,72 +329,65 @@
             </a>
         </div>
     </div>
-    <div id="recent-submissions-content" class="max-h-96 overflow-y-auto">
-        <table class="w-full divide-y divide-gray-200 text-sm">
+    <div id="recent-submissions-content" class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Time
                     </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Type
                     </th>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Employee
                     </th>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Product
                     </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Box/Bag
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Displays
                     </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Disp
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Turns
                     </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Cards
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Cards<br><span class="text-xs font-normal normal-case">(made / remaining)</span>
                     </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Dmg
-                    </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Total
                     </th>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Bag Check
-                    </th>
-                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        PO
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Receive<br><span class="text-xs font-normal normal-case">(po # - receive # - box # - bag #)</span>
                     </th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for sub in submissions %}
-                <tr class="submissions-row {% if not sub.assigned_po_id %}bg-orange-50 border-l-4 border-orange-400{% else %}hover:bg-gray-50{% endif %}" 
-                    data-po-closed="{{ 'true' if sub.po_closed else 'false' }}">
-                    <td class="px-3 py-2 text-xs text-gray-500">
-                        {{ sub.created_at|to_est_time if sub.created_at else 'N/A' }}
+                <tr class="hover:bg-gray-50 cursor-pointer" onclick="viewSubmissionDetails({{ sub.id }})">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.created_at|to_est if sub.created_at else 'N/A' }}
                     </td>
-                    <td class="px-2 py-2 text-xs">
+                    <td class="px-6 py-4 whitespace-nowrap">
                         {% if sub.submission_type == 'machine' %}
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                ⚙️
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                ⚙️ Machine
                             </span>
                         {% elif sub.submission_type == 'bag' %}
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                📋
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                📋 Bag Count
                             </span>
                         {% else %}
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                📦
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                📦 Packaged
                             </span>
                         {% endif %}
                     </td>
-                    <td class="px-3 py-2 text-xs text-gray-900">
-                        <div class="flex items-center gap-1">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-900">
+                        <div class="flex items-center gap-2">
                             {{ sub.employee_name }}
                             {% if sub.admin_notes and (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) %}
-                            <span class="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors" 
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors" 
                                   title="Click to view admin notes"
                                   data-admin-notes="{{ sub.admin_notes|e }}"
                                   onclick="event.stopPropagation(); showAdminNotes(this.getAttribute('data-admin-notes'));">
@@ -403,65 +396,41 @@
                             {% endif %}
                         </div>
                     </td>
-                    <td class="px-3 py-2 text-xs text-gray-500">
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.product_name }}
                     </td>
-                    <td class="px-2 py-2 text-xs text-gray-500 text-center">
-                        {{ sub.box_number }}/{{ sub.bag_number }}
-                    </td>
-                    <td class="px-2 py-2 text-xs text-gray-500 text-center">
-                        {{ sub.displays_made }}
-                    </td>
-                    <td class="px-2 py-2 text-xs text-gray-500 text-center">
-                        {{ sub.packs_remaining }}
-                    </td>
-                    <td class="px-2 py-2 text-xs text-red-600 text-center">
-                        {{ sub.damaged_tablets }}
-                    </td>
-                    <td class="px-2 py-2 text-xs font-semibold text-gray-900 text-center">
-                        {{ sub.individual_calc }}
-                    </td>
-                    <td class="px-3 py-2 text-xs">
-                        {% if sub.count_status == 'no_bag' %}
-                            <span class="text-gray-400">No Bag</span>
-                        {% else %}
-                            <div class="{% if sub.count_status == 'match' %}text-green-600{% elif sub.count_status == 'under' %}text-yellow-600{% else %}text-red-600{% endif %} font-medium">
-                                <div>🏷️ {{ sub.box_number }}/{{ sub.bag_number }}</div>
-                                <div>Bag: {{ sub.bag_label_count if sub.bag_label_count else (sub.receive_bag_count if sub.receive_bag_count else 0) }}</div>
-                                <div>Mch: {{ sub.machine_running_total if sub.machine_running_total else 0 }}</div>
-                                <div>Pkg: {{ sub.packaged_running_total if sub.packaged_running_total else 0 }}</div>
-                                <div class="font-semibold">Tot: {{ sub.running_total }}</div>
-                                {% if sub.count_status == 'match' %}
-                                    <div class="font-bold">✓ Match</div>
-                                {% elif sub.count_status == 'under' %}
-                                    <div class="font-bold">⚠️ Under ({{ sub.tablet_difference }})</div>
-                                {% else %}
-                                    <div class="font-bold">❌ Over (+{{ sub.tablet_difference }})</div>
-                                {% endif %}
-                            </div>
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {% if sub.submission_type != 'machine' %}
+                            {{ sub.displays_made if sub.displays_made else '' }}
                         {% endif %}
                     </td>
-                    <td class="px-3 py-2 text-xs">
-                        {% if sub.po_number %}
-                            <div class="flex flex-col gap-1">
-                                <div class="flex items-center gap-1">
-                                    <span class="font-medium text-blue-600">{{ sub.po_number }}</span>
-                                    {% if sub.po_closed %}
-                                        <span class="text-xs text-gray-600">🔒</span>
-                                    {% else %}
-                                        <span class="text-xs text-green-600">✓</span>
-                                    {% endif %}
-                                </div>
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {% if sub.submission_type == 'machine' %}
+                            {{ sub.displays_made if sub.displays_made else '' }}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.packs_remaining if sub.packs_remaining else '' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
+                        {{ sub.individual_calc }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-base">
+                        {% if sub.receive_name %}
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-blue-600">{{ sub.receive_name }}</span>
+                                {% if sub.po_closed %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
+                                        🔒 Closed
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-green-100 text-green-700">
+                                        ✓ Open
+                                    </span>
+                                {% endif %}
                             </div>
                         {% else %}
-                            <div class="flex flex-col gap-1">
-                                <span class="text-gray-400 italic text-xs">Unassigned</span>
-                                <button onclick="openReassignModal({{ sub.id }}, null, '{{ sub.product_name }}', {{ sub.needs_review|default(0)|int }})" 
-                                        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-1.5 py-0.5 rounded"
-                                        title="{% if sub.needs_review %}Assign to Receive{% else %}Assign to PO{% endif %}">
-                                    {% if sub.needs_review %}Assign Receive{% else %}Assign{% endif %}
-                                </button>
-                            </div>
+                            <span class="text-gray-400 italic">Unassigned</span>
                         {% endif %}
                     </td>
                 </tr>
