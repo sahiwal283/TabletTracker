@@ -2948,6 +2948,8 @@ def clear_po_data():
 @role_required('dashboard')
 def generate_production_report():
     """Generate comprehensive production report PDF"""
+    # Note: This function does NOT use database connections directly.
+    # ProductionReportGenerator handles its own connections internally.
     try:
         data = request.get_json() or {}
         
