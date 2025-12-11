@@ -182,8 +182,10 @@ def dashboard_view():
             else:  # 'packaged'
                 bag_running_totals_packaged[bag_key] += individual_calc
             
-            # Update total running total (all types combined)
-            bag_running_totals[bag_key] += individual_calc
+            # Update total running total (only packaged counts - machine counts are consumed, not in bag)
+            # Bag counts are also separate inventory counts, not added to total
+            if submission_type == 'packaged':
+                bag_running_totals[bag_key] += individual_calc
             
             # Add running total and comparison fields
             sub_dict['individual_calc'] = individual_calc

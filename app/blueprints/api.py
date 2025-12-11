@@ -4939,10 +4939,12 @@ def get_submission_details(submission_id):
                 if bag_sub_type == 'machine':
                     individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
                     machine_running_total += individual_total
+                    # Machine counts are NOT added to total - they're consumed in production
                 elif bag_sub_type == 'bag':
                     # For bag count submissions, use loose_tablets (the actual count from form)
                     individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
                     bag_running_total += individual_total
+                    # Bag counts are NOT added to total - they're just inventory counts
                 else:  # 'packaged'
                     packages_per_display = bag_sub_dict.get('packages_per_display', 0) or 0
                     tablets_per_package = bag_sub_dict.get('tablets_per_package', 0) or 0
@@ -4956,8 +4958,8 @@ def get_submission_details(submission_id):
                         loose_tablets + damaged_tablets
                     )
                     packaged_running_total += individual_total
-                
-                total_running_total += individual_total
+                    # Only packaged counts are added to total - these are tablets actually in the bag
+                    total_running_total += individual_total
             
             submission_dict['bag_running_total'] = bag_running_total
             submission_dict['machine_running_total'] = machine_running_total
