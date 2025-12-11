@@ -3415,11 +3415,23 @@ def process_receiving():
             
             # TODO: Upload to Zoho (implement after basic workflow is working)
         
+        # Calculate receive number for this PO (sequential number per PO)
+        receive_number_result = conn.execute('''
+            SELECT COUNT(*) + 1 as receive_number
+            FROM receiving
+            WHERE po_id = ?
+        ''', (shipment['po_id'],)).fetchone()
+        
+        receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+        
+        # Build receive name: PO-{po_number}-{receive_number}
+        receive_name = f"{shipment['po_number']}-{receive_number}"
+        
         # Create receiving record
         receiving_cursor = conn.execute('''
-            INSERT INTO receiving (po_id, shipment_id, total_small_boxes, received_by, notes, delivery_photo_path, delivery_photo_zoho_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (shipment['po_id'], shipment_id, total_small_boxes, received_by, notes, photo_path, zoho_photo_id))
+            INSERT INTO receiving (po_id, shipment_id, total_small_boxes, received_by, notes, delivery_photo_path, delivery_photo_zoho_id, receive_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (shipment['po_id'], shipment_id, total_small_boxes, received_by, notes, photo_path, zoho_photo_id, receive_name))
         
         receiving_id = receiving_cursor.lastrowid
         
@@ -5952,12 +5964,7 @@ def get_receives_list():
                    r.received_date,
                    po.po_number,
                    r.po_id,
-                   (SELECT COUNT(*) + 1
-                    FROM receiving r2
-                    WHERE r2.po_id = r.po_id
-                    AND (r2.received_date < r.received_date 
-                         OR (r2.received_date = r.received_date AND r2.id < r.id))
-                   ) as receive_number
+                   r.receive_name
             FROM receiving r
             LEFT JOIN purchase_orders po ON r.po_id = po.id
             WHERE r.received_date IS NOT NULL
@@ -5968,8 +5975,18 @@ def get_receives_list():
         receives_list = []
         for r in receives:
             receive_dict = dict(r)
-            # Create receive name like "PO-00164-1"
-            receive_dict['receive_name'] = f"{receive_dict['po_number']}-{receive_dict['receive_number']}"
+            # Use stored receive_name, or build it if missing (for legacy records)
+            if not receive_dict.get('receive_name') and receive_dict.get('po_number'):
+                # Calculate receive_number for legacy records
+                receive_number_result = conn.execute('''
+                    SELECT COUNT(*) + 1 as receive_number
+                    FROM receiving r2
+                    WHERE r2.po_id = r.po_id
+                    AND (r2.received_date < r.received_date 
+                         OR (r2.received_date = r.received_date AND r2.id < r.id))
+                ''', (receive_dict['po_id'],)).fetchone()
+                receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+                receive_dict['receive_name'] = f"{receive_dict['po_number']}-{receive_number}"
             receives_list.append(receive_dict)
         
         return jsonify({

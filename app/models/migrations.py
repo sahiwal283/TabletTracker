@@ -125,32 +125,8 @@ class MigrationRunner:
         # Add receive_name column
         self._add_column_if_not_exists('receiving', 'receive_name', 'TEXT')
         
-        # Backfill receive_name for existing records
-        # Format: PO-{po_number}-{receive_number}
-        # receive_number is sequential per PO (1, 2, 3, etc.)
-        if self._column_exists('receiving', 'receive_name'):
-            try:
-                # Update all receiving records with their receive_name
-                # Calculate receive_number for each record within its PO
-                self.c.execute('''
-                    UPDATE receiving
-                    SET receive_name = (
-                        SELECT po.po_number || '-' || (
-                            SELECT COUNT(*) + 1
-                            FROM receiving r2
-                            WHERE r2.po_id = receiving.po_id
-                            AND (r2.received_date < receiving.received_date 
-                                 OR (r2.received_date = receiving.received_date AND r2.id < receiving.id))
-                        )
-                        FROM purchase_orders po
-                        WHERE po.id = receiving.po_id
-                    )
-                    WHERE receive_name IS NULL 
-                    AND po_id IS NOT NULL
-                ''')
-            except Exception as e:
-                # If backfill fails, it's okay - the standalone script will handle it
-                pass
+        # Note: Backfilling is handled by the standalone backfill script
+        # This ensures proper sequential numbering per PO
     
     def _column_exists(self, table_name, column_name):
         """Check if a column exists in a table"""

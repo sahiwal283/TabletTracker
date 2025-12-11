@@ -196,7 +196,10 @@
                         Product
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Displays/Turns
+                        Displays
+                    </th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Turns
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Cards
@@ -250,10 +253,17 @@
                         {{ sub.product_name }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
-                        {{ sub.displays_made }}
+                        {% if sub.submission_type != 'machine' %}
+                            {{ sub.displays_made if sub.displays_made else '' }}
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
-                        {{ sub.packs_remaining }}
+                        {% if sub.submission_type == 'machine' %}
+                            {{ sub.displays_made if sub.displays_made else '' }}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.packs_remaining if sub.packs_remaining else '' }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
                         {{ sub.individual_calc }}

@@ -989,13 +989,7 @@ class ProductionReportGenerator:
         try:
             # Get receive details
             receive = cursor.execute('''
-                SELECT r.*, po.po_number, po.id as po_id,
-                       (SELECT COUNT(*) + 1
-                        FROM receiving r2
-                        WHERE r2.po_id = r.po_id
-                        AND (r2.received_date < r.received_date 
-                             OR (r2.received_date = r.received_date AND r2.id < r.id))
-                       ) as receive_number
+                SELECT r.*, po.po_number, po.id as po_id, r.receive_name
                 FROM receiving r
                 LEFT JOIN purchase_orders po ON r.po_id = po.id
                 WHERE r.id = ?
@@ -1004,7 +998,22 @@ class ProductionReportGenerator:
             if not receive:
                 raise ValueError(f'Receive with ID {receive_id} not found')
             
-            receive_name = f"{receive['po_number']}-{receive['receive_number']}"
+            # Use stored receive_name, or build it if missing (for legacy records)
+            if receive.get('receive_name'):
+                receive_name = receive['receive_name']
+            elif receive.get('po_number'):
+                # Calculate receive_number for legacy records
+                receive_number_result = cursor.execute('''
+                    SELECT COUNT(*) + 1 as receive_number
+                    FROM receiving r2
+                    WHERE r2.po_id = ?
+                    AND (r2.received_date < ? 
+                         OR (r2.received_date = ? AND r2.id < ?))
+                ''', (receive['po_id'], receive['received_date'], receive['received_date'], receive['id'])).fetchone()
+                receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+                receive_name = f"{receive['po_number']}-{receive_number}"
+            else:
+                receive_name = f"Receive-{receive_id}"
             
             # Get all bags with their submission counts
             bags_data = cursor.execute('''
