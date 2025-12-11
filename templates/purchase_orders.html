@@ -587,19 +587,11 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                                 <!-- Machine Count Display -->
                                 <div>
                                     <div class="text-xs text-gray-500">Turns</div>
-                                    <div class="font-medium text-blue-600">${Math.floor((sub.loose_tablets || 0) / (sub.tablets_per_package || 1))}</div>
+                                    <div class="font-medium text-blue-600">${sub.displays_made || 0}</div>
                                 </div>
                                 <div>
                                     <div class="text-xs text-gray-500">Cards Made</div>
-                                    <div class="font-medium text-blue-600">${Math.floor((sub.loose_tablets || 0) / (sub.tablets_per_package || 1))}</div>
-                                </div>
-                                <div>
-                                    <div class="text-xs text-gray-500">Loose Tablets</div>
-                                    <div class="font-medium text-blue-600">${sub.loose_tablets || 0}</div>
-                                </div>
-                                <div>
-                                    <div class="text-xs text-gray-500">Damaged Tablets</div>
-                                    <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
+                                    <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
                                 </div>
                             ` : `
                                 <!-- Packaged/Bag Count Display -->
