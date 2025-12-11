@@ -21,6 +21,7 @@ class MigrationRunner:
         self._migrate_bags()
         self._migrate_tablet_type_categories()
         self._migrate_receiving()
+        self._migrate_machine_counts()
     
     def _migrate_purchase_orders(self):
         """Migrate purchase_orders table"""
@@ -97,6 +98,9 @@ class MigrationRunner:
                 self.c.execute('UPDATE warehouse_submissions SET submission_type = "packaged" WHERE submission_type IS NULL')
             except:
                 pass
+        
+        # Add machine_id column for machine submissions
+        self._add_column_if_not_exists('warehouse_submissions', 'machine_id', 'INTEGER REFERENCES machines(id)')
     
     def _migrate_shipments(self):
         """Migrate shipments table"""
@@ -127,6 +131,11 @@ class MigrationRunner:
         
         # Note: Backfilling is handled by the standalone backfill script
         # This ensures proper sequential numbering per PO
+    
+    def _migrate_machine_counts(self):
+        """Migrate machine_counts table - add machine_id column"""
+        # Add machine_id column
+        self._add_column_if_not_exists('machine_counts', 'machine_id', 'INTEGER REFERENCES machines(id)')
     
     def _column_exists(self, table_name, column_name):
         """Check if a column exists in a table"""

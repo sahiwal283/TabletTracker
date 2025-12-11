@@ -29,6 +29,7 @@ class SchemaManager:
             self._create_small_boxes_table(c)
             self._create_bags_table(c)
             self._create_machine_counts_table(c)
+            self._create_machines_table(c)
             self._create_employees_table(c)
             self._create_app_settings_table(c)
             self._create_tablet_type_categories_table(c)
@@ -199,6 +200,30 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
+    
+    def _create_machines_table(self, c):
+        """Create machines table"""
+        c.execute('''CREATE TABLE IF NOT EXISTS machines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_name TEXT UNIQUE NOT NULL,
+            cards_per_turn INTEGER NOT NULL DEFAULT 1,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Initialize default machines if none exist
+        existing_machines = c.execute('SELECT COUNT(*) as count FROM machines').fetchone()
+        if existing_machines[0] == 0:
+            default_machines = [
+                ('Machine 1', 1),
+                ('Machine 2', 1)
+            ]
+            for machine_name, cards_per_turn in default_machines:
+                c.execute('''
+                    INSERT INTO machines (machine_name, cards_per_turn, is_active)
+                    VALUES (?, ?, TRUE)
+                ''', (machine_name, cards_per_turn))
     
     def _create_employees_table(self, c):
         """Create employees table"""
