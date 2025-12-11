@@ -4822,6 +4822,73 @@ def get_submission_details(submission_id):
             receive_name = f"{submission_dict.get('po_number')}-{submission_dict.get('shipment_number')}-{submission_dict.get('box_number', '')}-{submission_dict.get('bag_number', '')}"
         submission_dict['receive_name'] = receive_name
         
+        # Calculate bag running totals for this submission
+        # Get all submissions to the same bag up to and including this submission (chronological order)
+        if submission_dict.get('assigned_po_id') and submission_dict.get('product_name') and submission_dict.get('box_number') is not None and submission_dict.get('bag_number') is not None:
+            bag_identifier = f"{submission_dict.get('box_number')}/{submission_dict.get('bag_number')}"
+            bag_key = (submission_dict.get('assigned_po_id'), submission_dict.get('product_name'), bag_identifier)
+            
+            # Get all submissions to this bag up to and including this one, in chronological order
+            bag_submissions = conn.execute('''
+                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package
+                FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                WHERE ws.assigned_po_id = ?
+                AND ws.product_name = ?
+                AND ws.box_number = ?
+                AND ws.bag_number = ?
+                AND ws.created_at <= ?
+                ORDER BY ws.created_at ASC
+            ''', (submission_dict.get('assigned_po_id'),
+                  submission_dict.get('product_name'),
+                  submission_dict.get('box_number'),
+                  submission_dict.get('bag_number'),
+                  submission_dict.get('created_at'))).fetchall()
+            
+            # Calculate running totals
+            bag_running_total = 0
+            machine_running_total = 0
+            packaged_running_total = 0
+            total_running_total = 0
+            
+            for bag_sub in bag_submissions:
+                bag_sub_dict = dict(bag_sub)
+                bag_sub_type = bag_sub_dict.get('submission_type', 'packaged')
+                
+                # Calculate individual total for this submission
+                if bag_sub_type == 'machine':
+                    individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
+                    machine_running_total += individual_total
+                elif bag_sub_type == 'bag':
+                    # For bag count submissions, use loose_tablets (the actual count from form)
+                    individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
+                    bag_running_total += individual_total
+                else:  # 'packaged'
+                    packages_per_display = bag_sub_dict.get('packages_per_display', 0) or 0
+                    tablets_per_package = bag_sub_dict.get('tablets_per_package', 0) or 0
+                    displays_made = bag_sub_dict.get('displays_made', 0) or 0
+                    packs_remaining = bag_sub_dict.get('packs_remaining', 0) or 0
+                    loose_tablets = bag_sub_dict.get('loose_tablets', 0) or 0
+                    damaged_tablets = bag_sub_dict.get('damaged_tablets', 0) or 0
+                    individual_total = (
+                        (displays_made * packages_per_display * tablets_per_package) +
+                        (packs_remaining * tablets_per_package) +
+                        loose_tablets + damaged_tablets
+                    )
+                    packaged_running_total += individual_total
+                
+                total_running_total += individual_total
+            
+            submission_dict['bag_running_total'] = bag_running_total
+            submission_dict['machine_running_total'] = machine_running_total
+            submission_dict['packaged_running_total'] = packaged_running_total
+            submission_dict['running_total'] = total_running_total
+        else:
+            submission_dict['bag_running_total'] = 0
+            submission_dict['machine_running_total'] = 0
+            submission_dict['packaged_running_total'] = 0
+            submission_dict['running_total'] = 0
+        
         conn.close()
         
         return jsonify({

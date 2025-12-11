@@ -1062,6 +1062,14 @@ async function viewSubmissionDetails(submissionId) {
                                         <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
                                         <div class="mt-1 text-gray-900">${sub.bag_label_count || 'N/A'}</div>
                                     </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Bag Running Total</label>
+                                        <div class="mt-1 text-gray-900">${(sub.bag_running_total || 0).toLocaleString()}</div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Total Running Total</label>
+                                        <div class="mt-1 text-gray-900">${(sub.running_total || 0).toLocaleString()}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
