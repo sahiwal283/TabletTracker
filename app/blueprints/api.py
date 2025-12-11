@@ -1431,7 +1431,7 @@ def submit_count():
         
         conn.commit()
         
-        message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Count submitted successfully!'
+        message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Bag count submitted successfully!'
         
         return jsonify({
             'success': True,
