@@ -38,6 +38,8 @@ def submissions_list():
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
+                   r.id as receive_id,
+                   r.received_date,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -48,6 +50,8 @@ def submissions_list():
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             LEFT JOIN bags b ON ws.bag_id = b.id
+            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+            LEFT JOIN receiving r ON sb.receiving_id = r.id
             WHERE 1=1
         '''
         
@@ -125,6 +129,26 @@ def submissions_list():
                 sub_dict['count_status'] = 'over'
             
             sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+            
+            # Calculate receive name (po#-receive#-box#-bag#)
+            receive_name = None
+            if sub_dict.get('receive_id') and sub_dict.get('po_number'):
+                # Calculate receive number (which shipment # for this PO)
+                receive_number_result = conn.execute('''
+                    SELECT COUNT(*) + 1
+                    FROM receiving r2
+                    WHERE r2.po_id = ?
+                    AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                         OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                             AND r2.id < ?))
+                ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
+                      sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
+                
+                if receive_number_result:
+                    receive_number = receive_number_result[0]
+                    receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{sub_dict.get('box_number', '')}-{sub_dict.get('bag_number', '')}"
+            
+            sub_dict['receive_name'] = receive_name
             
             submissions_processed.append(sub_dict)
         

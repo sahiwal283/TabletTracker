@@ -42,3 +42,4 @@ def ensure_machine_count_columns():
     """Ensure machine count columns exist"""
     init_db()  # Migrations handle this
 
+

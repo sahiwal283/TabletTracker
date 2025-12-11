@@ -211,7 +211,7 @@
                         Bag Check
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        PO
+                        Receive
                     </th>
                 </tr>
             </thead>
@@ -295,9 +295,9 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base">
-                        {% if sub.po_number %}
+                        {% if sub.receive_name %}
                             <div class="flex items-center gap-2">
-                                <span class="font-medium text-blue-600">{{ sub.po_number }}</span>
+                                <span class="font-medium text-blue-600">{{ sub.receive_name }}</span>
                                 {% if sub.po_closed %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
                                         🔒 Closed
