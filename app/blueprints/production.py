@@ -515,14 +515,14 @@ def submit_machine_count():
                     'warning': error_message,
                     'submission_saved': True,
                     'needs_review': needs_review,
-                    'message': f'Machine count submitted: {total_tablets} tablets calculated ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
+                    'message': 'Machine count submitted successfully.'
                 })
             else:
                 return jsonify({
                     'success': True,
                     'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
                     'submission_saved': True,
-                    'message': f'Machine count submitted: {total_tablets} tablets calculated ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card)'
+                    'message': 'Machine count submitted successfully.'
                 })
         
         # Get PO lines for the matched PO to update counts
@@ -581,7 +581,7 @@ def submit_machine_count():
         
         return jsonify({
             'success': True, 
-            'message': f'Machine count submitted: {total_tablets} tablets ({machine_count_int} turns × {cards_per_turn} cards × {tablets_per_package} tablets/card). Applied to PO.'
+            'message': 'Machine count submitted successfully.'
         })
     except Exception as e:
         if conn:
