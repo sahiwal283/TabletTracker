@@ -157,8 +157,9 @@ def dashboard_view():
             bag_count = sub_dict.get('bag_label_count', 0) or 0
             running_total = bag_running_totals[bag_key]
             
-            # Determine status
-            if bag_count == 0:
+            # Determine status - check if bag_id is NULL, not just bag_label_count
+            # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
+            if not sub_dict.get('bag_id'):
                 sub_dict['count_status'] = 'no_bag'
             elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
                 sub_dict['count_status'] = 'match'

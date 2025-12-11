@@ -5462,9 +5462,12 @@ def get_po_submissions(po_id):
                 sub_dict['running_total'] = bag_running_totals[bag_key]
                 
                 # Determine count status (only for packaged/bag submissions)
-                bag_count = sub_dict.get('bag_label_count', 0) or 0
-                if bag_count == 0:
+                # Check if bag_id is NULL, not just bag_label_count
+                # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
+                if not sub_dict.get('bag_id'):
                     sub_dict['count_status'] = 'no_bag'
+                else:
+                    bag_count = sub_dict.get('bag_label_count', 0) or 0
                 elif abs(bag_running_totals[bag_key] - bag_count) <= 5:
                     sub_dict['count_status'] = 'match'
                 elif bag_running_totals[bag_key] < bag_count:
