@@ -92,19 +92,21 @@ def submissions_list():
             query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
         
-        query += ' ORDER BY ws.created_at DESC'
-        
-        submissions_raw = conn.execute(query, params).fetchall()
+        # Get submissions ordered by created_at ASC for running total calculation
+        query_asc = query.replace('ORDER BY ws.created_at DESC', 'ORDER BY ws.created_at ASC')
+        submissions_raw_asc = conn.execute(query_asc, params).fetchall()
         
         # Calculate running totals by bag PER PO (each PO has its own physical bags)
         # Separate running totals for each submission type
+        # Process in chronological order (oldest first) for correct running totals
         bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
         bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
         bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
         bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
-        submissions_processed = []
+        submissions_dict = {}  # Store by submission ID for later lookup
         
-        for sub in submissions_raw:
+        # First pass: Calculate running totals in chronological order (oldest first)
+        for sub in submissions_raw_asc:
             sub_dict = dict(sub)
             # Create bag identifier from box_number/bag_number
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
