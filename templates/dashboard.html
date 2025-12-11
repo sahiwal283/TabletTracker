@@ -2593,8 +2593,14 @@ if (typeof window.syncZohoPOs === 'undefined') {
 }
 
 // View receive details modal (matches receiving.html implementation)
-// Make sure function is globally accessible
-window.viewReceiveDetails = async function(receiveId, receiveName) {
+// Redirect to receiving page and open specific receive
+window.viewReceiveDetails = function(receiveId, receiveName) {
+    // Redirect to receiving page with receive ID in URL
+    window.location.href = `/receiving?open_receive=${receiveId}`;
+}
+
+// Keep the old modal function for backwards compatibility (if needed elsewhere)
+async function viewReceiveDetailsModal(receiveId, receiveName) {
     try {
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();

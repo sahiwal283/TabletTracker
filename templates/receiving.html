@@ -314,6 +314,29 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
 // Initialize with Box 1 and Bag 1
 document.addEventListener('DOMContentLoaded', function() {
     addBox();
+    
+    // Check if we should auto-open a specific receive from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const openReceiveId = urlParams.get('open_receive');
+    if (openReceiveId) {
+        // Get receive name from the page (find the receive card with this ID)
+        const receiveCard = document.querySelector(`[onclick*="viewReceiveDetails(${openReceiveId}"]`);
+        let receiveName = 'Receive Details';
+        if (receiveCard) {
+            // Try to extract the receive name from the card
+            const titleElement = receiveCard.querySelector('h3');
+            if (titleElement) {
+                receiveName = titleElement.textContent.trim();
+            }
+        }
+        // Open the receive details modal
+        setTimeout(() => {
+            viewReceiveDetails(parseInt(openReceiveId), receiveName);
+            // Clean up URL to remove the parameter
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+        }, 100);
+    }
 });
 
 function openAddReceivesModal() {
