@@ -529,7 +529,7 @@ def get_po_lines(po_id):
                     'po_number': parent_po_record['po_number']
                 }
         
-        # Calculate round numbers for each line item
+        # Calculate round numbers, received counts, and submission counts for each line item
         lines_with_rounds = []
         for line in lines:
             line_dict = dict(line)
@@ -552,6 +552,52 @@ def get_po_lines(po_id):
                         break
             
             line_dict['round_number'] = round_number
+            
+            # Get received count from bags (bag_label_count sum for this PO and inventory_item_id)
+            received_count = conn.execute('''
+                SELECT COALESCE(SUM(b.bag_label_count), 0) as total_received
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE r.po_id = ? AND tt.inventory_item_id = ?
+            ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
+            
+            line_dict['received_count'] = received_count['total_received'] if received_count else 0
+            
+            # Get machine count (from warehouse_submissions)
+            # Calculate total tablets: (displays_made * packages_per_display * tablets_per_package) + (packs_remaining * tablets_per_package) + loose_tablets
+            machine_count = conn.execute('''
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    COALESCE(ws.loose_tablets, 0)
+                ), 0) as total_machine
+                FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                WHERE ws.assigned_po_id = ? 
+                AND ws.inventory_item_id = ? 
+                AND ws.submission_type = 'machine'
+            ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
+            
+            line_dict['machine_count'] = machine_count['total_machine'] if machine_count else 0
+            
+            # Get packaged count (from packaged and bag count submissions)
+            packaged_count = conn.execute('''
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    COALESCE(ws.loose_tablets, 0)
+                ), 0) as total_packaged
+                FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                WHERE ws.assigned_po_id = ? 
+                AND ws.inventory_item_id = ? 
+                AND ws.submission_type IN ('packaged', 'bag')
+            ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
+            
+            line_dict['packaged_count'] = packaged_count['total_packaged'] if packaged_count else 0
+            
             lines_with_rounds.append(line_dict)
         
         result = {
@@ -5230,12 +5276,31 @@ def get_po_receives(po_id):
             LEFT JOIN bags b ON sb.id = b.small_box_id
             WHERE r.po_id = ?
             GROUP BY r.id
-            ORDER BY r.received_date DESC
+            ORDER BY r.received_date ASC, r.id ASC
         ''', (po_id,)).fetchall()
+        
+        # Calculate shipment numbers for each receive (numbered sequentially by received_date, matching receiving page)
+        po_shipment_counts = {}
+        po_shipments = conn.execute('''
+            SELECT id, received_date
+            FROM receiving
+            WHERE po_id = ?
+            ORDER BY received_date ASC, id ASC
+        ''', (po_id,)).fetchall()
+        po_shipment_counts = {
+            shipment['id']: idx + 1 
+            for idx, shipment in enumerate(po_shipments)
+        }
         
         # For each receiving record, get its boxes and bags
         receives = []
         for rec in receiving_records:
+            # Add shipment number (matching receiving page logic)
+            rec_dict = dict(rec)
+            if rec['id'] in po_shipment_counts:
+                rec_dict['shipment_number'] = po_shipment_counts[rec['id']]
+            else:
+                rec_dict['shipment_number'] = None
             boxes = conn.execute('''
                 SELECT sb.*, COUNT(b.id) as bag_count
                 FROM small_boxes sb
