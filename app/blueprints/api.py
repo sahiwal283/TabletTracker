@@ -5403,7 +5403,7 @@ def get_po_receives(po_id):
             ORDER BY received_date ASC, id ASC
         ''', (po_id,)).fetchall()
         po_shipment_counts = {
-            shipment['id']: idx + 1 
+            dict(shipment)['id']: idx + 1 
             for idx, shipment in enumerate(po_shipments)
         }
         
@@ -5412,8 +5412,9 @@ def get_po_receives(po_id):
         for rec in receiving_records:
             # Add shipment number (matching receiving page logic)
             rec_dict = dict(rec)
-            if rec['id'] in po_shipment_counts:
-                rec_dict['shipment_number'] = po_shipment_counts[rec['id']]
+            rec_id = rec_dict['id']
+            if rec_id in po_shipment_counts:
+                rec_dict['shipment_number'] = po_shipment_counts[rec_id]
             else:
                 rec_dict['shipment_number'] = None
             boxes = conn.execute('''
@@ -5423,25 +5424,26 @@ def get_po_receives(po_id):
                 WHERE sb.receiving_id = ?
                 GROUP BY sb.id
                 ORDER BY sb.box_number
-            ''', (rec['id'],)).fetchall()
+            ''', (rec_id,)).fetchall()
             
             # Get bags for each box with tablet type info
             boxes_with_bags = []
             for box in boxes:
+                box_dict = dict(box)
                 bags = conn.execute('''
                     SELECT b.*, tt.tablet_type_name
                     FROM bags b
                     LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
                     WHERE b.small_box_id = ?
                     ORDER BY b.bag_number
-                ''', (box['id'],)).fetchall()
+                ''', (box_dict['id'],)).fetchall()
                 boxes_with_bags.append({
-                    'box': dict(box),
+                    'box': box_dict,
                     'bags': [dict(bag) for bag in bags]
                 })
             
             receives.append({
-                'receiving': dict(rec),
+                'receiving': rec_dict,
                 'boxes': boxes_with_bags
             })
         
@@ -5478,7 +5480,7 @@ def get_po_submissions(po_id):
         conn = get_db()
         
         # Get PO details including machine counts
-        po = conn.execute('''
+        po_row = conn.execute('''
             SELECT po_number, tablet_type, ordered_quantity, 
                    current_good_count, current_damaged_count, remaining_quantity,
                    machine_good_count, machine_damaged_count,
@@ -5487,8 +5489,10 @@ def get_po_submissions(po_id):
             WHERE id = ?
         ''', (po_id,)).fetchone()
         
-        if not po:
+        if not po_row:
             return jsonify({'error': 'PO not found'}), 404
+        
+        po = dict(po_row)
         
         # Check if submission_date and submission_type columns exist
         has_submission_date = False
@@ -5510,24 +5514,28 @@ def get_po_submissions(po_id):
         # 1. If this is a parent PO, also include submissions from related OVERS POs
         # 2. If this is an OVERS PO, also include submissions from the parent PO
         po_ids_to_query = [po_id]
-        po_number = po['po_number']
+        po_number = po.get('po_number')
         
         # Check if this is a parent PO - find related OVERS POs
         overs_pos = conn.execute('''
             SELECT id FROM purchase_orders 
             WHERE parent_po_number = ?
         ''', (po_number,)).fetchall()
-        for overs_po in overs_pos:
-            po_ids_to_query.append(overs_po['id'])
+        for overs_po_row in overs_pos:
+            overs_po = dict(overs_po_row)
+            po_ids_to_query.append(overs_po.get('id'))
         
         # Check if this is an OVERS PO - find parent PO
-        if po['parent_po_number']:
-            parent_po = conn.execute('''
+        if po.get('parent_po_number'):
+            parent_po_row = conn.execute('''
                 SELECT id FROM purchase_orders 
                 WHERE po_number = ?
-            ''', (po['parent_po_number'],)).fetchone()
-            if parent_po and parent_po['id'] not in po_ids_to_query:
-                po_ids_to_query.append(parent_po['id'])
+            ''', (po.get('parent_po_number'),)).fetchone()
+            if parent_po_row:
+                parent_po = dict(parent_po_row)
+                parent_po_id = parent_po.get('id')
+                if parent_po_id and parent_po_id not in po_ids_to_query:
+                    po_ids_to_query.append(parent_po_id)
         
         # Build WHERE clause for multiple PO IDs
         po_ids_placeholders = ','.join(['?'] * len(po_ids_to_query))
