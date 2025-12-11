@@ -4913,6 +4913,9 @@ def edit_submission(submission_id):
             ''', (old_po_id, inventory_item_id)).fetchone()
             
             if po_line:
+                # Convert Row to dict for safe access
+                po_line = dict(po_line)
+                
                 # Calculate the difference and update
                 good_diff = new_good - old_good
                 damaged_diff = new_damaged - old_damaged
@@ -4932,6 +4935,9 @@ def edit_submission(submission_id):
                     FROM po_lines 
                     WHERE po_id = ?
                 ''', (old_po_id,)).fetchone()
+                
+                # Convert Row to dict for safe access
+                totals = dict(totals)
                 
                 remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
                 conn.execute('''

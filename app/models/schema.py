@@ -183,6 +183,7 @@ class SchemaManager:
             pill_count INTEGER,
             tablet_type_id INTEGER,
             status TEXT DEFAULT 'Available',
+            receive_name TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
         )''')
