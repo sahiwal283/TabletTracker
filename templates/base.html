@@ -1379,6 +1379,25 @@ function addTabletTypeSearch(selectElement) {
 // Global submission details modal functions (available on all pages)
 async function viewSubmissionDetails(submissionId) {
     try {
+        // Check if there's a parent modal (receive details or submissions modal)
+        const receiveModal = document.getElementById('receive-details-modal');
+        const submissionsModal = document.getElementById('submissions-modal');
+        const hasParentModal = !!(receiveModal || submissionsModal);
+        
+        // Store parent modal info for back button
+        let parentModalInfo = null;
+        if (receiveModal) {
+            // Extract receive info from the modal if possible
+            const receiveTitle = receiveModal.querySelector('h3')?.textContent || '';
+            const receiveIdMatch = receiveTitle.match(/Receive Details: (.+)/);
+            if (receiveIdMatch) {
+                parentModalInfo = { type: 'receive', name: receiveIdMatch[1] };
+            }
+        } else if (submissionsModal) {
+            const submissionsTitle = submissionsModal.querySelector('h3')?.textContent || '';
+            parentModalInfo = { type: 'submissions', name: submissionsTitle };
+        }
+        
         const response = await fetch(`/api/submission/${submissionId}/details`);
         const data = await response.json();
         
@@ -1407,6 +1426,15 @@ async function viewSubmissionDetails(submissionId) {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
         }
         
+        // Build back button HTML if there's a parent modal
+        const backButtonHTML = hasParentModal ? `
+            <button onclick="goBackToParentModal()" 
+                    class="text-white hover:text-gray-200 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 mr-2"
+                    title="Back to ${parentModalInfo?.name || 'previous view'}">
+                ← Back
+            </button>
+        ` : '';
+        
         // Build modal HTML
         let modalHTML = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeSubmissionDetailsModal(event)">
@@ -1414,9 +1442,12 @@ async function viewSubmissionDetails(submissionId) {
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 sticky top-0 z-10">
                         <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="text-xl font-bold">📋 Submission Details</h3>
-                                <p class="text-sm text-indigo-100 mt-1">ID: ${sub.id}</p>
+                            <div class="flex items-center gap-2">
+                                ${backButtonHTML}
+                                <div>
+                                    <h3 class="text-xl font-bold">📋 Submission Details</h3>
+                                    <p class="text-sm text-indigo-100 mt-1">ID: ${sub.id}</p>
+                                </div>
                             </div>
                             <button onclick="closeSubmissionDetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
                                 ✕
@@ -1656,6 +1687,11 @@ async function viewSubmissionDetails(submissionId) {
             </div>
         `;
         
+        // Store parent modal info in window for back button
+        if (hasParentModal) {
+            window.submissionDetailsParentModal = parentModalInfo;
+        }
+        
         // Insert modal into page
         const modalContainer = document.createElement('div');
         modalContainer.id = 'submission-details-modal-container';
@@ -1668,6 +1704,26 @@ async function viewSubmissionDetails(submissionId) {
     }
 }
 
+function goBackToParentModal() {
+    // Close submission details modal
+    closeSubmissionDetailsModal();
+    
+    // Check if we need to restore a parent modal
+    const parentInfo = window.submissionDetailsParentModal;
+    if (parentInfo && parentInfo.type === 'receive') {
+        // Try to restore receive details modal
+        // The receive modal should still be in the DOM, just hidden behind the submission modal
+        // Since we're closing the submission modal, the receive modal should be visible again
+        // But if it was removed, we'd need to reload it - for now, just close submission modal
+    } else if (parentInfo && parentInfo.type === 'submissions') {
+        // Try to restore submissions modal
+        // Same as above - it should be visible once submission modal closes
+    }
+    
+    // Clear parent modal info
+    window.submissionDetailsParentModal = null;
+}
+
 function closeSubmissionDetailsModal(event) {
     if (event) {
         event.stopPropagation();
@@ -1676,6 +1732,8 @@ function closeSubmissionDetailsModal(event) {
     if (container) {
         container.remove();
     }
+    // Clear parent modal info when closing
+    window.submissionDetailsParentModal = null;
 }
 
 // Global receive details modal functions (available on all pages)
