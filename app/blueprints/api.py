@@ -4836,6 +4836,9 @@ def edit_submission(submission_id):
         if not submission:
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
+        # Convert Row to dict for safe access
+        submission = dict(submission)
+        
         old_po_id = submission['assigned_po_id']
         inventory_item_id = submission['inventory_item_id']
         
