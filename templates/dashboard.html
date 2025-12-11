@@ -1249,7 +1249,7 @@ async function fetchReceives() {
         data.receives.forEach(receive => {
             const option = document.createElement('option');
             option.value = receive.id;
-            option.textContent = `${receive.receive_name} - ${receive.po_number}${receive.received_date ? ' (' + new Date(receive.received_date).toLocaleDateString() + ')' : ''}`;
+            option.textContent = `${receive.receive_name}${receive.received_date ? ' (' + new Date(receive.received_date).toLocaleDateString() + ')' : ''}`;
             receiveSelector.appendChild(option);
         });
         
