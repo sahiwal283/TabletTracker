@@ -5,10 +5,20 @@ load_dotenv()
 
 class Config:
     # Flask settings
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        ENV = os.environ.get('FLASK_ENV', 'development')
+        if ENV == 'production':
+            raise ValueError("SECRET_KEY environment variable must be set in production")
+        SECRET_KEY = 'dev-secret-change-in-production'  # Only allow in development
     
     # Admin authentication
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin'  # Change in production!
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+    if not ADMIN_PASSWORD:
+        ENV = os.environ.get('FLASK_ENV', 'development')
+        if ENV == 'production':
+            raise ValueError("ADMIN_PASSWORD environment variable must be set in production")
+        ADMIN_PASSWORD = 'admin'  # Only allow in development
     
     # Zoho API settings
     ZOHO_CLIENT_ID = os.environ.get('ZOHO_CLIENT_ID')

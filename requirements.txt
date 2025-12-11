@@ -6,3 +6,4 @@ reportlab==4.0.7
 weasyprint==60.2
 Flask-Babel==4.0.0
 alembic==1.13.1
+bcrypt==4.1.2

@@ -4,6 +4,7 @@ API routes - all /api/* endpoints
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, make_response, current_app
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from werkzeug.utils import secure_filename
 import json
 import traceback
 import csv
@@ -1243,7 +1244,6 @@ def admin_panel():
             ('cards_per_turn',)
         ).fetchone()
         cards_per_turn_value = int(cards_per_turn['setting_value']) if cards_per_turn else 1
-        conn.close()
         return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
     except Exception as e:
         if conn:
@@ -1253,12 +1253,13 @@ def admin_panel():
                 pass
         import traceback
         traceback.print_exc()
+        return render_template('admin_panel.html', cards_per_turn=1)
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return render_template('admin_panel.html', cards_per_turn=1)
 
 @bp.route('/admin/login', methods=['POST'])
 def admin_login():
@@ -1318,8 +1319,6 @@ def employee_login_post():
             WHERE username = ? AND is_active = TRUE
         ''', (username,)).fetchone()
         
-        conn.close()
-        
         if employee and verify_password(password, employee['password_hash']):
             session['employee_authenticated'] = True
             session['employee_id'] = employee['id']
@@ -1340,18 +1339,24 @@ def employee_login_post():
             else:
                 return jsonify({'success': False, 'error': 'Invalid username or password'})
     except Exception as e:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
         # Log error but don't expose details to user
         print(f"Login error: {str(e)}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
         if request.form:
             flash('An error occurred during login', 'error')
             return render_template('employee_login.html')
         else:
             return jsonify({'success': False, 'error': 'An error occurred during login'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @bp.route('/logout')
 def logout():
@@ -1808,22 +1813,26 @@ def delete_product(product_id):
         # Get product name first
         product = conn.execute('SELECT product_name FROM product_details WHERE id = ?', (product_id,)).fetchone()
         if not product:
-            conn.close()
             return jsonify({'success': False, 'error': 'Product not found'}), 404
         
         conn.execute('DELETE FROM product_details WHERE id = ?', (product_id,))
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': f"Deleted {product['product_name']}"})
         
     except Exception as e:
         if conn:
             try:
-                conn.close()
+                conn.rollback()
             except:
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -1925,7 +1934,6 @@ def update_tablet_inventory_ids():
                 print(f"No matching line found for: {tablet_type['tablet_type_name']}")
         
         conn.commit()
-        conn.close()
         
         return jsonify({
             'success': True, 
@@ -1934,10 +1942,16 @@ def update_tablet_inventory_ids():
     except Exception as e:
         if conn:
             try:
-                conn.close()
+                conn.rollback()
             except:
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -2036,16 +2050,21 @@ def update_tablet_type_category():
         ''', (category, tablet_type_id))
         
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': 'Category updated successfully'})
     except Exception as e:
         if conn:
             try:
-                conn.close()
+                conn.rollback()
             except:
                 pass
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -2104,15 +2123,20 @@ def get_categories():
         # Sort by preferred order (categories not in preferred_order go at the end alphabetically)
         all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
         
-        conn.close()
         return jsonify({'success': True, 'categories': all_categories})
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
@@ -3451,20 +3475,55 @@ def process_receiving():
         if not shipment:
             return jsonify({'error': 'Shipment not found'}), 404
         
-        # Handle photo upload
+        # Handle photo upload with validation
         delivery_photo = request.files.get('delivery_photo')
         photo_path = None
         zoho_photo_id = None
         
+        # File upload validation constants
+        ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        
+        def allowed_file(filename):
+            return '.' in filename and \
+                   filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        
         if delivery_photo and delivery_photo.filename:
+            # Validate file extension
+            if not allowed_file(delivery_photo.filename):
+                return jsonify({'error': 'Invalid file type. Only JPG, JPEG, PNG, and GIF are allowed.'}), 400
+            
+            # Check file size
+            delivery_photo.seek(0, os.SEEK_END)
+            file_size = delivery_photo.tell()
+            delivery_photo.seek(0)
+            if file_size > MAX_FILE_SIZE:
+                return jsonify({'error': f'File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f}MB'}), 400
+            
+            # Validate shipment_id is a valid integer
+            try:
+                shipment_id_int = int(shipment_id)
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid shipment_id'}), 400
+            
+            # Sanitize filename
+            safe_filename = secure_filename(delivery_photo.filename)
+            original_ext = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else 'jpg'
+            
             # Save photo locally
             # Create uploads directory if it doesn't exist (using absolute path)
             upload_dir = os.path.join(current_app.root_path, '..', 'static', 'uploads', 'receiving')
             upload_dir = os.path.abspath(upload_dir)
+            
+            # Ensure upload directory is within allowed path (prevent path traversal)
+            allowed_base = os.path.abspath(os.path.join(current_app.root_path, '..', 'static', 'uploads'))
+            if not upload_dir.startswith(allowed_base):
+                return jsonify({'error': 'Invalid upload path'}), 400
+            
             os.makedirs(upload_dir, exist_ok=True)
             
-            # Generate unique filename
-            filename = f"shipment_{shipment_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            # Generate unique filename with validated shipment_id
+            filename = f"shipment_{shipment_id_int}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{original_ext}"
             photo_path = os.path.join(upload_dir, filename)
             delivery_photo.save(photo_path)
             

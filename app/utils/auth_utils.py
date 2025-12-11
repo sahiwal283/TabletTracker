@@ -3,7 +3,8 @@ Authentication and authorization utilities
 """
 from functools import wraps
 from flask import session, request, jsonify, redirect, url_for
-import hashlib
+import bcrypt
+import hmac
 
 
 # Role-based access control system
@@ -86,11 +87,19 @@ def has_permission(username, required_permission):
 
 
 def hash_password(password):
-    """Hash a password using SHA256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt with automatic salt"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(password, hash):
-    """Verify a password against its hash"""
-    return hashlib.sha256(password.encode()).hexdigest() == hash
+    """Verify a password against its hash using constant-time comparison"""
+    try:
+        # Try bcrypt verification first (new format)
+        return bcrypt.checkpw(password.encode('utf-8'), hash.encode('utf-8'))
+    except (ValueError, AttributeError):
+        # Fallback for old SHA256 hashes (for migration period)
+        # This allows existing passwords to work until users log in and passwords are rehashed
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        return hmac.compare_digest(password_hash, hash)
 

@@ -3,6 +3,7 @@ Authentication and login routes
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from datetime import datetime, timedelta
+import hmac
 from config import Config
 from app.utils.auth_utils import verify_password
 from app.utils.db_utils import db_query, get_db
@@ -36,9 +37,9 @@ def index():
             return render_template('unified_login.html')
         
         if login_type == 'admin':
-            # Admin login
+            # Admin login - use constant-time comparison to prevent timing attacks
             admin_password = Config.ADMIN_PASSWORD
-            if password == admin_password and username.lower() == 'admin':
+            if hmac.compare_digest(password, admin_password) and username.lower() == 'admin':
                 session['admin_authenticated'] = True
                 session['employee_role'] = 'admin'  # Set admin role for navigation
                 session['login_time'] = datetime.now().isoformat()
