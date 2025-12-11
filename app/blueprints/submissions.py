@@ -192,6 +192,32 @@ def submissions_list():
             
             sub_dict['receive_name'] = receive_name
             
+            # Store in dict by submission ID for lookup
+            submissions_dict[sub_dict.get('id')] = sub_dict
+        
+        # Second pass: Get submissions in display order (newest first) and apply pre-calculated running totals
+        query += ' ORDER BY ws.created_at DESC'
+        submissions_raw = conn.execute(query, params).fetchall()
+        submissions_processed = []
+        
+        for sub in submissions_raw:
+            sub_dict = dict(sub)
+            sub_id = sub_dict.get('id')
+            # Get the pre-calculated running totals from the first pass
+            if sub_id in submissions_dict:
+                pre_calculated = submissions_dict[sub_id]
+                sub_dict['bag_running_total'] = pre_calculated.get('bag_running_total', 0)
+                sub_dict['machine_running_total'] = pre_calculated.get('machine_running_total', 0)
+                sub_dict['packaged_running_total'] = pre_calculated.get('packaged_running_total', 0)
+                sub_dict['running_total'] = pre_calculated.get('running_total', 0)
+                sub_dict['count_status'] = pre_calculated.get('count_status', 'no_bag')
+                sub_dict['has_discrepancy'] = pre_calculated.get('has_discrepancy', 0)
+                sub_dict['receive_name'] = pre_calculated.get('receive_name')
+            
+            # Individual calculation for display
+            individual_calc = sub_dict.get('calculated_total', 0) or 0
+            sub_dict['individual_calc'] = individual_calc
+            
             submissions_processed.append(sub_dict)
         
         # Query already orders by DESC (newest first), so use as-is
