@@ -109,15 +109,25 @@ def dashboard_view():
         # Get tablet types for report filters
         tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
-        # Get recent submissions with calculated totals and running bag totals
+        # Get recent submissions (last 7 days, limit 10) with calculated totals
+        # Filter by date to show only actually recent submissions
+        from datetime import datetime, timedelta
+        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
         submissions_query = '''
-            SELECT ws.*, po.po_number, po.closed as po_closed,
+            SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    COALESCE(ws.needs_review, 0) as needs_review,
                    ws.admin_notes,
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
+                   b.bag_label_count as receive_bag_count,
+                   r.id as receive_id,
+                   r.received_date,
+                   r.receive_name as stored_receive_name,
+                   sb.box_number,
+                   b.bag_number,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -127,9 +137,13 @@ def dashboard_view():
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN bags b ON ws.bag_id = b.id
-            ORDER BY ws.created_at ASC
+            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+            LEFT JOIN receiving r ON sb.receiving_id = r.id
+            WHERE COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?
+            ORDER BY ws.created_at DESC
+            LIMIT 10
         '''
-        submissions_raw = conn.execute(submissions_query).fetchall()
+        submissions_raw = conn.execute(submissions_query, (seven_days_ago,)).fetchall()
         
         # Calculate running totals by bag PER PO (each PO has its own physical bags)
         # Separate running totals for each submission type
@@ -195,10 +209,36 @@ def dashboard_view():
             
             sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
             
+            # Build receive name using stored receive_name from database
+            receive_name = None
+            stored_receive_name = sub_dict.get('stored_receive_name')
+            box_number = sub_dict.get('box_number')
+            bag_number = sub_dict.get('bag_number')
+            
+            if stored_receive_name and box_number is not None and bag_number is not None:
+                # Use stored receive_name (e.g., "PO-00164-1") and append box-bag
+                receive_name = f"{stored_receive_name}-{box_number}-{bag_number}"
+            elif sub_dict.get('receive_id') and sub_dict.get('po_number'):
+                # Fallback for legacy records: calculate receive_number dynamically
+                receive_number_result = conn.execute('''
+                    SELECT COUNT(*) + 1 as receive_number
+                    FROM receiving r2
+                    WHERE r2.po_id = ?
+                    AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                         OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                             AND r2.id < ?))
+                ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
+                      sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
+                receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+                if box_number is not None and bag_number is not None:
+                    receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
+            
+            sub_dict['receive_name'] = receive_name
+            
             submissions_processed.append(sub_dict)
         
-        # Show only last 10 most recent submissions on dashboard
-        submissions = list(reversed(submissions_processed[-10:]))  # Last 10, newest first
+        # Submissions are already ordered DESC and limited to 10, newest first
+        submissions = submissions_processed
         
         # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
         stats = conn.execute('''
