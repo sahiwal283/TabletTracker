@@ -2984,12 +2984,10 @@ def generate_production_report():
         return response
         
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
+        import traceback
+        error_trace = traceback.format_exc()
         print(f"Report generation error: {str(e)}")
+        print(error_trace)
         return jsonify({
             'success': False,
             'error': f'Report generation failed: {str(e)}'
