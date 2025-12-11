@@ -116,6 +116,7 @@ def dashboard_view():
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    COALESCE(ws.needs_review, 0) as needs_review,
                    ws.admin_notes,
+                   COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -131,7 +132,11 @@ def dashboard_view():
         submissions_raw = conn.execute(submissions_query).fetchall()
         
         # Calculate running totals by bag PER PO (each PO has its own physical bags)
-        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+        # Separate running totals for each submission type
+        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
+        bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
+        bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
+        bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
         submissions_processed = []
         
         for sub in submissions_raw:
@@ -143,14 +148,34 @@ def dashboard_view():
             
             # Individual calculation for this submission
             individual_calc = sub_dict.get('calculated_total', 0) or 0
+            submission_type = sub_dict.get('submission_type', 'packaged')
             
-            # Update running total for this bag
+            # Initialize running totals for this bag if not exists
             if bag_key not in bag_running_totals:
                 bag_running_totals[bag_key] = 0
+            if bag_key not in bag_running_totals_bag:
+                bag_running_totals_bag[bag_key] = 0
+            if bag_key not in bag_running_totals_machine:
+                bag_running_totals_machine[bag_key] = 0
+            if bag_key not in bag_running_totals_packaged:
+                bag_running_totals_packaged[bag_key] = 0
+            
+            # Update appropriate running total based on submission type
+            if submission_type == 'bag':
+                bag_running_totals_bag[bag_key] += individual_calc
+            elif submission_type == 'machine':
+                bag_running_totals_machine[bag_key] += individual_calc
+            else:  # 'packaged'
+                bag_running_totals_packaged[bag_key] += individual_calc
+            
+            # Update total running total (all types combined)
             bag_running_totals[bag_key] += individual_calc
             
             # Add running total and comparison fields
             sub_dict['individual_calc'] = individual_calc
+            sub_dict['bag_running_total'] = bag_running_totals_bag[bag_key]
+            sub_dict['machine_running_total'] = bag_running_totals_machine[bag_key]
+            sub_dict['packaged_running_total'] = bag_running_totals_packaged[bag_key]
             sub_dict['running_total'] = bag_running_totals[bag_key]
             
             # Compare running total to bag label count

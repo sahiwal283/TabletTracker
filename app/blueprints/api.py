@@ -4720,7 +4720,7 @@ def get_submission_details(submission_id):
         conn = get_db()
         
         submission = conn.execute('''
-            SELECT ws.*, po.po_number, po.closed as po_closed,
+            SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    pd.packages_per_display, pd.tablets_per_package
             FROM warehouse_submissions ws
@@ -6106,6 +6106,7 @@ def get_possible_receives(submission_id):
                    b.bag_label_count,
                    r.id as receive_id,
                    r.received_date,
+                   r.receive_name as stored_receive_name,
                    po.po_number,
                    po.id as po_id,
                    tt.tablet_type_name
@@ -6122,23 +6123,29 @@ def get_possible_receives(submission_id):
         
         print(f"   Found {len(matching_bags)} matching bags")
         
-        # Calculate receive_number for each
+        # Build receive_name using stored receive_name from database
         receives = []
         for bag in matching_bags:
-            # Calculate which receive # this is for the PO
-            receive_number = conn.execute('''
-                SELECT COUNT(*) + 1
-                FROM receiving r2
-                WHERE r2.po_id = ?
-                AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
-                     OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
-                         AND r2.id < ?))
-            ''', (bag['po_id'], bag['receive_id'], bag['receive_id'], bag['receive_id'])).fetchone()[0]
+            # Use stored receive_name and append box-bag
+            stored_receive_name = bag.get('stored_receive_name')
+            if stored_receive_name and bag['box_number'] is not None and bag['bag_number'] is not None:
+                receive_name = f"{stored_receive_name}-{bag['box_number']}-{bag['bag_number']}"
+            else:
+                # Fallback for legacy records: calculate receive_number dynamically
+                receive_number = conn.execute('''
+                    SELECT COUNT(*) + 1
+                    FROM receiving r2
+                    WHERE r2.po_id = ?
+                    AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                         OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                             AND r2.id < ?))
+                ''', (bag['po_id'], bag['receive_id'], bag['receive_id'], bag['receive_id'])).fetchone()[0]
+                receive_name = f"{bag['po_number']}-{receive_number}-{bag['box_number']}-{bag['bag_number']}"
             
             receives.append({
                 'bag_id': bag['bag_id'],
                 'receive_id': bag['receive_id'],
-                'receive_name': f"{bag['po_number']}-{receive_number}-{bag['box_number']}-{bag['bag_number']}",
+                'receive_name': receive_name,
                 'po_number': bag['po_number'],
                 'received_date': bag['received_date'],
                 'box_number': bag['box_number'],

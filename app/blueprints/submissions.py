@@ -28,9 +28,9 @@ def submissions_list():
         filter_submission_type = request.args.get('submission_type', type=str)
         
         # Build query with optional filters
-        # Get receive number (shipment_number) same way receiving page calculates it
+        # Use stored receive_name from receiving table
         query = '''
-            SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter,
+            SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
                    tt.inventory_item_id, tt.id as tablet_type_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
@@ -43,13 +43,9 @@ def submissions_list():
                    ws.bag_id,
                    r.id as receive_id,
                    r.received_date,
-                   (
-                       SELECT COUNT(*) + 1
-                       FROM receiving r2
-                       WHERE r2.po_id = r.po_id
-                       AND (r2.received_date < r.received_date 
-                            OR (r2.received_date = r.received_date AND r2.id < r.id))
-                   ) as shipment_number,
+                   r.receive_name as stored_receive_name,
+                   sb.box_number,
+                   b.bag_number,
                    (
                        (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                        (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -101,7 +97,11 @@ def submissions_list():
         submissions_raw = conn.execute(query, params).fetchall()
         
         # Calculate running totals by bag PER PO (each PO has its own physical bags)
-        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total
+        # Separate running totals for each submission type
+        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
+        bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
+        bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
+        bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
         submissions_processed = []
         
         for sub in submissions_raw:
@@ -113,14 +113,34 @@ def submissions_list():
             
             # Individual calculation for this submission
             individual_calc = sub_dict.get('calculated_total', 0) or 0
+            submission_type = sub_dict.get('submission_type', 'packaged')
             
-            # Update running total for this bag
+            # Initialize running totals for this bag if not exists
             if bag_key not in bag_running_totals:
                 bag_running_totals[bag_key] = 0
+            if bag_key not in bag_running_totals_bag:
+                bag_running_totals_bag[bag_key] = 0
+            if bag_key not in bag_running_totals_machine:
+                bag_running_totals_machine[bag_key] = 0
+            if bag_key not in bag_running_totals_packaged:
+                bag_running_totals_packaged[bag_key] = 0
+            
+            # Update appropriate running total based on submission type
+            if submission_type == 'bag':
+                bag_running_totals_bag[bag_key] += individual_calc
+            elif submission_type == 'machine':
+                bag_running_totals_machine[bag_key] += individual_calc
+            else:  # 'packaged'
+                bag_running_totals_packaged[bag_key] += individual_calc
+            
+            # Update total running total (all types combined)
             bag_running_totals[bag_key] += individual_calc
             
             # Add running total and comparison fields
             sub_dict['individual_calc'] = individual_calc
+            sub_dict['bag_running_total'] = bag_running_totals_bag[bag_key]
+            sub_dict['machine_running_total'] = bag_running_totals_machine[bag_key]
+            sub_dict['packaged_running_total'] = bag_running_totals_packaged[bag_key]
             sub_dict['running_total'] = bag_running_totals[bag_key]
             
             # Compare running total to bag label count
@@ -140,11 +160,31 @@ def submissions_list():
             
             sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
             
-            # Build receive name in format: PO-receive-box-bag (same as receiving page)
+            # Build receive name using stored receive_name from database
+            # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2)
             receive_name = None
-            if sub_dict.get('receive_id') and sub_dict.get('po_number') and sub_dict.get('shipment_number'):
-                # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2)
-                receive_name = f"{sub_dict.get('po_number')}-{sub_dict.get('shipment_number')}-{sub_dict.get('box_number', '')}-{sub_dict.get('bag_number', '')}"
+            stored_receive_name = sub_dict.get('stored_receive_name')
+            box_number = sub_dict.get('box_number')
+            bag_number = sub_dict.get('bag_number')
+            
+            if stored_receive_name and box_number is not None and bag_number is not None:
+                # Use stored receive_name (e.g., "PO-00164-1") and append box-bag
+                receive_name = f"{stored_receive_name}-{box_number}-{bag_number}"
+            elif sub_dict.get('receive_id') and sub_dict.get('po_number'):
+                # Fallback for legacy records: calculate receive_number dynamically
+                # This should only happen if receive_name wasn't backfilled
+                receive_number_result = conn.execute('''
+                    SELECT COUNT(*) + 1 as receive_number
+                    FROM receiving r2
+                    WHERE r2.po_id = ?
+                    AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                         OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                             AND r2.id < ?))
+                ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
+                      sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
+                receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+                if box_number is not None and bag_number is not None:
+                    receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
             
             sub_dict['receive_name'] = receive_name
             
