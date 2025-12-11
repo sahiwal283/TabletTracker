@@ -22,6 +22,7 @@ class MigrationRunner:
         self._migrate_tablet_type_categories()
         self._migrate_receiving()
         self._migrate_machine_counts()
+        self._migrate_machine_counts()
     
     def _migrate_purchase_orders(self):
         """Migrate purchase_orders table"""

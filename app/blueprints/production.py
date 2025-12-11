@@ -514,11 +514,11 @@ def submit_machine_count():
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              displays_made, packs_remaining, loose_tablets,
-             submission_date, submission_type, bag_id, assigned_po_id, needs_review)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?)
+             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
               machine_count_int, cards_made, total_tablets,
-              count_date, bag_id, assigned_po_id, needs_review))
+              count_date, bag_id, assigned_po_id, needs_review, machine_id))
         
         # If no receive match, submission is saved but not assigned
         if not assigned_po_id:
