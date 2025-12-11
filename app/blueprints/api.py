@@ -4769,6 +4769,14 @@ def get_submission_details(submission_id):
         submission_dict = dict(submission)
         submission_type = submission_dict.get('submission_type', 'packaged')
         
+        # If bag_label_count is 0 or missing but bag_id exists, try to get it directly from bags table
+        if submission_dict.get('bag_id') and (not submission_dict.get('bag_label_count') or submission_dict.get('bag_label_count') == 0):
+            bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (submission_dict.get('bag_id'),)).fetchone()
+            if bag_row:
+                bag_dict = dict(bag_row)
+                if bag_dict.get('bag_label_count'):
+                    submission_dict['bag_label_count'] = bag_dict.get('bag_label_count')
+        
         # Get machine information for machine submissions
         machine_name = None
         cards_per_turn = None
