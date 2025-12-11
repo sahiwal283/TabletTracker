@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
             
             if (response.ok) {
-                showSuccess(result.message || 'Submission processed successfully!');
+                showSuccess(result.message || 'Packaged count submitted successfully!');
                 form.reset();
                 countSelection.classList.add('hidden');
             } else {

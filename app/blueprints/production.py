@@ -234,7 +234,7 @@ def submit_warehouse():
         else:
             return jsonify({
                 'success': True,
-                'message': 'Submission processed successfully',
+                'message': 'Packaged count submitted successfully',
                 'bag_id': bag_id,
                 'po_id': assigned_po_id,
                 'needs_review': needs_review
