@@ -6177,8 +6177,7 @@ def get_receives_list():
                    r.receive_name
             FROM receiving r
             LEFT JOIN purchase_orders po ON r.po_id = po.id
-            WHERE r.received_date IS NOT NULL
-            ORDER BY r.received_date DESC, r.id DESC
+            ORDER BY COALESCE(r.received_date, r.created_at) DESC, r.id DESC
             LIMIT 100
         ''').fetchall()
         

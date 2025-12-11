@@ -1236,28 +1236,55 @@ function handleReportTypeChange() {
 async function fetchReceives() {
     try {
         const response = await fetch('/api/receives/list');
+        
+        if (!response.ok) {
+            console.error('Error fetching receives: HTTP', response.status);
+            return;
+        }
+        
         const data = await response.json();
         
         if (!data.success) {
-            console.error('Error fetching receives:', data.error);
+            console.error('Error fetching receives:', data.error || 'Unknown error');
             return;
         }
         
         const receiveSelector = document.getElementById('receive_selector');
+        if (!receiveSelector) {
+            console.error('Receive selector not found');
+            return;
+        }
+        
         receiveSelector.innerHTML = '<option value="">Select a receive...</option>';
+        
+        if (!data.receives || data.receives.length === 0) {
+            console.log('No receives found');
+            return;
+        }
         
         data.receives.forEach(receive => {
             const option = document.createElement('option');
             option.value = receive.id;
-            option.textContent = `${receive.receive_name}${receive.received_date ? ' (' + new Date(receive.received_date).toLocaleDateString() + ')' : ''}`;
+            // Build receive name if not present
+            let receiveName = receive.receive_name;
+            if (!receiveName && receive.po_number) {
+                // Fallback: use PO number if receive_name is missing
+                receiveName = receive.po_number;
+            }
+            option.textContent = `${receiveName || 'Receive ' + receive.id}${receive.received_date ? ' (' + new Date(receive.received_date).toLocaleDateString() + ')' : ''}`;
             receiveSelector.appendChild(option);
         });
         
-        // Add change listener
-        receiveSelector.addEventListener('change', function() {
-            const generateBtn = document.getElementById('generate-report-btn');
-            generateBtn.disabled = !this.value;
-        });
+        // Add change listener (only if not already added)
+        if (!receiveSelector.hasAttribute('data-listener-added')) {
+            receiveSelector.addEventListener('change', function() {
+                const generateBtn = document.getElementById('generate-report-btn');
+                if (generateBtn) {
+                    generateBtn.disabled = !this.value;
+                }
+            });
+            receiveSelector.setAttribute('data-listener-added', 'true');
+        }
         
     } catch (error) {
         console.error('Error fetching receives:', error);
