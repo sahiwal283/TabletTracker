@@ -1033,41 +1033,57 @@ async function viewSubmissionDetails(submissionId) {
                         
                         <!-- Bag Information -->
                         <div class="mb-6">
-                            <h4 class="text-lg font-semibold text-gray-900 mb-4">Bag Information</h4>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag ID</label>
-                                    <div class="mt-1 text-gray-900">${sub.bag_id || 'Not assigned'}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
-                                    <div class="mt-1 text-gray-900">${sub.bag_label_count || 'N/A'}</div>
+                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.toggle-icon').classList.toggle('rotate-180');" 
+                                    class="w-full flex items-center justify-between text-left">
+                                <h4 class="text-lg font-semibold text-gray-900">Bag Information</h4>
+                                <svg class="toggle-icon w-5 h-5 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <div class="hidden mt-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Bag ID</label>
+                                        <div class="mt-1 text-gray-900">${sub.bag_id || 'Not assigned'}</div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
+                                        <div class="mt-1 text-gray-900">${sub.bag_label_count || 'N/A'}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- PO Assignment -->
                         <div class="mb-6">
-                            <h4 class="text-lg font-semibold text-gray-900 mb-4">Purchase Order Assignment</h4>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Assigned PO ID</label>
-                                    <div class="mt-1 text-gray-900">${sub.assigned_po_id || 'Not assigned'}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">PO Number</label>
-                                    <div class="mt-1 text-gray-900">${sub.po_number || 'N/A'}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">PO Closed</label>
-                                    <div class="mt-1">
-                                        ${sub.po_closed ? '<span class="text-red-600 font-medium">Yes</span>' : '<span class="text-green-600 font-medium">No</span>'}
+                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.toggle-icon').classList.toggle('rotate-180');" 
+                                    class="w-full flex items-center justify-between text-left">
+                                <h4 class="text-lg font-semibold text-gray-900">Purchase Order Assignment</h4>
+                                <svg class="toggle-icon w-5 h-5 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <div class="hidden mt-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Assigned PO ID</label>
+                                        <div class="mt-1 text-gray-900">${sub.assigned_po_id || 'Not assigned'}</div>
                                     </div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Needs Review</label>
-                                    <div class="mt-1">
-                                        ${sub.needs_review ? '<span class="text-orange-600 font-medium">Yes</span>' : '<span class="text-gray-600">No</span>'}
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">PO Number</label>
+                                        <div class="mt-1 text-gray-900">${sub.po_number || 'N/A'}</div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">PO Closed</label>
+                                        <div class="mt-1">
+                                            ${sub.po_closed ? '<span class="text-red-600 font-medium">Yes</span>' : '<span class="text-green-600 font-medium">No</span>'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Needs Review</label>
+                                        <div class="mt-1">
+                                            ${sub.needs_review ? '<span class="text-orange-600 font-medium">Yes</span>' : '<span class="text-gray-600">No</span>'}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
