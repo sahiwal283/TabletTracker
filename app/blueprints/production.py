@@ -450,11 +450,25 @@ def submit_machine_count():
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid machine count value'}), 400
         
+        # Get machine_id from form data
+        machine_id = data.get('machine_id')
+        if machine_id:
+            try:
+                machine_id = int(machine_id)
+            except (ValueError, TypeError):
+                machine_id = None
+        
         # Insert machine count record (for historical tracking)
-        conn.execute('''
-            INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
-            VALUES (?, ?, ?, ?)
-        ''', (tablet_type_id, machine_count_int, employee_name, count_date))
+        if machine_id:
+            conn.execute('''
+                INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (tablet_type_id, machine_id, machine_count_int, employee_name, count_date))
+        else:
+            conn.execute('''
+                INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
+                VALUES (?, ?, ?, ?)
+            ''', (tablet_type_id, machine_count_int, employee_name, count_date))
         
         # Get inventory_item_id and tablet_type_id
         inventory_item_id = tablet_type.get('inventory_item_id')

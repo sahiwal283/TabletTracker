@@ -4768,6 +4768,9 @@ def get_submission_details(submission_id):
             if tablet_type_row:
                 tablet_type = dict(tablet_type_row)
                 tablet_type_id = tablet_type.get('id')
+                
+                # Try to find machine_count record that matches this submission
+                submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
                 machine_count_record_row = conn.execute('''
                     SELECT mc.machine_id, m.machine_name, m.cards_per_turn
                     FROM machine_counts mc
@@ -4781,12 +4784,26 @@ def get_submission_details(submission_id):
                 ''', (tablet_type_id, 
                       submission_dict.get('displays_made'),
                       submission_dict.get('employee_name'),
-                      submission_dict.get('submission_date') or submission_dict.get('created_at'))).fetchone()
+                      submission_date)).fetchone()
                 
                 if machine_count_record_row:
                     machine_count_record = dict(machine_count_record_row)
+                    machine_id_from_record = machine_count_record.get('machine_id')
                     machine_name = machine_count_record.get('machine_name')
                     cards_per_turn = machine_count_record.get('cards_per_turn')
+                    
+                    # If machine_id exists but machine_name is NULL, try to get it from machines table
+                    if machine_id_from_record and not machine_name:
+                        machine_row = conn.execute('''
+                            SELECT machine_name, cards_per_turn
+                            FROM machines
+                            WHERE id = ?
+                        ''', (machine_id_from_record,)).fetchone()
+                        if machine_row:
+                            machine = dict(machine_row)
+                            machine_name = machine.get('machine_name')
+                            if not cards_per_turn:
+                                cards_per_turn = machine.get('cards_per_turn')
             
             # Fallback to app_settings if machine not found
             if not cards_per_turn:
