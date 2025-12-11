@@ -397,10 +397,14 @@ def export_submissions_csv():
             bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
             
             individual_calc = sub_dict.get('calculated_total', 0) or 0
+            submission_type = sub_dict.get('submission_type', 'packaged')
             
+            # Update total running total (only packaged counts - machine counts are consumed, not in bag)
+            # Bag counts are also separate inventory counts, not added to total
             if bag_key not in bag_running_totals:
                 bag_running_totals[bag_key] = 0
-            bag_running_totals[bag_key] += individual_calc
+            if submission_type == 'packaged':
+                bag_running_totals[bag_key] += individual_calc
             
             sub_dict['individual_calc'] = individual_calc
             sub_dict['running_total'] = bag_running_totals[bag_key]
