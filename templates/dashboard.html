@@ -355,9 +355,6 @@
                         Cards
                     </th>
                     <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Loose
-                    </th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Dmg
                     </th>
                     <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -417,9 +414,6 @@
                     </td>
                     <td class="px-2 py-2 text-xs text-gray-500 text-center">
                         {{ sub.packs_remaining }}
-                    </td>
-                    <td class="px-2 py-2 text-xs text-gray-500 text-center">
-                        {{ sub.loose_tablets }}
                     </td>
                     <td class="px-2 py-2 text-xs text-red-600 text-center">
                         {{ sub.damaged_tablets }}
@@ -1562,10 +1556,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         if (data.totals) {
             totals = data.totals;
         } else if (inventoryItemId && filteredSubmissions.length > 0) {
-            totals = {
+                totals = {
                 displays_made: 0,
                 packs_remaining: 0,
-                loose_tablets: 0,
                 damaged_tablets: 0,
                 total_tablets: 0
             };
@@ -1573,7 +1566,6 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             filteredSubmissions.forEach(sub => {
                 totals.displays_made += sub.displays_made || 0;
                 totals.packs_remaining += sub.packs_remaining || 0;
-                totals.loose_tablets += sub.loose_tablets || 0;
                 totals.damaged_tablets += sub.damaged_tablets || 0;
                 totals.total_tablets += sub.total_tablets || 0;
             });
@@ -1736,10 +1728,6 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                             <div>
                                 <div class="text-xs text-gray-500">Cards Remaining</div>
                                 <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-500">Loose Tablets</div>
-                                <div class="font-medium text-blue-600">${sub.loose_tablets || 0}</div>
                             </div>
                             <div>
                                 <div class="text-xs text-gray-500">Damaged Tablets</div>
