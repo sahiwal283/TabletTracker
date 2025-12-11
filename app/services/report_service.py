@@ -1062,7 +1062,7 @@ class ProductionReportGenerator:
             bags_data = [dict(bag) for bag in bags_data]
             
             # Create PDF
-            buffer = BytesIO()
+            buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
             elements = []
             
