@@ -135,6 +135,11 @@ class MigrationRunner:
     
     def _migrate_machine_counts(self):
         """Migrate machine_counts table - add machine_id column"""
+        # Add machine_id column to link machine counts to specific machines
+        self._add_column_if_not_exists('machine_counts', 'machine_id', 'INTEGER')
+    
+    def _migrate_machine_counts(self):
+        """Migrate machine_counts table - add machine_id column"""
         # Add machine_id column
         self._add_column_if_not_exists('machine_counts', 'machine_id', 'INTEGER REFERENCES machines(id)')
     
