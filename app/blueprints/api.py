@@ -4761,13 +4761,14 @@ def get_submission_details(submission_id):
         if submission_type == 'machine':
             # Try to find machine from machine_counts table by matching submission details
             # Match on tablet_type_id, machine_count (displays_made), employee_name, and count_date
-            tablet_type = conn.execute('''
+            tablet_type_row = conn.execute('''
                 SELECT id FROM tablet_types WHERE inventory_item_id = ?
             ''', (submission_dict.get('inventory_item_id'),)).fetchone()
             
-            if tablet_type:
-                tablet_type_id = tablet_type['id']
-                machine_count_record = conn.execute('''
+            if tablet_type_row:
+                tablet_type = dict(tablet_type_row)
+                tablet_type_id = tablet_type.get('id')
+                machine_count_record_row = conn.execute('''
                     SELECT mc.machine_id, m.machine_name, m.cards_per_turn
                     FROM machine_counts mc
                     LEFT JOIN machines m ON mc.machine_id = m.id
@@ -4782,17 +4783,22 @@ def get_submission_details(submission_id):
                       submission_dict.get('employee_name'),
                       submission_dict.get('submission_date') or submission_dict.get('created_at'))).fetchone()
                 
-                if machine_count_record:
+                if machine_count_record_row:
+                    machine_count_record = dict(machine_count_record_row)
                     machine_name = machine_count_record.get('machine_name')
                     cards_per_turn = machine_count_record.get('cards_per_turn')
             
             # Fallback to app_settings if machine not found
             if not cards_per_turn:
-                cards_per_turn_setting = conn.execute(
+                cards_per_turn_setting_row = conn.execute(
                     'SELECT setting_value FROM app_settings WHERE setting_key = ?',
                     ('cards_per_turn',)
                 ).fetchone()
-                cards_per_turn = int(cards_per_turn_setting['setting_value']) if cards_per_turn_setting else 1
+                if cards_per_turn_setting_row:
+                    cards_per_turn_setting = dict(cards_per_turn_setting_row)
+                    cards_per_turn = int(cards_per_turn_setting.get('setting_value', 1))
+                else:
+                    cards_per_turn = 1
             
             # For machine submissions: total is stored in loose_tablets
             submission_dict['individual_calc'] = submission_dict.get('loose_tablets', 0) or 0
