@@ -1089,6 +1089,10 @@ async function viewSubmissionDetails(submissionId) {
                                         <div class="mt-1 text-gray-900">${sub.po_number || 'N/A'}</div>
                                     </div>
                                     <div>
+                                        <label class="text-xs text-gray-500 uppercase">Zoho PO ID</label>
+                                        <div class="mt-1 text-gray-900">${sub.zoho_po_id || 'N/A'}</div>
+                                    </div>
+                                    <div>
                                         <label class="text-xs text-gray-500 uppercase">PO Closed</label>
                                         <div class="mt-1">
                                             ${sub.po_closed ? '<span class="text-red-600 font-medium">Yes</span>' : '<span class="text-green-600 font-medium">No</span>'}
