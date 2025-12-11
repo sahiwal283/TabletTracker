@@ -127,7 +127,9 @@ def submissions_list():
             
             # Update appropriate running total based on submission type
             if submission_type == 'bag':
-                bag_running_totals_bag[bag_key] += individual_calc
+                # For bag count submissions, use loose_tablets (the actual count from form)
+                bag_count_value = sub_dict.get('loose_tablets', 0) or 0
+                bag_running_totals_bag[bag_key] += bag_count_value
             elif submission_type == 'machine':
                 bag_running_totals_machine[bag_key] += individual_calc
             else:  # 'packaged'
