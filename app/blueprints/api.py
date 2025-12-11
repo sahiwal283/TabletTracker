@@ -4700,13 +4700,9 @@ def recalculate_po_counts():
 
 
 @bp.route('/api/submission/<int:submission_id>/details', methods=['GET'])
-@admin_required
+@role_required('dashboard')
 def get_submission_details(submission_id):
-    # Allow managers to view submission details (especially admin notes)
-    if not (session.get('admin_authenticated') or 
-            (session.get('employee_authenticated') and session.get('employee_role') in ['admin', 'manager'])):
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-    """Get full details of a submission for editing (Admin only)"""
+    """Get full details of a submission (viewable by all authenticated users)"""
     conn = None
     try:
         conn = get_db()
