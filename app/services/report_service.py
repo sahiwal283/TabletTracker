@@ -998,6 +998,9 @@ class ProductionReportGenerator:
             if not receive:
                 raise ValueError(f'Receive with ID {receive_id} not found')
             
+            # Convert sqlite3.Row to dict
+            receive = dict(receive)
+            
             # Use stored receive_name, or build it if missing (for legacy records)
             if receive.get('receive_name'):
                 receive_name = receive['receive_name']
@@ -1009,8 +1012,8 @@ class ProductionReportGenerator:
                     WHERE r2.po_id = ?
                     AND (r2.received_date < ? 
                          OR (r2.received_date = ? AND r2.id < ?))
-                ''', (receive['po_id'], receive['received_date'], receive['received_date'], receive['id'])).fetchone()
-                receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+                ''', (receive['po_id'], receive.get('received_date'), receive.get('received_date'), receive['id'])).fetchone()
+                receive_number = dict(receive_number_result)['receive_number'] if receive_number_result else 1
                 receive_name = f"{receive['po_number']}-{receive_number}"
             else:
                 receive_name = f"Receive-{receive_id}"
@@ -1055,6 +1058,9 @@ class ProductionReportGenerator:
                 ORDER BY sb.box_number, b.bag_number
             ''', (receive_id,)).fetchall()
             
+            # Convert all sqlite3.Row objects to dictionaries
+            bags_data = [dict(bag) for bag in bags_data]
+            
             # Create PDF
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
@@ -1074,10 +1080,10 @@ class ProductionReportGenerator:
             
             # Receive info
             info_data = [
-                ['PO Number:', receive['po_number']],
-                ['Received Date:', receive['received_date'] or 'N/A'],
-                ['Received By:', receive['received_by'] or 'N/A'],
-                ['Total Boxes:', str(len(set(bag['box_number'] for bag in bags_data)))],
+                ['PO Number:', receive.get('po_number', 'N/A')],
+                ['Received Date:', receive.get('received_date') or 'N/A'],
+                ['Received By:', receive.get('received_by') or 'N/A'],
+                ['Total Boxes:', str(len(set(bag.get('box_number') for bag in bags_data)))],
                 ['Total Bags:', str(len(bags_data))]
             ]
             
@@ -1098,18 +1104,18 @@ class ProductionReportGenerator:
             ]]
             
             for bag in bags_data:
-                received = bag['bag_label_count'] or 0
-                machine = bag['machine_count']
-                packaged = bag['packaged_count']
-                damaged = bag['damaged_count']
+                received = bag.get('bag_label_count', 0) or 0
+                machine = bag.get('machine_count', 0) or 0
+                packaged = bag.get('packaged_count', 0) or 0
+                damaged = bag.get('damaged_count', 0) or 0
                 total_counted = machine + packaged
                 remaining = received - total_counted
                 percent_complete = round((total_counted / received * 100) if received > 0 else 0, 1)
                 
                 table_data.append([
-                    str(bag['box_number']),
-                    str(bag['bag_number']),
-                    bag['tablet_type_name'],
+                    str(bag.get('box_number', '')),
+                    str(bag.get('bag_number', '')),
+                    bag.get('tablet_type_name', 'N/A'),
                     f"{received:,}",
                     f"{machine:,}",
                     f"{packaged:,}",
