@@ -4889,11 +4889,28 @@ def get_submission_details(submission_id):
             submission_dict['machine_running_total'] = machine_running_total
             submission_dict['packaged_running_total'] = packaged_running_total
             submission_dict['running_total'] = total_running_total
+            
+            # Calculate count status and tablet difference
+            bag_label_count = submission_dict.get('bag_label_count', 0) or 0
+            if not submission_dict.get('bag_id'):
+                submission_dict['count_status'] = 'no_bag'
+                submission_dict['tablet_difference'] = None
+            elif abs(total_running_total - bag_label_count) <= 5:  # Allow 5 tablet tolerance
+                submission_dict['count_status'] = 'match'
+                submission_dict['tablet_difference'] = abs(total_running_total - bag_label_count)
+            elif total_running_total < bag_label_count:
+                submission_dict['count_status'] = 'under'
+                submission_dict['tablet_difference'] = bag_label_count - total_running_total
+            else:
+                submission_dict['count_status'] = 'over'
+                submission_dict['tablet_difference'] = total_running_total - bag_label_count
         else:
             submission_dict['bag_running_total'] = 0
             submission_dict['machine_running_total'] = 0
             submission_dict['packaged_running_total'] = 0
             submission_dict['running_total'] = 0
+            submission_dict['count_status'] = 'no_bag'
+            submission_dict['tablet_difference'] = None
         
         conn.close()
         
