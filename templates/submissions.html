@@ -1062,14 +1062,40 @@ async function viewSubmissionDetails(submissionId) {
                                         <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
                                         <div class="mt-1 text-gray-900">${sub.bag_label_count || 'N/A'}</div>
                                     </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">Bag Running Total</label>
-                                        <div class="mt-1 text-gray-900">${(sub.bag_running_total || 0).toLocaleString()}</div>
+                                </div>
+                                
+                                <!-- Bag Check Running Totals -->
+                                <div class="mt-4 pt-4 border-t border-gray-200">
+                                    <h5 class="text-sm font-semibold text-gray-700 mb-3">Bag Check Running Totals</h5>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Bag</label>
+                                            <div class="mt-1 text-sm font-medium text-blue-600">${(sub.bag_running_total || 0).toLocaleString()}</div>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Machine</label>
+                                            <div class="mt-1 text-sm font-medium text-indigo-600">${(sub.machine_running_total || 0).toLocaleString()}</div>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Packaged</label>
+                                            <div class="mt-1 text-sm font-medium text-purple-600">${(sub.packaged_running_total || 0).toLocaleString()}</div>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Total</label>
+                                            <div class="mt-1 text-sm font-medium text-gray-900">${(sub.running_total || 0).toLocaleString()}</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">Total Running Total</label>
-                                        <div class="mt-1 text-gray-900">${(sub.running_total || 0).toLocaleString()}</div>
+                                    ${sub.count_status && sub.count_status !== 'no_bag' ? `
+                                    <div class="mt-3 pt-3 border-t border-gray-200">
+                                        ${sub.count_status === 'match' ? `
+                                            <span class="text-green-600 font-bold text-sm">✓ Match</span>
+                                        ` : sub.count_status === 'under' ? `
+                                            <span class="text-yellow-600 font-bold text-sm">⚠️ Under (${sub.tablet_difference || ''})</span>
+                                        ` : sub.count_status === 'over' ? `
+                                            <span class="text-red-600 font-bold text-sm">❌ Over (+${sub.tablet_difference || ''})</span>
+                                        ` : ''}
                                     </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         </div>
