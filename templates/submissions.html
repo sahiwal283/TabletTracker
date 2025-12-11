@@ -205,9 +205,6 @@
                         Cards
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Damaged
-                    </th>
-                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Total
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
@@ -263,9 +260,6 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.packs_remaining }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-base text-red-600">
-                        {{ sub.damaged_tablets }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
                         {{ sub.individual_calc }}
@@ -985,7 +979,7 @@ async function viewSubmissionDetails(submissionId) {
                         <!-- Counts -->
                         <div class="mb-6">
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Counts</h4>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 <div class="bg-blue-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Displays Made</label>
                                     <div class="mt-1 text-2xl font-bold text-blue-600">${sub.displays_made || 0}</div>
@@ -998,10 +992,6 @@ async function viewSubmissionDetails(submissionId) {
                                     <label class="text-xs text-gray-500 uppercase">Loose Tablets</label>
                                     <div class="mt-1 text-2xl font-bold text-yellow-600">${sub.loose_tablets || 0}</div>
                                     <div class="text-xs text-gray-400 mt-1">Legacy field</div>
-                                </div>
-                                <div class="bg-red-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Damaged Tablets</label>
-                                    <div class="mt-1 text-2xl font-bold text-red-600">${sub.damaged_tablets || 0}</div>
                                 </div>
                             </div>
                             <div class="mt-4 bg-gray-50 rounded-lg p-4">
