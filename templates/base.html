@@ -1581,7 +1581,7 @@ async function viewSubmissionDetails(submissionId) {
                                     </div>
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
-                                        <div class="mt-1 text-gray-900">${sub.bag_label_count || 'N/A'}</div>
+                                        <div class="mt-1 text-gray-900">${sub.bag_label_count != null ? sub.bag_label_count : 'N/A'}</div>
                                     </div>
                                 </div>
                                 
