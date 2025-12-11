@@ -1348,8 +1348,22 @@ async function generatePOReport() {
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+            // Try to parse as JSON, but handle HTML error pages
+            let errorMessage = `HTTP ${response.status}`;
+            try {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } else {
+                    // If it's HTML, try to extract error from response
+                    const text = await response.text();
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                }
+            } catch (parseError) {
+                errorMessage = `Failed to parse error response: ${response.status} ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
         }
         
         // Get the PDF blob
@@ -1449,8 +1463,22 @@ async function generateAllPOsReport() {
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+            // Try to parse as JSON, but handle HTML error pages
+            let errorMessage = `HTTP ${response.status}`;
+            try {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } else {
+                    // If it's HTML, try to extract error from response
+                    const text = await response.text();
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                }
+            } catch (parseError) {
+                errorMessage = `Failed to parse error response: ${response.status} ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
         }
         
         // Get the PDF blob
