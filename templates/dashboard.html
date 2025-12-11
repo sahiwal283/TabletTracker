@@ -1516,10 +1516,15 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         // Apply type filter if specified
         if (typeFilter === 'machine') {
             filteredSubmissions = filteredSubmissions.filter(sub => (sub.submission_type || 'packaged') === 'machine');
-        } else if (typeFilter === 'packaged_bag') {
+        } else if (typeFilter === 'packaged') {
             filteredSubmissions = filteredSubmissions.filter(sub => {
                 const subType = sub.submission_type || 'packaged';
-                return subType === 'packaged' || subType === 'bag';
+                return subType === 'packaged';
+            });
+        } else if (typeFilter === 'bag') {
+            filteredSubmissions = filteredSubmissions.filter(sub => {
+                const subType = sub.submission_type || 'packaged';
+                return subType === 'bag';
             });
         }
         // typeFilter === 'all' or null shows all submissions
@@ -1582,10 +1587,15 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                             <span class="text-xs text-blue-200">⚙️ Machine:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${data.totals.machine.toLocaleString()}</span>
                                         </button>
-                                        <button onclick="filterSubmissionsInModal('packaged_bag')" 
-                                                class="bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'packaged_bag' ? 'ring-2 ring-purple-300' : ''}">
-                                            <span class="text-xs text-purple-200">📦 Packaged+Bag:</span>
-                                            <span class="text-sm font-semibold text-white ml-1">${data.totals.packaged_bag.toLocaleString()}</span>
+                                        <button onclick="filterSubmissionsInModal('packaged')" 
+                                                class="bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'packaged' ? 'ring-2 ring-purple-300' : ''}">
+                                            <span class="text-xs text-purple-200">📦 Packaged:</span>
+                                            <span class="text-sm font-semibold text-white ml-1">${(data.totals.packaged || 0).toLocaleString()}</span>
+                                        </button>
+                                        <button onclick="filterSubmissionsInModal('bag')" 
+                                                class="bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'bag' ? 'ring-2 ring-green-300' : ''}">
+                                            <span class="text-xs text-green-200">📋 Bag:</span>
+                                            <span class="text-sm font-semibold text-white ml-1">${(data.totals.bag || 0).toLocaleString()}</span>
                                         </button>
                                         <button onclick="filterSubmissionsInModal('all')" 
                                                 class="bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${!typeFilter || typeFilter === 'all' ? 'ring-2 ring-green-300' : ''}">
@@ -1812,10 +1822,15 @@ function filterSubmissionsInModal(filterType) {
     // Apply type filter
     if (filterType === 'machine') {
         filtered = filtered.filter(sub => (sub.submission_type || 'packaged') === 'machine');
-    } else if (filterType === 'packaged_bag') {
+    } else if (filterType === 'packaged') {
         filtered = filtered.filter(sub => {
             const subType = sub.submission_type || 'packaged';
-            return subType === 'packaged' || subType === 'bag';
+            return subType === 'packaged';
+        });
+    } else if (filterType === 'bag') {
+        filtered = filtered.filter(sub => {
+            const subType = sub.submission_type || 'packaged';
+            return subType === 'bag';
         });
     }
     // 'all' shows all submissions (already filtered by bag if applicable)
@@ -1893,10 +1908,14 @@ function filterSubmissionsInModal(filterType) {
             btn.className = filterType === 'machine' 
                 ? 'bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-blue-300'
                 : 'bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'packaged_bag'")) {
-            btn.className = filterType === 'packaged_bag' 
+        } else if (onclick.includes("'packaged'")) {
+            btn.className = filterType === 'packaged' 
                 ? 'bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-purple-300'
                 : 'bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
+        } else if (onclick.includes("'bag'")) {
+            btn.className = filterType === 'bag' 
+                ? 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-green-300'
+                : 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
         } else if (onclick.includes("'all'")) {
             btn.className = filterType === 'all' || !filterType
                 ? 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-green-300'
@@ -3272,10 +3291,9 @@ async function viewSubmissionDetails(submissionId) {
                                     <label class="text-xs text-gray-500 uppercase">Cards Remaining</label>
                                     <div class="mt-1 text-2xl font-bold text-purple-600">${sub.packs_remaining || 0}</div>
                                 </div>
-                                <div class="bg-yellow-50 rounded-lg p-4">
+                                <div class="bg-blue-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Loose Tablets</label>
-                                    <div class="mt-1 text-2xl font-bold text-yellow-600">${sub.loose_tablets || 0}</div>
-                                    <div class="text-xs text-gray-400 mt-1">Legacy field</div>
+                                    <div class="mt-1 text-2xl font-bold text-blue-600">${sub.loose_tablets || 0}</div>
                                 </div>
                                 <div class="bg-red-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Damaged Tablets</label>
