@@ -208,7 +208,7 @@
                         Total
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Receive Info
+                        Bag Check
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Receive
@@ -273,19 +273,6 @@
                             <span class="text-gray-400 text-sm">No Bag Label</span>
                         {% else %}
                             <div class="flex flex-col gap-1">
-                                {% if sub.receive_name %}
-                                    <div class="text-sm font-semibold text-blue-700">
-                                        📦 {{ sub.receive_name }}
-                                    </div>
-                                {% endif %}
-                                {% if sub.received_date %}
-                                    <div class="text-xs text-gray-500">
-                                        📅 {{ (sub.received_date|to_est)[:10] if sub.received_date else 'N/A' }}
-                                    </div>
-                                {% endif %}
-                                <div class="text-sm text-gray-600 mt-1">
-                                    🏷️ Box {{ sub.box_number }}/Bag {{ sub.bag_number }}
-                                </div>
                                 <div class="text-sm font-medium">
                                     Bag: <span class="text-blue-600">{{ "{:,}".format(sub.bag_running_total if sub.bag_running_total else 0) }}</span>
                                 </div>
