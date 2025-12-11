@@ -1502,6 +1502,14 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
+        // Filter by bag if bagId, boxNumber, and bagNumber are provided (viewing specific bag in receive)
+        if (bagId !== null && boxNumber !== null && bagNumber !== null) {
+            filteredSubmissions = filteredSubmissions.filter(sub => 
+                sub.bag_id === bagId || 
+                (sub.bag_id === null && sub.box_number === boxNumber && sub.bag_number === bagNumber)
+            );
+        }
+        
         // Store original submissions for filtering
         const allSubmissions = [...filteredSubmissions];
         
