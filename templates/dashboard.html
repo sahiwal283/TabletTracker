@@ -1486,7 +1486,7 @@ async function generateAllPOsReport() {
 }
 
 // View submissions for a specific PO
-async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, bagId = null, boxNumber = null, bagNumber = null) {
+async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, bagId = null, boxNumber = null, bagNumber = null, typeFilter = null) {
     try {
         const response = await fetch(`/api/po/${poId}/submissions`);
         const data = await response.json();
