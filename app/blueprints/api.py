@@ -5468,12 +5468,12 @@ def get_po_submissions(po_id):
                     sub_dict['count_status'] = 'no_bag'
                 else:
                     bag_count = sub_dict.get('bag_label_count', 0) or 0
-                elif abs(bag_running_totals[bag_key] - bag_count) <= 5:
-                    sub_dict['count_status'] = 'match'
-                elif bag_running_totals[bag_key] < bag_count:
-                    sub_dict['count_status'] = 'under'
-                else:
-                    sub_dict['count_status'] = 'over'
+                    if abs(bag_running_totals[bag_key] - bag_count) <= 5:
+                        sub_dict['count_status'] = 'match'
+                    elif bag_running_totals[bag_key] < bag_count:
+                        sub_dict['count_status'] = 'under'
+                    else:
+                        sub_dict['count_status'] = 'over'
             else:
                 # Machine counts don't have bag running totals
                 sub_dict['running_total'] = total_tablets
