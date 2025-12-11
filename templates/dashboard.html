@@ -2543,10 +2543,8 @@ if (typeof window.syncZohoPOs === 'undefined') {
 
 // View receive details modal (matches receiving.html implementation)
 // Redirect to receiving page and open specific receive
-window.viewReceiveDetails = function(receiveId, receiveName) {
-    // Redirect to receiving page with receive ID in URL
-    window.location.href = `/receiving?open_receive=${receiveId}`;
-}
+// viewReceiveDetails is now defined in base.html as a global function
+// No need to override it here - it will open the modal directly
 
 // Keep the old modal function for backwards compatibility (if needed elsewhere)
 async function viewReceiveDetailsModal(receiveId, receiveName) {
