@@ -4710,13 +4710,7 @@ def get_submission_details(submission_id):
         submission = conn.execute('''
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
-                   pd.packages_per_display, pd.tablets_per_package,
-                   (
-                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
-                       COALESCE(ws.loose_tablets, 0) + COALESCE(ws.damaged_tablets, 0)
-                   ) as calculated_total,
-                   ws.damaged_tablets
+                   pd.packages_per_display, pd.tablets_per_package
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
@@ -4727,12 +4721,40 @@ def get_submission_details(submission_id):
             conn.close()
             return jsonify({'success': False, 'error': 'Submission not found'}), 404
         
+        # Get cards_per_turn setting for machine submissions
+        cards_per_turn_setting = conn.execute(
+            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+            ('cards_per_turn',)
+        ).fetchone()
+        cards_per_turn = int(cards_per_turn_setting['setting_value']) if cards_per_turn_setting else 1
+        
         conn.close()
         
         submission_dict = dict(submission)
-        # Use calculated_total as individual_calc for consistency
-        submission_dict['individual_calc'] = submission_dict.get('calculated_total', 0) or 0
-        submission_dict['total_tablets'] = submission_dict['individual_calc']
+        submission_type = submission_dict.get('submission_type', 'packaged')
+        
+        # Calculate total based on submission type
+        if submission_type == 'machine':
+            # For machine submissions: total is stored in loose_tablets
+            submission_dict['individual_calc'] = submission_dict.get('loose_tablets', 0) or 0
+            submission_dict['total_tablets'] = submission_dict['individual_calc']
+            submission_dict['cards_per_turn'] = cards_per_turn
+        else:
+            # For packaged/bag submissions: calculate from displays and packs
+            packages_per_display = submission_dict.get('packages_per_display', 0) or 0
+            tablets_per_package = submission_dict.get('tablets_per_package', 0) or 0
+            displays_made = submission_dict.get('displays_made', 0) or 0
+            packs_remaining = submission_dict.get('packs_remaining', 0) or 0
+            loose_tablets = submission_dict.get('loose_tablets', 0) or 0
+            damaged_tablets = submission_dict.get('damaged_tablets', 0) or 0
+            
+            calculated_total = (
+                (displays_made * packages_per_display * tablets_per_package) +
+                (packs_remaining * tablets_per_package) +
+                loose_tablets + damaged_tablets
+            )
+            submission_dict['individual_calc'] = calculated_total
+            submission_dict['total_tablets'] = calculated_total
         
         return jsonify({
             'success': True,

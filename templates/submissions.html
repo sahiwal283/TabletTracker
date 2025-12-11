@@ -979,6 +979,31 @@ async function viewSubmissionDetails(submissionId) {
                         <!-- Counts -->
                         <div class="mb-6">
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Counts</h4>
+                            ${sub.submission_type === 'machine' ? `
+                            <!-- Machine Submission -->
+                            <div class="mb-4 bg-blue-50 rounded-lg p-4">
+                                <label class="text-xs text-gray-500 uppercase">Cards Per Turn</label>
+                                <div class="mt-1 text-lg font-semibold text-blue-700">${sub.cards_per_turn || 'N/A'}</div>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div class="bg-blue-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Turns</label>
+                                    <div class="mt-1 text-2xl font-bold text-blue-600">${sub.displays_made || 0}</div>
+                                    <div class="text-xs text-gray-400 mt-1">Machine count</div>
+                                </div>
+                                <div class="bg-purple-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Cards Made</label>
+                                    <div class="mt-1 text-2xl font-bold text-purple-600">${sub.packs_remaining || 0}</div>
+                                    <div class="text-xs text-gray-400 mt-1">Turns × Cards Per Turn</div>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Total Tablets</label>
+                                    <div class="mt-1 text-2xl font-bold text-gray-900">${sub.loose_tablets || 0}</div>
+                                    <div class="text-xs text-gray-400 mt-1">Total counted</div>
+                                </div>
+                            </div>
+                            ` : `
+                            <!-- Packaged/Bag Submission -->
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div class="bg-blue-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Displays Made</label>
@@ -1003,6 +1028,7 @@ async function viewSubmissionDetails(submissionId) {
                                 <label class="text-xs text-gray-500 uppercase">Total Tablets</label>
                                 <div class="mt-1 text-3xl font-bold text-gray-900">${sub.individual_calc || sub.total_tablets || 0}</div>
                             </div>
+                            `}
                         </div>
                         
                         <!-- Bag Information -->
