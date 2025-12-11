@@ -4722,10 +4722,21 @@ def get_submission_details(submission_id):
         submission = conn.execute('''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
-                   pd.packages_per_display, pd.tablets_per_package
+                   pd.packages_per_display, pd.tablets_per_package,
+                   b.bag_label_count, r.id as receive_id, r.received_date,
+                   (
+                       SELECT COUNT(*) + 1
+                       FROM receiving r2
+                       WHERE r2.po_id = r.po_id
+                       AND (r2.received_date < r.received_date 
+                            OR (r2.received_date = r.received_date AND r2.id < r.id))
+                   ) as shipment_number
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN bags b ON ws.bag_id = b.id
+            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+            LEFT JOIN receiving r ON sb.receiving_id = r.id
             WHERE ws.id = ?
         ''', (submission_id,)).fetchone()
         
@@ -4797,6 +4808,12 @@ def get_submission_details(submission_id):
             )
             submission_dict['individual_calc'] = calculated_total
             submission_dict['total_tablets'] = calculated_total
+        
+        # Build receive name if we have the necessary information
+        receive_name = None
+        if submission_dict.get('receive_id') and submission_dict.get('po_number') and submission_dict.get('shipment_number'):
+            receive_name = f"{submission_dict.get('po_number')}-{submission_dict.get('shipment_number')}-{submission_dict.get('box_number', '')}-{submission_dict.get('bag_number', '')}"
+        submission_dict['receive_name'] = receive_name
         
         conn.close()
         

@@ -1046,17 +1046,25 @@ async function viewSubmissionDetails(submissionId) {
                             `}
                         </div>
                         
-                        <!-- Bag Information -->
+                        <!-- Receive Information -->
                         <div class="mb-6">
                             <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.toggle-icon').classList.toggle('rotate-180');" 
                                     class="w-full flex items-center justify-between text-left">
-                                <h4 class="text-lg font-semibold text-gray-900">Bag Information</h4>
+                                <h4 class="text-lg font-semibold text-gray-900">Receive Information</h4>
                                 <svg class="toggle-icon w-5 h-5 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </button>
                             <div class="hidden mt-4">
                                 <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Receive Name</label>
+                                        <div class="mt-1 text-gray-900">${sub.receive_name || 'N/A'}</div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Receive Date</label>
+                                        <div class="mt-1 text-gray-900">${sub.received_date ? new Date(sub.received_date + ' UTC').toLocaleDateString('en-US', {timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'}) : 'N/A'}</div>
+                                    </div>
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">Bag ID</label>
                                         <div class="mt-1 text-gray-900">${sub.bag_id || 'Not assigned'}</div>
