@@ -39,6 +39,8 @@ def submissions_list():
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
+                   b.bag_label_count as receive_bag_count,
+                   ws.bag_id,
                    r.id as receive_id,
                    r.received_date,
                    (
