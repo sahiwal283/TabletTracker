@@ -1034,7 +1034,7 @@ class ProductionReportGenerator:
                            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                            WHERE ws.bag_id = b.id AND ws.submission_type = 'machine'
                        ), 0) as machine_count,
-                       -- Packaged count
+                       -- Packaged count (only packaged, not bag counts)
                        COALESCE((
                            SELECT SUM(
                                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -1043,7 +1043,7 @@ class ProductionReportGenerator:
                            )
                            FROM warehouse_submissions ws
                            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                           WHERE ws.bag_id = b.id AND ws.submission_type IN ('packaged', 'bag')
+                           WHERE ws.bag_id = b.id AND ws.submission_type = 'packaged'
                        ), 0) as packaged_count,
                        -- Damaged count
                        COALESCE((
