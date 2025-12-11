@@ -491,13 +491,20 @@ def submit_machine_count():
                 print(f"❌ {error_message}")
         
         # Create warehouse submission with submission_type='machine'
+        # For machine submissions:
+        # - displays_made = machine_count_int (turns)
+        # - packs_remaining = machine_count_int * cards_per_turn (cards made)
+        # - loose_tablets = total_tablets (total tablets counted)
+        cards_made = machine_count_int * cards_per_turn
         conn.execute('''
             INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, box_number, bag_number, loose_tablets, 
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, 
+             displays_made, packs_remaining, loose_tablets,
              submission_date, submission_type, bag_id, assigned_po_id, needs_review)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?)
-        ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number, 
-              total_tablets, count_date, bag_id, assigned_po_id, needs_review))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?)
+        ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
+              machine_count_int, cards_made, total_tablets,
+              count_date, bag_id, assigned_po_id, needs_review))
         
         # If no receive match, submission is saved but not assigned
         if not assigned_po_id:
