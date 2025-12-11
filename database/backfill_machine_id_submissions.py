@@ -210,12 +210,102 @@ def backfill_machine_id_submissions(db_path=None):
             print(f"  ⚠️  Multiple matches resolved: {multiple_matches}")
         print()
         
+        # If there are unmatched submissions, try to assign a default machine
         if unmatched_count > 0:
-            print("⚠️  Some submissions could not be matched.")
-            print("   This may be because:")
-            print("   - No corresponding machine_counts record exists")
-            print("   - The machine_counts record has no machine_id")
-            print("   - Data mismatch (employee name, date, or count)")
+            print()
+            print("Attempting to assign default machine to unmatched submissions...")
+            print("-" * 80)
+            
+            # Get the first active machine as default
+            default_machine = c.execute('''
+                SELECT id, machine_name FROM machines WHERE is_active = TRUE ORDER BY id LIMIT 1
+            ''').fetchone()
+            
+            if default_machine:
+                default_machine_id = default_machine['id']
+                default_machine_name = default_machine['machine_name']
+                print(f"Using default machine: {default_machine_name} (ID: {default_machine_id})")
+                print()
+                
+                # Get the unmatched submissions again
+                c.execute('''
+                    SELECT ws.id, ws.employee_name, ws.product_name, ws.inventory_item_id,
+                           ws.displays_made, ws.submission_date, ws.created_at,
+                           ws.box_number, ws.bag_number
+                    FROM warehouse_submissions ws
+                    WHERE ws.submission_type = 'machine'
+                    AND ws.machine_id IS NULL
+                    ORDER BY ws.created_at
+                ''')
+                
+                unmatched_subs = c.fetchall()
+                default_assigned = 0
+                
+                for sub in unmatched_subs:
+                    sub_id = sub['id']
+                    
+                    # Update warehouse_submissions with default machine
+                    c.execute('''
+                        UPDATE warehouse_submissions
+                        SET machine_id = ?
+                        WHERE id = ?
+                    ''', (default_machine_id, sub_id))
+                    
+                    # Also try to update the corresponding machine_counts record if it exists
+                    tablet_type_id = None
+                    if sub['inventory_item_id']:
+                        tablet_type_row = c.execute('''
+                            SELECT id FROM tablet_types WHERE inventory_item_id = ?
+                        ''', (sub['inventory_item_id'],)).fetchone()
+                        if tablet_type_row:
+                            tablet_type_id = tablet_type_row['id']
+                    
+                    if not tablet_type_id:
+                        product_row = c.execute('''
+                            SELECT tablet_type_id FROM product_details WHERE product_name = ?
+                        ''', (sub['product_name'],)).fetchone()
+                        if product_row:
+                            tablet_type_id = product_row['tablet_type_id']
+                    
+                    if tablet_type_id:
+                        # Update machine_counts if a matching record exists
+                        submission_date = sub['submission_date'] or sub['created_at']
+                        c.execute('''
+                            UPDATE machine_counts
+                            SET machine_id = ?
+                            WHERE tablet_type_id = ?
+                            AND machine_count = ?
+                            AND employee_name = ?
+                            AND DATE(count_date) = DATE(?)
+                            AND machine_id IS NULL
+                        ''', (default_machine_id, tablet_type_id, sub['displays_made'], 
+                              sub['employee_name'], submission_date))
+                    
+                    default_assigned += 1
+                    print(f"  ✓ Submission {sub_id}: Assigned default machine {default_machine_name}")
+                
+                if default_assigned > 0:
+                    conn.commit()
+                    matched_count += default_assigned
+                    unmatched_count -= default_assigned
+                    print()
+                    print(f"✓ Assigned default machine to {default_assigned} submissions")
+            
+            print()
+            print("=" * 80)
+            print("FINAL BACKFILL SUMMARY")
+            print("=" * 80)
+            print(f"Total submissions processed: {len(submissions)}")
+            print(f"  ✓ Successfully matched: {matched_count}")
+            if unmatched_count > 0:
+                print(f"  ✗ Unmatched: {unmatched_count}")
+                print()
+                print("⚠️  Some submissions could not be matched.")
+                print("   This may be because:")
+                print("   - No corresponding machine_counts record exists")
+                print("   - Data mismatch (employee name, date, or count)")
+            else:
+                print("✅ All submissions successfully matched!")
         else:
             print("✅ All submissions successfully matched!")
         

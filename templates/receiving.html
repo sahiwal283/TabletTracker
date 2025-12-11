@@ -1015,7 +1015,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
                 
                 modalContent += `
-                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors" onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})">
                         <div class="flex justify-between items-start mb-3">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
@@ -1146,7 +1146,7 @@ function filterSubmissionsInModal(filterType) {
             '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
         
         submissionsHTML += `
-            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors" onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})">
                 <div class="flex justify-between items-start mb-3">
                     <div>
                         <div class="flex items-center gap-2 mb-1">

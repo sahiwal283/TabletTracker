@@ -538,8 +538,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                 const isAdmin = {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}true{% else %}false{% endif %};
                 const poIsClosed = data.po && data.po.closed === true;
                 const canEdit = isAdmin && !poIsClosed;
-                const clickHandler = canEdit ? `onclick="openEditSubmissionFromPO(${sub.id}, ${poId}, '${inventoryItemId || ''}')"` : '';
-                const cursorClass = canEdit ? 'cursor-pointer' : '';
+                // Always allow viewing details, edit only if admin and PO not closed
+                const viewDetailsHandler = `onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})"`;
+                const cursorClass = 'cursor-pointer';
                 const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
                 
                 // Determine submission type badge
@@ -554,7 +555,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                 }
                 
                 modalContent += `
-                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors ${cursorClass}" ${clickHandler}>
+                    <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors ${cursorClass}" ${viewDetailsHandler}>
                         <div class="flex justify-between items-start mb-3">
                             <div>
                                 <div class="flex items-center gap-2 mb-1">
