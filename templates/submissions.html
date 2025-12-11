@@ -277,7 +277,13 @@
                                     🏷️ {{ sub.box_number }}/{{ sub.bag_number }}
                                 </div>
                                 <div class="text-sm font-medium">
-                                    Bag: <span class="text-blue-600">{{ "{:,}".format(sub.bag_label_count if sub.bag_label_count else 0) }}</span>
+                                    Bag: <span class="text-blue-600">
+                                        {% if sub.submission_type == 'bag' %}
+                                            {{ "{:,}".format(sub.loose_tablets if sub.loose_tablets else 0) }}
+                                        {% else %}
+                                            {{ "{:,}".format(sub.bag_label_count if sub.bag_label_count else 0) }}
+                                        {% endif %}
+                                    </span>
                                 </div>
                                 <div class="text-sm font-medium">
                                     Machine: <span class="text-indigo-600">{{ "{:,}".format(sub.machine_running_total) if sub.machine_running_total else '0' }}</span>
