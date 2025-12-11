@@ -208,9 +208,6 @@
                         Total
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Bag Check
-                    </th>
-                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Receive
                     </th>
                 </tr>
@@ -267,33 +264,6 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
                         {{ sub.individual_calc }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-base">
-                        {% if sub.count_status == 'no_bag' %}
-                            <span class="text-gray-400 text-sm">No Bag Label</span>
-                        {% else %}
-                            <div class="flex flex-col gap-1">
-                                <div class="text-sm font-medium">
-                                    Bag: <span class="text-blue-600">{{ "{:,}".format(sub.bag_running_total if sub.bag_running_total else 0) }}</span>
-                                </div>
-                                <div class="text-sm font-medium">
-                                    Machine: <span class="text-indigo-600">{{ "{:,}".format(sub.machine_running_total) if sub.machine_running_total else '0' }}</span>
-                                </div>
-                                <div class="text-sm font-medium">
-                                    Packaged: <span class="text-purple-600">{{ "{:,}".format(sub.packaged_running_total) if sub.packaged_running_total else '0' }}</span>
-                                </div>
-                                <div class="text-sm font-medium">
-                                    Total: <span class="text-gray-900">{{ "{:,}".format(sub.running_total) if sub.running_total else '0' }}</span>
-                                </div>
-                                {% if sub.count_status == 'match' %}
-                                    <span class="text-green-600 font-bold text-sm">✓ Match</span>
-                                {% elif sub.count_status == 'under' %}
-                                    <span class="text-yellow-600 font-bold text-sm">⚠️ Under ({{ sub.tablet_difference }})</span>
-                                {% elif sub.count_status == 'over' %}
-                                    <span class="text-red-600 font-bold text-sm">❌ Over (+{{ sub.tablet_difference }})</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base">
                         {% if sub.receive_name %}
