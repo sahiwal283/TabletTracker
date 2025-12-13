@@ -1104,7 +1104,7 @@ def update_tablet_type_inventory():
         if not tablet_type_id:
             return jsonify({'success': False, 'error': 'Tablet type ID required'}), 400
             
-        inventory_item_id = data.get('inventory_item_id', '').strip()
+        inventory_item_id = (data.get('inventory_item_id') or '').strip()
         
         conn = get_db()
         
@@ -2427,8 +2427,8 @@ def add_tablet_type():
         if not data:
             return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
             
-        tablet_type_name = data.get('tablet_type_name', '').strip()
-        inventory_item_id = data.get('inventory_item_id', '').strip()
+        tablet_type_name = (data.get('tablet_type_name') or '').strip()
+        inventory_item_id = (data.get('inventory_item_id') or '').strip()
         
         if not tablet_type_name:
             return jsonify({'success': False, 'error': 'Tablet type name required'}), 400
