@@ -1091,6 +1091,7 @@ def save_shipment():
 
 
 @bp.route('/api/update_tablet_type_inventory', methods=['POST'])
+@admin_required
 def update_tablet_type_inventory():
     """Update a tablet type's inventory item ID"""
     conn = None
@@ -2409,6 +2410,7 @@ def delete_category():
 
 
 @bp.route('/api/add_tablet_type', methods=['POST'])
+@admin_required
 def add_tablet_type():
     """Add a new tablet type"""
     try:
@@ -2465,6 +2467,7 @@ def add_tablet_type():
 
 
 @bp.route('/api/delete_tablet_type/<int:tablet_type_id>', methods=['DELETE'])
+@admin_required
 def delete_tablet_type(tablet_type_id):
     """Delete a tablet type and its associated products"""
     try:

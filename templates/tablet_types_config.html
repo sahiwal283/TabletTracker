@@ -105,6 +105,20 @@ document.getElementById('add-tablet-type-form').addEventListener('submit', async
             body: JSON.stringify(data)
         });
         
+        // Check if response is OK and is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            showError(`Server returned non-JSON response (${response.status}): ${text.substring(0, 200)}`);
+            return;
+        }
+        
+        if (!response.ok) {
+            const result = await response.json();
+            showError(result.error || `Request failed with status ${response.status}`);
+            return;
+        }
+        
         const result = await response.json();
         if (result.success) {
             showSuccess(result.message);
@@ -142,6 +156,20 @@ async function saveTabletType(tabletTypeId) {
             })
         });
         
+        // Check if response is OK and is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            showError(`Server returned non-JSON response (${response.status}): ${text.substring(0, 200)}`);
+            return;
+        }
+        
+        if (!response.ok) {
+            const result = await response.json();
+            showError(result.error || `Request failed with status ${response.status}`);
+            return;
+        }
+        
         const result = await response.json();
         if (result.success) {
             showSuccess(result.message);
@@ -163,6 +191,20 @@ async function deleteTabletType(tabletTypeId, tabletTypeName) {
         const response = await fetch(`/api/delete_tablet_type/${tabletTypeId}`, {
             method: 'DELETE'
         });
+        
+        // Check if response is OK and is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            showError(`Server returned non-JSON response (${response.status}): ${text.substring(0, 200)}`);
+            return;
+        }
+        
+        if (!response.ok) {
+            const result = await response.json();
+            showError(result.error || `Request failed with status ${response.status}`);
+            return;
+        }
         
         const result = await response.json();
         if (result.success) {
