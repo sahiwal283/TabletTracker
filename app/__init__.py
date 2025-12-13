@@ -1,7 +1,7 @@
 """
 TabletTracker application factory
 """
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, jsonify
 from datetime import timedelta
 from flask_babel import Babel
 from config import Config
@@ -85,12 +85,23 @@ def create_app(config_class=Config):
     # Production error handling
     @app.errorhandler(404)
     def not_found_error(error):
+        # Return JSON for API routes
+        if request.path.startswith('/api/'):
+            return jsonify({'success': False, 'error': 'Resource not found'}), 404
         if config_class.ENV == 'production':
             return render_template('base.html'), 404
         return str(error), 404
     
     @app.errorhandler(500)
     def internal_error(error):
+        # Return JSON for API routes
+        if request.path.startswith('/api/'):
+            import traceback
+            error_msg = str(error)
+            if config_class.ENV != 'production':
+                # Include traceback in development
+                error_msg = f"{error_msg}\n{traceback.format_exc()}"
+            return jsonify({'success': False, 'error': f'Internal server error: {error_msg}'}), 500
         if config_class.ENV == 'production':
             return render_template('base.html'), 500
         return str(error), 500

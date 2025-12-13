@@ -1097,7 +1097,13 @@ def update_tablet_type_inventory():
     conn = None
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
+            
         tablet_type_id = data.get('tablet_type_id')
+        if not tablet_type_id:
+            return jsonify({'success': False, 'error': 'Tablet type ID required'}), 400
+            
         inventory_item_id = data.get('inventory_item_id', '').strip()
         
         conn = get_db()
@@ -1138,6 +1144,8 @@ def update_tablet_type_inventory():
                 conn.rollback()
             except:
                 pass
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
@@ -2413,8 +2421,12 @@ def delete_category():
 @admin_required
 def add_tablet_type():
     """Add a new tablet type"""
+    conn = None
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
+            
         tablet_type_name = data.get('tablet_type_name', '').strip()
         inventory_item_id = data.get('inventory_item_id', '').strip()
         
@@ -2452,7 +2464,6 @@ def add_tablet_type():
         ''', (tablet_type_name, inventory_item_id if inventory_item_id else None))
         
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': f'Added tablet type: {tablet_type_name}'})
         
@@ -2462,7 +2473,15 @@ def add_tablet_type():
                 conn.rollback()
             except:
                 pass
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -2470,6 +2489,7 @@ def add_tablet_type():
 @admin_required
 def delete_tablet_type(tablet_type_id):
     """Delete a tablet type and its associated products"""
+    conn = None
     try:
         conn = get_db()
         
@@ -2489,7 +2509,6 @@ def delete_tablet_type(tablet_type_id):
         conn.execute('DELETE FROM tablet_types WHERE id = ?', (tablet_type_id,))
         
         conn.commit()
-        conn.close()
         
         return jsonify({'success': True, 'message': f'Deleted {tablet_type["tablet_type_name"]} and its products'})
         
@@ -2499,7 +2518,15 @@ def delete_tablet_type(tablet_type_id):
                 conn.rollback()
             except:
                 pass
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 # Employee Management Routes for Admin
 # Note: /admin/employees route is in admin.py blueprint, not here
