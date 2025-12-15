@@ -443,10 +443,11 @@ def submit_machine_count():
         except (ValueError, TypeError):
             cards_per_turn = 1
         
-        # Calculate total tablets: machine_count (turns) × cards_per_turn × tablets_per_package
+        # Calculate total tablets pressed into cards: machine_count (turns) × cards_per_turn × tablets_per_package
         try:
             machine_count_int = int(machine_count)
-            total_tablets = machine_count_int * cards_per_turn * tablets_per_package
+            # For machine submissions: tablets are pressed into blister cards, not loose
+            total_tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid machine count value'}), 400
         
@@ -515,7 +516,7 @@ def submit_machine_count():
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
         # - packs_remaining = machine_count_int * cards_per_turn (cards made)
-        # - loose_tablets = total_tablets (total tablets counted)
+        # - loose_tablets = total_tablets_pressed_into_cards (NOTE: DB column name is misleading - these tablets are pressed into cards, NOT loose)
         cards_made = machine_count_int * cards_per_turn
         conn.execute('''
             INSERT INTO warehouse_submissions 
@@ -524,7 +525,7 @@ def submit_machine_count():
              submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
-              machine_count_int, cards_made, total_tablets,
+              machine_count_int, cards_made, total_tablets_pressed_into_cards,
               count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes))
         
         # If no receive match, submission is saved but not assigned
@@ -564,8 +565,8 @@ def submit_machine_count():
                 UPDATE po_lines 
                 SET machine_good_count = machine_good_count + ?
                 WHERE id = ?
-            ''', (total_tablets, line['id']))
-            print(f"Machine count - Updated PO line {line['id']}: +{total_tablets} tablets (machine)")
+            ''', (total_tablets_pressed_into_cards, line['id']))
+            print(f"Machine count - Updated PO line {line['id']}: +{total_tablets_pressed_into_cards} tablets pressed into cards")
         
         # Update PO header totals (separate machine counts)
         updated_pos = set()
