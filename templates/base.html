@@ -1410,10 +1410,8 @@ async function viewSubmissionDetails(submissionId) {
         }
         
         const sub = data.submission;
-        // Check if user is admin (check for admin elements or session)
-        const isAdmin = document.querySelector('[data-is-admin]')?.getAttribute('data-is-admin') === 'true' || 
-                       window.isAdmin === true || 
-                       (typeof window.checkAdminStatus === 'function' && window.checkAdminStatus());
+        // Check if user is admin/manager
+        const isAdmin = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
         
         // Format dates
         const submissionDate = sub.submission_date ? new Date(sub.submission_date).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'N/A';
