@@ -153,14 +153,11 @@ def get_receive_details(receive_id):
                 products[inventory_item_id]['boxes'][box_number] = {}
             
             # Get submission counts for this specific bag
+            # For machine submissions: loose_tablets already contains the correct total (turns * cards_per_turn * tablets_per_package)
+            # So we just sum loose_tablets directly
             machine_count = conn.execute('''
-                SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                    COALESCE(ws.loose_tablets, 0)
-                ), 0) as total_machine
+                SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_machine
                 FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.submission_type = 'machine'
                 AND (
                     ws.bag_id = ?
@@ -589,15 +586,12 @@ def get_po_lines(po_id):
             line_dict['received_count'] = received_count.get('total_received', 0) if received_count else 0
             
             # Get machine count (from warehouse_submissions)
-            # Calculate total tablets: (displays_made * packages_per_display * tablets_per_package) + (packs_remaining * tablets_per_package) + loose_tablets
+            # Calculate total tablets for machine counts
+            # For machine submissions: loose_tablets already contains the correct total (turns * cards_per_turn * tablets_per_package)
+            # So we just sum loose_tablets directly
             machine_count_row = conn.execute('''
-                SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                    COALESCE(ws.loose_tablets, 0)
-                ), 0) as total_machine
+                SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_machine
                 FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
                 AND ws.submission_type = 'machine'

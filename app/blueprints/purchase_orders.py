@@ -27,14 +27,11 @@ def purchase_orders_list():
                     FROM warehouse_submissions ws 
                     WHERE ws.assigned_po_id = po.id) as submission_count,
                    -- Calculate machine count (aggregated across all line items)
+                   -- For machine submissions: loose_tablets already contains the correct total (turns * cards_per_turn * tablets_per_package)
+                   -- So we just sum loose_tablets directly
                    COALESCE((
-                       SELECT SUM(
-                           (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                           (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                           COALESCE(ws.loose_tablets, 0)
-                       )
+                       SELECT SUM(COALESCE(ws.loose_tablets, 0))
                        FROM warehouse_submissions ws
-                       LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                        WHERE ws.assigned_po_id = po.id 
                        AND ws.submission_type = 'machine'
                    ), 0) as machine_count,
