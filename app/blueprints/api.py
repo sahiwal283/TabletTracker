@@ -4919,6 +4919,7 @@ def get_submission_details(submission_id):
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    pd.packages_per_display, pd.tablets_per_package,
+                   COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count, 
                    r.id as receive_id, r.received_date,
                    (
@@ -4931,6 +4932,8 @@ def get_submission_details(submission_id):
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
@@ -5018,7 +5021,9 @@ def get_submission_details(submission_id):
             # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
             # Fallback to loose_tablets, then calculate from cards_made × tablets_per_package
             packs_remaining = submission_dict.get('packs_remaining', 0) or 0
-            tablets_per_package = submission_dict.get('tablets_per_package', 0) or 0
+            # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
+            tablets_per_package = (submission_dict.get('tablets_per_package_final') or 
+                                 submission_dict.get('tablets_per_package') or 0)
             submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
                                                  submission_dict.get('loose_tablets') or
                                                  (packs_remaining * tablets_per_package) or
@@ -5057,9 +5062,12 @@ def get_submission_details(submission_id):
             
             # Get all submissions to this bag up to and including this one, in chronological order
             bag_submissions = conn.execute('''
-                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package
+                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package,
+                       COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+                LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 WHERE ws.assigned_po_id = ?
                 AND ws.product_name = ?
                 AND ws.box_number = ?
@@ -5085,9 +5093,12 @@ def get_submission_details(submission_id):
                 # Calculate individual total for this submission
                 if bag_sub_type == 'machine':
                     # Use tablets_pressed_into_cards, fallback to loose_tablets, then calculate from cards_made
+                    # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
+                    bag_tablets_per_package = (bag_sub_dict.get('tablets_per_package_final') or 
+                                             bag_sub_dict.get('tablets_per_package') or 0)
                     individual_total = (bag_sub_dict.get('tablets_pressed_into_cards') or
                                        bag_sub_dict.get('loose_tablets') or
-                                       ((bag_sub_dict.get('packs_remaining', 0) or 0) * (bag_sub_dict.get('tablets_per_package', 0) or 0)) or
+                                       ((bag_sub_dict.get('packs_remaining', 0) or 0) * bag_tablets_per_package) or
                                        0)
                     machine_running_total += individual_total
                     # Machine counts are NOT added to total - they're consumed in production
