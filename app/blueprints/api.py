@@ -662,11 +662,12 @@ def product_mapping():
         conn = get_db()
         
         # Get all products with their tablet type and calculation details
+        # Use LEFT JOIN to include products even if tablet_type_id is NULL or invalid
         products = conn.execute('''
             SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, tt.category
             FROM product_details pd
-            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            ORDER BY tt.tablet_type_name, pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            ORDER BY COALESCE(tt.tablet_type_name, ''), pd.product_name
         ''').fetchall()
         
         # Check if category column exists and add it if missing
