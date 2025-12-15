@@ -65,7 +65,7 @@ def get_bag_submissions(bag_id):
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
                                                 ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
                            WHEN 'bag' THEN ws.loose_tablets
-                           WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                           WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)
                            ELSE ws.loose_tablets + ws.damaged_tablets
                        END
                    ) as total_tablets
@@ -153,9 +153,9 @@ def get_receive_details(receive_id):
                 products[inventory_item_id]['boxes'][box_number] = {}
             
             # Get submission counts for this specific bag
-            # For machine submissions: use tablets_pressed_into_cards column (properly named)
+            # For machine submissions: use tablets_pressed_into_cards column (fallback to loose_tablets for old data)
             machine_count = conn.execute('''
-                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, 0)), 0) as total_machine
+                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)), 0) as total_machine
                 FROM warehouse_submissions ws
                 WHERE ws.submission_type = 'machine'
                 AND (
@@ -586,9 +586,9 @@ def get_po_lines(po_id):
             
             # Get machine count (from warehouse_submissions)
             # Calculate total tablets for machine counts
-            # For machine submissions: use tablets_pressed_into_cards column (properly named)
+            # For machine submissions: use tablets_pressed_into_cards column (fallback to loose_tablets for old data)
             machine_count_row = conn.execute('''
-                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, 0)), 0) as total_machine
+                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)), 0) as total_machine
                 FROM warehouse_submissions ws
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
@@ -4028,12 +4028,10 @@ def get_available_pos_for_submission(submission_id):
         ''', (submission_id,)).fetchone()
         
         if not submission:
-            conn.close()
             return jsonify({'error': 'Submission not found'}), 404
         
         inventory_item_id = submission['inventory_item_id']
         if not inventory_item_id:
-            conn.close()
             return jsonify({'error': 'Could not determine product inventory_item_id'}), 400
         
         # Get all POs (open and closed) that have this inventory_item_id
@@ -4048,8 +4046,6 @@ def get_available_pos_for_submission(submission_id):
             ORDER BY po.po_number DESC
         ''', (inventory_item_id,)).fetchall()
         
-        conn.close()
-        
         pos_list = []
         for po in pos:
             pos_list.append({
@@ -4063,8 +4059,6 @@ def get_available_pos_for_submission(submission_id):
                 'remaining': (po['ordered_quantity'] or 0) - (po['current_good_count'] or 0) - (po['current_damaged_count'] or 0)
             })
         
-        conn.close()
-        
         return jsonify({
             'success': True,
             'available_pos': pos_list,
@@ -4073,13 +4067,13 @@ def get_available_pos_for_submission(submission_id):
         })
         
     except Exception as e:
-        # Ensure connection is closed even on error
+        return jsonify({'error': str(e)}), 500
+    finally:
         if conn:
             try:
                 conn.close()
             except:
                 pass
-        return jsonify({'error': str(e)}), 500
 
 
 
@@ -4878,11 +4872,6 @@ def recalculate_po_counts():
         error_trace = traceback.format_exc()
         print(f"❌ RECALCULATE ERROR: {str(e)}")
         print(error_trace)
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         return jsonify({'error': str(e), 'trace': error_trace}), 500
     finally:
         if conn:
@@ -5002,7 +4991,8 @@ def get_submission_details(submission_id):
                     cards_per_turn = 1
             
             # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
-            submission_dict['individual_calc'] = submission_dict.get('tablets_pressed_into_cards', 0) or 0
+            # Fallback to loose_tablets for old submissions that haven't been backfilled yet
+            submission_dict['individual_calc'] = submission_dict.get('tablets_pressed_into_cards') or submission_dict.get('loose_tablets', 0) or 0
             submission_dict['total_tablets'] = submission_dict['individual_calc']
             submission_dict['cards_per_turn'] = cards_per_turn
             submission_dict['machine_name'] = machine_name
@@ -5953,8 +5943,8 @@ def get_po_submissions(po_id):
             
             # Calculate total tablets for this submission
             if submission_type == 'machine':
-                # For machine submissions: use tablets_pressed_into_cards
-                total_tablets = sub_dict.get('tablets_pressed_into_cards', 0) or 0
+                # For machine submissions: use tablets_pressed_into_cards (fallback to loose_tablets for old submissions)
+                total_tablets = sub_dict.get('tablets_pressed_into_cards') or sub_dict.get('loose_tablets', 0) or 0
             else:
                 # For other submissions: calculate from displays, packs, loose, and damaged
                 displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
@@ -6079,11 +6069,6 @@ def to_est_filter(dt_string):
         # Format as YYYY-MM-DD HH:MM:SS
         return est_dt.strftime('%Y-%m-%d %H:%M:%S')
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         print(f"Error converting datetime to EST: {e}")
         return dt_string if isinstance(dt_string, str) else 'N/A'
 
@@ -6122,11 +6107,6 @@ def to_est_time_filter(dt_string):
         # Format as HH:MM:SS
         return est_dt.strftime('%H:%M:%S')
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         print(f"Error converting datetime to EST: {e}")
         if isinstance(dt_string, str):
             # Fallback: try to extract time portion

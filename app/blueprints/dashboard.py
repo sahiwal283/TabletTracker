@@ -129,7 +129,7 @@ def dashboard_view():
                    sb.box_number,
                    b.bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
-                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -274,7 +274,7 @@ def dashboard_view():
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
                                                 ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
                            WHEN 'bag' THEN ws.loose_tablets
-                           WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                           WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)
                            ELSE ws.loose_tablets + ws.damaged_tablets
                        END
                    ) as calculated_total

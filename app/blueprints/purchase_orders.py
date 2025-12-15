@@ -27,9 +27,9 @@ def purchase_orders_list():
                     FROM warehouse_submissions ws 
                     WHERE ws.assigned_po_id = po.id) as submission_count,
                    -- Calculate machine count (aggregated across all line items)
-                   -- For machine submissions: use tablets_pressed_into_cards column (properly named)
+                   -- For machine submissions: use tablets_pressed_into_cards column (fallback to loose_tablets for old data)
                    COALESCE((
-                       SELECT SUM(COALESCE(ws.tablets_pressed_into_cards, 0))
+                       SELECT SUM(COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0))
                        FROM warehouse_submissions ws
                        WHERE ws.assigned_po_id = po.id 
                        AND ws.submission_type = 'machine'

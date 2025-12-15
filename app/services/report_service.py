@@ -1025,7 +1025,7 @@ class ProductionReportGenerator:
                        sb.box_number,
                        -- Machine count
                        COALESCE((
-                           SELECT SUM(COALESCE(ws.tablets_pressed_into_cards, 0))
+                           SELECT SUM(COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0))
                            FROM warehouse_submissions ws
                            WHERE ws.bag_id = b.id AND ws.submission_type = 'machine'
                        ), 0) as machine_count,

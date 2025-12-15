@@ -47,7 +47,7 @@ def submissions_list():
                    sb.box_number,
                    b.bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
-                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
@@ -349,7 +349,7 @@ def export_submissions_csv():
                    ws.admin_notes,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
                    CASE COALESCE(ws.submission_type, 'packaged')
-                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
