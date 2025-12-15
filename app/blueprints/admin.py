@@ -154,7 +154,12 @@ def product_mapping():
         # Sort by preferred order (categories not in preferred_order go at the end alphabetically)
         all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
         
-        return render_template('product_mapping.html', products=products, tablet_types=tablet_types, categories=all_categories)
+        # Find tablet types that don't have product configurations yet
+        product_tablet_type_ids = set(p['tablet_type_id'] for p in products if p.get('tablet_type_id'))
+        tablet_types_without_products = [tt for tt in tablet_types if tt['id'] not in product_tablet_type_ids]
+        
+        return render_template('product_mapping.html', products=products, tablet_types=tablet_types, 
+                             categories=all_categories, tablet_types_without_products=tablet_types_without_products)
     except Exception as e:
         flash(f'Error loading product mapping: {str(e)}', 'error')
         return render_template('product_mapping.html', products=[], tablet_types=[])

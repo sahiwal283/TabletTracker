@@ -332,6 +332,28 @@
             </div>
     </div>
 
+    <!-- Tablet Types Missing Product Configuration -->
+    {% if tablet_types_without_products %}
+    <div class="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-6 mt-8 mb-6">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div class="ml-3 flex-1">
+                <h3 class="text-lg font-medium text-orange-900 mb-2">⚠️ Tablet Types Missing Product Configuration</h3>
+                <p class="text-sm text-orange-800 mb-3">The following tablet types don't have product configurations. Add them below to complete your setup:</p>
+                <ul class="list-disc list-inside text-sm text-orange-900 space-y-1">
+                    {% for tt in tablet_types_without_products %}
+                    <li><strong>{{ tt.tablet_type_name }}</strong> {% if tt.category %}<span class="text-xs bg-orange-200 px-2 py-0.5 rounded">{{ tt.category }}</span>{% endif %}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Add New Product (Moved to Bottom) -->
     <div class="bg-white rounded-lg shadow p-6 mt-8">
         <h3 class="text-lg font-medium text-gray-900 mb-4"><svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg> Add New Product</h3>
