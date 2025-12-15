@@ -68,7 +68,7 @@ def get_bag_submissions(bag_id):
                            WHEN 'machine' THEN COALESCE(
                                ws.tablets_pressed_into_cards,
                                ws.loose_tablets,
-                               (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)),
+                               (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                                0
                            )
                            ELSE ws.loose_tablets + ws.damaged_tablets
@@ -76,6 +76,8 @@ def get_bag_submissions(bag_id):
                    ) as total_tablets
             FROM warehouse_submissions ws
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             WHERE (
                 ws.bag_id = ?
                 OR (
@@ -5011,8 +5013,13 @@ def get_submission_details(submission_id):
                     cards_per_turn = 1
             
             # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
-            # Fallback to loose_tablets for old submissions that haven't been backfilled yet
-            submission_dict['individual_calc'] = submission_dict.get('tablets_pressed_into_cards') or submission_dict.get('loose_tablets', 0) or 0
+            # Fallback to loose_tablets, then calculate from cards_made × tablets_per_package
+            packs_remaining = submission_dict.get('packs_remaining', 0) or 0
+            tablets_per_package = submission_dict.get('tablets_per_package', 0) or 0
+            submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
+                                                 submission_dict.get('loose_tablets') or
+                                                 (packs_remaining * tablets_per_package) or
+                                                 0)
             submission_dict['total_tablets'] = submission_dict['individual_calc']
             submission_dict['cards_per_turn'] = cards_per_turn
             submission_dict['machine_name'] = machine_name
@@ -5074,7 +5081,11 @@ def get_submission_details(submission_id):
                 
                 # Calculate individual total for this submission
                 if bag_sub_type == 'machine':
-                    individual_total = bag_sub_dict.get('tablets_pressed_into_cards', 0) or 0
+                    # Use tablets_pressed_into_cards, fallback to loose_tablets, then calculate from cards_made
+                    individual_total = (bag_sub_dict.get('tablets_pressed_into_cards') or
+                                       bag_sub_dict.get('loose_tablets') or
+                                       ((bag_sub_dict.get('packs_remaining', 0) or 0) * (bag_sub_dict.get('tablets_per_package', 0) or 0)) or
+                                       0)
                     machine_running_total += individual_total
                     # Machine counts are NOT added to total - they're consumed in production
                 elif bag_sub_type == 'bag':
@@ -5903,7 +5914,7 @@ def get_po_submissions(po_id):
                     COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                     ws.admin_notes,
                     pd.packages_per_display,
-                    pd.tablets_per_package,
+                    COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package,
                     tt.inventory_item_id,
                     ws.assigned_po_id,
                     po.po_number,
@@ -5913,6 +5924,8 @@ def get_po_submissions(po_id):
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+                LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 LEFT JOIN bags b ON ws.bag_id = b.id
                 WHERE ws.assigned_po_id IN ({po_ids_placeholders})
@@ -5936,7 +5949,7 @@ def get_po_submissions(po_id):
                     COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                     ws.admin_notes,
                     pd.packages_per_display,
-                    pd.tablets_per_package,
+                    COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package,
                     tt.inventory_item_id,
                     ws.assigned_po_id,
                     po.po_number,
@@ -5946,6 +5959,8 @@ def get_po_submissions(po_id):
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+                LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 LEFT JOIN bags b ON ws.bag_id = b.id
                 WHERE ws.assigned_po_id IN ({po_ids_placeholders})
@@ -5969,8 +5984,11 @@ def get_po_submissions(po_id):
             
             # Calculate total tablets for this submission
             if submission_type == 'machine':
-                # For machine submissions: use tablets_pressed_into_cards (fallback to loose_tablets for old submissions)
-                total_tablets = sub_dict.get('tablets_pressed_into_cards') or sub_dict.get('loose_tablets', 0) or 0
+                # For machine submissions: use tablets_pressed_into_cards (fallback to loose_tablets, then calculate from cards_made)
+                total_tablets = (sub_dict.get('tablets_pressed_into_cards') or 
+                               sub_dict.get('loose_tablets') or
+                               ((sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)) or
+                               0)
             else:
                 # For other submissions: calculate from displays, packs, loose, and damaged
                 displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)

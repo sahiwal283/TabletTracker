@@ -132,18 +132,20 @@ def dashboard_view():
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
                            ws.loose_tablets,
-                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)),
+                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                            0
                        )
                        ELSE (
-                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
+                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
                            ws.loose_tablets + ws.damaged_tablets
                        )
                    END as calculated_total
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
@@ -282,7 +284,7 @@ def dashboard_view():
                            WHEN 'machine' THEN COALESCE(
                                ws.tablets_pressed_into_cards,
                                ws.loose_tablets,
-                               (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)),
+                               (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                                0
                            )
                            ELSE ws.loose_tablets + ws.damaged_tablets
@@ -291,6 +293,8 @@ def dashboard_view():
             FROM warehouse_submissions ws
             LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             WHERE COALESCE(ws.needs_review, 0) = 1
             ORDER BY ws.created_at DESC
         ''').fetchall()
