@@ -206,7 +206,7 @@ def submit_warehouse():
                 print(f"❌ {error_message}")
         
         # Get receipt_number from form data
-        receipt_number = data.get('receipt_number', '').strip() or None
+        receipt_number = (data.get('receipt_number') or '').strip() or None
         
         # Insert submission with bag_id and po_id if matched
         conn.execute('''
@@ -534,7 +534,7 @@ def submit_machine_count():
                 print(f"❌ {error_message}")
         
         # Get receipt_number from form data
-        receipt_number = data.get('receipt_number', '').strip() or None
+        receipt_number = (data.get('receipt_number') or '').strip() or None
         
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:

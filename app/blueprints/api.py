@@ -1669,7 +1669,7 @@ def submit_machine_count():
                 print(f"❌ {error_message}")
         
         # Get receipt_number from form data
-        receipt_number = data.get('receipt_number', '').strip() or None
+        receipt_number = (data.get('receipt_number') or '').strip() or None
         
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:
@@ -5268,7 +5268,7 @@ def edit_submission(submission_id):
         new_damaged = damaged_tablets
         
         # Get receipt_number from form data
-        receipt_number = data.get('receipt_number', '').strip() or None
+        receipt_number = (data.get('receipt_number') or '').strip() or None
         
         # Update the submission
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
