@@ -482,6 +482,13 @@ def submit_machine_count():
         box_number = data.get('box_number')
         bag_number = data.get('bag_number')
         
+        # Get admin_notes if user is admin or manager
+        admin_notes = None
+        if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+            admin_notes_raw = data.get('admin_notes', '')
+            if admin_notes_raw:
+                admin_notes = admin_notes_raw.strip() or None
+        
         # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
         bag = None
         needs_review = False
@@ -514,11 +521,11 @@ def submit_machine_count():
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              displays_made, packs_remaining, loose_tablets,
-             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?)
+             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
               machine_count_int, cards_made, total_tablets,
-              count_date, bag_id, assigned_po_id, needs_review, machine_id))
+              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes))
         
         # If no receive match, submission is saved but not assigned
         if not assigned_po_id:
