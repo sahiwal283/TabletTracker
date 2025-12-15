@@ -46,11 +46,14 @@ def submissions_list():
                    r.receive_name as stored_receive_name,
                    sb.box_number,
                    b.bag_number,
-                   (
-                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
-                       ws.loose_tablets + ws.damaged_tablets
-                   ) as calculated_total
+                   CASE COALESCE(ws.submission_type, 'packaged')
+                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                       ELSE (
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                           ws.loose_tablets + ws.damaged_tablets
+                       )
+                   END as calculated_total
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
@@ -345,11 +348,14 @@ def export_submissions_csv():
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    ws.admin_notes,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
-                   (
-                       (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                       (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
-                       ws.loose_tablets + ws.damaged_tablets
-                   ) as calculated_total
+                   CASE COALESCE(ws.submission_type, 'packaged')
+                       WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                       ELSE (
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)) + 
+                           ws.loose_tablets + ws.damaged_tablets
+                       )
+                   END as calculated_total
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name

@@ -5902,11 +5902,17 @@ def get_po_submissions(po_id):
             submission_type = sub_dict.get('submission_type', 'packaged')
             
             # Calculate total tablets for this submission
-            displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
-            package_tablets = (sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
-            loose_tablets = sub_dict.get('loose_tablets', 0) or 0
-            damaged_tablets = sub_dict.get('damaged_tablets', 0) or 0
-            total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
+            if submission_type == 'machine':
+                # For machine submissions: use tablets_pressed_into_cards
+                total_tablets = sub_dict.get('tablets_pressed_into_cards', 0) or 0
+            else:
+                # For other submissions: calculate from displays, packs, loose, and damaged
+                displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
+                package_tablets = (sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
+                loose_tablets = sub_dict.get('loose_tablets', 0) or 0
+                damaged_tablets = sub_dict.get('damaged_tablets', 0) or 0
+                total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
+            
             sub_dict['total_tablets'] = total_tablets
             
             # Track totals separately by submission type
