@@ -161,7 +161,13 @@ def submit_warehouse():
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
         # Get admin_notes if user is admin or manager
-        admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
+        admin_notes = None
+        if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+            admin_notes_raw = data.get('admin_notes', '')
+            if admin_notes_raw and isinstance(admin_notes_raw, str):
+                admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                admin_notes = str(admin_notes_raw).strip() or None
         
         # Insert submission record using logged-in employee name WITH inventory_item_id
         inventory_item_id = product.get('inventory_item_id')
@@ -308,7 +314,13 @@ def submit_count():
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
         # Get admin_notes if user is admin or manager
-        admin_notes = data.get('admin_notes', '') if (session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']) else None
+        admin_notes = None
+        if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+            admin_notes_raw = data.get('admin_notes', '')
+            if admin_notes_raw and isinstance(admin_notes_raw, str):
+                admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                admin_notes = str(admin_notes_raw).strip() or None
         
         # Get inventory_item_id and tablet_type_id
         inventory_item_id = tablet_type.get('inventory_item_id')
