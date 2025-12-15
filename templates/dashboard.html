@@ -2840,7 +2840,7 @@ async function viewReceiveDetailsModal(receiveId, receiveName) {
                         const machineCount = bag.machine_count || 0;
                         const packagedCount = bag.packaged_count || 0;
                         const totalCounted = machineCount + packagedCount;
-                        const remaining = receivedCount - totalCounted;
+                        const remaining = receivedCount - packagedCount;
                         const percentComplete = receivedCount > 0 ? Math.round((totalCounted / receivedCount) * 100) : 0;
                         
                         let bgColor = 'bg-gray-50';

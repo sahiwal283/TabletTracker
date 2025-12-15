@@ -785,7 +785,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                     // Loop through each bag in the box
                     box.bags.forEach(bag => {
                         const totalCounted = bag.machine_count + bag.packaged_count;
-                        const remaining = bag.received_count - totalCounted;
+                        const remaining = bag.received_count - bag.packaged_count;
                         const percentComplete = bag.received_count > 0 
                             ? Math.round((totalCounted / bag.received_count) * 100) 
                             : 0;
