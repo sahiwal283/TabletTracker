@@ -4152,7 +4152,8 @@ def reassign_submission_to_po(submission_id):
         
         # Get submission details
         submission = conn.execute('''
-            SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id
+            SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id,
+                   COALESCE(ws.submission_type, 'packaged') as submission_type
             FROM warehouse_submissions ws
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
@@ -4182,13 +4183,16 @@ def reassign_submission_to_po(submission_id):
             conn.close()
             return jsonify({'error': 'Selected PO does not have this product'}), 400
         
-        # Calculate counts
-        packages_per_display = submission['packages_per_display'] or 0
-        tablets_per_package = submission['tablets_per_package'] or 0
-        
-        good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                       submission['packs_remaining'] * tablets_per_package + 
-                       submission['loose_tablets'])
+        # Calculate counts based on submission type
+        submission_type = submission.get('submission_type', 'packaged')
+        if submission_type == 'machine':
+            good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+        else:
+            packages_per_display = submission['packages_per_display'] or 0
+            tablets_per_package = submission['tablets_per_package'] or 0
+            good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
+                           submission['packs_remaining'] * tablets_per_package + 
+                           submission['loose_tablets'])
         damaged_tablets = submission['damaged_tablets']
         
         # Remove counts from old PO if assigned
@@ -4320,7 +4324,8 @@ def admin_reassign_verified_submission(submission_id):
         
         # Get submission details
         submission = conn.execute('''
-            SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id
+            SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id,
+                   COALESCE(ws.submission_type, 'packaged') as submission_type
             FROM warehouse_submissions ws
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
@@ -4343,13 +4348,16 @@ def admin_reassign_verified_submission(submission_id):
         if new_po_check['count'] == 0:
             return jsonify({'error': 'Selected PO does not have this product'}), 400
         
-        # Calculate counts
-        packages_per_display = submission['packages_per_display'] or 0
-        tablets_per_package = submission['tablets_per_package'] or 0
-        
-        good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                       submission['packs_remaining'] * tablets_per_package + 
-                       submission['loose_tablets'])
+        # Calculate counts based on submission type
+        submission_type = submission.get('submission_type', 'packaged')
+        if submission_type == 'machine':
+            good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+        else:
+            packages_per_display = submission['packages_per_display'] or 0
+            tablets_per_package = submission['tablets_per_package'] or 0
+            good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
+                           submission['packs_remaining'] * tablets_per_package + 
+                           submission['loose_tablets'])
         damaged_tablets = submission['damaged_tablets']
         
         # Remove counts from old PO if assigned
@@ -4482,7 +4490,8 @@ def reassign_all_submissions():
         # Step 2: Get all submissions in order with their creation timestamp
         all_submissions_rows = conn.execute('''
             SELECT ws.id, ws.product_name, ws.displays_made, 
-                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets, ws.created_at
+                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets, ws.tablets_pressed_into_cards,
+                   COALESCE(ws.submission_type, 'packaged') as submission_type, ws.created_at
             FROM warehouse_submissions ws
             ORDER BY ws.created_at ASC
         ''').fetchall()
@@ -4548,13 +4557,16 @@ def reassign_all_submissions():
                 if not po_lines:
                     continue
                 
-                # Calculate good and damaged counts
-                packages_per_display = product.get('packages_per_display') or 0
-                tablets_per_package = product.get('tablets_per_package') or 0
-                
-                good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
-                              submission.get('packs_remaining', 0) * tablets_per_package + 
-                              submission.get('loose_tablets', 0))
+                # Calculate good and damaged counts based on submission type
+                submission_type = submission.get('submission_type', 'packaged')
+                if submission_type == 'machine':
+                    good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+                else:
+                    packages_per_display = product.get('packages_per_display') or 0
+                    tablets_per_package = product.get('tablets_per_package') or 0
+                    good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                                  submission.get('packs_remaining', 0) * tablets_per_package + 
+                                  submission.get('loose_tablets', 0))
                 damaged_tablets = submission.get('damaged_tablets', 0)
                 
                 # Find the first PO that hasn't reached its ordered quantity yet
@@ -4717,6 +4729,8 @@ def recalculate_po_counts():
                 ws.packs_remaining,
                 ws.loose_tablets,
                 ws.damaged_tablets,
+                ws.tablets_pressed_into_cards,
+                COALESCE(ws.submission_type, 'packaged') as submission_type,
                 ws.created_at,
                 pd.packages_per_display,
                 pd.tablets_per_package,
@@ -4738,13 +4752,17 @@ def recalculate_po_counts():
             inventory_item_id = sub['inventory_item_id']
             
             if not inventory_item_id:
-                packages_per_display = sub['packages_per_display'] or 0
-                tablets_per_package = sub['tablets_per_package'] or 0
-                good_tablets = (
-                    (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
-                    (sub['packs_remaining'] or 0) * tablets_per_package +
-                    (sub['loose_tablets'] or 0)
-                )
+                submission_type = sub.get('submission_type', 'packaged')
+                if submission_type == 'machine':
+                    good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
+                else:
+                    packages_per_display = sub['packages_per_display'] or 0
+                    tablets_per_package = sub['tablets_per_package'] or 0
+                    good_tablets = (
+                        (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                        (sub['packs_remaining'] or 0) * tablets_per_package +
+                        (sub['loose_tablets'] or 0)
+                    )
                 skipped_submissions.append({
                     'submission_id': sub['submission_id'],
                     'product_name': sub['product_name'],
@@ -4756,15 +4774,18 @@ def recalculate_po_counts():
                 print(f"⚠️ Skipped submission ID {sub['submission_id']}: {sub['product_name']} - {good_tablets} tablets (no inventory_item_id)")
                 continue
             
-            # Calculate good and damaged counts
-            packages_per_display = sub['packages_per_display'] or 0
-            tablets_per_package = sub['tablets_per_package'] or 0
-            
-            good_tablets = (
-                (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
-                (sub['packs_remaining'] or 0) * tablets_per_package +
-                (sub['loose_tablets'] or 0)
-            )
+            # Calculate good and damaged counts based on submission type
+            submission_type = sub.get('submission_type', 'packaged')
+            if submission_type == 'machine':
+                good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
+            else:
+                packages_per_display = sub['packages_per_display'] or 0
+                tablets_per_package = sub['tablets_per_package'] or 0
+                good_tablets = (
+                    (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                    (sub['packs_remaining'] or 0) * tablets_per_package +
+                    (sub['loose_tablets'] or 0)
+                )
             damaged_tablets = sub['damaged_tablets'] or 0
             
             # Add to running total for this PO line
@@ -5043,7 +5064,7 @@ def get_submission_details(submission_id):
                 
                 # Calculate individual total for this submission
                 if bag_sub_type == 'machine':
-                    individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
+                    individual_total = bag_sub_dict.get('tablets_pressed_into_cards', 0) or 0
                     machine_running_total += individual_total
                     # Machine counts are NOT added to total - they're consumed in production
                 elif bag_sub_type == 'bag':
@@ -5139,7 +5160,8 @@ def edit_submission(submission_id):
         # Get the submission's current PO assignment
         submission = conn.execute('''
             SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
-                   loose_tablets, damaged_tablets, inventory_item_id
+                   loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
+                   COALESCE(submission_type, 'packaged') as submission_type
             FROM warehouse_submissions
             WHERE id = ?
         ''', (submission_id,)).fetchone()
@@ -5181,10 +5203,14 @@ def edit_submission(submission_id):
         except (ValueError, TypeError):
             return jsonify({'success': False, 'error': 'Invalid numeric values for product configuration'}), 400
         
-        # Calculate old totals to subtract
-        old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
-                   submission['packs_remaining'] * tablets_per_package +
-                   submission['loose_tablets'])
+        # Calculate old totals to subtract based on submission type
+        submission_type = submission.get('submission_type', 'packaged')
+        if submission_type == 'machine':
+            old_good = submission.get('tablets_pressed_into_cards', 0) or 0
+        else:
+            old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
+                       submission['packs_remaining'] * tablets_per_package +
+                       submission['loose_tablets'])
         old_damaged = submission['damaged_tablets']
         
         # Validate and convert input data
@@ -5193,26 +5219,41 @@ def edit_submission(submission_id):
             packs_remaining = int(data.get('packs_remaining', 0) or 0)
             loose_tablets = int(data.get('loose_tablets', 0) or 0)
             damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+            tablets_pressed_into_cards = int(data.get('tablets_pressed_into_cards', 0) or 0) if submission_type == 'machine' else 0
         except (ValueError, TypeError):
             return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
         
-        # Calculate new totals
-        new_good = (displays_made * packages_per_display * tablets_per_package +
-                   packs_remaining * tablets_per_package +
-                   loose_tablets)
+        # Calculate new totals based on submission type
+        if submission_type == 'machine':
+            new_good = tablets_pressed_into_cards
+        else:
+            new_good = (displays_made * packages_per_display * tablets_per_package +
+                       packs_remaining * tablets_per_package +
+                       loose_tablets)
         new_damaged = damaged_tablets
         
         # Update the submission
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
-        conn.execute('''
-            UPDATE warehouse_submissions
-            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
-                damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
-                submission_date = ?, admin_notes = ?
-            WHERE id = ?
-        ''', (displays_made, packs_remaining, loose_tablets,
-              damaged_tablets, data.get('box_number'), data.get('bag_number'),
-              data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
+        if submission_type == 'machine':
+            conn.execute('''
+                UPDATE warehouse_submissions
+                SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
+                    damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
+                    submission_date = ?, admin_notes = ?
+                WHERE id = ?
+            ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
+                  damaged_tablets, data.get('box_number'), data.get('bag_number'),
+                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
+        else:
+            conn.execute('''
+                UPDATE warehouse_submissions
+                SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
+                    damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
+                    submission_date = ?, admin_notes = ?
+                WHERE id = ?
+            ''', (displays_made, packs_remaining, loose_tablets,
+                  damaged_tablets, data.get('box_number'), data.get('bag_number'),
+                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
         
         # Update PO line counts if assigned to a PO
         if old_po_id and inventory_item_id:
@@ -5298,7 +5339,8 @@ def delete_submission(submission_id):
         # Get the submission details
         submission = conn.execute('''
             SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
-                   loose_tablets, damaged_tablets, inventory_item_id
+                   loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
+                   COALESCE(submission_type, 'packaged') as submission_type
             FROM warehouse_submissions
             WHERE id = ?
         ''', (submission_id,)).fetchone()
@@ -5320,10 +5362,14 @@ def delete_submission(submission_id):
         if not product:
             return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
         
-        # Calculate counts to remove
-        good_tablets = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
-                       submission['packs_remaining'] * product['tablets_per_package'] +
-                       submission['loose_tablets'])
+        # Calculate counts to remove based on submission type
+        submission_type = submission.get('submission_type', 'packaged')
+        if submission_type == 'machine':
+            good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+        else:
+            good_tablets = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
+                           submission['packs_remaining'] * product['tablets_per_package'] +
+                           submission['loose_tablets'])
         damaged_tablets = submission['damaged_tablets']
         
         # Remove counts from PO line if assigned
@@ -5478,7 +5524,8 @@ def resync_unassigned_submissions():
         # Note: Use 'id' instead of 'rowid' for better compatibility
         unassigned_rows = conn.execute('''
             SELECT ws.id, ws.product_name, ws.displays_made, 
-                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets
+                   ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets, ws.tablets_pressed_into_cards,
+                   COALESCE(ws.submission_type, 'packaged') as submission_type
             FROM warehouse_submissions ws
             WHERE ws.assigned_po_id IS NULL
             ORDER BY ws.created_at DESC
@@ -5553,13 +5600,16 @@ def resync_unassigned_submissions():
             if not po_lines:
                 continue
             
-            # Calculate good and damaged counts
-            packages_per_display = product.get('packages_per_display') or 0
-            tablets_per_package = product.get('tablets_per_package') or 0
-            
-            good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
-                          submission.get('packs_remaining', 0) * tablets_per_package + 
-                          submission.get('loose_tablets', 0))
+            # Calculate good and damaged counts based on submission type
+            submission_type = submission.get('submission_type', 'packaged')
+            if submission_type == 'machine':
+                good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+            else:
+                packages_per_display = product.get('packages_per_display') or 0
+                tablets_per_package = product.get('tablets_per_package') or 0
+                good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                              submission.get('packs_remaining', 0) * tablets_per_package + 
+                              submission.get('loose_tablets', 0))
             damaged_tablets = submission.get('damaged_tablets', 0)
             
             # Assign to first available PO

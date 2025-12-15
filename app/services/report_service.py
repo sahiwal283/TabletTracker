@@ -1025,13 +1025,8 @@ class ProductionReportGenerator:
                        sb.box_number,
                        -- Machine count
                        COALESCE((
-                           SELECT SUM(
-                               (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                               (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                               COALESCE(ws.loose_tablets, 0)
-                           )
+                           SELECT SUM(COALESCE(ws.tablets_pressed_into_cards, 0))
                            FROM warehouse_submissions ws
-                           LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                            WHERE ws.bag_id = b.id AND ws.submission_type = 'machine'
                        ), 0) as machine_count,
                        -- Packaged count (only packaged, not bag counts)
