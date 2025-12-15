@@ -490,8 +490,11 @@ def submit_machine_count():
         admin_notes = None
         if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
             admin_notes_raw = data.get('admin_notes', '')
-            if admin_notes_raw:
+            if admin_notes_raw and isinstance(admin_notes_raw, str):
                 admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                # Handle non-string values (shouldn't happen, but be safe)
+                admin_notes = str(admin_notes_raw).strip() or None
         
         # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
         bag = None
