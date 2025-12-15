@@ -205,17 +205,20 @@ def submit_warehouse():
                 # No match found
                 print(f"❌ {error_message}")
         
+        # Get receipt_number from form data
+        receipt_number = data.get('receipt_number', '').strip() or None
+        
         # Insert submission with bag_id and po_id if matched
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
-             submission_type, bag_id, assigned_po_id, needs_review)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?)
+             submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
         ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
               bag.get('bag_label_count', 0) if bag else data.get('bag_label_count'),
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
-              bag_id, assigned_po_id, needs_review))
+              bag_id, assigned_po_id, needs_review, receipt_number))
         
         conn.commit()
         
@@ -530,6 +533,9 @@ def submit_machine_count():
                 # No match found
                 print(f"❌ {error_message}")
         
+        # Get receipt_number from form data
+        receipt_number = data.get('receipt_number', '').strip() or None
+        
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
@@ -540,11 +546,11 @@ def submit_machine_count():
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              displays_made, packs_remaining, tablets_pressed_into_cards,
-             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?)
+             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
               machine_count_int, cards_made, tablets_pressed_into_cards,
-              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes))
+              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number))
         
         # If no receive match, submission is saved but not assigned
         if not assigned_po_id:

@@ -1668,6 +1668,9 @@ def submit_machine_count():
                 # No match found
                 print(f"❌ {error_message}")
         
+        # Get receipt_number from form data
+        receipt_number = data.get('receipt_number', '').strip() or None
+        
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
@@ -1678,11 +1681,11 @@ def submit_machine_count():
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              displays_made, packs_remaining, tablets_pressed_into_cards,
-             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?)
+             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
               machine_count_int, cards_made, tablets_pressed_into_cards,
-              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes))
+              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number))
         
         # If no receive match, submission is saved but not assigned
         if not assigned_po_id:
@@ -5253,6 +5256,9 @@ def edit_submission(submission_id):
                        loose_tablets)
         new_damaged = damaged_tablets
         
+        # Get receipt_number from form data
+        receipt_number = data.get('receipt_number', '').strip() or None
+        
         # Update the submission
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         if submission_type == 'machine':
@@ -5260,21 +5266,21 @@ def edit_submission(submission_id):
                 UPDATE warehouse_submissions
                 SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
                     damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
-                    submission_date = ?, admin_notes = ?
+                    submission_date = ?, admin_notes = ?, receipt_number = ?
                 WHERE id = ?
             ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
                   damaged_tablets, data.get('box_number'), data.get('bag_number'),
-                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
+                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
         else:
             conn.execute('''
                 UPDATE warehouse_submissions
                 SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
                     damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
-                    submission_date = ?, admin_notes = ?
+                    submission_date = ?, admin_notes = ?, receipt_number = ?
                 WHERE id = ?
             ''', (displays_made, packs_remaining, loose_tablets,
                   damaged_tablets, data.get('box_number'), data.get('bag_number'),
-                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), submission_id))
+                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
         
         # Update PO line counts if assigned to a PO
         if old_po_id and inventory_item_id:
