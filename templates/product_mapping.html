@@ -359,16 +359,40 @@
         <h3 class="text-lg font-medium text-gray-900 mb-4"><svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg> Add New Product</h3>
         <form id="add-product-form" class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <input type="text" id="new-product-name" placeholder="Product Name" class="form-input" required>
-            <input type="text" id="new-tablet-type" list="tablet-types-list" placeholder="Tablet Type" class="form-input" required>
-            <datalist id="tablet-types-list">
-                {% for tt in tablet_types %}
-                    <option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+            <select id="new-tablet-type" name="tablet_type" required class="form-input">
+                <option value="">Select tablet type...</option>
+                {% for category in categories %}
+                    {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
+                    {% if category_tablets %}
+                    <optgroup label="{{ category }}">
+                        {% for tt in category_tablets %}
+                        <option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
                 {% endfor %}
-            </datalist>
+                <!-- Uncategorized tablet types -->
+                {% set uncategorized_tablets = tablet_types | rejectattr('category') | list + tablet_types | selectattr('category', 'equalto', '') | list %}
+                {% if uncategorized_tablets %}
+                <optgroup label="⚠️ Uncategorized">
+                    {% for tt in uncategorized_tablets %}
+                    <option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endif %}
+            </select>
             <input type="number" id="new-ppd" placeholder="Packages/Display" class="form-input" min="1" required>
             <input type="number" id="new-tpp" placeholder="Tablets/Package" class="form-input" min="1" required>
             <button type="submit" class="btn-primary">Add Product</button>
         </form>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const select = document.getElementById('new-tablet-type');
+                if (select && typeof convertToTwoLevelDropdown === 'function') {
+                    convertToTwoLevelDropdown(select);
+                }
+            });
+        </script>
     </div>
 </div>
 
@@ -405,25 +429,20 @@ document.addEventListener('DOMContentLoaded', function() {
 document.getElementById('add-product-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const tabletTypeName = document.getElementById('new-tablet-type').value.trim();
+    const tabletTypeSelect = document.getElementById('new-tablet-type');
+    const selectedOption = tabletTypeSelect.options[tabletTypeSelect.selectedIndex];
+    const tabletTypeName = selectedOption.value;
+    const tabletTypeId = selectedOption.getAttribute('data-id');
+    
+    if (!tabletTypeName || !tabletTypeId) {
+        showError('Please select a tablet type');
+        return;
+    }
     
     try {
-        // Get or create tablet type
-        const typeResponse = await fetch('/api/get_or_create_tablet_type', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({tablet_type_name: tabletTypeName})
-        });
-        
-        const typeResult = await typeResponse.json();
-        if (!typeResult.success) {
-            showError('Failed to create tablet type: ' + typeResult.error);
-            return;
-        }
-        
         const data = {
             product_name: document.getElementById('new-product-name').value,
-            tablet_type_id: typeResult.tablet_type_id,
+            tablet_type_id: parseInt(tabletTypeId),
             packages_per_display: parseInt(document.getElementById('new-ppd').value),
             tablets_per_package: parseInt(document.getElementById('new-tpp').value)
         };
