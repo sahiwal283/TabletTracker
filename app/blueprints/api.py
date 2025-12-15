@@ -708,7 +708,10 @@ def product_mapping():
                 SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
             ''').fetchone()
             if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                try:
+                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    deleted_categories_set = set()
         except Exception as e:
             if conn:
                 try:
@@ -724,7 +727,10 @@ def product_mapping():
                 SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
             ''').fetchone()
             if category_order_json and category_order_json['setting_value']:
-                preferred_order = json.loads(category_order_json['setting_value'])
+                try:
+                    preferred_order = json.loads(category_order_json['setting_value'])
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    preferred_order = sorted(category_list)
             else:
                 # No saved order - use alphabetical
                 preferred_order = sorted(category_list)
@@ -2117,7 +2123,10 @@ def get_categories():
                 SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
             ''').fetchone()
             if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                try:
+                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    deleted_categories_set = set()
         except Exception as e:
             if conn:
                 try:
@@ -2133,7 +2142,10 @@ def get_categories():
                 SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
             ''').fetchone()
             if category_order_json and category_order_json['setting_value']:
-                preferred_order = json.loads(category_order_json['setting_value'])
+                try:
+                    preferred_order = json.loads(category_order_json['setting_value'])
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    preferred_order = sorted(category_list)
             else:
                 # No saved order - use alphabetical
                 preferred_order = sorted(category_list)
@@ -2382,7 +2394,10 @@ def delete_category():
             
             deleted_categories = set()
             if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
+                try:
+                    deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    deleted_categories = set()
             
             # Add this category to deleted set
             deleted_categories.add(category_name)
@@ -3142,8 +3157,6 @@ def get_po_summary_for_reports():
                 'tracking_status': po.get('tracking_status')
             })
         
-        conn.close()
-        
         return jsonify({
             'success': True,
             'pos': po_list,
@@ -3151,25 +3164,21 @@ def get_po_summary_for_reports():
         })
         
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         import traceback
         error_trace = traceback.format_exc()
         print(f"Error in get_po_summary_for_reports: {e}")
         print(error_trace)
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
         return jsonify({
             'success': False,
             'error': f'Failed to get PO summary: {str(e)}',
             'trace': error_trace
         }), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 # ===== RECEIVING MANAGEMENT ROUTES =====
 
