@@ -5024,6 +5024,23 @@ def get_submission_details(submission_id):
             # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
             tablets_per_package = (submission_dict.get('tablets_per_package_final') or 
                                  submission_dict.get('tablets_per_package') or 0)
+            
+            # If tablets_per_package is still 0 or None, try to get it directly from database using inventory_item_id
+            if not tablets_per_package or tablets_per_package == 0:
+                inventory_item_id = submission_dict.get('inventory_item_id')
+                if inventory_item_id:
+                    # Try to get tablets_per_package via inventory_item_id -> tablet_types -> product_details
+                    tpp_row = conn.execute('''
+                        SELECT pd.tablets_per_package
+                        FROM tablet_types tt
+                        JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE tt.inventory_item_id = ?
+                        LIMIT 1
+                    ''', (inventory_item_id,)).fetchone()
+                    if tpp_row:
+                        tpp_dict = dict(tpp_row)
+                        tablets_per_package = tpp_dict.get('tablets_per_package', 0) or 0
+            
             submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
                                                  submission_dict.get('loose_tablets') or
                                                  (packs_remaining * tablets_per_package) or
