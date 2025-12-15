@@ -522,12 +522,12 @@ def submit_machine_count():
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
         # - packs_remaining = machine_count_int * cards_per_turn (cards made)
-        # - loose_tablets = tablets_pressed_into_cards (NOTE: DB column name is misleading - these tablets are pressed into cards, NOT loose)
+        # - tablets_pressed_into_cards = total tablets pressed into blister cards (properly named column)
         cards_made = machine_count_int * cards_per_turn
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
-             displays_made, packs_remaining, loose_tablets,
+             displays_made, packs_remaining, tablets_pressed_into_cards,
              submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,

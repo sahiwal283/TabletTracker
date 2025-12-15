@@ -65,7 +65,7 @@ def get_bag_submissions(bag_id):
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
                                                 ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
                            WHEN 'bag' THEN ws.loose_tablets
-                           WHEN 'machine' THEN ws.loose_tablets
+                           WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
                            ELSE ws.loose_tablets + ws.damaged_tablets
                        END
                    ) as total_tablets
@@ -153,11 +153,9 @@ def get_receive_details(receive_id):
                 products[inventory_item_id]['boxes'][box_number] = {}
             
             # Get submission counts for this specific bag
-            # For machine submissions: loose_tablets stores total tablets pressed into cards (turns * cards_per_turn * tablets_per_package)
-            # Note: Despite the column name "loose_tablets", these are NOT loose - they're pressed into blister cards by the machine
-            # So we just sum loose_tablets directly
+            # For machine submissions: use tablets_pressed_into_cards column (properly named)
             machine_count = conn.execute('''
-                SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_machine
+                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, 0)), 0) as total_machine
                 FROM warehouse_submissions ws
                 WHERE ws.submission_type = 'machine'
                 AND (
@@ -588,11 +586,9 @@ def get_po_lines(po_id):
             
             # Get machine count (from warehouse_submissions)
             # Calculate total tablets for machine counts
-            # For machine submissions: loose_tablets stores total tablets pressed into cards (turns * cards_per_turn * tablets_per_package)
-            # Note: Despite the column name "loose_tablets", these are NOT loose - they're pressed into blister cards by the machine
-            # So we just sum loose_tablets directly
+            # For machine submissions: use tablets_pressed_into_cards column (properly named)
             machine_count_row = conn.execute('''
-                SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_machine
+                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, 0)), 0) as total_machine
                 FROM warehouse_submissions ws
                 WHERE ws.assigned_po_id = ? 
                 AND ws.inventory_item_id = ? 
@@ -1651,12 +1647,12 @@ def submit_machine_count():
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
         # - packs_remaining = machine_count_int * cards_per_turn (cards made)
-        # - loose_tablets = tablets_pressed_into_cards (NOTE: DB column name is misleading - these tablets are pressed into cards, NOT loose)
+        # - tablets_pressed_into_cards = total tablets pressed into blister cards (properly named column)
         cards_made = machine_count_int * cards_per_turn
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
-             displays_made, packs_remaining, loose_tablets,
+             displays_made, packs_remaining, tablets_pressed_into_cards,
              submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?)
         ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
@@ -4978,9 +4974,8 @@ def get_submission_details(submission_id):
                 else:
                     cards_per_turn = 1
             
-            # For machine submissions: total tablets pressed into cards is stored in loose_tablets
-            # Note: Despite the column name "loose_tablets", these are NOT loose - they're pressed into blister cards by the machine
-            submission_dict['individual_calc'] = submission_dict.get('loose_tablets', 0) or 0
+            # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
+            submission_dict['individual_calc'] = submission_dict.get('tablets_pressed_into_cards', 0) or 0
             submission_dict['total_tablets'] = submission_dict['individual_calc']
             submission_dict['cards_per_turn'] = cards_per_turn
             submission_dict['machine_name'] = machine_name

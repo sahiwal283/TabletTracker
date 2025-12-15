@@ -271,7 +271,7 @@ def dashboard_view():
                            WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
                                                 ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
                            WHEN 'bag' THEN ws.loose_tablets
-                           WHEN 'machine' THEN ws.loose_tablets
+                           WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, 0)
                            ELSE ws.loose_tablets + ws.damaged_tablets
                        END
                    ) as calculated_total
