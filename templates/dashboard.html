@@ -3486,7 +3486,7 @@ async function viewSubmissionDetails(submissionId) {
                         <button onclick="closeSubmissionDetailsModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
                             Close
                         </button>
-                        ${sub.assigned_po_id && !sub.po_closed && isAdmin ? `
+                        ${isAdmin ? `
                         <button onclick="event.stopPropagation(); closeSubmissionDetailsModal(); openEditSubmissionModal(${sub.id})" 
                                 class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
                             ✏️ Edit Submission
