@@ -101,6 +101,24 @@ class MigrationRunner:
         
         # Add machine_id column for machine submissions
         self._add_column_if_not_exists('warehouse_submissions', 'machine_id', 'INTEGER REFERENCES machines(id)')
+        
+        # Add tablets_pressed_into_cards column for machine submissions
+        # This properly stores the total tablets pressed into cards (turns × cards_per_turn × tablets_per_package)
+        # Previously stored in loose_tablets which was misleading for machine submissions
+        if not self._column_exists('warehouse_submissions', 'tablets_pressed_into_cards'):
+            try:
+                self.c.execute('ALTER TABLE warehouse_submissions ADD COLUMN tablets_pressed_into_cards INTEGER DEFAULT 0')
+                # Backfill existing machine submissions: copy from loose_tablets
+                # For machine submissions, loose_tablets actually contains tablets_pressed_into_cards
+                self.c.execute('''
+                    UPDATE warehouse_submissions 
+                    SET tablets_pressed_into_cards = loose_tablets
+                    WHERE submission_type = 'machine' 
+                    AND loose_tablets IS NOT NULL 
+                    AND loose_tablets > 0
+                ''')
+            except Exception as e:
+                print(f"Warning: Could not add tablets_pressed_into_cards column: {str(e)}")
     
     def _migrate_shipments(self):
         """Migrate shipments table"""
