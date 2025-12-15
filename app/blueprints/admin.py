@@ -183,10 +183,18 @@ def tablet_types_config():
         # Get all tablet types with their current inventory item IDs
         tablet_types = conn.execute('''
             SELECT * FROM tablet_types 
-            ORDER BY tablet_type_name
+            ORDER BY COALESCE(category, ''), tablet_type_name
         ''').fetchall()
         
-        return render_template('tablet_types_config.html', tablet_types=tablet_types)
+        # Get unique categories
+        categories = conn.execute('''
+            SELECT DISTINCT category FROM tablet_types 
+            WHERE category IS NOT NULL AND category != '' 
+            ORDER BY category
+        ''').fetchall()
+        category_list = [cat['category'] for cat in categories] if categories else []
+        
+        return render_template('tablet_types_config.html', tablet_types=tablet_types, categories=category_list)
     except Exception as e:
         flash(f'Error loading tablet types: {str(e)}', 'error')
         return render_template('tablet_types_config.html', tablet_types=[])
