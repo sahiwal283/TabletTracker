@@ -6687,5 +6687,102 @@ def assign_submission_to_receive(submission_id):
                 pass
 
 
+@bp.route('/api/admin/fix-bag-assignments', methods=['POST'])
+@admin_required
+def fix_bag_assignments():
+    """
+    Admin endpoint to fix bag_id assignments for submissions.
+    Updates submissions to have the correct bag_id based on their box_number, bag_number, and assigned_po_id.
+    """
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Find all submissions that need bag_id updates
+        submissions = conn.execute('''
+            SELECT ws.id, ws.box_number, ws.bag_number, ws.assigned_po_id, ws.bag_id as current_bag_id,
+                   ws.product_name, ws.employee_name, ws.submission_type
+            FROM warehouse_submissions ws
+            WHERE ws.assigned_po_id IS NOT NULL
+            AND ws.box_number IS NOT NULL
+            AND ws.bag_number IS NOT NULL
+            ORDER BY ws.assigned_po_id, ws.box_number, ws.bag_number
+        ''').fetchall()
+        
+        updated_count = 0
+        skipped_count = 0
+        no_bag_found = 0
+        updates = []
+        
+        for sub in submissions:
+            sub_dict = dict(sub)
+            
+            # Find the correct bag_id for this submission
+            bag_row = conn.execute('''
+                SELECT b.id as bag_id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE r.po_id = ?
+                AND sb.box_number = ?
+                AND b.bag_number = ?
+                LIMIT 1
+            ''', (sub_dict['assigned_po_id'], sub_dict['box_number'], sub_dict['bag_number'])).fetchone()
+            
+            if bag_row:
+                bag_dict = dict(bag_row)
+                correct_bag_id = bag_dict['bag_id']
+                
+                if sub_dict['current_bag_id'] != correct_bag_id:
+                    # Update the bag_id
+                    conn.execute('''
+                        UPDATE warehouse_submissions
+                        SET bag_id = ?
+                        WHERE id = ?
+                    ''', (correct_bag_id, sub_dict['id']))
+                    
+                    updates.append({
+                        'submission_id': sub_dict['id'],
+                        'type': sub_dict['submission_type'],
+                        'product': sub_dict['product_name'],
+                        'box_bag': f"{sub_dict['box_number']}/{sub_dict['bag_number']}",
+                        'old_bag_id': sub_dict['current_bag_id'],
+                        'new_bag_id': correct_bag_id
+                    })
+                    updated_count += 1
+                else:
+                    skipped_count += 1
+            else:
+                no_bag_found += 1
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Fixed {updated_count} bag assignments',
+            'updated': updated_count,
+            'skipped': skipped_count,
+            'no_bag_found': no_bag_found,
+            'updates': updates
+        })
+        
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        import traceback
+        print(f"❌ FIX BAG ASSIGNMENTS ERROR: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
 # Note: This blueprint is registered in app/__init__.py
 # To run the application, use: flask run or python app.py
