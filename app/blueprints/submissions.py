@@ -27,6 +27,10 @@ def submissions_list():
         filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
         filter_submission_type = request.args.get('submission_type', type=str)
         
+        # Get sort parameters
+        sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
+        sort_order = request.args.get('sort_order', 'desc')  # Default descending
+        
         # Build query with optional filters
         # Use stored receive_name from receiving table
         query = '''
@@ -57,7 +61,7 @@ def submissions_list():
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
-                           ws.loose_tablets + ws.damaged_tablets
+                       ws.loose_tablets + ws.damaged_tablets
                        )
                    END as calculated_total
             FROM warehouse_submissions ws
@@ -104,7 +108,8 @@ def submissions_list():
             params.append(filter_submission_type)
         
         # Get submissions ordered by created_at ASC for running total calculation
-        query_asc = query.replace('ORDER BY ws.created_at DESC', 'ORDER BY ws.created_at ASC')
+        # Always use created_at ASC for running totals regardless of user's sort preference
+        query_asc = query + ' ORDER BY ws.created_at ASC'
         submissions_raw_asc = conn.execute(query_asc, params).fetchall()
         
         # Calculate running totals by bag PER PO (each PO has its own physical bags)
@@ -209,8 +214,25 @@ def submissions_list():
             # Store in dict by submission ID for lookup
             submissions_dict[sub_dict.get('id')] = sub_dict
         
-        # Second pass: Get submissions in display order (newest first) and apply pre-calculated running totals
-        query += ' ORDER BY ws.created_at DESC'
+        # Second pass: Get submissions in display order (based on user's sort preference) and apply pre-calculated running totals
+        # Validate sort column to prevent SQL injection
+        allowed_sort_columns = {
+            'created_at': 'ws.created_at',
+            'receipt_number': 'ws.receipt_number',
+            'employee_name': 'ws.employee_name',
+            'product_name': 'ws.product_name',
+            'total': 'calculated_total'
+        }
+        
+        sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
+        sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
+        
+        # Handle NULL receipt_numbers by sorting them last
+        if sort_by == 'receipt_number':
+            query += f' ORDER BY CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_direction}'
+        else:
+            query += f' ORDER BY {sort_column} {sort_direction}'
+        
         submissions_raw = conn.execute(query, params).fetchall()
         submissions_processed = []
         
@@ -325,7 +347,8 @@ def submissions_list():
         tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
         return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
-                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type)
+                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type,
+                             sort_by=sort_by, sort_order=sort_order)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
@@ -349,6 +372,11 @@ def export_submissions_csv():
         filter_date_from = request.args.get('date_from', type=str)
         filter_date_to = request.args.get('date_to', type=str)
         filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
+        filter_submission_type = request.args.get('submission_type', type=str)
+        
+        # Get sort parameters
+        sort_by = request.args.get('sort_by', 'created_at')
+        sort_order = request.args.get('sort_order', 'asc')  # Default ASC for CSV export
         
         # Build query with optional filters (same logic as all_submissions)
         query = '''
@@ -369,7 +397,7 @@ def export_submissions_csv():
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
-                           ws.loose_tablets + ws.damaged_tablets
+                       ws.loose_tablets + ws.damaged_tablets
                        )
                    END as calculated_total
             FROM warehouse_submissions ws
@@ -407,7 +435,28 @@ def export_submissions_csv():
             query += ' AND tt.id = ?'
             params.append(filter_tablet_type_id)
         
-        query += ' ORDER BY ws.created_at ASC'
+        # Apply submission type filter if provided
+        if filter_submission_type:
+            query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
+            params.append(filter_submission_type)
+        
+        # Apply sorting
+        allowed_sort_columns = {
+            'created_at': 'ws.created_at',
+            'receipt_number': 'ws.receipt_number',
+            'employee_name': 'ws.employee_name',
+            'product_name': 'ws.product_name',
+            'total': 'calculated_total'
+        }
+        
+        sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
+        sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
+        
+        # Handle NULL receipt_numbers by sorting them last
+        if sort_by == 'receipt_number':
+            query += f' ORDER BY CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_direction}'
+        else:
+            query += f' ORDER BY {sort_column} {sort_direction}'
         
         submissions_raw = conn.execute(query, params).fetchall()
         
@@ -474,7 +523,7 @@ def export_submissions_csv():
             'Admin Notes'
         ])
         
-        # Write data rows (oldest first for CSV)
+        # Write data rows (respecting sort order)
         for sub in submissions_processed:
             submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
             created_at = sub.get('created_at', '')

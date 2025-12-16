@@ -377,7 +377,7 @@
                 <optgroup label="⚠️ Uncategorized">
                     {% for tt in uncategorized_tablets %}
                     <option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
-                    {% endfor %}
+                {% endfor %}
                 </optgroup>
                 {% endif %}
             </select>
@@ -436,9 +436,9 @@ document.getElementById('add-product-form').addEventListener('submit', async fun
     
     if (!tabletTypeName || !tabletTypeId) {
         showError('Please select a tablet type');
-        return;
-    }
-    
+            return;
+        }
+        
     try {
         const data = {
             product_name: document.getElementById('new-product-name').value,

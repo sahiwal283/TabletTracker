@@ -138,7 +138,7 @@ def dashboard_view():
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
-                           ws.loose_tablets + ws.damaged_tablets
+                       ws.loose_tablets + ws.damaged_tablets
                        )
                    END as calculated_total
             FROM warehouse_submissions ws

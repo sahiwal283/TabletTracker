@@ -97,7 +97,7 @@
                 <button type="submit" class="btn-primary px-4 py-2 flex-1">
                     Apply Filters
                 </button>
-                <a href="/submissions{% if filter_info.po_id %}?po_id={{ filter_info.po_id }}{% endif %}{% if filter_info.item_id %}{% if filter_info.po_id %}&{% else %}?{% endif %}item_id={{ filter_info.item_id }}{% endif %}" 
+                <a href="/submissions{% if filter_info.po_id or filter_info.item_id or sort_by %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}{% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
                    class="btn-secondary px-4 py-2">
                     Clear
                 </a>
@@ -148,7 +148,7 @@
                 </div>
             </div>
         </div>
-        <a href="/submissions" class="btn-secondary px-4 py-2 text-sm">
+        <a href="/submissions{% if sort_by %}?sort_by={{ sort_by }}&sort_order={{ sort_order }}{% endif %}" class="btn-secondary px-4 py-2 text-sm">
             ✖️ Clear All Filters
         </a>
     </div>
@@ -169,7 +169,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <a href="/submissions/export{% if filter_info.po_id or filter_info.item_id or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_id %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}{% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}{% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
+                <a href="/submissions/export{% if filter_info.po_id or filter_info.item_id or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_id or filter_submission_type or sort_by %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}{% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}{% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}{% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}{% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}{% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
                    class="btn-primary px-4 py-2 text-sm flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -183,17 +183,44 @@
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50 sticky top-0 z-10">
                 <tr>
+                    {% set query_parts = [] %}
+                    {% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}
+                    {% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}
+                    {% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}
+                    {% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}
+                    {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
+                    {% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}
+                    {% set filter_query = query_parts|join('&') %}
+                    
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Time
+                        <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=created_at&sort_order={% if sort_by == 'created_at' and sort_order == 'desc' %}asc{% else %}desc{% endif %}" 
+                           class="flex items-center gap-1 hover:text-gray-700">
+                            Time
+                            {% if sort_by == 'created_at' %}
+                                <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                            {% endif %}
+                        </a>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Type
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Employee
+                        <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=employee_name&sort_order={% if sort_by == 'employee_name' and sort_order == 'asc' %}desc{% else %}asc{% endif %}" 
+                           class="flex items-center gap-1 hover:text-gray-700">
+                            Employee
+                            {% if sort_by == 'employee_name' %}
+                                <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
+                            {% endif %}
+                        </a>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Product
+                        <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=product_name&sort_order={% if sort_by == 'product_name' and sort_order == 'asc' %}desc{% else %}asc{% endif %}" 
+                           class="flex items-center gap-1 hover:text-gray-700">
+                            Product
+                            {% if sort_by == 'product_name' %}
+                                <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
+                            {% endif %}
+                        </a>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Displays
@@ -205,10 +232,22 @@
                         Cards<br><span class="text-xs font-normal normal-case">(made / remaining)</span>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Total
+                        <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=total&sort_order={% if sort_by == 'total' and sort_order == 'desc' %}asc{% else %}desc{% endif %}" 
+                           class="flex items-center gap-1 hover:text-gray-700">
+                            Total
+                            {% if sort_by == 'total' %}
+                                <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                            {% endif %}
+                        </a>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Receipt #
+                        <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=receipt_number&sort_order={% if sort_by == 'receipt_number' and sort_order == 'asc' %}desc{% else %}asc{% endif %}" 
+                           class="flex items-center gap-1 hover:text-gray-700">
+                            Receipt #
+                            {% if sort_by == 'receipt_number' %}
+                                <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
+                            {% endif %}
+                        </a>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Receive<br><span class="text-xs font-normal normal-case">(po # - receive # - box # - bag #)</span>
@@ -339,6 +378,9 @@
                 {% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}
                 {% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}
                 {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
+                {% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}
+                {% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}
+                {% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}
                 {% set filter_query = query_parts|join('&') %}
                 {% set page_prefix = '?' + filter_query + '&' if filter_query else '?' %}
                 
