@@ -6687,6 +6687,85 @@ def assign_submission_to_receive(submission_id):
                 pass
 
 
+@bp.route('/api/admin/diagnose-submissions/<int:receive_id>', methods=['GET'])
+@admin_required
+def diagnose_submissions(receive_id):
+    """Diagnose submission assignments for a specific receive"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get receive info
+        receive = conn.execute('''
+            SELECT r.*, po.po_number
+            FROM receiving r
+            JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.id = ?
+        ''', (receive_id,)).fetchone()
+        
+        if not receive:
+            return jsonify({'error': 'Receive not found'}), 404
+        
+        receive_dict = dict(receive)
+        
+        # Get all bags for this receive
+        bags = conn.execute('''
+            SELECT b.id as bag_id, b.bag_number, sb.box_number, b.bag_label_count,
+                   tt.tablet_type_name, tt.inventory_item_id
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE sb.receiving_id = ?
+            ORDER BY sb.box_number, b.bag_number
+        ''', (receive_id,)).fetchall()
+        
+        bag_info = []
+        for bag in bags:
+            bag_dict = dict(bag)
+            
+            # Find submissions that SHOULD be assigned to this bag
+            submissions_by_bag_id = conn.execute('''
+                SELECT id, submission_type, employee_name, product_name, created_at
+                FROM warehouse_submissions
+                WHERE bag_id = ?
+            ''', (bag_dict['bag_id'],)).fetchall()
+            
+            # Find submissions with matching box/bag but different bag_id
+            submissions_by_numbers = conn.execute('''
+                SELECT id, submission_type, employee_name, product_name, bag_id, created_at
+                FROM warehouse_submissions
+                WHERE assigned_po_id = ?
+                AND box_number = ?
+                AND bag_number = ?
+                AND (bag_id IS NULL OR bag_id != ?)
+            ''', (receive_dict['po_id'], bag_dict['box_number'], bag_dict['bag_number'], bag_dict['bag_id'])).fetchall()
+            
+            bag_info.append({
+                'bag_id': bag_dict['bag_id'],
+                'box_bag': f"{bag_dict['box_number']}/{bag_dict['bag_number']}",
+                'tablet_type': bag_dict['tablet_type_name'],
+                'submissions_by_bag_id': [dict(s) for s in submissions_by_bag_id],
+                'submissions_with_wrong_bag_id': [dict(s) for s in submissions_by_numbers]
+            })
+        
+        return jsonify({
+            'success': True,
+            'receive': receive_dict,
+            'bags': bag_info
+        })
+        
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
 @bp.route('/api/admin/fix-bag-assignments', methods=['POST'])
 @admin_required
 def fix_bag_assignments():
@@ -6712,29 +6791,30 @@ def fix_bag_assignments():
         updated_count = 0
         skipped_count = 0
         no_bag_found = 0
+        multiple_bags_found = 0
         updates = []
         
         for sub in submissions:
             sub_dict = dict(sub)
             
-            # Find the correct bag_id for this submission
-            bag_row = conn.execute('''
-                SELECT b.id as bag_id
+            # Find ALL bags that match this box/bag/PO combination
+            bag_rows = conn.execute('''
+                SELECT b.id as bag_id, r.id as receive_id, r.receive_name
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
                 JOIN receiving r ON sb.receiving_id = r.id
                 WHERE r.po_id = ?
                 AND sb.box_number = ?
                 AND b.bag_number = ?
-                LIMIT 1
-            ''', (sub_dict['assigned_po_id'], sub_dict['box_number'], sub_dict['bag_number'])).fetchone()
+                ORDER BY r.received_date DESC, r.id DESC
+            ''', (sub_dict['assigned_po_id'], sub_dict['box_number'], sub_dict['bag_number'])).fetchall()
             
-            if bag_row:
-                bag_dict = dict(bag_row)
+            if len(bag_rows) == 1:
+                # Only one bag matches - safe to update
+                bag_dict = dict(bag_rows[0])
                 correct_bag_id = bag_dict['bag_id']
                 
                 if sub_dict['current_bag_id'] != correct_bag_id:
-                    # Update the bag_id
                     conn.execute('''
                         UPDATE warehouse_submissions
                         SET bag_id = ?
@@ -6747,11 +6827,25 @@ def fix_bag_assignments():
                         'product': sub_dict['product_name'],
                         'box_bag': f"{sub_dict['box_number']}/{sub_dict['bag_number']}",
                         'old_bag_id': sub_dict['current_bag_id'],
-                        'new_bag_id': correct_bag_id
+                        'new_bag_id': correct_bag_id,
+                        'receive': bag_dict['receive_name']
                     })
                     updated_count += 1
                 else:
                     skipped_count += 1
+            elif len(bag_rows) > 1:
+                # Multiple bags match - ambiguous, skip
+                multiple_bags_found += 1
+                updates.append({
+                    'submission_id': sub_dict['id'],
+                    'type': sub_dict['submission_type'],
+                    'product': sub_dict['product_name'],
+                    'box_bag': f"{sub_dict['box_number']}/{sub_dict['bag_number']}",
+                    'old_bag_id': sub_dict['current_bag_id'],
+                    'status': 'AMBIGUOUS',
+                    'message': f'Found {len(bag_rows)} matching bags - needs manual review',
+                    'possible_bags': [{'bag_id': dict(b)['bag_id'], 'receive': dict(b)['receive_name']} for b in bag_rows]
+                })
             else:
                 no_bag_found += 1
         
@@ -6763,6 +6857,7 @@ def fix_bag_assignments():
             'updated': updated_count,
             'skipped': skipped_count,
             'no_bag_found': no_bag_found,
+            'multiple_bags_found': multiple_bags_found,
             'updates': updates
         })
         
