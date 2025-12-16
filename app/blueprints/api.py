@@ -5287,27 +5287,49 @@ def edit_submission(submission_id):
         # Get receipt_number from form data
         receipt_number = (data.get('receipt_number') or '').strip() or None
         
+        # Find the correct bag_id if box_number and bag_number are provided
+        new_box_number = data.get('box_number')
+        new_bag_number = data.get('bag_number')
+        new_bag_id = None
+        
+        if new_box_number is not None and new_bag_number is not None and old_po_id:
+            # Try to find the bag that matches the new box_number and bag_number for this PO
+            bag_row = conn.execute('''
+                SELECT b.id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE r.po_id = ?
+                AND sb.box_number = ?
+                AND b.bag_number = ?
+                LIMIT 1
+            ''', (old_po_id, new_box_number, new_bag_number)).fetchone()
+            
+            if bag_row:
+                new_bag_id = dict(bag_row).get('id')
+            # If no bag found, set bag_id to NULL (submission will be unassigned)
+        
         # Update the submission
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         if submission_type == 'machine':
             conn.execute('''
                 UPDATE warehouse_submissions
                 SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
-                    damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
+                    damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                     submission_date = ?, admin_notes = ?, receipt_number = ?
                 WHERE id = ?
             ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
-                  damaged_tablets, data.get('box_number'), data.get('bag_number'),
+                  damaged_tablets, new_box_number, new_bag_number, new_bag_id,
                   data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
         else:
             conn.execute('''
                 UPDATE warehouse_submissions
                 SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
-                    damaged_tablets = ?, box_number = ?, bag_number = ?, bag_label_count = ?,
+                    damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                     submission_date = ?, admin_notes = ?, receipt_number = ?
                 WHERE id = ?
             ''', (displays_made, packs_remaining, loose_tablets,
-                  damaged_tablets, data.get('box_number'), data.get('bag_number'),
+                  damaged_tablets, new_box_number, new_bag_number, new_bag_id,
                   data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
         
         # Update PO line counts if assigned to a PO
