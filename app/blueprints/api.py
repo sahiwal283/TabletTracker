@@ -160,16 +160,11 @@ def get_receive_details(receive_id):
                 products[inventory_item_id]['boxes'][box_number] = {}
             
             # Get submission counts for this specific bag
-            # For machine submissions: use tablets_pressed_into_cards column (fallback to loose_tablets, then calculate from cards_made × tablets_per_package)
-            machine_count = conn.execute('''
-                SELECT COALESCE(SUM(
-                    COALESCE(
-                        ws.tablets_pressed_into_cards,
-                        ws.loose_tablets,
-                        (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
-                        0
-                    )
-                ), 0) as total_machine
+            # For machine submissions: calculate each submission individually to ensure proper fallback
+            machine_submissions = conn.execute('''
+                SELECT ws.tablets_pressed_into_cards, ws.loose_tablets, ws.packs_remaining,
+                       COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
+                       ws.inventory_item_id
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
@@ -185,7 +180,31 @@ def get_receive_details(receive_id):
                         AND ws.assigned_po_id = ?
                     )
                 )
-            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
+            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchall()
+            
+            machine_total = 0
+            for machine_sub in machine_submissions:
+                msub = dict(machine_sub)
+                tablets_per_package = msub.get('tablets_per_package_final') or 0
+                
+                # If still 0, do direct query
+                if not tablets_per_package and msub.get('inventory_item_id'):
+                    tpp_row = conn.execute('''
+                        SELECT pd.tablets_per_package
+                        FROM tablet_types tt
+                        JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE tt.inventory_item_id = ?
+                        LIMIT 1
+                    ''', (msub['inventory_item_id'],)).fetchone()
+                    if tpp_row:
+                        tablets_per_package = dict(tpp_row).get('tablets_per_package', 0) or 0
+                
+                # Calculate total for this submission
+                sub_total = (msub.get('tablets_pressed_into_cards') or
+                            msub.get('loose_tablets') or
+                            ((msub.get('packs_remaining', 0) or 0) * tablets_per_package) or
+                            0)
+                machine_total += sub_total
             
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
