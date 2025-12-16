@@ -727,7 +727,7 @@ def product_mapping():
             ''').fetchone()
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 try:
-                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     deleted_categories_set = set()
         except Exception as e:
@@ -746,7 +746,7 @@ def product_mapping():
             ''').fetchone()
             if category_order_json and category_order_json['setting_value']:
                 try:
-                    preferred_order = json.loads(category_order_json['setting_value'])
+                preferred_order = json.loads(category_order_json['setting_value'])
                 except (json.JSONDecodeError, ValueError, TypeError):
                     preferred_order = sorted(category_list)
             else:
@@ -2150,7 +2150,7 @@ def get_categories():
             ''').fetchone()
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 try:
-                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     deleted_categories_set = set()
         except Exception as e:
@@ -2169,7 +2169,7 @@ def get_categories():
             ''').fetchone()
             if category_order_json and category_order_json['setting_value']:
                 try:
-                    preferred_order = json.loads(category_order_json['setting_value'])
+                preferred_order = json.loads(category_order_json['setting_value'])
                 except (json.JSONDecodeError, ValueError, TypeError):
                     preferred_order = sorted(category_list)
             else:
@@ -2421,7 +2421,7 @@ def delete_category():
             deleted_categories = set()
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 try:
-                    deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
+                deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     deleted_categories = set()
             
@@ -4217,11 +4217,11 @@ def reassign_submission_to_po(submission_id):
         if submission_type == 'machine':
             good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
         else:
-            packages_per_display = submission['packages_per_display'] or 0
-            tablets_per_package = submission['tablets_per_package'] or 0
-            good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                           submission['packs_remaining'] * tablets_per_package + 
-                           submission['loose_tablets'])
+        packages_per_display = submission['packages_per_display'] or 0
+        tablets_per_package = submission['tablets_per_package'] or 0
+        good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
+                       submission['packs_remaining'] * tablets_per_package + 
+                       submission['loose_tablets'])
         damaged_tablets = submission['damaged_tablets']
         
         # Remove counts from old PO if assigned
@@ -4382,11 +4382,11 @@ def admin_reassign_verified_submission(submission_id):
         if submission_type == 'machine':
             good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
         else:
-            packages_per_display = submission['packages_per_display'] or 0
-            tablets_per_package = submission['tablets_per_package'] or 0
-            good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                           submission['packs_remaining'] * tablets_per_package + 
-                           submission['loose_tablets'])
+        packages_per_display = submission['packages_per_display'] or 0
+        tablets_per_package = submission['tablets_per_package'] or 0
+        good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
+                       submission['packs_remaining'] * tablets_per_package + 
+                       submission['loose_tablets'])
         damaged_tablets = submission['damaged_tablets']
         
         # Remove counts from old PO if assigned
@@ -4591,11 +4591,11 @@ def reassign_all_submissions():
                 if submission_type == 'machine':
                     good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
                 else:
-                    packages_per_display = product.get('packages_per_display') or 0
-                    tablets_per_package = product.get('tablets_per_package') or 0
-                    good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
-                                  submission.get('packs_remaining', 0) * tablets_per_package + 
-                                  submission.get('loose_tablets', 0))
+                packages_per_display = product.get('packages_per_display') or 0
+                tablets_per_package = product.get('tablets_per_package') or 0
+                good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                              submission.get('packs_remaining', 0) * tablets_per_package + 
+                              submission.get('loose_tablets', 0))
                 damaged_tablets = submission.get('damaged_tablets', 0)
                 
                 # Find the first PO that hasn't reached its ordered quantity yet
@@ -4785,13 +4785,13 @@ def recalculate_po_counts():
                 if submission_type == 'machine':
                     good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
                 else:
-                    packages_per_display = sub['packages_per_display'] or 0
-                    tablets_per_package = sub['tablets_per_package'] or 0
-                    good_tablets = (
-                        (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
-                        (sub['packs_remaining'] or 0) * tablets_per_package +
-                        (sub['loose_tablets'] or 0)
-                    )
+                packages_per_display = sub['packages_per_display'] or 0
+                tablets_per_package = sub['tablets_per_package'] or 0
+                good_tablets = (
+                    (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                    (sub['packs_remaining'] or 0) * tablets_per_package +
+                    (sub['loose_tablets'] or 0)
+                )
                 skipped_submissions.append({
                     'submission_id': sub['submission_id'],
                     'product_name': sub['product_name'],
@@ -4808,13 +4808,13 @@ def recalculate_po_counts():
             if submission_type == 'machine':
                 good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
             else:
-                packages_per_display = sub['packages_per_display'] or 0
-                tablets_per_package = sub['tablets_per_package'] or 0
-                good_tablets = (
-                    (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
-                    (sub['packs_remaining'] or 0) * tablets_per_package +
-                    (sub['loose_tablets'] or 0)
-                )
+            packages_per_display = sub['packages_per_display'] or 0
+            tablets_per_package = sub['tablets_per_package'] or 0
+            good_tablets = (
+                (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                (sub['packs_remaining'] or 0) * tablets_per_package +
+                (sub['loose_tablets'] or 0)
+            )
             damaged_tablets = sub['damaged_tablets'] or 0
             
             # Add to running total for this PO line
@@ -5270,9 +5270,9 @@ def edit_submission(submission_id):
         if submission_type == 'machine':
             old_good = submission.get('tablets_pressed_into_cards', 0) or 0
         else:
-            old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
-                       submission['packs_remaining'] * tablets_per_package +
-                       submission['loose_tablets'])
+        old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
+                   submission['packs_remaining'] * tablets_per_package +
+                   submission['loose_tablets'])
         old_damaged = submission['damaged_tablets']
         
         # Validate and convert input data
@@ -5289,9 +5289,9 @@ def edit_submission(submission_id):
         if submission_type == 'machine':
             new_good = tablets_pressed_into_cards
         else:
-            new_good = (displays_made * packages_per_display * tablets_per_package +
-                       packs_remaining * tablets_per_package +
-                       loose_tablets)
+        new_good = (displays_made * packages_per_display * tablets_per_package +
+                   packs_remaining * tablets_per_package +
+                   loose_tablets)
         new_damaged = damaged_tablets
         
         # Get receipt_number from form data
@@ -5332,13 +5332,13 @@ def edit_submission(submission_id):
                   damaged_tablets, new_box_number, new_bag_number, new_bag_id,
                   data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
         else:
-            conn.execute('''
-                UPDATE warehouse_submissions
-                SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
+        conn.execute('''
+            UPDATE warehouse_submissions
+            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
                     damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                     submission_date = ?, admin_notes = ?, receipt_number = ?
-                WHERE id = ?
-            ''', (displays_made, packs_remaining, loose_tablets,
+            WHERE id = ?
+        ''', (displays_made, packs_remaining, loose_tablets,
                   damaged_tablets, new_box_number, new_bag_number, new_bag_id,
                   data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
         
@@ -5460,9 +5460,9 @@ def delete_submission(submission_id):
         if submission_type == 'machine':
             good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
         else:
-            good_tablets = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
-                           submission['packs_remaining'] * product['tablets_per_package'] +
-                           submission['loose_tablets'])
+        good_tablets = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
+                       submission['packs_remaining'] * product['tablets_per_package'] +
+                       submission['loose_tablets'])
         damaged_tablets = submission['damaged_tablets']
         
         # Remove counts from PO line if assigned
@@ -5698,11 +5698,11 @@ def resync_unassigned_submissions():
             if submission_type == 'machine':
                 good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
             else:
-                packages_per_display = product.get('packages_per_display') or 0
-                tablets_per_package = product.get('tablets_per_package') or 0
-                good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
-                              submission.get('packs_remaining', 0) * tablets_per_package + 
-                              submission.get('loose_tablets', 0))
+            packages_per_display = product.get('packages_per_display') or 0
+            tablets_per_package = product.get('tablets_per_package') or 0
+            good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                          submission.get('packs_remaining', 0) * tablets_per_package + 
+                          submission.get('loose_tablets', 0))
             damaged_tablets = submission.get('damaged_tablets', 0)
             
             # Assign to first available PO
@@ -6057,11 +6057,11 @@ def get_po_submissions(po_id):
                                0)
             else:
                 # For other submissions: calculate from displays, packs, loose, and damaged
-                displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
-                package_tablets = (sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
-                loose_tablets = sub_dict.get('loose_tablets', 0) or 0
-                damaged_tablets = sub_dict.get('damaged_tablets', 0) or 0
-                total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
+            displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
+            package_tablets = (sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
+            loose_tablets = sub_dict.get('loose_tablets', 0) or 0
+            damaged_tablets = sub_dict.get('damaged_tablets', 0) or 0
+            total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
             
             sub_dict['total_tablets'] = total_tablets
             
