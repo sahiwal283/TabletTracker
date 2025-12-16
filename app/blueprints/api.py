@@ -6797,17 +6797,27 @@ def fix_bag_assignments():
         for sub in submissions:
             sub_dict = dict(sub)
             
-            # Find ALL bags that match this box/bag/PO combination
+            # Find ALL bags that match this box/bag/PO combination AND have the same inventory_item_id
+            # This ensures submissions only go to bags with the SAME tablet type
             bag_rows = conn.execute('''
-                SELECT b.id as bag_id, r.id as receive_id, r.receive_name
+                SELECT b.id as bag_id, r.id as receive_id, r.receive_name, tt.tablet_type_name
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
                 JOIN receiving r ON sb.receiving_id = r.id
+                JOIN tablet_types tt ON b.tablet_type_id = tt.id
                 WHERE r.po_id = ?
                 AND sb.box_number = ?
                 AND b.bag_number = ?
+                AND tt.inventory_item_id = (
+                    SELECT inventory_item_id FROM tablet_types 
+                    WHERE inventory_item_id = ?
+                    LIMIT 1
+                )
                 ORDER BY r.received_date DESC, r.id DESC
-            ''', (sub_dict['assigned_po_id'], sub_dict['box_number'], sub_dict['bag_number'])).fetchall()
+            ''', (sub_dict['assigned_po_id'], sub_dict['box_number'], sub_dict['bag_number'], 
+                  # Get inventory_item_id from submission
+                  conn.execute('SELECT inventory_item_id FROM warehouse_submissions WHERE id = ?', 
+                              (sub_dict['id'],)).fetchone()[0])).fetchall()
             
             if len(bag_rows) == 1:
                 # Only one bag matches - safe to update
