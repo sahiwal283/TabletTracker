@@ -160,10 +160,20 @@ def get_receive_details(receive_id):
                 products[inventory_item_id]['boxes'][box_number] = {}
             
             # Get submission counts for this specific bag
-            # For machine submissions: use tablets_pressed_into_cards column (fallback to loose_tablets for old data)
+            # For machine submissions: use tablets_pressed_into_cards column (fallback to loose_tablets, then calculate from cards_made × tablets_per_package)
             machine_count = conn.execute('''
-                SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)), 0) as total_machine
+                SELECT COALESCE(SUM(
+                    COALESCE(
+                        ws.tablets_pressed_into_cards,
+                        ws.loose_tablets,
+                        (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
+                        0
+                    )
+                ), 0) as total_machine
                 FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+                LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 WHERE ws.submission_type = 'machine'
                 AND (
                     ws.bag_id = ?
