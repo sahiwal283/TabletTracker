@@ -208,6 +208,9 @@
                         Total
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Receipt #
+                    </th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Receive<br><span class="text-xs font-normal normal-case">(po # - receive # - box # - bag #)</span>
                     </th>
                 </tr>
@@ -264,6 +267,9 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
                         {{ sub.individual_calc }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.receipt_number if sub.receipt_number else 'N/A' }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base">
                         {% if sub.receive_name %}
