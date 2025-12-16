@@ -5698,12 +5698,12 @@ def resync_unassigned_submissions():
             if submission_type == 'machine':
                 good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
             else:
-            packages_per_display = product.get('packages_per_display') or 0
-            tablets_per_package = product.get('tablets_per_package') or 0
-            good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
-                          submission.get('packs_remaining', 0) * tablets_per_package + 
-                          submission.get('loose_tablets', 0))
-            damaged_tablets = submission.get('damaged_tablets', 0)
+                packages_per_display = product.get('packages_per_display') or 0
+                tablets_per_package = product.get('tablets_per_package') or 0
+                good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
+                              submission.get('packs_remaining', 0) * tablets_per_package + 
+                              submission.get('loose_tablets', 0))
+                damaged_tablets = submission.get('damaged_tablets', 0)
             
             # Assign to first available PO
             assigned_po_id = po_lines[0]['po_id']
