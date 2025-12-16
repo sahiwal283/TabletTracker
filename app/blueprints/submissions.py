@@ -227,9 +227,15 @@ def submissions_list():
         sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
         sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
         
-        # Handle NULL receipt_numbers by sorting them last
+        # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
         if sort_by == 'receipt_number':
-            query += f' ORDER BY CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_direction}'
+            # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
+            # Split by dash and cast both parts to integers for proper numeric comparison
+            query += f''' ORDER BY 
+                CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
+                CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
+                CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
+            '''
         else:
             query += f' ORDER BY {sort_column} {sort_direction}'
         
@@ -452,9 +458,15 @@ def export_submissions_csv():
         sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
         sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
         
-        # Handle NULL receipt_numbers by sorting them last
+        # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
         if sort_by == 'receipt_number':
-            query += f' ORDER BY CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END, {sort_column} {sort_direction}'
+            # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
+            # Split by dash and cast both parts to integers for proper numeric comparison
+            query += f''' ORDER BY 
+                CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
+                CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
+                CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
+            '''
         else:
             query += f' ORDER BY {sort_column} {sort_direction}'
         
