@@ -727,7 +727,7 @@ def product_mapping():
             ''').fetchone()
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 try:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     deleted_categories_set = set()
         except Exception as e:
@@ -746,7 +746,7 @@ def product_mapping():
             ''').fetchone()
             if category_order_json and category_order_json['setting_value']:
                 try:
-                preferred_order = json.loads(category_order_json['setting_value'])
+                    preferred_order = json.loads(category_order_json['setting_value'])
                 except (json.JSONDecodeError, ValueError, TypeError):
                     preferred_order = sorted(category_list)
             else:
@@ -2150,7 +2150,7 @@ def get_categories():
             ''').fetchone()
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 try:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     deleted_categories_set = set()
         except Exception as e:
@@ -2169,7 +2169,7 @@ def get_categories():
             ''').fetchone()
             if category_order_json and category_order_json['setting_value']:
                 try:
-                preferred_order = json.loads(category_order_json['setting_value'])
+                    preferred_order = json.loads(category_order_json['setting_value'])
                 except (json.JSONDecodeError, ValueError, TypeError):
                     preferred_order = sorted(category_list)
             else:
@@ -2421,7 +2421,7 @@ def delete_category():
             deleted_categories = set()
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 try:
-                deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
+                    deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     deleted_categories = set()
             

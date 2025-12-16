@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Fix Bag Assignments{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
+            🔧 Fix Bag Assignments
+        </h1>
+        <p class="text-gray-600 mt-2">Fix submissions that are assigned to the wrong bags</p>
+    </div>
+
+    <div class="card">
+        <div class="p-6">
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">What does this do?</h3>
+                <p class="text-gray-600 mb-4">
+                    This tool updates all submissions to have the correct <code>bag_id</code> based on their box number, bag number, and PO assignment.
+                    This fixes issues where submissions don't appear under the correct receive because their <code>bag_id</code> is incorrect or NULL.
+                </p>
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                    <p class="text-sm text-yellow-800">
+                        ⚠️ <strong>Admin Only:</strong> This operation will update the database. Make sure you know what you're doing.
+                    </p>
+                </div>
+            </div>
+
+            <button onclick="fixBagAssignments()" 
+                    id="fixButton"
+                    class="btn-primary px-6 py-3 text-lg font-semibold">
+                🔧 Fix All Bag Assignments
+            </button>
+
+            <div id="results" class="mt-6 hidden"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function fixBagAssignments() {
+    const button = document.getElementById('fixButton');
+    const resultsDiv = document.getElementById('results');
+    
+    button.disabled = true;
+    button.textContent = '⏳ Fixing...';
+    resultsDiv.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/admin/fix-bag-assignments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            resultsDiv.classList.remove('hidden');
+            resultsDiv.innerHTML = `
+                <div class="bg-green-50 border-l-4 border-green-400 p-4">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-green-800">Success!</h3>
+                            <div class="mt-2 text-sm text-green-700">
+                                <p class="font-semibold">${data.message}</p>
+                                <ul class="list-disc pl-5 mt-2">
+                                    <li>✓ Updated: ${data.updated} submissions</li>
+                                    <li>⊘ Skipped (already correct): ${data.skipped} submissions</li>
+                                    <li>⚠ No bag found: ${data.no_bag_found} submissions</li>
+                                </ul>
+                            </div>
+                            ${data.updates && data.updates.length > 0 ? `
+                                <div class="mt-4">
+                                    <h4 class="text-sm font-semibold text-green-800 mb-2">Updated Submissions:</h4>
+                                    <div class="space-y-2 max-h-96 overflow-y-auto">
+                                        ${data.updates.map(u => `
+                                            <div class="bg-white rounded p-2 text-xs border border-green-200">
+                                                <div class="font-medium">Submission #${u.submission_id} - ${u.type}</div>
+                                                <div class="text-gray-600">${u.product} - Box/Bag: ${u.box_bag}</div>
+                                                <div class="text-gray-500">bag_id: ${u.old_bag_id || 'NULL'} → ${u.new_bag_id}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            throw new Error(data.error || 'Unknown error');
+        }
+    } catch (error) {
+        resultsDiv.classList.remove('hidden');
+        resultsDiv.innerHTML = `
+            <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Error</h3>
+                        <p class="mt-2 text-sm text-red-700">${error.message}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    } finally {
+        button.disabled = false;
+        button.textContent = '🔧 Fix All Bag Assignments';
+    }
+}
+</script>
+{% endblock %}

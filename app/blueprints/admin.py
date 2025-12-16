@@ -207,6 +207,13 @@ def tablet_types_config():
 
 
 
+@bp.route('/admin/fix-bags')
+@admin_required
+def fix_bags_page():
+    """Page to fix bag assignments"""
+    return render_template('fix_bags.html')
+
+
 @bp.route('/admin/employees')
 @admin_required
 def manage_employees():
