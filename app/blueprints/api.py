@@ -245,10 +245,11 @@ def get_receive_details(receive_id):
             
             products[inventory_item_id]['boxes'][box_number][bag_number] = {
                 'bag_id': bag['id'],
+                'bag_number': bag_number,
                 'received_count': bag_label_count,
-                'machine_count': machine_count['total_machine'] if machine_count else 0,
-                'packaged_count': packaged_count['total_packaged'] if packaged_count else 0,
-                'bag_count': bag_count['total_bag'] if bag_count else 0
+                'machine_count': machine_total,
+                'packaged_count': dict(packaged_count)['total_packaged'] if packaged_count else 0,
+                'bag_count': dict(bag_count)['total_bag'] if bag_count else 0
             }
         
         # Convert nested dict to list format for easier frontend handling
