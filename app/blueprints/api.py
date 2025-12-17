@@ -2039,14 +2039,14 @@ def get_tablet_type_categories():
         conn = get_db()
         conn.row_factory = sqlite3.Row
         
-        # Get all tablet types with their categories
+        # Get all tablet types with their categories (already sorted alphabetically)
         tablet_types = conn.execute('''
             SELECT id, tablet_type_name, category 
             FROM tablet_types 
             ORDER BY tablet_type_name
         ''').fetchall()
         
-        # Group by category
+        # Group by category (products will maintain alphabetical order)
         categories = {}
         unassigned = []
         
@@ -2065,20 +2065,14 @@ def get_tablet_type_categories():
                     'name': tt['tablet_type_name']
                 })
         
-        # Add unassigned to Other if it exists
+        # Add unassigned to Other if it exists (already alphabetically sorted)
         if unassigned:
             if 'Other' not in categories:
                 categories['Other'] = []
             categories['Other'].extend(unassigned)
         
-        # Build dynamic category_order from actual categories, maintaining preferred order
-        preferred_order = ['FIX Energy', 'FIX Focus', 'FIX Relax', 'FIX MAX', 'Hyroxi Regular', 'Hyroxi XL', 'MIT A', 'Other']
-        category_order = [cat for cat in preferred_order if cat in categories]
-        
-        # Add any categories not in preferred_order
-        for cat in sorted(categories.keys()):
-            if cat not in category_order:
-                category_order.append(cat)
+        # Sort categories alphabetically
+        category_order = sorted(categories.keys())
         
         return jsonify({
             'success': True,
