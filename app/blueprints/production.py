@@ -179,8 +179,32 @@ def submit_warehouse():
         if not tablet_type_id:
             return jsonify({'error': 'Product tablet_type_id not found'}), 400
         
+        # Get receipt_number (required for packaging submissions)
+        receipt_number = (data.get('receipt_number') or '').strip() or None
+        if not receipt_number:
+            return jsonify({'error': 'Receipt number is required'}), 400
+        
+        # Try to get box/bag from form data first
         box_number = data.get('box_number')
         bag_number = data.get('bag_number')
+        
+        # If box/bag not provided, lookup from machine count using receipt
+        if not (box_number and bag_number):
+            machine_count = conn.execute('''
+                SELECT box_number, bag_number 
+                FROM warehouse_submissions
+                WHERE receipt_number = ? AND submission_type = 'machine'
+                ORDER BY created_at DESC LIMIT 1
+            ''', (receipt_number,)).fetchone()
+            
+            if machine_count:
+                box_number = machine_count['box_number']
+                bag_number = machine_count['bag_number']
+                print(f"📝 Looked up box/bag from receipt {receipt_number}: Box {box_number}, Bag {bag_number}")
+            else:
+                return jsonify({
+                    'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
+                }), 400
         
         # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
         bag = None
@@ -205,10 +229,8 @@ def submit_warehouse():
                 # No match found
                 print(f"❌ {error_message}")
         
-        # Get receipt_number from form data
-        receipt_number = (data.get('receipt_number') or '').strip() or None
-        
         # Insert submission with bag_id and po_id if matched
+        # Note: receipt_number already extracted and validated above
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
@@ -635,6 +657,66 @@ def submit_machine_count():
                 conn.rollback()
             except:
                 pass
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/machine-count/by-receipt', methods=['GET'])
+@employee_required
+def get_machine_count_by_receipt():
+    """
+    Lookup machine count submission by receipt number
+    Returns box_number, bag_number, tablet_type_id, and tablet_type_name
+    for use in packaging submission
+    """
+    conn = None
+    try:
+        receipt_number = request.args.get('receipt')
+        
+        if not receipt_number:
+            return jsonify({'error': 'Receipt number required'}), 400
+        
+        conn = get_db()
+        
+        # Find all machine count submissions with this receipt number
+        # Join with product_details and tablet_types to get tablet type info
+        machine_counts = conn.execute('''
+            SELECT ws.id, ws.box_number, ws.bag_number, ws.product_name, 
+                   ws.displays_made as turns, ws.employee_name, ws.submission_date,
+                   pd.tablet_type_id, tt.tablet_type_name
+            FROM warehouse_submissions ws
+            JOIN product_details pd ON ws.product_name = pd.product_name
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE ws.receipt_number = ? 
+            AND ws.submission_type = 'machine'
+            ORDER BY ws.created_at DESC
+        ''', (receipt_number,)).fetchall()
+        
+        if len(machine_counts) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No machine count found for this receipt number'
+            })
+        elif len(machine_counts) > 1:
+            return jsonify({
+                'success': False,
+                'multiple_matches': True,
+                'matches': [dict(mc) for mc in machine_counts],
+                'error': 'Multiple machine counts found for this receipt number'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'machine_count': dict(machine_counts[0])
+            })
+    except Exception as e:
+        print(f"Error in get_machine_count_by_receipt: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     finally:

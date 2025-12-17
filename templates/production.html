@@ -99,10 +99,11 @@
             <!-- Receipt Number -->
             <div>
                 <label for="machine_receipt_number" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">
-                    Receipt #
+                    Receipt # *
                 </label>
-                <input type="text" id="machine_receipt_number" name="receipt_number"
+                <input type="text" id="machine_receipt_number" name="receipt_number" required
                        class="form-input text-base" placeholder="Enter receipt number">
+                <p class="text-xs text-gray-500 mt-1">💡 This receipt number will be used by the packaging team</p>
             </div>
             
             <!-- Admin Notes (optional) -->
@@ -152,13 +153,30 @@
         
         <form id="warehouse-form" class="space-y-4">
             
+            <!-- Receipt Number (Primary Identifier) -->
+            <div>
+                <label for="receipt_number" class="block text-sm font-medium text-gray-700 mb-1">
+                    Receipt # *
+                </label>
+                <input type="text" id="receipt_number" name="receipt_number" required
+                       class="form-input" placeholder="Enter receipt number from production">
+                <p class="text-xs text-gray-500 mt-1">💡 This will auto-fill box, bag, and tablet type</p>
+            </div>
+            
+            <!-- Receipt Lookup Status Message -->
+            <div id="receipt-lookup-status" class="hidden"></div>
+            
+            <!-- Hidden fields for box/bag (populated via JavaScript) -->
+            <input type="hidden" id="box_number" name="box_number">
+            <input type="hidden" id="bag_number" name="bag_number">
+            
             <!-- Product Selection with Count -->
             <div class="grid grid-cols-1 gap-3">
                 <div>
                     <label for="product_base" class="block text-sm font-medium text-gray-700 mb-1">
                         {{ gettext('Product Type') }} *
                     </label>
-                    <select id="product_base" name="product_base" class="form-input">
+                    <select id="product_base" name="product_base" class="form-input" disabled>
                         <option value="">{{ gettext('Select product type...') }}</option>
                     </select>
                 </div>
@@ -167,7 +185,7 @@
                     <label for="product_count" class="block text-sm font-medium text-gray-700 mb-1">
                         {{ gettext('Count') }} *
                     </label>
-                    <select id="product_count" name="product_count" class="form-input">
+                    <select id="product_count" name="product_count" class="form-input" disabled>
                         <option value="">{{ gettext('Select count...') }}</option>
                     </select>
                 </div>
@@ -176,31 +194,37 @@
                 <input type="hidden" id="product_name" name="product_name">
             </div>
             
-            <!-- Box Number -->
-            <div>
-                <label for="box_number" class="block text-sm font-medium text-gray-700 mb-1">
-                    {{ gettext('Box #') }} *
-                </label>
-                <input type="number" id="box_number" name="box_number" required
-                       class="form-input" min="1" max="999" placeholder="{{ gettext('Box #') }}">
-            </div>
-            
-            <!-- Bag Number -->
-            <div>
-                <label for="bag_number" class="block text-sm font-medium text-gray-700 mb-1">
-                    {{ gettext('Bag #') }} *
-                </label>
-                <input type="number" id="bag_number" name="bag_number" required
-                       class="form-input" min="1" max="999" placeholder="{{ gettext('Bag #') }}">
-            </div>
-            
-            <!-- Receipt Number -->
-            <div>
-                <label for="receipt_number" class="block text-sm font-medium text-gray-700 mb-1">
-                    Receipt #
-                </label>
-                <input type="text" id="receipt_number" name="receipt_number"
-                       class="form-input" placeholder="Enter receipt number">
+            <!-- Fallback Section (shown when receipt not found) -->
+            <div id="fallback-section" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                <div class="flex items-start">
+                    <svg class="w-5 h-5 text-yellow-600 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-medium text-yellow-800">Manual Entry Required</h4>
+                        <p class="text-xs text-yellow-700 mt-1">No machine count found for this receipt. Please enter box and bag numbers manually.</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Fallback Box Number -->
+                    <div>
+                        <label for="fallback_box_number" class="block text-xs font-medium text-gray-700 mb-1">
+                            Box # *
+                        </label>
+                        <input type="number" id="fallback_box_number" 
+                               class="form-input text-sm" min="1" max="999" placeholder="Box #">
+                    </div>
+                    
+                    <!-- Fallback Bag Number -->
+                    <div>
+                        <label for="fallback_bag_number" class="block text-xs font-medium text-gray-700 mb-1">
+                            Bag # *
+                        </label>
+                        <input type="number" id="fallback_bag_number"
+                               class="form-input text-sm" min="1" max="999" placeholder="Bag #">
+                    </div>
+                </div>
             </div>
             
             <!-- Production Counts -->
@@ -405,6 +429,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     const productCountSelect = document.getElementById('product_count');
     const countSelection = document.getElementById('count-selection');
     const productNameHidden = document.getElementById('product_name');
+    
+    // Receipt lookup elements
+    const receiptInput = document.getElementById('receipt_number');
+    const receiptStatus = document.getElementById('receipt-lookup-status');
+    const hiddenBoxField = document.getElementById('box_number');
+    const hiddenBagField = document.getElementById('bag_number');
+    const fallbackSection = document.getElementById('fallback-section');
+    const fallbackBoxInput = document.getElementById('fallback_box_number');
+    const fallbackBagInput = document.getElementById('fallback_bag_number');
+    
+    // Track if receipt lookup was successful
+    let receiptLookupSuccess = false;
+    let autoSelectedTabletTypeId = null;
     
     // Product data from server
     const products = [
@@ -684,6 +721,185 @@ document.addEventListener('DOMContentLoaded', async function() {
         productNameHidden.value = this.value;
     });
     
+    // Receipt lookup functionality
+    if (receiptInput) {
+        receiptInput.addEventListener('blur', async function() {
+            const receiptNum = this.value.trim();
+            if (!receiptNum) {
+                // Reset everything if receipt is cleared
+                resetToManualEntry();
+                return;
+            }
+            
+            try {
+                // Show loading state
+                receiptStatus.innerHTML = '<p class="text-sm text-blue-600">🔄 Looking up receipt...</p>';
+                receiptStatus.classList.remove('hidden');
+                
+                // Call API to lookup machine count
+                const response = await fetch(`/api/machine-count/by-receipt?receipt=${encodeURIComponent(receiptNum)}`);
+                const data = await response.json();
+                
+                if (data.success && data.machine_count) {
+                    // Success - auto-fill everything
+                    const mc = data.machine_count;
+                    receiptLookupSuccess = true;
+                    autoSelectedTabletTypeId = mc.tablet_type_id;
+                    
+                    // Auto-fill hidden box/bag fields
+                    hiddenBoxField.value = mc.box_number;
+                    hiddenBagField.value = mc.bag_number;
+                    
+                    // Hide fallback section
+                    fallbackSection.classList.add('hidden');
+                    
+                    // Find the category for this tablet type
+                    const tabletTypeName = mc.tablet_type_name;
+                    let matchedCategory = null;
+                    
+                    // Search in category groups
+                    for (const [category, baseNames] of Object.entries(categoryGroups)) {
+                        for (const baseName of baseNames) {
+                            const productsInBase = productGroups[baseName] || [];
+                            if (productsInBase.some(p => p.tabletType === tabletTypeName)) {
+                                matchedCategory = category;
+                                break;
+                            }
+                        }
+                        if (matchedCategory) break;
+                    }
+                    
+                    if (matchedCategory) {
+                        // Set category (trigger change to populate base products)
+                        categorySelect.value = matchedCategory;
+                        categorySelect.dispatchEvent(new Event('change'));
+                        categorySelect.disabled = true;
+                        
+                        // Wait a tick for the change event to process
+                        setTimeout(() => {
+                            // Find matching base name and products for this tablet type
+                            let matchedBaseName = null;
+                            let matchingProducts = [];
+                            
+                            for (const [baseName, productsInBase] of Object.entries(productGroups)) {
+                                const matches = productsInBase.filter(p => p.tabletType === tabletTypeName);
+                                if (matches.length > 0) {
+                                    matchedBaseName = baseName;
+                                    matchingProducts = matches;
+                                    break;
+                                }
+                            }
+                            
+                            if (matchedBaseName && matchingProducts.length > 0) {
+                                // Set base product
+                                baseSelect.value = matchedBaseName;
+                                baseSelect.dispatchEvent(new Event('change'));
+                                baseSelect.disabled = true;
+                                
+                                // Show count selection
+                                countSelection.classList.remove('hidden');
+                                
+                                if (matchingProducts.length === 1) {
+                                    // Auto-select the only product
+                                    productCountSelect.value = matchingProducts[0].name;
+                                    productCountSelect.disabled = true;
+                                    productNameHidden.value = matchingProducts[0].name;
+                                    
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Tablet: ${tabletTypeName} - ${matchingProducts[0].name} auto-selected.</p>`;
+                                } else {
+                                    // Multiple products - user needs to select
+                                    productCountSelect.disabled = false;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Tablet: ${tabletTypeName}. Please select product variant.</p>`;
+                                }
+                            }
+                        }, 100);
+                    } else {
+                        // Category not found - show warning but still hide fallback
+                        receiptStatus.innerHTML = `<p class="text-sm text-yellow-600">⚠️ Receipt matched but couldn't auto-select tablet type. Please select manually.</p>`;
+                        enableProductSelection();
+                    }
+                    
+                } else if (data.multiple_matches) {
+                    // Multiple matches - show error
+                    receiptLookupSuccess = false;
+                    let matchesHtml = '<div class="bg-red-50 border border-red-200 rounded p-3">';
+                    matchesHtml += '<p class="text-sm font-medium text-red-800 mb-2">⚠️ Multiple machine counts found for this receipt:</p>';
+                    matchesHtml += '<ul class="text-xs text-red-700 space-y-1 ml-4">';
+                    data.matches.forEach(match => {
+                        matchesHtml += `<li>• ${match.tablet_type_name} - ${match.employee_name} on ${match.submission_date}</li>`;
+                    });
+                    matchesHtml += '</ul>';
+                    matchesHtml += '<p class="text-xs text-red-600 mt-2">Please contact your manager to resolve this conflict.</p>';
+                    matchesHtml += '</div>';
+                    
+                    receiptStatus.innerHTML = matchesHtml;
+                    receiptStatus.classList.remove('hidden');
+                    showFallbackFields();
+                    
+                } else {
+                    // No match found - show fallback
+                    receiptLookupSuccess = false;
+                    receiptStatus.innerHTML = `<p class="text-sm text-yellow-600">⚠️ No machine count found for receipt #${receiptNum}.</p>`;
+                    receiptStatus.classList.remove('hidden');
+                    showFallbackFields();
+                }
+                
+            } catch (error) {
+                console.error('Receipt lookup error:', error);
+                receiptStatus.innerHTML = `<p class="text-sm text-red-600">❌ Error looking up receipt: ${error.message}</p>`;
+                receiptStatus.classList.remove('hidden');
+                showFallbackFields();
+            }
+        });
+    }
+    
+    // Helper functions for receipt lookup
+    function showFallbackFields() {
+        fallbackSection.classList.remove('hidden');
+        enableProductSelection();
+    }
+    
+    function enableProductSelection() {
+        categorySelect.disabled = false;
+        baseSelect.disabled = false;
+        productCountSelect.disabled = false;
+    }
+    
+    function resetToManualEntry() {
+        receiptLookupSuccess = false;
+        autoSelectedTabletTypeId = null;
+        receiptStatus.classList.add('hidden');
+        receiptStatus.innerHTML = '';
+        fallbackSection.classList.add('hidden');
+        hiddenBoxField.value = '';
+        hiddenBagField.value = '';
+        fallbackBoxInput.value = '';
+        fallbackBagInput.value = '';
+        
+        // Reset product selection
+        categorySelect.disabled = false;
+        categorySelect.value = '';
+        baseSelect.disabled = false;
+        baseSelect.value = '';
+        baseSelect.style.display = 'none';
+        productCountSelect.disabled = false;
+        productCountSelect.value = '';
+        countSelection.classList.add('hidden');
+        productNameHidden.value = '';
+    }
+    
+    // Sync fallback fields to hidden fields when changed
+    if (fallbackBoxInput) {
+        fallbackBoxInput.addEventListener('input', function() {
+            hiddenBoxField.value = this.value;
+        });
+    }
+    if (fallbackBagInput) {
+        fallbackBagInput.addEventListener('input', function() {
+            hiddenBagField.value = this.value;
+        });
+    }
+    
     // Production Submission Form submission
     if (warehouseForm) warehouseForm.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -693,6 +909,22 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!productNameField || !productNameField.value) {
             showError('Please select a product');
             return;
+        }
+        
+        // Validate box/bag numbers (either from hidden fields or fallback)
+        if (!hiddenBoxField.value && !fallbackBoxInput.value) {
+            showError('Box number is required. Please enter receipt number or fill fallback fields.');
+            return;
+        }
+        if (!hiddenBagField.value && !fallbackBagInput.value) {
+            showError('Bag number is required. Please enter receipt number or fill fallback fields.');
+            return;
+        }
+        
+        // Ensure hidden fields have values from fallback if needed
+        if (!receiptLookupSuccess && fallbackBoxInput.value && fallbackBagInput.value) {
+            hiddenBoxField.value = fallbackBoxInput.value;
+            hiddenBagField.value = fallbackBagInput.value;
         }
         
         const formData = new FormData(warehouseForm);
@@ -715,6 +947,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (response.ok) {
                 showSuccess(result.message || 'Packaged count submitted successfully!');
                 warehouseForm.reset();
+                resetToManualEntry(); // Reset all receipt lookup state
                 countSelection.classList.add('hidden');
             } else {
                 showError(result.error || 'Submission failed');
