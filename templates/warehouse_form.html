@@ -176,13 +176,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Populate base product dropdown
-    Object.keys(productGroups).sort().forEach(baseName => {
-        const option = document.createElement('option');
-        option.value = baseName;
-        option.textContent = baseName;
-        productBaseSelect.appendChild(option);
-    });
+    // Populate base product dropdown with case-insensitive alphabetical sorting
+    Object.keys(productGroups)
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+        .forEach(baseName => {
+            const option = document.createElement('option');
+            option.value = baseName;
+            option.textContent = baseName;
+            productBaseSelect.appendChild(option);
+        });
     
     // Handle base product selection
     productBaseSelect.addEventListener('change', function() {

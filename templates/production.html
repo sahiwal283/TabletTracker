@@ -634,13 +634,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         productNameHidden.value = '';
         
         if (selectedCategory && categoryGroups[selectedCategory]) {
-            // Populate base product dropdown
-            categoryGroups[selectedCategory].sort().forEach(baseName => {
-                const option = document.createElement('option');
-                option.value = baseName;
-                option.textContent = baseName;
-                baseSelect.appendChild(option);
-            });
+            // Populate base product dropdown with case-insensitive alphabetical sorting
+            categoryGroups[selectedCategory]
+                .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+                .forEach(baseName => {
+                    const option = document.createElement('option');
+                    option.value = baseName;
+                    option.textContent = baseName;
+                    baseSelect.appendChild(option);
+                });
             baseSelect.style.display = '';
         }
     });

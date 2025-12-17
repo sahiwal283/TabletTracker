@@ -1237,8 +1237,11 @@ async function convertToTwoLevelDropdown(selectElement) {
         selectElement.value = '';
         
         if (selectedGroup && groups[selectedGroup]) {
-            // Populate item dropdown
-            groups[selectedGroup].forEach(option => {
+            // Populate item dropdown with case-insensitive alphabetical sorting
+            const sortedOptions = groups[selectedGroup].slice().sort((a, b) => 
+                a.text.localeCompare(b.text, undefined, { sensitivity: 'base' })
+            );
+            sortedOptions.forEach(option => {
                 const itemOption = document.createElement('option');
                 itemOption.value = option.value;
                 itemOption.textContent = option.text;
