@@ -47,7 +47,7 @@ async function fixBagAssignments() {
     resultsDiv.classList.add('hidden');
     
     try {
-        const response = await fetch('/api/admin/fix-bag-assignments', {
+        const response = await csrfFetch('/api/admin/fix-bag-assignments', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

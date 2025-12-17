@@ -635,7 +635,7 @@ async function confirmDeleteShipment() {
     deleteBtn.textContent = 'Deleting...';
     
     try {
-        const response = await fetch(`/api/receiving/${deleteShipmentId}`, {
+        const response = await csrfFetch(`/api/receiving/${deleteShipmentId}`, {
             method: 'DELETE'
         });
         

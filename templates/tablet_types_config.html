@@ -295,7 +295,7 @@ async function deleteTabletType(tabletTypeId, tabletTypeName) {
     }
     
     try {
-        const response = await fetch(`/api/delete_tablet_type/${tabletTypeId}`, {
+        const response = await csrfFetch(`/api/delete_tablet_type/${tabletTypeId}`, {
             method: 'DELETE'
         });
         

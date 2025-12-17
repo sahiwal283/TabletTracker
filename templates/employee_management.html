@@ -211,7 +211,7 @@ document.getElementById('employee-form').addEventListener('submit', async functi
     submitBtn.innerHTML = '<span class="flex items-center"><span class="mr-2">⏳</span>Adding...</span>';
     
     try {
-        const response = await fetch('/api/add_employee', {
+        const response = await csrfFetch('/api/add_employee', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -235,7 +235,7 @@ document.getElementById('employee-form').addEventListener('submit', async functi
 
 async function toggleEmployee(employeeId) {
     try {
-        const response = await fetch(`/api/toggle_employee/${employeeId}`, {
+        const response = await csrfFetch(`/api/toggle_employee/${employeeId}`, {
             method: 'POST'
         });
         
@@ -254,7 +254,7 @@ async function toggleEmployee(employeeId) {
 
 async function updateEmployeeRole(employeeId, newRole) {
     try {
-        const response = await fetch(`/api/update_employee_role/${employeeId}`, {
+        const response = await csrfFetch(`/api/update_employee_role/${employeeId}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({role: newRole})
@@ -281,7 +281,7 @@ async function deleteEmployee(employeeId, employeeName) {
     }
     
     try {
-        const response = await fetch(`/api/delete_employee/${employeeId}`, {
+        const response = await csrfFetch(`/api/delete_employee/${employeeId}`, {
             method: 'DELETE'
         });
         

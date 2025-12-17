@@ -528,7 +528,7 @@ async function deleteProduct(productId) {
     }
     
     try {
-        const response = await fetch(`/api/delete_product/${productId}`, {
+        const response = await csrfFetch(`/api/delete_product/${productId}`, {
             method: 'DELETE'
         });
         
@@ -599,7 +599,7 @@ async function refreshProductsWithConfirm() {
     if (!doubleConfirmed) return;
     
     try {
-        const response = await fetch('/api/refresh_products', { method: 'POST' });
+        const response = await csrfFetch('/api/refresh_products', { method: 'POST' });
         const result = await response.json();
         
         if (result.success) {
@@ -701,7 +701,7 @@ function deleteCategory(categoryName) {
 
 async function performDeleteCategory(categoryName) {
     try {
-        const response = await fetch('/api/categories/delete', {
+        const response = await csrfFetch('/api/categories/delete', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

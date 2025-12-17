@@ -724,7 +724,7 @@ async function resyncUnassignedSubmissions() {
         button.disabled = true;
         button.textContent = '🔗 Resyncing...';
         
-        const response = await fetch('/api/resync_unassigned_submissions', { method: 'POST' });
+        const response = await csrfFetch('/api/resync_unassigned_submissions', { method: 'POST' });
         const result = await response.json();
         
         if (result.success) {
@@ -751,7 +751,7 @@ async function refreshProducts() {
     }
     
     try {
-        const response = await fetch('/api/refresh_products', { method: 'POST' });
+        const response = await csrfFetch('/api/refresh_products', { method: 'POST' });
         const result = await response.json();
         
         if (result.success) {

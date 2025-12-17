@@ -42,7 +42,7 @@
 async function deleteShipment(id) {
   if (!confirm('Delete this shipment?')) return;
   try {
-    const r = await fetch(`/api/shipment/${id}`, { method: 'DELETE' });
+    const r = await csrfFetch(`/api/shipment/${id}`, { method: 'DELETE' });
     const d = await r.json();
     if (d.success) location.reload(); else alert('Delete failed: ' + (d.error || 'unknown error'));
   } catch (e) { alert('Delete failed: ' + e.message); }

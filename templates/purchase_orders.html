@@ -875,7 +875,7 @@ async function deletePO(poId, poNumber) {
     }
     
     try {
-        const response = await fetch(`/api/po/${poId}/delete`, {
+        const response = await csrfFetch(`/api/po/${poId}/delete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -1043,7 +1043,7 @@ async function createOversPOInZoho(poId, oversPONumber) {
     try {
         alert('Creating overs PO in Zoho...');
         
-        const response = await fetch(`/api/create_overs_po/${poId}`, {
+        const response = await csrfFetch(`/api/create_overs_po/${poId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -1468,7 +1468,7 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/admin_reassign`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/admin_reassign`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

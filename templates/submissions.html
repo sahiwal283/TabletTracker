@@ -878,7 +878,7 @@ async function deleteSubmission(submissionId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/delete`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/delete`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });

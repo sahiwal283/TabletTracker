@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await fetch('/submit_count', {
+            const response = await csrfFetch('/submit_count', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)

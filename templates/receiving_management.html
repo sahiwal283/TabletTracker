@@ -404,7 +404,7 @@ document.getElementById('receiving-form').addEventListener('submit', async funct
     submitBtn.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" aria-hidden="true"><use href="#icon-spinner" /></svg> {{ gettext("Processing...") }}';
     
     try {
-        const response = await fetch('/api/process_receiving', {
+        const response = await csrfFetch('/api/process_receiving', {
             method: 'POST',
             body: formData
         });
@@ -437,7 +437,7 @@ async function createSampleData() {
     }
     
     try {
-        const response = await fetch('/api/create_sample_receiving_data', {
+        const response = await csrfFetch('/api/create_sample_receiving_data', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });

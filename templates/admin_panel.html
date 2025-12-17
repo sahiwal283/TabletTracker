@@ -160,7 +160,7 @@ async function syncZohoPOs() {
         button.style.opacity = '0.7';
         button.textContent = '🔄 SYNCING...';
         
-        const response = await fetch('/api/sync_zoho_pos', {
+        const response = await csrfFetch('/api/sync_zoho_pos', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -197,7 +197,7 @@ async function clearPOData() {
         button.style.opacity = '0.6';
         button.textContent = '🗑️ Clearing...';
         
-        const response = await fetch('/api/clear_po_data', {
+        const response = await csrfFetch('/api/clear_po_data', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -311,7 +311,7 @@ async function saveMachine() {
         const url = editingMachineId ? `/api/machines/${editingMachineId}` : '/api/machines';
         const method = editingMachineId ? 'PUT' : 'POST';
         
-        const response = await fetch(url, {
+        const response = await csrfFetch(url, {
             method: method,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -340,7 +340,7 @@ async function deleteMachine(machineId, machineName) {
     }
     
     try {
-        const response = await fetch(`/api/machines/${machineId}`, {
+        const response = await csrfFetch(`/api/machines/${machineId}`, {
             method: 'DELETE'
         });
         
