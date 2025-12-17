@@ -2956,11 +2956,6 @@ def find_organization_id():
             })
             
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         return jsonify({
             'success': False,
             'error': f'Error finding organizations: {str(e)}'
@@ -2996,11 +2991,6 @@ def test_zoho_connection():
             })
             
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         return jsonify({
             'success': False,
             'error': f'Connection test failed: {str(e)}'
