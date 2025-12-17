@@ -936,7 +936,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await fetch('/submit_warehouse', {
+            const response = await csrfFetch('/submit_warehouse', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
@@ -1014,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await fetch('/submit_count', {
+            const response = await csrfFetch('/submit_count', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
@@ -1066,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await fetch('/submit_machine_count', {
+            const response = await csrfFetch('/submit_machine_count', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)

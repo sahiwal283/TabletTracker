@@ -516,7 +516,7 @@ async function executeDelete(receivingId) {
     }
     
     try {
-        const response = await fetch(`/api/receiving/${receivingId}`, {
+        const response = await csrfFetch(`/api/receiving/${receivingId}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',

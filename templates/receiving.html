@@ -539,7 +539,7 @@ async function submitReceives(event) {
         submitButton.disabled = true;
         submitButton.textContent = 'Saving...';
         
-        const response = await fetch('/api/save_receives', {
+        const response = await csrfFetch('/api/save_receives', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -684,7 +684,7 @@ async function savePOAssignment() {
     }
     
     try {
-        const response = await fetch(`/api/receiving/${currentReceivingId}/assign_po`, {
+        const response = await csrfFetch(`/api/receiving/${currentReceivingId}/assign_po`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

@@ -472,7 +472,7 @@ async function approveSubmission(submissionId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/approve`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/approve`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -595,8 +595,8 @@ async function assignSubmissionToReceive(submissionId, bagId) {
         return;
     }
     
-    try {
-        const response = await fetch(`/api/submission/${submissionId}/assign-receive`, {
+    try{
+        const response = await csrfFetch(`/api/submission/${submissionId}/assign-receive`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({bag_id: bagId})
@@ -628,7 +628,7 @@ async function reassignSubmission(submissionId, newPoId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/reassign`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/reassign`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({new_po_id: newPoId})
@@ -836,7 +836,7 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/admin_reassign`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/admin_reassign`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

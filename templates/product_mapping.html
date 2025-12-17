@@ -447,7 +447,7 @@ document.getElementById('add-product-form').addEventListener('submit', async fun
             tablets_per_package: parseInt(document.getElementById('new-tpp').value)
         };
         
-        const response = await fetch('/api/save_product', {
+        const response = await csrfFetch('/api/save_product', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -482,7 +482,7 @@ async function saveProduct(productId) {
     
     try {
         // Get or create tablet type
-        const typeResponse = await fetch('/api/get_or_create_tablet_type', {
+        const typeResponse = await csrfFetch('/api/get_or_create_tablet_type', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({tablet_type_name: tabletTypeName})
@@ -502,7 +502,7 @@ async function saveProduct(productId) {
             tablets_per_package: parseInt(document.getElementById(`tpp-edit-${productId}`).value)
         };
         
-        const response = await fetch('/api/save_product', {
+        const response = await csrfFetch('/api/save_product', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -549,7 +549,7 @@ async function updateTabletTypeCategory(tabletTypeId, category, isChecked) {
         // If unchecking, set category to null; if checking, set to the category
         const categoryValue = isChecked ? category : null;
         
-        const response = await fetch('/api/tablet_type/category', {
+        const response = await csrfFetch('/api/tablet_type/category', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -624,7 +624,7 @@ function openAddCategoryModal() {
 
 async function addCategory(categoryName) {
     try {
-        const response = await fetch('/api/categories', {
+        const response = await csrfFetch('/api/categories', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -670,7 +670,7 @@ function openEditCategoryModal(oldName) {
 
 async function renameCategory(oldName, newName) {
     try {
-        const response = await fetch('/api/categories/rename', {
+        const response = await csrfFetch('/api/categories/rename', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

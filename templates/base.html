@@ -896,7 +896,7 @@ async function adminReassignFromEditModal(submissionId, newPoId, newPoNumber) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/admin_reassign`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/admin_reassign`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -963,7 +963,7 @@ async function saveSubmissionEdit() {
     };
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/edit`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/edit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)

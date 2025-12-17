@@ -885,7 +885,7 @@ async function saveTrackingInline(poId) {
     };
     
     try {
-        const response = await fetch('/api/save_shipment', {
+        const response = await csrfFetch('/api/save_shipment', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -1366,7 +1366,7 @@ async function generatePOReport() {
         }
         
         // Make API request
-        const response = await fetch('/api/reports/production', {
+        const response = await csrfFetch('/api/reports/production', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1481,7 +1481,7 @@ async function generateAllPOsReport() {
         }
         
         // Make API request
-        const response = await fetch('/api/reports/production', {
+        const response = await csrfFetch('/api/reports/production', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2334,7 +2334,7 @@ async function createOversPOInZoho(poId, oversPONumber) {
     try {
         showSuccess('Creating overs PO in Zoho...');
         
-        const response = await fetch(`/api/create_overs_po/${poId}`, {
+        const response = await csrfFetch(`/api/create_overs_po/${poId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -2370,7 +2370,7 @@ async function approveSubmission(submissionId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/approve`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/approve`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -2494,7 +2494,7 @@ async function assignSubmissionToReceive(submissionId, bagId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/assign-receive`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/assign-receive`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({bag_id: bagId})
@@ -2526,7 +2526,7 @@ async function reassignSubmission(submissionId, newPoId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/reassign`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/reassign`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({new_po_id: newPoId})
@@ -2680,7 +2680,7 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/admin_reassign`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/admin_reassign`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({new_po_id: newPoId, confirm_override: true})
@@ -3201,7 +3201,7 @@ async function deleteSubmission(submissionId, bagId) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}`, {
             method: 'DELETE'
         });
         

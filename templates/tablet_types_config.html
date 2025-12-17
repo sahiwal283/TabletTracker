@@ -206,7 +206,7 @@ document.getElementById('add-tablet-type-form').addEventListener('submit', async
     };
     
     try {
-        const response = await fetch('/api/add_tablet_type', {
+        const response = await csrfFetch('/api/add_tablet_type', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -254,7 +254,7 @@ async function saveTabletType(tabletTypeId) {
     const inventoryItemId = document.getElementById(`id-edit-${tabletTypeId}`).value.trim();
     
     try {
-        const response = await fetch('/api/update_tablet_type_inventory', {
+        const response = await csrfFetch('/api/update_tablet_type_inventory', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
