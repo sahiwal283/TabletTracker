@@ -3172,7 +3172,7 @@ async function assignSubmissionToReceive(submissionId, bagId, receiveName) {
     }
     
     try {
-        const response = await fetch(`/api/submission/${submissionId}/assign-receive`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/assign-receive`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
