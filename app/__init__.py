@@ -4,6 +4,9 @@ TabletTracker application factory
 from flask import Flask, render_template, request, session, jsonify
 from datetime import timedelta
 from flask_babel import Babel
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from config import Config
 
 
@@ -73,6 +76,18 @@ def create_app(config_class=Config):
     babel = Babel()
     babel.init_app(app, locale_selector=get_locale)
     
+    # Initialize CSRF Protection
+    csrf = CSRFProtect()
+    csrf.init_app(app)
+    
+    # Initialize Rate Limiting
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="memory://"
+    )
+    
     # Configure session settings for production security
     if config_class.ENV == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
@@ -106,14 +121,30 @@ def create_app(config_class=Config):
             return render_template('base.html'), 500
         return str(error), 500
     
-    # Security headers for production
+    # Security headers (apply to all environments)
     @app.after_request
     def after_request(response):
+        # Always apply these security headers
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        
+        # Content Security Policy
+        csp = "default-src 'self'; " \
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com; " \
+              "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; " \
+              "img-src 'self' data: https:; " \
+              "font-src 'self' data:; " \
+              "connect-src 'self'; " \
+              "frame-ancestors 'none';"
+        response.headers['Content-Security-Policy'] = csp
+        
+        # Additional production-only headers
         if config_class.ENV == 'production':
-            response.headers['X-Content-Type-Options'] = 'nosniff'
-            response.headers['X-Frame-Options'] = 'DENY'
-            response.headers['X-XSS-Protection'] = '1; mode=block'
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+        
         return response
     
     # Register Blueprints

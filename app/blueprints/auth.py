@@ -1,7 +1,7 @@
 """
 Authentication and login routes
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
 from datetime import datetime, timedelta
 import hmac
 from config import Config
@@ -10,6 +10,15 @@ from app.utils.db_utils import db_query, get_db
 from __version__ import __version__, __title__, __description__
 
 bp = Blueprint('auth', __name__)
+
+# This will be set when the app is initialized
+_limiter = None
+
+def get_limiter():
+    """Get the limiter instance from the app"""
+    if not current_app:
+        return None
+    return current_app.extensions.get('limiter')
 
 
 @bp.route('/', methods=['GET', 'POST'])
@@ -28,6 +37,15 @@ def index():
             return redirect(url_for('production.warehouse_form'))
     
     if request.method == 'POST':
+        # Apply rate limiting manually for login attempts
+        limiter = get_limiter()
+        if limiter:
+            # Check if rate limit exceeded
+            try:
+                limiter.check()
+            except Exception:
+                flash('Too many login attempts. Please try again later.', 'error')
+                return render_template('unified_login.html'), 429
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         login_type = request.form.get('login_type', 'employee')
@@ -40,6 +58,8 @@ def index():
             # Admin login - use constant-time comparison to prevent timing attacks
             admin_password = Config.ADMIN_PASSWORD
             if hmac.compare_digest(password, admin_password) and username.lower() == 'admin':
+                # Prevent session fixation by clearing old session and creating new one
+                session.clear()
                 session['admin_authenticated'] = True
                 session['employee_role'] = 'admin'  # Set admin role for navigation
                 session['login_time'] = datetime.now().isoformat()
@@ -61,6 +81,8 @@ def index():
                 ''', (username,)).fetchone()
                 
                 if employee and verify_password(password, employee['password_hash']):
+                    # Prevent session fixation by clearing old session and creating new one
+                    session.clear()
                     session['employee_authenticated'] = True
                     session['employee_id'] = employee['id']
                     session['employee_name'] = employee['full_name']
@@ -77,10 +99,12 @@ def index():
                         flash(f'Welcome back, {employee["full_name"]}!', 'success')
                         return redirect(url_for('production.warehouse_form'))
                 else:
+                    # Log failed login attempt
+                    current_app.logger.warning(f"Failed login attempt for username: {username}")
                     flash('Invalid employee credentials', 'error')
                     return render_template('unified_login.html')
             except Exception as e:
-                print(f"Login error in index(): {str(e)}")
+                current_app.logger.error(f"Login error in index(): {str(e)}")
                 flash('An error occurred during login', 'error')
                 return render_template('unified_login.html')
             finally:

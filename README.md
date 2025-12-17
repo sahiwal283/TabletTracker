@@ -109,7 +109,10 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.0 (Refactored)
+Current: v2.8.0 (Security Enhanced)
+- **NEW**: CSRF protection & rate limiting
+- **NEW**: Comprehensive security utilities
+- **NEW**: Enhanced input validation & error handling
 - 99.7% reduction in main app file
 - Modular blueprint architecture
 - Comprehensive test coverage
@@ -117,10 +120,14 @@ Current: v2.0 (Refactored)
 
 ## 🔐 Security
 
-- Session-based authentication
+- Session-based authentication with session fixation protection
 - Role-based access control
-- CSRF protection
-- Security headers (production)
+- CSRF protection (Flask-WTF)
+- Rate limiting on authentication endpoints
+- Comprehensive security headers (CSP, X-Frame-Options, etc.)
+- XSS protection utilities
+- Secure error handling (no information leakage)
+- Input validation and sanitization
 - 8-hour session timeout
 
 ## 📝 License
