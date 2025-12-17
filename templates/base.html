@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Tablet Counter{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
@@ -1933,6 +1934,57 @@ function closeReceiveDetailsModal(event) {
             modal.remove();
         }
     }
+}
+
+// CSRF Token Helper Functions
+function getCSRFToken() {
+    // Try to get CSRF token from meta tag first
+    let token = document.querySelector('meta[name="csrf-token"]');
+    if (token) {
+        return token.getAttribute('content');
+    }
+    
+    // Try to get from hidden input in any form
+    token = document.querySelector('input[name="csrf_token"]');
+    if (token) {
+        return token.value;
+    }
+    
+    // Try to get from cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrf_token') {
+            return value;
+        }
+    }
+    
+    return null;
+}
+
+// Helper to add CSRF token to fetch headers
+function getCSRFHeaders(additionalHeaders = {}) {
+    const token = getCSRFToken();
+    if (token) {
+        return {
+            'X-CSRFToken': token,
+            'X-CSRF-Token': token, // Alternative header name
+            ...additionalHeaders
+        };
+    }
+    return additionalHeaders;
+}
+
+// Wrapper for fetch with CSRF token
+async function csrfFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    
+    // Add CSRF token for state-changing methods
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        options.headers = getCSRFHeaders(options.headers || {});
+    }
+    
+    return fetch(url, options);
 }
 </script>
 </body>
