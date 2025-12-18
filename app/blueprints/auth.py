@@ -37,15 +37,6 @@ def index():
             return redirect(url_for('production.warehouse_form'))
     
     if request.method == 'POST':
-        # Apply rate limiting manually for login attempts
-        limiter = get_limiter()
-        if limiter:
-            # Check if rate limit exceeded
-            try:
-                limiter.check()
-            except Exception:
-                flash('Too many login attempts. Please try again later.', 'error')
-                return render_template('unified_login.html'), 429
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         login_type = request.form.get('login_type', 'employee')

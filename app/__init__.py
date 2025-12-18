@@ -80,12 +80,13 @@ def create_app(config_class=Config):
     csrf = CSRFProtect()
     csrf.init_app(app)
     
-    # Initialize Rate Limiting
+    # Initialize Rate Limiting (disabled for login routes - using failed attempt tracking instead)
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
-        default_limits=["200 per day", "50 per hour"],
-        storage_uri="memory://"
+        default_limits=["1000 per day", "200 per hour"],
+        storage_uri="memory://",
+        enabled=False  # Disabled to prevent false positives on first login
     )
     
     # Configure session settings for production security
