@@ -479,7 +479,7 @@ function removeBag(boxNumber, bagNumber) {
     }
 }
 
-function copyBag(boxNumber, bagNumber) {
+async function copyBag(boxNumber, bagNumber) {
     // Get the source bag's values
     const sourceTabletTypeSelect = document.querySelector(`select[name="box_${boxNumber}_bag_${bagNumber}_tablet_type"]`);
     const sourceBagCountInput = document.querySelector(`input[name="box_${boxNumber}_bag_${bagNumber}_bag_count"]`);
@@ -511,6 +511,9 @@ function copyBag(boxNumber, bagNumber) {
     // Get the newly created bag number
     const newBagNumber = bagCounter[boxNumber];
     
+    // Wait for the dropdown to be added to the DOM
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Set the values in the new bag
     const newTabletTypeSelect = document.querySelector(`select[name="box_${boxNumber}_bag_${newBagNumber}_tablet_type"]`);
     const newBagCountInput = document.querySelector(`input[name="box_${boxNumber}_bag_${newBagNumber}_bag_count"]`);
@@ -540,16 +543,15 @@ function copyBag(boxNumber, bagNumber) {
                         categorySelect.dispatchEvent(event);
                         
                         // Wait a moment for the items to populate, then select the item
-                        setTimeout(() => {
-                            itemSelect.value = tabletTypeValue;
-                            
-                            // Update the hidden select
-                            newTabletTypeSelect.value = tabletTypeValue;
-                            
-                            // Trigger change event on item select to sync
-                            const itemEvent = new Event('change', { bubbles: true });
-                            itemSelect.dispatchEvent(itemEvent);
-                        }, 50);
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        itemSelect.value = tabletTypeValue;
+                        
+                        // Update the hidden select
+                        newTabletTypeSelect.value = tabletTypeValue;
+                        
+                        // Trigger change event on item select to sync
+                        const itemEvent = new Event('change', { bubbles: true });
+                        itemSelect.dispatchEvent(itemEvent);
                     }
                 }
             }
@@ -566,7 +568,7 @@ function copyBag(boxNumber, bagNumber) {
     }
 }
 
-function copyBox(boxNumber) {
+async function copyBox(boxNumber) {
     // Get all bags in the source box
     const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
     if (!bagsContainer) {
@@ -633,9 +635,14 @@ function copyBox(boxNumber) {
     }
     
     // Add all bags with their data
-    bagsData.forEach((bagData, index) => {
+    for (let index = 0; index < bagsData.length; index++) {
+        const bagData = bagsData[index];
+        
         addBag(newBoxNumber);
         const newBagNumber = bagCounter[newBoxNumber];
+        
+        // Wait for the dropdown to be added and converted
+        await new Promise(resolve => setTimeout(resolve, 150));
         
         // Set the values
         const newTabletTypeSelect = document.querySelector(`select[name="box_${newBoxNumber}_bag_${newBagNumber}_tablet_type"]`);
@@ -665,20 +672,19 @@ function copyBox(boxNumber) {
                             categorySelect.dispatchEvent(event);
                             
                             // Wait for items to populate, then select the item
-                            setTimeout(() => {
-                                itemSelect.value = bagData.tabletType;
-                                newTabletTypeSelect.value = bagData.tabletType;
-                                
-                                // Trigger change event on item select to sync
-                                const itemEvent = new Event('change', { bubbles: true });
-                                itemSelect.dispatchEvent(itemEvent);
-                            }, 50 * (index + 1));
+                            await new Promise(resolve => setTimeout(resolve, 50));
+                            itemSelect.value = bagData.tabletType;
+                            newTabletTypeSelect.value = bagData.tabletType;
+                            
+                            // Trigger change event on item select to sync
+                            const itemEvent = new Event('change', { bubbles: true });
+                            itemSelect.dispatchEvent(itemEvent);
                         }
                     }
                 }
             }
         }
-    });
+    }
     
     // Visual feedback
     const newBoxDiv = document.getElementById(`box-${newBoxNumber}`);
