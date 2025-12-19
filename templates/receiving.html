@@ -527,8 +527,8 @@ function copyBag(boxNumber, bagNumber) {
                 const categorySelect = container.querySelector('.category-select');
                 const itemSelect = container.querySelector('.item-select');
                 
-                // Find the selected tablet type's category
-                const selectedOption = sourceTabletTypeSelect.querySelector(`option[value="${tabletTypeValue}"]`);
+                // Find the selected tablet type's category from the new select (same structure as source)
+                const selectedOption = newTabletTypeSelect.querySelector(`option[value="${tabletTypeValue}"]`);
                 if (selectedOption && categorySelect && itemSelect) {
                     const optgroup = selectedOption.parentElement;
                     if (optgroup.tagName === 'OPTGROUP') {
@@ -545,7 +545,11 @@ function copyBag(boxNumber, bagNumber) {
                             
                             // Update the hidden select
                             newTabletTypeSelect.value = tabletTypeValue;
-                        }, 10);
+                            
+                            // Trigger change event on item select to sync
+                            const itemEvent = new Event('change', { bubbles: true });
+                            itemSelect.dispatchEvent(itemEvent);
+                        }, 50);
                     }
                 }
             }
@@ -648,20 +652,27 @@ function copyBox(boxNumber) {
                     const categorySelect = container.querySelector('.category-select');
                     const itemSelect = container.querySelector('.item-select');
                     
-                    const selectedOption = document.querySelector(`select[name="box_${boxNumber}_bag_1_tablet_type"] option[value="${bagData.tabletType}"]`);
+                    // Find the option in the new select element (they have the same structure)
+                    const selectedOption = newTabletTypeSelect.querySelector(`option[value="${bagData.tabletType}"]`);
                     if (selectedOption && categorySelect && itemSelect) {
                         const optgroup = selectedOption.parentElement;
                         if (optgroup.tagName === 'OPTGROUP') {
                             const categoryLabel = optgroup.label;
                             categorySelect.value = categoryLabel;
                             
+                            // Trigger category change to populate items
                             const event = new Event('change', { bubbles: true });
                             categorySelect.dispatchEvent(event);
                             
+                            // Wait for items to populate, then select the item
                             setTimeout(() => {
                                 itemSelect.value = bagData.tabletType;
                                 newTabletTypeSelect.value = bagData.tabletType;
-                            }, 10 * (index + 1));
+                                
+                                // Trigger change event on item select to sync
+                                const itemEvent = new Event('change', { bubbles: true });
+                                itemSelect.dispatchEvent(itemEvent);
+                            }, 50 * (index + 1));
                         }
                     }
                 }
