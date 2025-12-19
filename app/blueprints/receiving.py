@@ -45,7 +45,8 @@ def receiving_list():
             SELECT r.*, 
                    COUNT(DISTINCT sb.id) as box_count,
                    COUNT(DISTINCT b.id) as total_bags,
-                   po.po_number
+                   po.po_number,
+                   po.closed as po_closed
             FROM receiving r
             LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
             LEFT JOIN bags b ON sb.id = b.small_box_id

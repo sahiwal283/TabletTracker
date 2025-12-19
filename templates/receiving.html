@@ -21,10 +21,28 @@
         </button>
     </div>
 
+    <!-- Tabs -->
+    <div class="mb-6 border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+            <button onclick="switchReceivingTab('active')" 
+                    id="tab-active"
+                    class="tab-btn border-b-2 border-blue-500 text-blue-600 py-4 px-1 text-sm font-medium">
+                Active POs
+            </button>
+            <button onclick="switchReceivingTab('closed')" 
+                    id="tab-closed"
+                    class="tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium">
+                Closed POs
+            </button>
+        </nav>
+    </div>
+
     <!-- Main Content -->
     {% if shipments %}
-    <div class="space-y-4">
+    <!-- Active POs Tab Content -->
+    <div id="content-active" class="tab-content space-y-4">
         {% for shipment in shipments %}
+        {% if not shipment.receiving.po_closed %}
         <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
@@ -100,6 +118,87 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Closed POs Tab Content -->
+    <div id="content-closed" class="tab-content space-y-4 hidden">
+        {% for shipment in shipments %}
+        {% if shipment.receiving.po_closed %}
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
+                            {% if shipment.receiving.po_number %}
+                                {% if shipment.receiving.shipment_number %}
+                                    {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                                {% else %}
+                                    {{ shipment.receiving.po_number }}
+                                {% endif %}
+                                <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed PO</span>
+                            {% else %}
+                                Shipment Received
+                            {% endif %}
+                        </h3>
+                        <p class="text-sm text-gray-600">
+                            Received on {{ (shipment.receiving.received_date|to_est)[:10] if shipment.receiving.received_date else 'Unknown' }} at {{ (shipment.receiving.received_date|to_est)[11:19] if shipment.receiving.received_date else '' }} EST
+                            {% if shipment.receiving.received_by %}
+                            by {{ shipment.receiving.received_by }}
+                            {% endif %}
+                        </p>
+                        {% if not shipment.receiving.po_number and user_role in ['manager', 'admin'] %}
+                        <p class="text-sm text-gray-500 italic mt-1">No PO assigned</p>
+                        {% endif %}
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm text-gray-600">
+                            {{ shipment.receiving.box_count or 0 }} Box{{ 'es' if (shipment.receiving.box_count or 0) != 1 else '' }}
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            {{ shipment.receiving.total_bags or 0 }} Bag{{ 's' if (shipment.receiving.total_bags or 0) != 1 else '' }}
+                        </div>
+                        {% if user_role in ['manager', 'admin'] %}
+                        <div class="mt-2 space-x-2">
+                            <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', '{{ shipment.receiving.po_number or 'No PO' }}')" 
+                                    class="text-xs text-red-600 hover:text-red-800 underline">
+                                Delete
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Boxes -->
+                <div class="space-y-3 mt-4">
+                    {% for box_data in shipment.boxes %}
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-medium text-gray-900">Box {{ box_data.box.box_number }}</h4>
+                            <span class="text-sm text-gray-600">{{ box_data.box.bag_count }} bag{{ 's' if box_data.box.bag_count != 1 else '' }}</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                            {% for bag in box_data.bags %}
+                            <div class="bg-white border border-gray-200 rounded p-2 text-sm">
+                                <div class="font-medium text-gray-700">Bag {{ bag.bag_number }}</div>
+                                <div class="text-gray-600">
+                                    {% if bag.tablet_type_name %}
+                                    {{ bag.tablet_type_name }}
+                                    {% else %}
+                                    Unknown Type
+                                    {% endif %}
+                                </div>
+                                <div class="text-gray-600">Label Count: {{ bag.bag_label_count or 0 }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {% endfor %}
     </div>
     {% else %}
@@ -1432,6 +1531,33 @@ function filterSubmissionsInModal(filterType) {
                 : 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
         }
     });
+}
+
+// Tab switching function
+function switchReceivingTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Remove active styling from all tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-blue-500', 'text-blue-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Show selected tab content
+    const selectedContent = document.getElementById(`content-${tabName}`);
+    if (selectedContent) {
+        selectedContent.classList.remove('hidden');
+    }
+    
+    // Add active styling to selected tab
+    const selectedTab = document.getElementById(`tab-${tabName}`);
+    if (selectedTab) {
+        selectedTab.classList.remove('border-transparent', 'text-gray-500');
+        selectedTab.classList.add('border-blue-500', 'text-blue-600');
+    }
 }
 </script>
 {% endblock %}
