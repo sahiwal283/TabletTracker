@@ -112,11 +112,40 @@ def receiving_list():
                 'boxes': boxes_with_bags
             })
         
+        # NEW: Group shipments by PO for better organization
+        # Group by PO and sort receives within each PO (oldest first = bottom when reversed for display)
+        po_groups = {}
+        shipments_without_po = []
+        
+        for shipment in shipments:
+            po_id = shipment['receiving']['po_id']
+            if po_id:
+                if po_id not in po_groups:
+                    po_groups[po_id] = {
+                        'po_number': shipment['receiving']['po_number'],
+                        'po_closed': shipment['receiving']['po_closed'],
+                        'po_id': po_id,
+                        'receives': []
+                    }
+                po_groups[po_id]['receives'].append(shipment)
+            else:
+                shipments_without_po.append(shipment)
+        
+        # Sort receives within each PO group (oldest first for display bottom-to-top)
+        for po_id, po_group in po_groups.items():
+            po_group['receives'].sort(key=lambda x: x['receiving']['received_date'])
+        
+        # Convert to list and sort by PO number (newest PO first)
+        grouped_shipments = [po_groups[po_id] for po_id in sorted(po_groups.keys(), 
+                                                                    key=lambda pid: po_groups[pid]['po_number'], 
+                                                                    reverse=True)]
+        
         return render_template('receiving.html', 
                              tablet_types=tablet_types,
                              categories=categories,
                              purchase_orders=purchase_orders,
-                             shipments=shipments,
+                             grouped_shipments=grouped_shipments,
+                             shipments_without_po=shipments_without_po,
                              user_role=session.get('employee_role'))
                              
     except Exception as e:

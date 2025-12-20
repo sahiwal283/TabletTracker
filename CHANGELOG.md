@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.0] - 2024-12-20
+
+### ✨ Features
+
+#### PO-Grouped Receiving Page
+- **Major UX Improvement**: Receives are now automatically grouped by Purchase Order
+- **Organization**: Each PO displays as a group with all its receives nested underneath
+- **Sorting**: Receives within each PO group are sorted chronologically (oldest at bottom)
+- **Visual Hierarchy**: 
+  - PO groups have blue gradient headers with receive count
+  - Receives are indented within their PO group
+  - Closed POs show gray headers with "Closed" badge
+- **Navigation**: Much easier to see all receives for a specific PO at a glance
+- **Unassigned Receives**: Receives without PO assignment shown in separate "Unassigned Receives" section
+
+#### Implementation Details
+- Backend (`receiving.py`): Groups receives by `po_id` and sorts within groups
+- Frontend (`receiving.html`): Nested display with PO headers
+- Both Active and Closed PO tabs use grouped display
+- Maintains all existing functionality (delete, assign PO, view details)
+
+**Benefits:**
+- Easier to track multiple receives for same PO
+- Better visual organization when many receives exist
+- Clear separation between POs
+- Immediate visibility of receive count per PO
+
+---
+
 ## [2.11.3] - 2024-12-20
 
 ### 🎨 UI Improvements
