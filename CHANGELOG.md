@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.3] - 2024-12-20
+
+### 🐛 Bug Fix
+
+#### Missing Packaging Submissions in Receive Details Modal
+- **Fixed packaging submissions not appearing in receive details**: Flavor-based submissions were filtered out incorrectly
+  - Root cause: Queries checked `ws.box_number = ?` which fails when box_number is NULL
+  - NULL != 1, so flavor-based packaging submissions didn't match
+  - **Fixed**: Updated all 4 queries to handle NULL box_numbers:
+    - Machine submissions query in `/api/receive/<id>/details`
+    - Packaged submissions query in `/api/receive/<id>/details`
+    - Bag count submissions query in `/api/receive/<id>/details`
+    - All submissions query in `/api/bag/<id>/submissions`
+  - Changed from: `AND ws.box_number = ?`
+  - Changed to: `AND (ws.box_number = ? OR ws.box_number IS NULL)`
+  - **Impact**: Receive details modal now shows ALL submissions for the bag, including flavor-based ones
+
+**Result**: All packaging submissions now appear in receive details modal, regardless of whether they have box_number or not.
+
+---
+
 ## [2.12.2] - 2024-12-20
 
 ### 🐛 Bug Fix

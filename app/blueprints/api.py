@@ -53,8 +53,9 @@ def get_bag_submissions(bag_id):
         
         # Query for submissions that match either:
         # 1. Have bag_id directly assigned to this bag, OR
-        # 2. Match on inventory_item_id + box + bag + po_id
+        # 2. Match on inventory_item_id + bag + po_id (box optional for flavor-based)
         # Note: If submissions are missing inventory_item_id, run database/backfill_inventory_item_id.py
+        # UPDATED: Handle flavor-based submissions where box_number might be NULL
         submissions = conn.execute('''
             SELECT ws.*, 
                    pd.product_name as pd_product_name,
@@ -83,13 +84,13 @@ def get_bag_submissions(bag_id):
                 OR (
                     ws.bag_id IS NULL
                     AND ws.inventory_item_id = ?
-                    AND ws.box_number = ?
                     AND ws.bag_number = ?
                     AND ws.assigned_po_id = ?
+                    AND (ws.box_number = ? OR ws.box_number IS NULL)
                 )
             )
             ORDER BY ws.created_at DESC
-        ''', (bag_id, bag['inventory_item_id'], bag['box_number'], bag['bag_number'], bag['po_id'])).fetchall()
+        ''', (bag_id, bag['inventory_item_id'], bag['bag_number'], bag['po_id'], bag['box_number'])).fetchall()
         
         current_app.logger.info(f"   Matched {len(submissions)} submissions")
         
@@ -161,6 +162,7 @@ def get_receive_details(receive_id):
             
             # Get submission counts for this specific bag
             # For machine submissions: calculate each submission individually to ensure proper fallback
+            # UPDATED: Handle flavor-based submissions where box_number might be NULL
             machine_submissions = conn.execute('''
                 SELECT ws.tablets_pressed_into_cards, ws.loose_tablets, ws.packs_remaining,
                        COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
@@ -175,12 +177,12 @@ def get_receive_details(receive_id):
                     OR (
                         ws.bag_id IS NULL
                         AND ws.inventory_item_id = ?
-                        AND ws.box_number = ?
                         AND ws.bag_number = ?
                         AND ws.assigned_po_id = ?
+                        AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchall()
+            ''', (bag['id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchall()
             
             machine_total = 0
             for machine_sub in machine_submissions:
@@ -206,6 +208,7 @@ def get_receive_details(receive_id):
                             0)
                 machine_total += sub_total
             
+            # UPDATED: Handle flavor-based submissions where box_number might be NULL
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -220,13 +223,14 @@ def get_receive_details(receive_id):
                     OR (
                         ws.bag_id IS NULL
                         AND ws.inventory_item_id = ?
-                        AND ws.box_number = ?
                         AND ws.bag_number = ?
                         AND ws.assigned_po_id = ?
+                        AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
+            ''', (bag['id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchone()
             
+            # UPDATED: Handle flavor-based submissions where box_number might be NULL
             bag_count = conn.execute('''
                 SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_bag
                 FROM warehouse_submissions ws
@@ -236,12 +240,12 @@ def get_receive_details(receive_id):
                     OR (
                         ws.bag_id IS NULL
                         AND ws.inventory_item_id = ?
-                        AND ws.box_number = ?
                         AND ws.bag_number = ?
                         AND ws.assigned_po_id = ?
+                        AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-            ''', (bag['id'], inventory_item_id, box_number, bag_number, receive_dict['po_id'])).fetchone()
+            ''', (bag['id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchone()
             
             products[inventory_item_id]['boxes'][box_number][bag_number] = {
                 'bag_id': bag['id'],
