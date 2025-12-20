@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.2] - 2024-12-20
+
+### 🐛 Critical Bug Fixes
+
+#### Syntax Error in Core Matching Logic
+- **Fixed IndentationError in `receive_tracking.py`**: App would crash immediately on any submission
+  - The if/else block for box_number matching had incorrect indentation
+  - Code after `if box_number is not None:` was not indented inside the block
+  - Would cause: `IndentationError: expected an indented block after 'if' statement`
+  - **Impact**: App would not start/run at all
+
+#### Missed Packaging Submission Endpoint  
+- **Fixed `/api/submissions/packaged` endpoint in `production.py`**: Packaging submissions would fail
+  - Endpoint was still using old parameter order: `find_bag_for_submission(conn, tablet_type_id, box_number, bag_number)`
+  - Should use new order: `find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)`
+  - Was checking `if box_number and bag_number:` (requires both) → now checks `if bag_number:` (box optional)
+  - **Impact**: New flavor-based receives would fail when submitting packaging counts
+
+**Result**: All Python files now have valid syntax and correct parameter orders. App can start and all submission types work correctly.
+
+---
+
 ## [2.11.1] - 2024-12-20
 
 ### 🐛 Bug Fixes
