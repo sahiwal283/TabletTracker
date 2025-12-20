@@ -6544,11 +6544,14 @@ def get_possible_receives(submission_id):
         print(f"   bag_number: {submission_dict.get('bag_number')}")
         print(f"   inventory_item_id: {submission_dict.get('inventory_item_id')}")
         
-        if not submission_dict.get('box_number') or not submission_dict.get('bag_number'):
+        if not submission_dict.get('bag_number'):
             return jsonify({
                 'success': False, 
-                'error': 'Submission missing box_number or bag_number. Cannot find matching receives.'
+                'error': 'Submission missing bag_number. Cannot find matching receives.'
             }), 400
+        
+        # Box number is optional for flavor-based receives
+        box_number = submission_dict.get('box_number')
         
         # Get tablet_type_id - if not found via JOIN, try to get it from inventory_item_id
         tablet_type_id = submission_dict.get('tablet_type_id')
@@ -6567,35 +6570,62 @@ def get_possible_receives(submission_id):
                 'error': f'Could not determine tablet_type_id for submission. Product: {submission_dict.get("product_name")}, inventory_item_id: {submission_dict.get("inventory_item_id")}'
             }), 400
         
-        # Find all matching bags (flavor + box + bag)
-        # Must match the exact same logic as find_bag_for_submission
-        matching_bags = conn.execute('''
-            SELECT b.id as bag_id, 
-                   sb.box_number, 
-                   b.bag_number, 
-                   b.bag_label_count,
-                   r.id as receive_id,
-                   r.received_date,
-                   r.receive_name as stored_receive_name,
-                   po.po_number,
-                   po.id as po_id,
-                   tt.tablet_type_name
-            FROM bags b
-            JOIN small_boxes sb ON b.small_box_id = sb.id
-            JOIN receiving r ON sb.receiving_id = r.id
-            JOIN purchase_orders po ON r.po_id = po.id
-            JOIN tablet_types tt ON b.tablet_type_id = tt.id
-            WHERE b.tablet_type_id = ? 
-            AND sb.box_number = ? 
-            AND b.bag_number = ?
-            ORDER BY r.received_date DESC
-        ''', (tablet_type_id, submission_dict['box_number'], submission_dict['bag_number'])).fetchall()
+        # Find all matching bags - must match find_bag_for_submission logic
+        # If box_number provided: match with box (old style)
+        # If box_number is None: match without box (new flavor-based style)
+        if box_number is not None:
+            matching_bags = conn.execute('''
+                SELECT b.id as bag_id, 
+                       sb.box_number, 
+                       b.bag_number, 
+                       b.bag_label_count,
+                       r.id as receive_id,
+                       r.received_date,
+                       r.receive_name as stored_receive_name,
+                       po.po_number,
+                       po.id as po_id,
+                       tt.tablet_type_name
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                JOIN purchase_orders po ON r.po_id = po.id
+                JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE b.tablet_type_id = ? 
+                AND sb.box_number = ? 
+                AND b.bag_number = ?
+                ORDER BY r.received_date DESC
+            ''', (tablet_type_id, box_number, submission_dict['bag_number'])).fetchall()
+        else:
+            # New flavor-based: match without box number
+            matching_bags = conn.execute('''
+                SELECT b.id as bag_id, 
+                       sb.box_number, 
+                       b.bag_number, 
+                       b.bag_label_count,
+                       r.id as receive_id,
+                       r.received_date,
+                       r.receive_name as stored_receive_name,
+                       po.po_number,
+                       po.id as po_id,
+                       tt.tablet_type_name
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                JOIN purchase_orders po ON r.po_id = po.id
+                JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE b.tablet_type_id = ? 
+                AND b.bag_number = ?
+                ORDER BY r.received_date DESC
+            ''', (tablet_type_id, submission_dict['bag_number'])).fetchall()
         
         print(f"   Found {len(matching_bags)} matching bags")
         
         # Build receive_name using stored receive_name from database
         receives = []
-        for bag in matching_bags:
+        for bag_row in matching_bags:
+            # Convert Row to dict for .get() access
+            bag = dict(bag_row)
+            
             # Use stored receive_name and append box-bag
             stored_receive_name = bag.get('stored_receive_name')
             if stored_receive_name and bag['box_number'] is not None and bag['bag_number'] is not None:

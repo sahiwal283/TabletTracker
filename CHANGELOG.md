@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.1] - 2024-12-20
+
+### 🐛 Bug Fixes
+
+#### Assignment Modal Crash
+- **Fixed "sqlite3.Row object has no attribute 'get'" error** in `/api/submission/<id>/possible-receives` endpoint
+  - Root cause: `matching_bags` from query returned Row objects, not dictionaries
+  - Code was calling `bag.get('stored_receive_name')` which doesn't work on Row objects
+  - **Fix**: Convert Row to dict before accessing: `bag = dict(bag_row)`
+  - **Impact**: Assignment modal for ambiguous submissions would crash immediately
+
+#### Flavor-Based Support for Assignment Modal
+- **Updated possible-receives endpoint** to support flavor-based matching
+  - Now handles submissions without `box_number` (new flavor-based receives)
+  - Dual-mode query: with box (old) or without box (new)
+  - Matches same logic as `find_bag_for_submission()`
+  - **Impact**: Assignment modal now works for both old and new receives
+
+**Result**: Managers can now assign ambiguous submissions to correct receives for both box-based and flavor-based systems.
+
+---
+
 ## [2.12.0] - 2024-12-20
 
 ### ✨ Features
