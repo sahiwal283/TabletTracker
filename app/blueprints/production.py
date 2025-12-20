@@ -213,18 +213,21 @@ def submit_warehouse():
         assigned_po_id = None
         bag_id = None
         
-        if box_number and bag_number:
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, box_number, bag_number)
+        if bag_number:
+            # NEW: Pass bag_number first, box_number as optional parameter
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)
             
             if bag:
                 # Exact match found - auto-assign
                 bag_id = bag['id']
                 assigned_po_id = bag['po_id']
                 bag_label_count = bag.get('bag_label_count', 0)
-                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
+                box_ref = f", box={box_number}" if box_number else ""
+                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:
                 # Multiple matches - needs manual review
-                print(f"⚠️ Multiple receives found for Box {box_number}, Bag {bag_number} - needs review")
+                box_ref = f" Box {box_number}," if box_number else ""
+                print(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
             elif error_message:
                 # No match found
                 print(f"❌ {error_message}")

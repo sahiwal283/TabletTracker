@@ -53,4 +53,3 @@ def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
     
     # If 2+ matches: needs manual review, don't auto-assign
     return None, True, None
-
