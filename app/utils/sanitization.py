@@ -276,3 +276,5 @@ def validate_float(value: any, min_val: Optional[float] = None, max_val: Optiona
         return float_val
     except (ValueError, TypeError):
         return None
+
+

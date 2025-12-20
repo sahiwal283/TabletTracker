@@ -1497,8 +1497,9 @@ def submit_count():
             return jsonify({'error': 'Tablet type_id not found'}), 400
         
         # RECEIVE-BASED TRACKING: Find matching bag in receives
+        # NEW: Pass bag_number first, box_number as optional parameter
         bag, needs_review, error_message = find_bag_for_submission(
-            conn, tablet_type_id, data.get('box_number'), data.get('bag_number')
+            conn, tablet_type_id, data.get('bag_number'), data.get('box_number')
         )
         
         if error_message:
@@ -1683,17 +1684,20 @@ def submit_machine_count():
         assigned_po_id = None
         bag_id = None
         
-        if box_number and bag_number:
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, box_number, bag_number)
+        if bag_number:
+            # NEW: Pass bag_number first, box_number as optional parameter
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)
             
             if bag:
                 # Exact match found - auto-assign
                 bag_id = bag['id']
                 assigned_po_id = bag['po_id']
-                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
+                box_ref = f", box={box_number}" if box_number else ""
+                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:
                 # Multiple matches - needs manual review
-                print(f"⚠️ Multiple receives found for Box {box_number}, Bag {bag_number} - needs review")
+                box_ref = f" Box {box_number}," if box_number else ""
+                print(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
             elif error_message:
                 # No match found
                 print(f"❌ {error_message}")
@@ -3796,17 +3800,18 @@ def save_receives():
             small_box_id = box_cursor.lastrowid
             
             # Create bag records
-            for bag_idx, bag in enumerate(bags, start=1):
+            for bag in bags:
                 tablet_type_id = bag.get('tablet_type_id')
                 bag_count = bag.get('bag_count', 0)
+                bag_number = bag.get('bag_number')  # NEW: Use flavor-based bag number from frontend
                 
-                if not tablet_type_id:
+                if not tablet_type_id or not bag_number:
                     continue
                 
                 conn.execute('''
                     INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status)
                     VALUES (?, ?, ?, ?, 'Available')
-                ''', (small_box_id, bag_idx, bag_count, tablet_type_id))
+                ''', (small_box_id, bag_number, bag_count, tablet_type_id))
                 total_bags += 1
         
         # Update receiving record with total bags

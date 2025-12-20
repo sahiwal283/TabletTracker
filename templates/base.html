@@ -1851,10 +1851,11 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         modalContent += `
                             <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
                                  onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});"
-                                 title="Click to view submissions for Box ${box.box_number}, Bag ${bag.bag_number}">
+                                 title="Click to view submissions for ${product.tablet_type_name} Bag ${bag.bag_number}">
                                 <div class="flex justify-between items-center mb-2">
                                     <div class="flex items-center gap-2">
-                                        <span class="text-sm font-medium text-gray-700">🎒 Bag ${bag.bag_number}</span>
+                                        <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name} Bag ${bag.bag_number}</span>
+                                        <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>

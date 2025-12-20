@@ -192,3 +192,5 @@ def handle_database_error(error: Exception, operation: str = "database operation
             'error': f'Database error during {operation}',
             'details': str(error)
         }), 500
+
+

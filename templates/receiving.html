@@ -101,13 +101,13 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
                             <div class="bg-white border border-gray-200 rounded p-2 text-sm">
-                                <div class="font-medium text-gray-700">Bag {{ bag.bag_number }}</div>
-                                <div class="text-gray-600">
+                                <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
-                                    {{ bag.tablet_type_name }}
+                                    {{ bag.tablet_type_name }} Bag {{ bag.bag_number }}
                                     {% else %}
-                                    Unknown Type
+                                    Bag {{ bag.bag_number }}
                                     {% endif %}
+                                    <span class="text-gray-500 font-normal">(Box {{ box_data.box.box_number }})</span>
                                 </div>
                                 <div class="text-gray-600">Label Count: {{ bag.bag_label_count or 0 }}</div>
                             </div>
@@ -181,13 +181,13 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
                             <div class="bg-white border border-gray-200 rounded p-2 text-sm">
-                                <div class="font-medium text-gray-700">Bag {{ bag.bag_number }}</div>
-                                <div class="text-gray-600">
+                                <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
-                                    {{ bag.tablet_type_name }}
+                                    {{ bag.tablet_type_name }} Bag {{ bag.bag_number }}
                                     {% else %}
-                                    Unknown Type
+                                    Bag {{ bag.bag_number }}
                                     {% endif %}
+                                    <span class="text-gray-500 font-normal">(Box {{ box_data.box.box_number }})</span>
                                 </div>
                                 <div class="text-gray-600">Label Count: {{ bag.bag_label_count or 0 }}</div>
                             </div>
@@ -373,7 +373,8 @@
 
 <script>
 let boxCounter = 0;
-let bagCounter = {};
+let bagCounter = {}; // Still track per-box for UI structure
+let flavorBagCounter = {}; // NEW: Track bag numbers globally per flavor
 let currentReceivingId = null;
 let currentPoId = null;
 
@@ -410,6 +411,37 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     return html;
 }
 
+// NEW: Get next bag number for a flavor (global across all boxes)
+function getNextFlavorBagNumber(tabletTypeId) {
+    if (!flavorBagCounter[tabletTypeId]) {
+        flavorBagCounter[tabletTypeId] = 0;
+    }
+    flavorBagCounter[tabletTypeId]++;
+    return flavorBagCounter[tabletTypeId];
+}
+
+// NEW: Get tablet type name by ID
+function getTabletTypeName(tabletTypeId) {
+    const type = tabletTypes.find(tt => tt.id == tabletTypeId);
+    return type ? type.tablet_type_name : 'Unknown';
+}
+
+// NEW: Update bag label when flavor is selected
+function updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber) {
+    const bagDiv = document.getElementById(`box-${boxNumber}-bag-${bagSequence}`);
+    if (bagDiv) {
+        const labelElement = bagDiv.querySelector('.bag-label');
+        if (labelElement && tabletTypeId) {
+            const flavorName = getTabletTypeName(tabletTypeId);
+            labelElement.textContent = `${flavorName} Bag ${flavorBagNumber} (Box ${boxNumber})`;
+            labelElement.classList.add('text-blue-600', 'font-semibold');
+        } else if (labelElement) {
+            labelElement.textContent = `Bag ${bagSequence}`;
+            labelElement.classList.remove('text-blue-600', 'font-semibold');
+        }
+    }
+}
+
 // Initialize with Box 1 and Bag 1
 document.addEventListener('DOMContentLoaded', function() {
     addBox();
@@ -442,6 +474,7 @@ function openAddReceivesModal() {
     // Reset form
     boxCounter = 0;
     bagCounter = {};
+    flavorBagCounter = {}; // NEW: Reset flavor-based counters
     document.getElementById('boxes-container').innerHTML = '';
     
     // Add first box
@@ -516,25 +549,25 @@ function addBag(boxNumber) {
         bagCounter[boxNumber] = 0;
     }
     bagCounter[boxNumber]++;
-    const bagNumber = bagCounter[boxNumber];
+    const bagSequence = bagCounter[boxNumber]; // Sequence within box (for UI only)
     
     const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
     
     const bagDiv = document.createElement('div');
     bagDiv.className = 'p-4 bg-white border border-gray-200 rounded-lg';
-    bagDiv.id = `box-${boxNumber}-bag-${bagNumber}`;
+    bagDiv.id = `box-${boxNumber}-bag-${bagSequence}`;
     bagDiv.innerHTML = `
         <div class="flex justify-between items-center mb-3">
-            <h5 class="font-medium text-gray-700">Bag ${bagNumber}</h5>
+            <h5 class="font-medium text-gray-700 bag-label">Bag ${bagSequence}</h5>
             <div class="flex gap-2">
-                <button type="button" onclick="copyBag(${boxNumber}, ${bagNumber})" 
+                <button type="button" onclick="copyBag(${boxNumber}, ${bagSequence})" 
                         class="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
                         title="Copy this bag's information">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     Copy
                 </button>
-                ${bagNumber > 1 ? `
-                    <button type="button" onclick="removeBag(${boxNumber}, ${bagNumber})" 
+                ${bagSequence > 1 ? `
+                    <button type="button" onclick="removeBag(${boxNumber}, ${bagSequence})" 
                             class="text-red-600 hover:text-red-800 text-xs">
                         Remove Bag
                     </button>
@@ -543,16 +576,19 @@ function addBag(boxNumber) {
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
-                <select name="box_${boxNumber}_bag_${bagNumber}_tablet_type" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                    ${buildTabletTypeDropdown(boxNumber, bagNumber)}
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type <span class="text-xs text-gray-500">(determines bag number)</span></label>
+                <select name="box_${boxNumber}_bag_${bagSequence}_tablet_type" 
+                        data-box="${boxNumber}" 
+                        data-seq="${bagSequence}"
+                        class="flavor-select w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                    ${buildTabletTypeDropdown(boxNumber, bagSequence)}
                 </select>
+                <input type="hidden" name="box_${boxNumber}_bag_${bagSequence}_flavor_bag_number" value="" class="flavor-bag-number-field">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Bag Count</label>
                 <input type="number" 
-                       name="box_${boxNumber}_bag_${bagNumber}_bag_count" 
+                       name="box_${boxNumber}_bag_${bagSequence}_bag_count" 
                        min="0" 
                        step="1"
                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
@@ -565,10 +601,25 @@ function addBag(boxNumber) {
     bagsContainer.appendChild(bagDiv);
     
     // Convert to two-level dropdown
-    const select = bagDiv.querySelector('select[name="box_' + boxNumber + '_bag_' + bagNumber + '_tablet_type"]');
+    const select = bagDiv.querySelector('select[name="box_' + boxNumber + '_bag_' + bagSequence + '_tablet_type"]');
     if (select && typeof convertToTwoLevelDropdown === 'function') {
         convertToTwoLevelDropdown(select);
     }
+    
+    // NEW: Add listener to update bag number when flavor is selected
+    select.addEventListener('change', function() {
+        const tabletTypeId = this.value;
+        const hiddenField = bagDiv.querySelector('.flavor-bag-number-field');
+        
+        if (tabletTypeId) {
+            const flavorBagNumber = getNextFlavorBagNumber(tabletTypeId);
+            hiddenField.value = flavorBagNumber;
+            updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber);
+        } else {
+            hiddenField.value = '';
+            updateBagLabel(boxNumber, bagSequence, null, null);
+        }
+    });
 }
 
 function removeBag(boxNumber, bagNumber) {
@@ -807,34 +858,35 @@ async function submitReceives(event) {
     
     // Collect all form fields
     for (const [key, value] of formData.entries()) {
-        // Match pattern: box_{boxNum}_bag_{bagNum}_tablet_type or box_{boxNum}_bag_{bagNum}_bag_count
-        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count)$/);
+        // Match pattern: box_{boxNum}_bag_{bagSeq}_{fieldType}
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number)$/);
         if (match) {
             const boxNum = match[1];
-            const bagNum = match[2];
-            const fieldType = match[3]; // 'tablet_type' or 'bag_count'
+            const bagSeq = match[2];
+            const fieldType = match[3]; // 'tablet_type', 'bag_count', or 'flavor_bag_number'
             
             if (!boxes[boxNum]) {
                 boxes[boxNum] = {};
             }
-            if (!boxes[boxNum][bagNum]) {
-                boxes[boxNum][bagNum] = {};
+            if (!boxes[boxNum][bagSeq]) {
+                boxes[boxNum][bagSeq] = {};
             }
             
-            boxes[boxNum][bagNum][fieldType] = value;
+            boxes[boxNum][bagSeq][fieldType] = value;
         }
     }
     
-    // Convert to array format
+    // Convert to array format - NOW using flavor-based bag numbers
     const boxesArray = [];
     for (const boxNum in boxes) {
         const bagsArray = [];
-        for (const bagNum in boxes[boxNum]) {
-            const bag = boxes[boxNum][bagNum];
-            if (bag.tablet_type && bag.bag_count) {
+        for (const bagSeq in boxes[boxNum]) {
+            const bag = boxes[boxNum][bagSeq];
+            if (bag.tablet_type && bag.bag_count && bag.flavor_bag_number) {
                 bagsArray.push({
                     tablet_type_id: parseInt(bag.tablet_type),
-                    bag_count: parseInt(bag.bag_count)
+                    bag_count: parseInt(bag.bag_count),
+                    bag_number: parseInt(bag.flavor_bag_number) // NEW: Use flavor-based bag number
                 });
             }
         }

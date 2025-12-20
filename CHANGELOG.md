@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.0] - 2024-12-20
+
+### ✨ Features
+
+#### Global Flavor-Based Bag Numbering
+- **Major Change**: Switched from box-based sequential bag numbering to global flavor-based numbering
+- **How it works**: Bags are now numbered per flavor across all boxes in a receive
+  - Example: Box 1 contains "Cherry Bag 1, Grape Bag 1, Cherry Bag 2"; Box 2 contains "Grape Bag 2, Cherry Bag 3"
+  - Each flavor has unique bag numbers globally within a receive
+- **Benefits**:
+  - Simpler worker instructions (2 pieces of info instead of 3: flavor + bag number)
+  - Better inventory visibility (immediately see total bags per flavor)
+  - More intuitive (matches how staff naturally think about inventory)
+  - Box number becomes optional metadata (physical location reference only)
+
+#### Updated UI/UX
+- **Receiving Form**: Now uses per-flavor global counters instead of per-box counters
+  - Bag labels update dynamically when flavor is selected
+  - Display format: "Cherry Bag 2 (Box 1)" shows both flavor-based number and physical location
+- **Production Forms**: Box number is now optional (for backward compatibility with old receives)
+  - Machine count form updated with helper text explaining flavor-based numbering
+  - Bag count form simplified - box number optional
+  - Packaging form updated for consistency
+- **Receive Details**: Updated to show "Flavor Bag X (Box Y)" format throughout
+- **Dashboard**: Bags displayed with flavor-first nomenclature
+
+### 🔄 Changed
+
+#### Backend Updates
+- **Matching Logic** (`app/utils/receive_tracking.py`):
+  - Updated `find_bag_for_submission()` to make `box_number` optional
+  - Supports dual-mode: box-based (old receives) and flavor-based (new receives)
+  - Backward compatible with grandfathered receives
+- **API Endpoints**:
+  - `/api/save_receives`: Now accepts `bag_number` from frontend (flavor-based)
+  - All submission endpoints updated to handle optional `box_number`
+  - Matching queries use flavor + bag when box not provided
+
+#### Important Notes
+- **Backward Compatibility**: Old receives with box-based numbering continue to work
+  - System detects whether box_number is provided and uses appropriate matching logic
+  - Grandfathered receives remain fully functional until completed
+- **Multiple Active Receives**: When multiple receives have the same flavor + bag number:
+  - System flags submission for manual review (`needs_review=True`)
+  - Manager/admin manually assigns to correct receive
+  - This is acceptable edge case (99% of submissions are simpler, 1% need review)
+- **Box Number Retention**: Physical box numbers still stored in database for location tracking
+  - Just not required for identification in new flavor-based system
+
+---
+
 ## [2.8.0] - 2024-12-17
 
 ### 🔒 Security

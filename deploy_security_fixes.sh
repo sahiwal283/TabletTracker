@@ -109,3 +109,5 @@ echo "   git checkout <previous-commit>"
 echo "   cp $BACKUP_FILE database/tablet_counter.db"
 echo "   Reload web app"
 
+
+
