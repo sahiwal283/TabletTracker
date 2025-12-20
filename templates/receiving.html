@@ -374,7 +374,8 @@
 <script>
 let boxCounter = 0;
 let bagCounter = {}; // Still track per-box for UI structure
-let flavorBagCounter = {}; // NEW: Track bag numbers globally per flavor
+let flavorBagCounter = {}; // Track bag numbers globally per flavor
+let bagFlavorAssignments = {}; // Track which flavor is assigned to which bag
 let currentReceivingId = null;
 let currentPoId = null;
 
@@ -411,7 +412,7 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     return html;
 }
 
-// NEW: Get next bag number for a flavor (global across all boxes)
+// Get next bag number for a flavor (global across all boxes)
 function getNextFlavorBagNumber(tabletTypeId) {
     if (!flavorBagCounter[tabletTypeId]) {
         flavorBagCounter[tabletTypeId] = 0;
@@ -420,13 +421,20 @@ function getNextFlavorBagNumber(tabletTypeId) {
     return flavorBagCounter[tabletTypeId];
 }
 
-// NEW: Get tablet type name by ID
+// Decrement bag number for a flavor (when removing or changing)
+function decrementFlavorBagNumber(tabletTypeId) {
+    if (flavorBagCounter[tabletTypeId] && flavorBagCounter[tabletTypeId] > 0) {
+        flavorBagCounter[tabletTypeId]--;
+    }
+}
+
+// Get tablet type name by ID
 function getTabletTypeName(tabletTypeId) {
     const type = tabletTypes.find(tt => tt.id == tabletTypeId);
     return type ? type.tablet_type_name : 'Unknown';
 }
 
-// NEW: Update bag label when flavor is selected
+// Update bag label when flavor is selected
 function updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber) {
     const bagDiv = document.getElementById(`box-${boxNumber}-bag-${bagSequence}`);
     if (bagDiv) {
@@ -474,7 +482,8 @@ function openAddReceivesModal() {
     // Reset form
     boxCounter = 0;
     bagCounter = {};
-    flavorBagCounter = {}; // NEW: Reset flavor-based counters
+    flavorBagCounter = {}; // Reset flavor-based counters
+    bagFlavorAssignments = {}; // Reset flavor assignments
     document.getElementById('boxes-container').innerHTML = '';
     
     // Add first box
@@ -539,6 +548,23 @@ function addBox() {
 function removeBox(boxNumber) {
     const boxDiv = document.getElementById(`box-${boxNumber}`);
     if (boxDiv) {
+        // Get all bags in this box and decrement their flavor counters
+        const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
+        if (bagsContainer) {
+            const bagDivs = bagsContainer.querySelectorAll('[id^="box-' + boxNumber + '-bag-"]');
+            bagDivs.forEach(bagDiv => {
+                const bagId = bagDiv.id.match(/box-(\d+)-bag-(\d+)/);
+                if (bagId) {
+                    const bagIdentifier = `${bagId[1]}-${bagId[2]}`;
+                    const assignedFlavor = bagFlavorAssignments[bagIdentifier];
+                    if (assignedFlavor) {
+                        decrementFlavorBagNumber(assignedFlavor);
+                        delete bagFlavorAssignments[bagIdentifier];
+                    }
+                }
+            });
+        }
+        
         boxDiv.remove();
         delete bagCounter[boxNumber];
     }
@@ -606,16 +632,31 @@ function addBag(boxNumber) {
         convertToTwoLevelDropdown(select);
     }
     
-    // NEW: Add listener to update bag number when flavor is selected
+    // Add listener to update bag number when flavor is selected
     select.addEventListener('change', function() {
         const tabletTypeId = this.value;
         const hiddenField = bagDiv.querySelector('.flavor-bag-number-field');
+        const bagId = `${boxNumber}-${bagSequence}`;
+        
+        // Get previously assigned flavor for this bag
+        const previousFlavor = bagFlavorAssignments[bagId];
+        
+        // If flavor changed from a previous selection, decrement old counter
+        if (previousFlavor && previousFlavor !== tabletTypeId) {
+            decrementFlavorBagNumber(previousFlavor);
+        }
         
         if (tabletTypeId) {
             const flavorBagNumber = getNextFlavorBagNumber(tabletTypeId);
             hiddenField.value = flavorBagNumber;
+            bagFlavorAssignments[bagId] = tabletTypeId; // Track this assignment
             updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber);
         } else {
+            // Flavor cleared - decrement if there was a previous assignment
+            if (previousFlavor) {
+                decrementFlavorBagNumber(previousFlavor);
+                delete bagFlavorAssignments[bagId];
+            }
             hiddenField.value = '';
             updateBagLabel(boxNumber, bagSequence, null, null);
         }
@@ -625,6 +666,16 @@ function addBag(boxNumber) {
 function removeBag(boxNumber, bagNumber) {
     const bagDiv = document.getElementById(`box-${boxNumber}-bag-${bagNumber}`);
     if (bagDiv) {
+        // Get the assigned flavor for this bag
+        const bagId = `${boxNumber}-${bagNumber}`;
+        const assignedFlavor = bagFlavorAssignments[bagId];
+        
+        // Decrement the flavor counter if a flavor was assigned
+        if (assignedFlavor) {
+            decrementFlavorBagNumber(assignedFlavor);
+            delete bagFlavorAssignments[bagId];
+        }
+        
         bagDiv.remove();
     }
 }
@@ -706,6 +757,10 @@ async function copyBag(boxNumber, bagNumber) {
                 }
             }
         }
+        
+        // IMPORTANT: Trigger change event to assign flavor bag number
+        const changeEvent = new Event('change', { bubbles: true });
+        newTabletTypeSelect.dispatchEvent(changeEvent);
         
         // Visual feedback
         const newBagDiv = document.getElementById(`box-${boxNumber}-bag-${newBagNumber}`);
@@ -833,6 +888,10 @@ async function copyBox(boxNumber) {
                     }
                 }
             }
+            
+            // IMPORTANT: Trigger change event to assign flavor bag number
+            const changeEvent = new Event('change', { bubbles: true });
+            newTabletTypeSelect.dispatchEvent(changeEvent);
         }
     }
     
