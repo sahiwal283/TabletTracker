@@ -1466,7 +1466,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                     <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
                                     ${typeBadge}
                                 </div>
-                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
+                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.bag_number || ''}${sub.box_number ? ' (Box ' + sub.box_number + ')' : ''}</p>
                             </div>
                             <div class="text-right text-sm">
                                 <div class="text-gray-600">📅 ${sub.submission_date || sub.created_at || 'N/A'}</div>

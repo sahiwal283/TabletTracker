@@ -274,7 +274,7 @@
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Box/Bag</th>
+                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bag (Box)</th>
                     <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Count</th>
                     <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                 </tr>
@@ -292,7 +292,11 @@
                         {{ sub.product_name }}
                     </td>
                     <td class="px-2 py-2 text-xs text-gray-500 text-center">
-                        {{ sub.box_number }}/{{ sub.bag_number }}
+                        {% if sub.box_number %}
+                            Bag {{ sub.bag_number }} <span class="text-gray-400">(Box {{ sub.box_number }})</span>
+                        {% else %}
+                            Bag {{ sub.bag_number }}
+                        {% endif %}
                     </td>
                     <td class="px-2 py-2 text-xs text-gray-900 text-center font-medium">
                         {{ "{:,}".format(sub.calculated_total) if sub.calculated_total else '0' }}
@@ -358,7 +362,7 @@
                         Total
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Receive<br><span class="text-xs font-normal normal-case">(po # - receive # - box # - bag #)</span>
+                        Receive<br><span class="text-xs font-normal normal-case">(po # - receive # - bag # - box #)</span>
                     </th>
                 </tr>
             </thead>
@@ -1736,7 +1740,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                     <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
                                     ${typeBadge}
                                 </div>
-                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.box_number || ''}/${sub.bag_number || ''}</p>
+                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.bag_number || ''}${sub.box_number ? ' (Box ' + sub.box_number + ')' : ''}</p>
                             </div>
                             <div class="text-right text-sm">
                                 <div class="text-gray-600">📅 ${formatDateEST(submissionDateStr)}</div>

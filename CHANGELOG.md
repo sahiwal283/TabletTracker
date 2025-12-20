@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.3] - 2024-12-20
+
+### 🎨 UI Improvements
+
+#### Dashboard Display Updates
+- Updated submissions table to show bag-first format: "Bag X (Box Y)" instead of "Box/Bag"
+- Updated column header from "Box/Bag" to "Bag (Box)" to reflect new priority
+- Updated receive format helper text: "po # - receive # - bag # - box #" (bag before box)
+- JavaScript modals now show: "Bag: 2 (Box 1)" instead of "Bag: 1/2"
+
+#### Consistency Across Templates
+- All submission displays now consistently show bag-first format
+- Box number shown as optional reference in parentheses
+- Applies to: dashboard.html, receiving.html submission modals
+
+**Impact:** Better visual alignment with flavor-based numbering system where bag number is primary identifier.
+
+---
+
 ## [2.11.2] - 2024-12-20
 
 ### 🚨 Critical Bug Fixes
