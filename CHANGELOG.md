@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.11.1] - 2024-12-20
+
+### 🐛 Bug Fixes
+
+#### Flavor-Based Bag Numbering Bugs
+- **Fixed flavor counter increments on dropdown change**: When users changed flavor selection (e.g., Cherry → Grape), both counters incremented, creating gaps in numbering
+  - Added `bagFlavorAssignments` tracking to remember previous selections
+  - Decrement old flavor counter when flavor changes
+- **Fixed remove bag not decrementing counter**: Removing bags left gaps in sequence (e.g., Cherry Bag 1, 3, 4 with no Bag 2)
+  - Now properly decrements flavor counter when bag is removed
+  - Cleans up `bagFlavorAssignments` tracking
+- **Fixed copy functions not assigning bag numbers**: `copyBag()` and `copyBox()` didn't trigger change events to assign flavor bag numbers
+  - Added explicit change event triggers after setting dropdown values
+  - Ensures copied bags get proper flavor-based bag numbers
+- **Fixed remove box not cleaning up**: Removing entire box didn't decrement flavor counters for its bags
+  - Now loops through all bags in box and decrements their flavor counters
+  - Cleans up all `bagFlavorAssignments` for removed box
+
+**Result**: Flavor-based bag numbering now works correctly without gaps or duplicate numbers when users change selections, remove bags, or copy bags/boxes.
+
+---
+
 ## [2.11.0] - 2024-12-20
 
 ### ✨ Features
