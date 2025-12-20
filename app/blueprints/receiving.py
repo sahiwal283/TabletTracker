@@ -131,9 +131,9 @@ def receiving_list():
             else:
                 shipments_without_po.append(shipment)
         
-        # Sort receives within each PO group (oldest first for display bottom-to-top)
+        # Sort receives within each PO group (newest first, oldest at bottom)
         for po_id, po_group in po_groups.items():
-            po_group['receives'].sort(key=lambda x: x['receiving']['received_date'])
+            po_group['receives'].sort(key=lambda x: x['receiving']['received_date'], reverse=True)
         
         # Convert to list and sort by PO number (newest PO first)
         grouped_shipments = [po_groups[po_id] for po_id in sorted(po_groups.keys(), 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.2] - 2024-12-20
+
+### 🐛 Bug Fix
+
+#### PO Group Receive Sort Order
+- **Fixed receive sort order within PO groups**: Oldest receives now appear at bottom
+  - Was sorting: oldest first (top) → newest last (bottom)
+  - Now sorting: newest first (top) → oldest last (bottom)
+  - **Impact**: Lower receive numbers (older) now correctly appear at bottom of each PO group
+
+---
+
 ## [2.12.1] - 2024-12-20
 
 ### 🐛 Bug Fixes
