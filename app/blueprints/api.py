@@ -6578,26 +6578,26 @@ def get_possible_receives(submission_id):
         # If box_number provided: match with box (old style)
         # If box_number is None: match without box (new flavor-based style)
         if box_number is not None:
-            matching_bags = conn.execute('''
-                SELECT b.id as bag_id, 
-                       sb.box_number, 
-                       b.bag_number, 
-                       b.bag_label_count,
-                       r.id as receive_id,
-                       r.received_date,
-                       r.receive_name as stored_receive_name,
-                       po.po_number,
-                       po.id as po_id,
-                       tt.tablet_type_name
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN receiving r ON sb.receiving_id = r.id
-                JOIN purchase_orders po ON r.po_id = po.id
-                JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE b.tablet_type_id = ? 
-                AND sb.box_number = ? 
-                AND b.bag_number = ?
-                ORDER BY r.received_date DESC
+        matching_bags = conn.execute('''
+            SELECT b.id as bag_id, 
+                   sb.box_number, 
+                   b.bag_number, 
+                   b.bag_label_count,
+                   r.id as receive_id,
+                   r.received_date,
+                   r.receive_name as stored_receive_name,
+                   po.po_number,
+                   po.id as po_id,
+                   tt.tablet_type_name
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            JOIN purchase_orders po ON r.po_id = po.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE b.tablet_type_id = ? 
+            AND sb.box_number = ? 
+            AND b.bag_number = ?
+            ORDER BY r.received_date DESC
             ''', (tablet_type_id, box_number, submission_dict['bag_number'])).fetchall()
         else:
             # New flavor-based: match without box number

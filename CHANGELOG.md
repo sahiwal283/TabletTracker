@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.13.3] - 2024-12-20
+
+### 🐛 Bug Fix
+
+#### Fixed Duplicate "PO" Prefix Display
+- **Issue**: Receiving page showed "PO PO-00166" (duplicate prefix)
+- **Root cause**: `po_number` already contains "PO-" prefix, but template added another "PO" text
+- **Fix**: Removed redundant "PO" text from PO group headers
+- **Result**: Now displays "📋 PO-00166" correctly
+
+---
+
 ## [2.13.2] - 2024-12-20
 
 ### 🎨 UI Improvement
