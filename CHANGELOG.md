@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.14.0] - 2024-12-20
+## [2.15.3] - 2024-12-20
 
 ### 🎨 UI Improvement
 
