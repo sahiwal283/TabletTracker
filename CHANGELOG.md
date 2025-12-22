@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.1] - 2025-12-22
+
+### 🔧 Deployment Fix
+
+#### Added Migration Script for PythonAnywhere
+- **Issue**: PythonAnywhere production database missing `closed` column, causing "no such column: r.closed" error
+- **Fix**: Created `database/add_closed_column.py` script for easy deployment
+- **Usage**: Run `python database/add_closed_column.py` on PythonAnywhere after pulling code
+- **Benefit**: Simple one-command migration for production deployment
+- **Also fixed**: CSRF token issue in `toggleReceiveClosed()` function (was using `fetch` instead of `csrfFetch`)
+- **Files added**: `database/add_closed_column.py`
+- **Files updated**: `templates/receiving.html` (CSRF fix)
+
+---
+
 ## [2.17.0] - 2025-12-22
 
 ### ✨ Feature - Close Bags and Receives
