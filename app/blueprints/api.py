@@ -143,7 +143,8 @@ def get_receive_details(receive_id):
         
         # Group by product -> box -> bag
         products = {}
-        for bag in bags:
+        for bag_row in bags:
+            bag = dict(bag_row)  # Convert Row to dict
             inventory_item_id = bag['inventory_item_id']
             tablet_type_name = bag['tablet_type_name']
             box_number = bag['box_number']

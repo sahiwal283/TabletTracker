@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.3] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed "Row object has no attribute 'get'" Error in Receive Details
+- **Issue**: Clicking on a receive to view details showed error: "'sqlite3.Row' object has no attribute 'get'"
+- **Root cause**: Trying to use `.get()` method on SQLite Row object without converting to dict first
+- **Fix**: Convert Row to dict before accessing with `.get()`
+- **Impact**: Receive details modal now loads correctly
+- **Files updated**: `app/blueprints/api.py` (line 147)
+
+---
+
 ## [2.17.2] - 2025-12-22
 
 ### ✨ Feature Enhancement
