@@ -11,6 +11,89 @@ from app.utils.auth_utils import role_required
 
 bp = Blueprint('submissions', __name__)
 
+def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filter_submission_type=None):
+    """
+    Group submissions by receipt_number while maintaining sort order within groups.
+    
+    Args:
+        submissions: List of submission dictionaries
+        sort_by: Current sort column
+        sort_order: 'asc' or 'desc'
+        filter_submission_type: If set, skip grouping
+    
+    Returns:
+        List of submissions grouped by receipt_number
+    """
+    # Skip grouping if filtering by a single submission type
+    if filter_submission_type:
+        return submissions
+    
+    # Group by receipt_number
+    groups = {}
+    null_receipts = []
+    
+    for sub in submissions:
+        receipt = sub.get('receipt_number')
+        if receipt is None or receipt == '':
+            null_receipts.append(sub)
+        else:
+            if receipt not in groups:
+                groups[receipt] = []
+            groups[receipt].append(sub)
+    
+    # Sort groups by the newest/most relevant submission in each group
+    # For default sort (created_at desc), use newest submission's created_at
+    # For other sorts, use the primary sort value from first submission in group
+    def get_group_sort_key(receipt_group):
+        if sort_by == 'created_at':
+            # Use newest submission's created_at (max for desc, min for asc)
+            if sort_order == 'desc':
+                return max(sub.get('created_at', '') for sub in receipt_group)
+            else:
+                return min(sub.get('created_at', '') for sub in receipt_group)
+        elif sort_by == 'receipt_number':
+            # Sort numerically by receipt_number (e.g., "2786-13" should come after "2786-9")
+            receipt = receipt_group[0].get('receipt_number', '')
+            if not receipt or '-' not in receipt:
+                return (999999, 999999)  # Put invalid receipts at end
+            try:
+                parts = receipt.split('-', 1)
+                return (int(parts[0]), int(parts[1]))
+            except (ValueError, IndexError):
+                return (999999, 999999)  # Put invalid receipts at end
+        elif sort_by == 'total':
+            # Use calculated_total/individual_calc
+            if sort_order == 'desc':
+                return max(sub.get('individual_calc', 0) or sub.get('calculated_total', 0) or 0 for sub in receipt_group)
+            else:
+                return min(sub.get('individual_calc', 0) or sub.get('calculated_total', 0) or 0 for sub in receipt_group)
+        else:
+            # Use the sort value from first submission (already sorted)
+            # For string fields, get the first one in sort order
+            if sort_order == 'desc':
+                # For desc, we want the "highest" value (last alphabetically for strings)
+                values = [sub.get(sort_by, '') for sub in receipt_group if sub.get(sort_by)]
+                return max(values) if values else ''
+            else:
+                # For asc, we want the "lowest" value (first alphabetically for strings)
+                values = [sub.get(sort_by, '') for sub in receipt_group if sub.get(sort_by)]
+                return min(values) if values else ''
+    
+    # Sort groups
+    sorted_groups = sorted(groups.items(), 
+                          key=lambda x: get_group_sort_key(x[1]),
+                          reverse=(sort_order == 'desc'))
+    
+    # Flatten groups back into list
+    result = []
+    for receipt, group in sorted_groups:
+        result.extend(group)
+    
+    # Append NULL receipts at the end
+    result.extend(null_receipts)
+    
+    return result
+
 @bp.route('/submissions')
 @role_required('dashboard')
 def submissions_list():
@@ -263,8 +346,8 @@ def submissions_list():
             
             submissions_processed.append(sub_dict)
         
-        # Query already orders by DESC (newest first), so use as-is
-        all_submissions = submissions_processed  # All submissions, newest first
+        # Group submissions by receipt_number while maintaining sort order within groups
+        all_submissions = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
         
         # Pagination
         page = request.args.get('page', 1, type=int)
@@ -508,6 +591,9 @@ def export_submissions_csv():
                 sub_dict['count_status'] = 'Over'
             
             submissions_processed.append(sub_dict)
+        
+        # Group submissions by receipt_number while maintaining sort order within groups
+        submissions_processed = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
         
         # Create CSV in memory
         output = io.StringIO()
