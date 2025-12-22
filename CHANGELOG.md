@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.2] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Auto-Assignment and Assignment Modal for Flavor-Based Bags
+- **Issue**: Submissions with flavor-based bags (no box_number) were not auto-assigning and assignment modal showed "Cannot find matching receives"
+- **Root causes**:
+  1. Empty string `""` for `box_number` was not normalized to `None`, causing wrong matching logic
+  2. Frontend JavaScript check required both `box_number` AND `bag_number`, but flavor-based only needs `bag_number`
+- **Fixes**:
+  1. Normalized empty strings to `None` in `submit_machine_count()` and `get_possible_receives()` 
+  2. Updated frontend check to only require `bag_number` (box_number is optional)
+  3. Ensured `find_bag_for_submission()` correctly handles `box_number=None` for flavor-based matching
+- **Result**: Flavor-based submissions now auto-assign correctly and assignment modal shows matching receives
+- **Files updated**: `app/blueprints/production.py`, `app/blueprints/api.py`, `templates/submissions.html`, `templates/dashboard.html`
+
+---
+
 ## [2.16.1] - 2025-12-22
 
 ### 🐛 Bug Fix

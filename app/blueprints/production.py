@@ -185,7 +185,9 @@ def submit_warehouse():
             return jsonify({'error': 'Receipt number is required'}), 400
         
         # Try to get box/bag from form data first
-        box_number = data.get('box_number')
+        # Normalize empty strings to None for flavor-based bags (new system)
+        box_number_raw = data.get('box_number')
+        box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
         bag_number = data.get('bag_number')
         bag_id = None
         assigned_po_id = None
@@ -541,7 +543,9 @@ def submit_machine_count():
             return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
         
         # Get box/bag numbers from form data
-        box_number = data.get('box_number')
+        # Normalize empty strings to None for flavor-based bags (new system)
+        box_number_raw = data.get('box_number')
+        box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
         bag_number = data.get('bag_number')
         
         # Get admin_notes if user is admin or manager

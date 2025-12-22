@@ -6575,7 +6575,9 @@ def get_possible_receives(submission_id):
             }), 400
         
         # Box number is optional for flavor-based receives
-        box_number = submission_dict.get('box_number')
+        # Normalize empty strings/None to None for proper flavor-based matching
+        box_number_raw = submission_dict.get('box_number')
+        box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
         
         # Get tablet_type_id - if not found via JOIN, try to get it from inventory_item_id
         tablet_type_id = submission_dict.get('tablet_type_id')

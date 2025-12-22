@@ -520,7 +520,8 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
         }
         
         const submission = data.submission || {};
-        const hasBoxBag = submission.box_number && submission.bag_number;
+        // For flavor-based bags, box_number is optional - only bag_number is required
+        const hasBoxBag = submission.bag_number; // bag_number is always required
         
         if (data.possible_receives && data.possible_receives.length > 0) {
             // Found receives - show them
