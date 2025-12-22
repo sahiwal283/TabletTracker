@@ -1207,7 +1207,7 @@ async function toggleReceiveClosed(receivingId, currentlyClosed) {
     }
     
     try {
-        const response = await fetch(`/api/receiving/${receivingId}/close`, {
+        const response = await csrfFetch(`/api/receiving/${receivingId}/close`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
