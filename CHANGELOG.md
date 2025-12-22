@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.14.1] - 2024-12-20
+
+### 🐛 Bug Fix
+
+#### Fixed Submission Details Modal Not Opening
+- **Issue**: Modal not opening due to JavaScript syntax errors from mixing template literals
+- **Root cause**: Using `${sub.id}` syntax outside of template literals and mixing Jinja2 with JavaScript
+- **Fix**: Changed event listener attachment to use proper JavaScript variable references instead of template literal syntax
+- **Result**: Modal now opens correctly, reassign button works properly
+
+---
+
+## [2.15.4] - 2024-12-20
+
+### 🐛 Bug Fix
+
+#### Fixed Submission Details Modal Not Opening
+- **Issue**: Modal not opening due to JavaScript syntax errors from mixing template literals
+- **Root cause**: Using `${sub.id}` syntax outside of template literals and mixing Jinja2 with JavaScript
+- **Fix**: Changed event listener attachment to use proper JavaScript variable references instead of template literal syntax
+- **Result**: Modal now opens correctly, reassign button works properly
+
+---
+
 ## [2.14.0] - 2024-12-20
 
 ### 🎨 UI Improvement

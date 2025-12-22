@@ -1741,15 +1741,15 @@ async function viewSubmissionDetails(submissionId) {
         document.body.appendChild(modalContainer);
         
         // Attach event listener to reassign button to avoid quote escaping issues
-        ${isAdmin ? `
-        const reassignBtn = document.getElementById('reassign-btn-${sub.id}');
-        if (reassignBtn) {
-            reassignBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                openReassignFromDetails(${sub.id}, ${JSON.stringify(sub.po_number || '')}, ${JSON.stringify(sub.product_name || '')});
-            });
+        if (isAdmin) {
+            const reassignBtn = document.getElementById('reassign-btn-' + sub.id);
+            if (reassignBtn) {
+                reassignBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openReassignFromDetails(sub.id, sub.po_number || '', sub.product_name || '');
+                });
+            }
         }
-        ` : ''}
         
     } catch (error) {
         console.error('Error loading submission details:', error);
