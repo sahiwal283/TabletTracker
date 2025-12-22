@@ -1706,7 +1706,7 @@ async function viewSubmissionDetails(submissionId) {
                     <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-between items-center">
                         <div>
                             ${isAdmin ? `
-                            <button onclick="event.stopPropagation(); openReassignFromDetails(${sub.id}, ${JSON.stringify(sub.po_number || '')}, ${JSON.stringify(sub.product_name || '')})" 
+                            <button id="reassign-btn-${sub.id}" 
                                     class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
                                     title="Reassign to different receive">
                                 🔄 Reassign to Receive
@@ -1739,6 +1739,17 @@ async function viewSubmissionDetails(submissionId) {
         modalContainer.id = 'submission-details-modal-container';
         modalContainer.innerHTML = modalHTML;
         document.body.appendChild(modalContainer);
+        
+        // Attach event listener to reassign button to avoid quote escaping issues
+        ${isAdmin ? `
+        const reassignBtn = document.getElementById('reassign-btn-${sub.id}');
+        if (reassignBtn) {
+            reassignBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                openReassignFromDetails(${sub.id}, ${JSON.stringify(sub.po_number || '')}, ${JSON.stringify(sub.product_name || '')});
+            });
+        }
+        ` : ''}
         
     } catch (error) {
         console.error('Error loading submission details:', error);
