@@ -654,15 +654,25 @@
         
         <!-- Fixed Footer -->
         <div class="flex-shrink-0 p-6 border-t border-gray-200 bg-white">
-            <div class="flex justify-end gap-3">
-                <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" 
-                        class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
-                    Cancel
-                </button>
-                <button onclick="saveSubmissionEdit()" 
-                        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
-                    Save Changes
-                </button>
+            <div class="flex justify-between items-center">
+                <!-- Reassign Button (Admin/Manager only) -->
+                <div id="edit-reassign-section" class="hidden">
+                    <button onclick="event.stopPropagation(); openReassignFromEdit()" 
+                            class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                            title="Reassign to different receive">
+                        🔄 Reassign to Receive
+                    </button>
+                </div>
+                <div class="flex gap-3 ml-auto">
+                    <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" 
+                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                        Cancel
+                    </button>
+                    <button onclick="saveSubmissionEdit()" 
+                            class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                        Save Changes
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -791,6 +801,16 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             }
         } else if (adminChangePoSection) {
             adminChangePoSection.classList.add('hidden');
+        }
+        
+        // Show reassign section for admins/managers (to fix incorrect assignments)
+        const reassignSection = document.getElementById('edit-reassign-section');
+        if (reassignSection) {
+            reassignSection.classList.remove('hidden');
+            // Store submission data for reassign function
+            reassignSection.dataset.submissionId = sub.id;
+            reassignSection.dataset.poNumber = sub.po_number || '';
+            reassignSection.dataset.productName = sub.product_name || '';
         }
         
         // Show modal
@@ -941,6 +961,26 @@ function closeEditSubmissionModal(event) {
     // Prevent event propagation if event exists
     if (event) {
         event.stopPropagation();
+    }
+}
+
+// Open reassign modal from edit modal (to fix incorrect assignments)
+function openReassignFromEdit() {
+    const reassignSection = document.getElementById('edit-reassign-section');
+    if (!reassignSection) return;
+    
+    const submissionId = reassignSection.dataset.submissionId;
+    const poNumber = reassignSection.dataset.poNumber;
+    const productName = reassignSection.dataset.productName;
+    
+    // Close edit modal
+    closeEditSubmissionModal();
+    
+    // Open reassign modal (needs_review=1 to show receives)
+    if (typeof openReassignModal === 'function') {
+        openReassignModal(parseInt(submissionId), poNumber, productName, 1);
+    } else {
+        alert('Reassign function not available on this page. Please use the Submissions page to reassign.');
     }
 }
 

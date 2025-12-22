@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.13.1] - 2024-12-20
+
+### ✨ Feature
+
+#### Reassign Button for Incorrectly Assigned Submissions
+- **Added ability to reassign already-assigned submissions**: Admins/managers can now fix incorrect assignments
+- **Problem**: Previously, reassign button only showed for unassigned submissions
+  - If a submission was incorrectly assigned, no way to fix it without deleting and recreating
+  - User reported: "There's no way in the submissions UI for me to manually reassign"
+- **Solution**: Added "🔄 Reassign" button for assigned submissions (admin/manager only)
+
+#### 3 Places to Reassign:
+1. **Submissions page**: Orange "Reassign" button next to assigned submissions
+2. **Dashboard bag details**: Orange "Reassign" button in submission cards
+3. **Edit Submission modal**: "Reassign to Receive" button in footer
+
+#### How to Use:
+- Click "🔄 Reassign" button on any submission
+- Modal shows all possible receives that match the product
+- Select correct receive → Submission reassigned → Counts updated
+
+**Use Case**: Fix submissions that were incorrectly assigned due to old receipt bug (e.g., Spearmint assigned to Blue Razz receive)
+
+---
+
 ## [2.13.0] - 2024-12-20
 
 ### ✨ Feature - Major Reliability Improvement
