@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.14.0] - 2024-12-20
+
+### 🎨 UI Improvement
+
+#### Moved Reassign Button to Details Modal
+- **Change**: Moved "Reassign to Receive" button from edit modal to details modal
+- **Location**: Button now appears in the submission details modal footer (left side)
+- **Benefit**: Users can reassign directly from the details view without opening the edit modal
+- **Accessibility**: Button remains visible to admin users only, matching existing permissions
+- **Files updated**: `templates/base.html`, `templates/submissions.html`, `templates/dashboard.html`
+
+---
+
 ## [2.13.3] - 2024-12-20
 
 ### 🐛 Bug Fix
