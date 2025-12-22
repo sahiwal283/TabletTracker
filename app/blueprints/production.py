@@ -189,18 +189,25 @@ def submit_warehouse():
         bag_number = data.get('bag_number')
         
         # If box/bag not provided, lookup from machine count using receipt
+        # CRITICAL: Must match by product to prevent cross-flavor assignment!
         if not (box_number and bag_number):
             machine_count = conn.execute('''
-                SELECT box_number, bag_number 
+                SELECT box_number, bag_number, inventory_item_id, product_name
                 FROM warehouse_submissions
                 WHERE receipt_number = ? AND submission_type = 'machine'
                 ORDER BY created_at DESC LIMIT 1
             ''', (receipt_number,)).fetchone()
             
             if machine_count:
+                # CRITICAL: Verify the machine count is for the SAME product/flavor
+                if machine_count['inventory_item_id'] != inventory_item_id:
+                    return jsonify({
+                        'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
+                    }), 400
+                
                 box_number = machine_count['box_number']
                 bag_number = machine_count['bag_number']
-                print(f"📝 Looked up box/bag from receipt {receipt_number}: Box {box_number}, Bag {bag_number}")
+                print(f"📝 Looked up box/bag from receipt {receipt_number}: Box {box_number}, Bag {bag_number} for {machine_count['product_name']}")
             else:
                 return jsonify({
                     'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'

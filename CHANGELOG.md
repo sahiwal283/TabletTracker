@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.5] - 2024-12-20
+
+### 🚨 CRITICAL Bug Fix
+
+#### Cross-Flavor Receipt Assignment Bug
+- **Fixed Spearmint submission assigned to Blue Razz receive**: Receipt lookup didn't verify product match
+  - **Root cause**: Receipt lookup query in packaging endpoint didn't check `inventory_item_id`
+    - Query: `SELECT box_number, bag_number WHERE receipt_number = ?`
+    - Missing: Product/flavor verification
+  - **Scenario that caused bug**:
+    1. Machine count for Blue Razz Box 1, Bag 1 with receipt 2786-37
+    2. Packaging for Spearmint using SAME receipt 2786-37
+    3. System looked up receipt → found Box 1, Bag 1 (from Blue Razz!)
+    4. Matched Spearmint to Blue Razz's Box 1, Bag 1
+    5. **Result**: Spearmint submission assigned to wrong flavor's receive!
+  - **Impact**: CRITICAL - submissions assigned to completely wrong products/receives
+  - **Data integrity**: Counts are wrong, inventory tracking is wrong
+
+#### The Fix
+- Added `inventory_item_id` and `product_name` to receipt lookup query
+- **Verify product matches** before using box/bag from receipt:
+  ```python
+  if machine_count['inventory_item_id'] != inventory_item_id:
+      return error: "Receipt was used for {other_product}, cannot reuse for {this_product}"
+  ```
+- **Prevents cross-flavor receipt reuse**: Each receipt can only be used for ONE product
+- Clear error message tells user they need a new receipt or manual box/bag entry
+
+**Result**: Receipts can no longer cause cross-flavor assignment. Each receipt is locked to its original product.
+
+**ACTION REQUIRED**: 
+- Check existing submissions for incorrect assignments (especially those using receipts)
+- May need to manually reassign affected submissions
+- Consider adding a data integrity check script
+
+---
+
 ## [2.12.4] - 2024-12-20
 
 ### 🚨 Critical Bug Fix
