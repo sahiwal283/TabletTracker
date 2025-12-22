@@ -268,6 +268,8 @@ def get_receive_details(receive_id):
             products[inventory_item_id]['boxes'][box_number][bag_number] = {
                 'bag_id': bag['id'],
                 'bag_number': bag_number,
+                'box_number': box_number,
+                'status': bag.get('status', 'Available'),
                 'received_count': bag_label_count,
                 'machine_count': machine_total,
                 'packaged_count': dict(packaged_count)['total_packaged'] if packaged_count else 0,

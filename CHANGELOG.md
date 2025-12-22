@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.2] - 2025-12-22
+
+### ✨ Feature Enhancement
+
+#### Added UI to Close Individual Bags
+- **Feature**: Added "🔒 Close" / "🔓 Reopen" buttons for individual bags in receive details modal
+- **Location**: Click on any receive → Modal shows all bags → Each bag now has a close/reopen button
+- **Visibility**: Only managers and admins can see the close/reopen buttons
+- **Visual indicators**:
+  - Closed bags show "🔒 CLOSED" badge
+  - Closed bags have reduced opacity (60%) to indicate they're inactive
+- **Confirmation dialogs**: Asks for confirmation before closing/reopening with bag details
+- **Use case**: Close individual bags (e.g., Bag 1 and Bag 2) while keeping other bags in the receive open
+- **API endpoint**: Uses existing `POST /api/bag/<id>/close` endpoint
+- **Files updated**: 
+  - `app/blueprints/api.py` - Added `status` and `box_number` to bag data in receive details
+  - `templates/base.html` - Added close buttons and `toggleBagClosed()` function
+
+---
+
 ## [2.17.1] - 2025-12-22
 
 ### 🔧 Deployment Fix

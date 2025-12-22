@@ -1883,17 +1883,29 @@ async function viewReceiveDetails(receiveId, receiveName) {
                             labelColor = 'text-yellow-600';
                         }
                         
+                        const isClosed = bag.status === 'Closed';
+                        const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
+                        
                         modalContent += `
-                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
-                                 onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});"
-                                 title="Click to view submissions for ${product.tablet_type_name} Bag ${bag.bag_number}">
+                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
+                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for ' + product.tablet_type_name + ' Bag ' + bag.bag_number}">
                                 <div class="flex justify-between items-center mb-2">
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2 flex-1 cursor-pointer"
+                                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});">
                                         <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name} Bag ${bag.bag_number}</span>
                                         <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
+                                        ${closedBadge}
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
-                                    <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                        ${isAdmin || isManager ? `
+                                            <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number});" 
+                                                    class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
+                                                ${isClosed ? '🔓 Reopen' : '🔒 Close'}
+                                            </button>
+                                        ` : ''}
+                                    </div>
                                 </div>
                                 
                                 <!-- Progress Bar -->
@@ -1969,6 +1981,38 @@ function closeReceiveDetailsModal(event) {
         if (modal) {
             modal.remove();
         }
+    }
+}
+
+async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber) {
+    const action = currentlyClosed ? 'reopen' : 'close';
+    const confirmMsg = currentlyClosed 
+        ? `Are you sure you want to REOPEN ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will become available for new submissions again.` 
+        : `Are you sure you want to CLOSE ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will no longer accept new submissions.`;
+    
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    try {
+        const response = await csrfFetch(`/api/bag/${bagId}/close`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Reload to show updated status
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update bag status'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to update bag status');
     }
 }
 
