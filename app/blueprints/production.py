@@ -193,6 +193,7 @@ def submit_warehouse():
         assigned_po_id = None
         bag_label_count = None
         needs_review = False
+        error_message = None  # Initialize error_message for all code paths
         
         # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
         # This is much more reliable than looking up box/bag and re-matching

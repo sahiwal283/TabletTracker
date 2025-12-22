@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.4] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed NameError: 'error_message' referenced before assignment
+- **Issue**: Packaging submissions using receipt lookup crashed with `NameError: local variable 'error_message' referenced before assignment`
+- **Root cause**: `error_message` was only initialized in the manual matching path, but referenced later in all code paths
+- **Fix**: Initialize `error_message = None` at the beginning of the function before the if/else block
+- **Result**: Packaging submissions now work correctly for both receipt lookup and manual entry paths
+- **Files updated**: `app/blueprints/production.py`
+
+---
+
 ## [2.16.3] - 2025-12-22
 
 ### 🐛 Bug Fix
