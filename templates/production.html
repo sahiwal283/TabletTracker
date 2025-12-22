@@ -915,12 +915,20 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
         
-        // Validate box/bag numbers (either from hidden fields or fallback)
-        if (!hiddenBoxField.value && !fallbackBoxInput.value) {
-            showError('Box number is required. Please enter receipt number or fill fallback fields.');
-            return;
+        // Validate box/bag numbers
+        // For flavor-based bags (new system), box_number is optional when receipt lookup succeeds
+        // For old system or manual entry, both box and bag are required
+        if (!receiptLookupSuccess) {
+            // Manual entry (old system) - require both box and bag
+            if (!hiddenBoxField.value && !fallbackBoxInput.value) {
+                showError('Box number is required. Please enter receipt number or fill fallback fields.');
+                return;
+            }
         }
-        if (!hiddenBagField.value && !fallbackBagInput.value) {
+        // Bag number is always required (either from receipt lookup or manual entry)
+        // If receipt lookup succeeded, bag should already be in hiddenBagField
+        // If not, require either manual bag entry or receipt number for lookup
+        if (!receiptLookupSuccess && !hiddenBagField.value && !fallbackBagInput.value && !receiptInput.value) {
             showError('Bag number is required. Please enter receipt number or fill fallback fields.');
             return;
         }

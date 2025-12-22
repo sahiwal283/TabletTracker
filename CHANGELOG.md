@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.1] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Packaging Form Validation for Flavor-Based Bags
+- **Issue**: Packaging form showed "Box number is required" error when using receipt from flavor-based bags (new system)
+- **Root cause**: Frontend validation required box_number even when receipt lookup succeeded, but flavor-based bags have NULL box_number
+- **Fix**: Made box_number validation conditional:
+  - If receipt lookup succeeded: Skip box_number validation (optional for flavor-based bags)
+  - If receipt lookup failed: Require both box_number and bag_number (old system fallback)
+- **Result**: Packaging submissions now work correctly with receipts from flavor-based receives
+- **Files updated**: `templates/production.html`
+
+---
+
 ## [2.16.0] - 2025-12-22
 
 ### 🎨 UI Improvement
