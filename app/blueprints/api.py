@@ -6065,8 +6065,8 @@ def get_po_submissions(po_id):
                 ORDER BY ws.created_at ASC
             '''
         
-        # Execute query with PO IDs duplicated (once for assigned_po_id, once for bag's receiving.po_id)
-        submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query) + tuple(po_ids_to_query)).fetchall()
+        # Execute query with PO IDs
+        submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query)).fetchall()
         print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query}")
         
         # Calculate total tablets and running bag totals for each submission

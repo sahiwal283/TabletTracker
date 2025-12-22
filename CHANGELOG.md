@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.5] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed SQL Binding Error When Viewing Receive Submissions
+- **Issue**: Viewing submissions for a receive showed error: "Incorrect number of bindings supplied. The current statement uses 2, and there are 4 supplied."
+- **Root cause**: `/api/po/<int:po_id>/submissions` endpoint was passing duplicate parameters
+  - Code: `tuple(po_ids_to_query) + tuple(po_ids_to_query)` (parameters doubled)
+  - SQL: `WHERE ws.assigned_po_id IN (?,?)` (only 2 placeholders for 2 PO IDs)
+  - Result: Passing 4 parameters for 2 placeholders = SQL binding error
+- **Fix**: Removed parameter duplication - now passes `tuple(po_ids_to_query)` once
+- **Impact**: Receive details modal now works correctly when viewing submissions
+- **Files updated**: `app/blueprints/api.py` (line 6069)
+
+---
+
 ## [2.16.4] - 2025-12-22
 
 ### 🐛 Bug Fix
