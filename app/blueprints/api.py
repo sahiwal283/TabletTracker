@@ -163,7 +163,7 @@ def get_receive_details(receive_id):
             # Get submission counts for this specific bag
             # For machine submissions: calculate each submission individually to ensure proper fallback
             # UPDATED: Handle flavor-based submissions where box_number might be NULL
-            # Also include submissions where bag_id points to this bag, even if assigned_po_id doesn't match
+            # PO is source of truth - both bag_id AND assigned_po_id must match the receive's PO
             machine_submissions = conn.execute('''
                 SELECT ws.tablets_pressed_into_cards, ws.loose_tablets, ws.packs_remaining,
                        COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
@@ -172,16 +172,9 @@ def get_receive_details(receive_id):
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
                 LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
-                LEFT JOIN bags b_check ON ws.bag_id = b_check.id
-                LEFT JOIN small_boxes sb_check ON b_check.small_box_id = sb_check.id
                 WHERE ws.submission_type = 'machine'
                 AND (
-                    ws.bag_id = ?
-                    OR (
-                        ws.bag_id IS NOT NULL
-                        AND sb_check.receiving_id = ?
-                        AND b_check.id = ?
-                    )
+                    (ws.bag_id = ? AND ws.assigned_po_id = ?)
                     OR (
                         ws.bag_id IS NULL
                         AND ws.inventory_item_id = ?
@@ -190,7 +183,7 @@ def get_receive_details(receive_id):
                         AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-            ''', (bag['id'], receive_id, bag['id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchall()
+            ''', (bag['id'], receive_dict['po_id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchall()
             
             machine_total = 0
             for machine_sub in machine_submissions:
@@ -217,7 +210,7 @@ def get_receive_details(receive_id):
                 machine_total += sub_total
             
             # UPDATED: Handle flavor-based submissions where box_number might be NULL
-            # Also include submissions where bag_id points to this bag, even if assigned_po_id doesn't match
+            # PO is source of truth - both bag_id AND assigned_po_id must match the receive's PO
             packaged_count = conn.execute('''
                 SELECT COALESCE(SUM(
                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -226,16 +219,9 @@ def get_receive_details(receive_id):
                 ), 0) as total_packaged
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                LEFT JOIN bags b_check ON ws.bag_id = b_check.id
-                LEFT JOIN small_boxes sb_check ON b_check.small_box_id = sb_check.id
                 WHERE ws.submission_type = 'packaged'
                 AND (
-                    ws.bag_id = ?
-                    OR (
-                        ws.bag_id IS NOT NULL
-                        AND sb_check.receiving_id = ?
-                        AND b_check.id = ?
-                    )
+                    (ws.bag_id = ? AND ws.assigned_po_id = ?)
                     OR (
                         ws.bag_id IS NULL
                         AND ws.inventory_item_id = ?
@@ -244,23 +230,16 @@ def get_receive_details(receive_id):
                         AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-            ''', (bag['id'], receive_id, bag['id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchone()
+            ''', (bag['id'], receive_dict['po_id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchone()
             
             # UPDATED: Handle flavor-based submissions where box_number might be NULL
-            # Also include submissions where bag_id points to this bag, even if assigned_po_id doesn't match
+            # PO is source of truth - both bag_id AND assigned_po_id must match the receive's PO
             bag_count = conn.execute('''
                 SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_bag
                 FROM warehouse_submissions ws
-                LEFT JOIN bags b_check ON ws.bag_id = b_check.id
-                LEFT JOIN small_boxes sb_check ON b_check.small_box_id = sb_check.id
                 WHERE ws.submission_type = 'bag'
                 AND (
-                    ws.bag_id = ?
-                    OR (
-                        ws.bag_id IS NOT NULL
-                        AND sb_check.receiving_id = ?
-                        AND b_check.id = ?
-                    )
+                    (ws.bag_id = ? AND ws.assigned_po_id = ?)
                     OR (
                         ws.bag_id IS NULL
                         AND ws.inventory_item_id = ?
@@ -269,7 +248,7 @@ def get_receive_details(receive_id):
                         AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-            ''', (bag['id'], receive_id, bag['id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchone()
+            ''', (bag['id'], receive_dict['po_id'], inventory_item_id, bag_number, receive_dict['po_id'], box_number)).fetchone()
             
             products[inventory_item_id]['boxes'][box_number][bag_number] = {
                 'bag_id': bag['id'],
@@ -5997,7 +5976,7 @@ def get_po_submissions(po_id):
         
         # Get all submissions for this PO (and related OVERS/parent POs) with product details
         # Include inventory_item_id for matching with PO line items
-        # Also include submissions where bag_id points to a bag in this PO, even if assigned_po_id doesn't match
+        # PO is source of truth - only include submissions where assigned_po_id matches
         submission_type_select = ', ws.submission_type' if has_submission_type else ", 'packaged' as submission_type"
         po_verified_select = ', COALESCE(ws.po_assignment_verified, 0) as po_verified' if has_submission_type else ", 0 as po_verified"
         if has_submission_date:
@@ -6032,12 +6011,7 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 LEFT JOIN bags b ON ws.bag_id = b.id
-                LEFT JOIN small_boxes sb_bag ON b.small_box_id = sb_bag.id
-                LEFT JOIN receiving r_bag ON sb_bag.receiving_id = r_bag.id
-                WHERE (
-                    ws.assigned_po_id IN ({po_ids_placeholders})
-                    OR (ws.bag_id IS NOT NULL AND r_bag.po_id IN ({po_ids_placeholders}))
-                )
+                WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
         else:
@@ -6072,12 +6046,7 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 LEFT JOIN bags b ON ws.bag_id = b.id
-                LEFT JOIN small_boxes sb_bag ON b.small_box_id = sb_bag.id
-                LEFT JOIN receiving r_bag ON sb_bag.receiving_id = r_bag.id
-                WHERE (
-                    ws.assigned_po_id IN ({po_ids_placeholders})
-                    OR (ws.bag_id IS NOT NULL AND r_bag.po_id IN ({po_ids_placeholders}))
-                )
+                WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                 ORDER BY ws.created_at ASC
             '''
         
