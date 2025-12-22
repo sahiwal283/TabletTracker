@@ -241,6 +241,9 @@ def submit_warehouse():
                 bag_id = bag['id']
                 assigned_po_id = bag['po_id']
                 bag_label_count = bag.get('bag_label_count', 0)
+                # Use box_number from matched bag (bag always has box_number from small_boxes)
+                # This ensures we store the actual box_number even if user didn't enter it
+                box_number = bag.get('box_number') or box_number
                 box_ref = f", box={box_number}" if box_number else ""
                 print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:
@@ -389,6 +392,8 @@ def submit_count():
         # If needs_review, bag will be None (ambiguous submission)
         bag_id = bag['id'] if bag else None
         assigned_po_id = bag['po_id'] if bag else None
+        # Use box_number from matched bag if available (ensures we store actual box_number)
+        submission_box_number = bag.get('box_number') if bag else data.get('box_number')
         
         # Insert count record with bag_id (or NULL if needs review)
         conn.execute('''
@@ -397,7 +402,7 @@ def submit_count():
              bag_id, assigned_po_id, needs_review, loose_tablets, 
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
-        ''', (employee_name, data.get('tablet_type'), inventory_item_id, data.get('box_number'),
+        ''', (employee_name, data.get('tablet_type'), inventory_item_id, submission_box_number,
               data.get('bag_number'), bag_id, assigned_po_id, needs_review,
               actual_count, submission_date, admin_notes))
         
@@ -573,6 +578,9 @@ def submit_machine_count():
                 # Exact match found - auto-assign
                 bag_id = bag['id']
                 assigned_po_id = bag['po_id']
+                # Use box_number from matched bag (bag always has box_number from small_boxes)
+                # This ensures we store the actual box_number even if user didn't enter it
+                box_number = bag.get('box_number') or box_number
                 box_ref = f", box={box_number}" if box_number else ""
                 print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:

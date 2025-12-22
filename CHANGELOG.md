@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.3] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Store Box Number from Matched Bag in Submissions
+- **Issue**: When users didn't enter box_number in form (flavor-based), submissions stored `box_number = NULL` even though the matched bag has a box_number
+- **User requirement**: Box number should always be visible in receive info, even if not entered in form
+- **Root cause**: Submissions were storing the form's `box_number` (which could be empty) instead of the matched bag's `box_number`
+- **Fix**: When a bag is matched, use `bag['box_number']` from the matched bag instead of the form's `box_number`
+- **Result**: All submissions now store the actual box_number from the matched bag, ensuring it displays correctly in receive info
+- **Files updated**: `app/blueprints/production.py` (all 3 submission types: machine, packaged, bag count)
+
+---
+
 ## [2.16.2] - 2025-12-22
 
 ### 🐛 Bug Fix
