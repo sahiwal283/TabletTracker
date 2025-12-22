@@ -1454,10 +1454,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         
         // Further filter by bag_id if specified (unique identifier for specific bag in specific receive)
         // Also match older submissions without bag_id by box/bag numbers
-        if (bagId !== null && boxNumber !== null && bagNumber !== null) {
+        // UPDATED: Handle flavor-based submissions where box_number might be NULL
+        if (bagId !== null && bagNumber !== null) {
             filteredSubmissions = filteredSubmissions.filter(sub => 
                 sub.bag_id === bagId || 
-                (sub.bag_id === null && sub.box_number === boxNumber && sub.bag_number === bagNumber)
+                (sub.bag_id === null && sub.bag_number === bagNumber && 
+                 (sub.box_number === boxNumber || sub.box_number === null || boxNumber === null))
             );
         }
         
@@ -1647,10 +1649,12 @@ function filterSubmissionsInModal(filterType) {
     let filtered = [...data.allSubmissions];
     
     // Apply filter by bag_id first (if specified)
-    if (data.bagId !== null && data.boxNumber !== null && data.bagNumber !== null) {
+    // UPDATED: Handle flavor-based submissions where box_number might be NULL
+    if (data.bagId !== null && data.bagNumber !== null) {
         filtered = filtered.filter(sub => 
             sub.bag_id === data.bagId || 
-            (sub.bag_id === null && sub.box_number === data.boxNumber && sub.bag_number === data.bagNumber)
+            (sub.bag_id === null && sub.bag_number === data.bagNumber && 
+             (sub.box_number === data.boxNumber || sub.box_number === null || data.boxNumber === null))
         );
     }
     

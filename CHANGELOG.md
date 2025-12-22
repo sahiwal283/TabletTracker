@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.12.4] - 2024-12-20
+
+### 🚨 Critical Bug Fix
+
+#### Flavor-Based Submissions Missing from Modal (JavaScript Filter Bug)
+- **Fixed submissions not appearing in receive details modal**: JavaScript filtering excluded flavor-based submissions
+  - **Root cause**: Filter checked `sub.box_number === boxNumber` which fails when submission has NULL box_number
+    - Example: `NULL === 1` evaluates to `false`
+    - Flavor-based submissions have `box_number = NULL`
+    - So they were filtered out even though they belong to that bag
+  - **Impact**: Packaging submissions missing from receive details, causing incorrect counts
+  - **Fixed in 2 locations**:
+    1. `viewPOSubmissions()` function - initial filter (line 1457)
+    2. `filterSubmissionsInModal()` function - re-filter when type filter changes (line 1652)
+  - **New logic**: Match when:
+    - `bag_id` matches (direct assignment), OR
+    - `bag_id` is null AND `bag_number` matches AND (`box_number` matches OR either is NULL)
+
+**Before (broken):**
+```javascript
+sub.bag_id === bagId || (sub.bag_id === null && sub.box_number === boxNumber && sub.bag_number === bagNumber)
+```
+
+**After (fixed):**
+```javascript
+sub.bag_id === bagId || (sub.bag_id === null && sub.bag_number === bagNumber && 
+  (sub.box_number === boxNumber || sub.box_number === null || boxNumber === null))
+```
+
+**Result**: All submissions now appear in receive details modal, including flavor-based ones without box_number. Counts are now accurate.
+
+---
+
 ## [2.12.3] - 2024-12-20
 
 ### 🐛 Bug Fix
