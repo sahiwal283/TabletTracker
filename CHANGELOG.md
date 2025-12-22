@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.16.0] - 2025-12-22
+
+### 🎨 UI Improvement
+
+#### Added Collapse/Expand Functionality to Shipments Received Page
+- **Feature**: Added collapse/expand buttons next to each PO section on the Shipments Received page
+- **Behavior**: All PO sections now load collapsed by default to reduce clutter
+- **Interaction**: Click the chevron icon next to any PO header to expand/collapse that section
+- **Visual Feedback**: Chevron icon rotates 180° when toggled for clear visual indication
+- **Sections Affected**: Active POs, Closed POs, and Unassigned Receives sections
+- **Benefit**: Significantly reduces page clutter and improves navigation when viewing multiple purchase orders
+- **Files updated**: `templates/receiving.html`
+
+---
+
 ## [2.15.4] - 2024-12-20
 
 ### 🐛 Bug Fix
