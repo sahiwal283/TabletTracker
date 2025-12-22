@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.13.2] - 2024-12-20
+
+### 🎨 UI Improvement
+
+#### Simplified Reassign Button Placement
+- **Removed reassign buttons from submission tables**: Cleaner UI with less button clutter
+- **Kept reassign button in edit modal only**: Users click "Edit Submission" → then "Reassign to Receive"
+- **Workflow**: Edit → Reassign (2 clicks instead of inline button)
+- **Benefit**: Cleaner table layout, less visual noise, reassign is still fully accessible
+
+---
+
 ## [2.13.1] - 2024-12-20
 
 ### ✨ Feature

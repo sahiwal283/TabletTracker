@@ -326,12 +326,6 @@
                                 <!-- Admin/Manager Actions -->
                                 {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}
                                     {% if not sub.po_closed %}
-                                    <!-- Reassign button for admins to fix incorrect assignments -->
-                                    <button onclick="event.stopPropagation(); openReassignModal({{ sub.id }}, '{{ sub.po_number }}', '{{ sub.product_name }}', 1)" 
-                                            class="text-sm bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded ml-2"
-                                            title="Reassign to different receive (Admin/Manager only)">
-                                        🔄 Reassign
-                                    </button>
                                     <button onclick="event.stopPropagation(); deleteSubmission({{ sub.id }})" 
                                             class="text-sm text-red-600 hover:text-red-800 underline ml-2"
                                             title="Delete submission (Admin only)">

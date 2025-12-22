@@ -2995,17 +2995,10 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
                         </div>
                         <div class="text-right">
                             <div class="text-2xl font-bold text-indigo-600 mb-2">${(sub.total_tablets || 0).toLocaleString()} tablets</div>
-                            <div class="flex gap-2 justify-end">
-                                <button onclick="openReassignModal(${sub.id}, '${poNumber}', '${sub.product_name}', 1)" 
-                                        class="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700 transition-colors"
-                                        title="Reassign to different receive">
-                                    🔄 Reassign
-                                </button>
-                                <button onclick="deleteSubmission(${sub.id}, ${bagId})" 
-                                        class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition-colors">
-                                    🗑️ Delete
-                                </button>
-                            </div>
+                            <button onclick="deleteSubmission(${sub.id}, ${bagId})" 
+                                    class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition-colors">
+                                🗑️ Delete
+                            </button>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white p-3 rounded border border-gray-200">
