@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.13.0] - 2024-12-20
+
+### ✨ Feature - Major Reliability Improvement
+
+#### Receipt Now Inherits bag_id Directly (No Re-Matching)
+- **Major improvement to receipt-based workflow**: Packaging submissions now inherit `bag_id` directly from machine count
+- **Old approach (error-prone)**:
+  1. Machine count creates submission with `bag_id=10`, receipt=2786-37
+  2. Packaging uses receipt → Looks up `box_number` and `bag_number`
+  3. Calls `find_bag_for_submission()` again to re-match the bag
+  4. **Problem**: Could match to WRONG bag if multiple bags have same box/bag numbers
+- **New approach (reliable)**:
+  1. Machine count creates submission with `bag_id=10`, receipt=2786-37
+  2. Packaging uses receipt → **Looks up `bag_id` directly (10)**
+  3. Uses `bag_id=10` directly - **no second lookup needed**
+  4. **Benefit**: Impossible to match wrong bag - bag_id is unique identifier
+
+#### Benefits
+- ✅ **Eliminates entire class of cross-flavor bugs**: Cannot match to wrong flavor's bag
+- ✅ **Simpler logic**: One query instead of two
+- ✅ **More reliable**: Direct reference to exact bag (bag_id is unique)
+- ✅ **Faster**: No second database lookup required
+- ✅ **Inherits all properties**: Also gets `assigned_po_id` and `bag_label_count` from machine count
+
+#### Implementation Details
+- Updated `/api/submissions/packaged` endpoint in `production.py`
+- Receipt lookup now SELECTs: `bag_id`, `assigned_po_id`, `box_number`, `bag_number`, `inventory_item_id`
+- Directly uses `bag_id` from machine count (no re-matching)
+- Manual box/bag entry still uses matching logic (for cases without receipts)
+- Product verification still enforced (cannot reuse receipts across flavors)
+
+**Version**: 2.12.5 → 2.13.0 (MINOR - significant improvement to existing feature)
+
+---
+
 ## [2.12.5] - 2024-12-20
 
 ### 🚨 CRITICAL Bug Fix

@@ -187,12 +187,17 @@ def submit_warehouse():
         # Try to get box/bag from form data first
         box_number = data.get('box_number')
         bag_number = data.get('bag_number')
+        bag_id = None
+        assigned_po_id = None
+        bag_label_count = None
+        needs_review = False
         
-        # If box/bag not provided, lookup from machine count using receipt
-        # CRITICAL: Must match by product to prevent cross-flavor assignment!
+        # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
+        # This is much more reliable than looking up box/bag and re-matching
         if not (box_number and bag_number):
             machine_count = conn.execute('''
-                SELECT box_number, bag_number, inventory_item_id, product_name
+                SELECT bag_id, assigned_po_id, box_number, bag_number, 
+                       inventory_item_id, product_name
                 FROM warehouse_submissions
                 WHERE receipt_number = ? AND submission_type = 'machine'
                 ORDER BY created_at DESC LIMIT 1
@@ -205,23 +210,28 @@ def submit_warehouse():
                         'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
                     }), 400
                 
+                # Use bag_id DIRECTLY from machine count (no second lookup needed!)
+                bag_id = machine_count['bag_id']
+                assigned_po_id = machine_count['assigned_po_id']
                 box_number = machine_count['box_number']
                 bag_number = machine_count['bag_number']
-                print(f"📝 Looked up box/bag from receipt {receipt_number}: Box {box_number}, Bag {bag_number} for {machine_count['product_name']}")
+                
+                # Get bag_label_count if bag_id exists
+                if bag_id:
+                    bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (bag_id,)).fetchone()
+                    if bag_row:
+                        bag_label_count = bag_row['bag_label_count']
+                    print(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
+                else:
+                    # Machine count didn't have bag_id (needs review), packaging also needs review
+                    needs_review = True
+                    print(f"⚠️ Machine count for receipt {receipt_number} was flagged for review - packaging also needs review")
             else:
                 return jsonify({
                     'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
                 }), 400
-        
-        # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
-        bag = None
-        needs_review = False
-        error_message = None
-        assigned_po_id = None
-        bag_id = None
-        
-        if bag_number:
-            # NEW: Pass bag_number first, box_number as optional parameter
+        else:
+            # Box/bag provided manually - use old matching logic
             bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)
             
             if bag:
@@ -236,11 +246,11 @@ def submit_warehouse():
                 box_ref = f" Box {box_number}," if box_number else ""
                 print(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
             elif error_message:
-                # No match found
-                print(f"❌ {error_message}")
+                return jsonify({'error': error_message}), 400
         
         # Insert submission with bag_id and po_id if matched
         # Note: receipt_number already extracted and validated above
+        # bag_label_count already set from receipt lookup or manual matching
         conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
@@ -248,7 +258,7 @@ def submit_warehouse():
              submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
         ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
-              bag.get('bag_label_count', 0) if bag else data.get('bag_label_count'),
+              bag_label_count or data.get('bag_label_count') or 0,
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
               bag_id, assigned_po_id, needs_review, receipt_number))
         
