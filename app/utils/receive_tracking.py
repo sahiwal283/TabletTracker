@@ -10,6 +10,8 @@ def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
     - If provided: Uses old box-based matching (flavor + box + bag)
     - If None: Uses new flavor-based matching (flavor + bag only)
     
+    Only matches bags that are NOT closed and receives that are NOT closed.
+    
     If exactly 1 match: Returns bag, assigns automatically
     If 2+ matches: Returns None for bag, flags for manual review
     If 0 matches: Returns error
@@ -27,11 +29,13 @@ def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
             WHERE b.tablet_type_id = ? 
             AND sb.box_number = ? 
             AND b.bag_number = ?
+            AND COALESCE(b.status, 'Available') != 'Closed'
+            AND COALESCE(r.closed, 0) = 0
             ORDER BY r.received_date DESC
         ''', (tablet_type_id, box_number, bag_number)).fetchall()
         
         if not matching_bags:
-            return None, False, f'No receive found for this product, Box #{box_number}, Bag #{bag_number}. Please check receiving records or contact your manager.'
+            return None, False, f'No open receive found for this product, Box #{box_number}, Bag #{bag_number}. The bag/receive may be closed. Please check receiving records or contact your manager.'
     else:
         # New flavor-based: match without box number (flavor + bag only)
         matching_bags = conn.execute('''
@@ -41,11 +45,13 @@ def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
             JOIN receiving r ON sb.receiving_id = r.id
             WHERE b.tablet_type_id = ? 
             AND b.bag_number = ?
+            AND COALESCE(b.status, 'Available') != 'Closed'
+            AND COALESCE(r.closed, 0) = 0
             ORDER BY r.received_date DESC
         ''', (tablet_type_id, bag_number)).fetchall()
         
         if not matching_bags:
-            return None, False, f'No receive found for this product, Bag #{bag_number}. Please check receiving records or contact your manager.'
+            return None, False, f'No open receive found for this product, Bag #{bag_number}. The bag/receive may be closed. Please check receiving records or contact your manager.'
     
     # If exactly 1 match: auto-assign
     if len(matching_bags) == 1:

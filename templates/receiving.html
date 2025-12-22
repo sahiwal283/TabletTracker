@@ -67,17 +67,24 @@
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
-                            {% if shipment.receiving.po_number %}
-                                {% if shipment.receiving.shipment_number %}
-                                    {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-1">
+                                {% if shipment.receiving.po_number %}
+                                    {% if shipment.receiving.shipment_number %}
+                                        {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                                    {% else %}
+                                        {{ shipment.receiving.po_number }}
+                                    {% endif %}
                                 {% else %}
-                                    {{ shipment.receiving.po_number }}
+                                    Shipment Received
                                 {% endif %}
-                            {% else %}
-                                Shipment Received
+                            </h3>
+                            {% if shipment.receiving.closed %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
+                                🔒 CLOSED
+                            </span>
                             {% endif %}
-                        </h3>
+                        </div>
                         <p class="text-sm text-gray-600">
                             Received on {{ (shipment.receiving.received_date|to_est)[:10] if shipment.receiving.received_date else 'Unknown' }} at {{ (shipment.receiving.received_date|to_est)[11:19] if shipment.receiving.received_date else '' }} EST
                             {% if shipment.receiving.received_by %}
@@ -100,6 +107,10 @@
                             <button onclick="event.stopPropagation(); openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
                                 {% if shipment.receiving.po_number %}Change PO{% else %}Assign PO{% endif %}
+                            </button>
+                            <button onclick="event.stopPropagation(); toggleReceiveClosed({{ shipment.receiving.id }}, {{ 'true' if shipment.receiving.closed else 'false' }})" 
+                                    class="text-xs {% if shipment.receiving.closed %}text-green-600 hover:text-green-800{% else %}text-orange-600 hover:text-orange-800{% endif %} underline">
+                                {% if shipment.receiving.closed %}🔓 Reopen{% else %}🔒 Close{% endif %}
                             </button>
                             <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', '{{ shipment.receiving.po_number or 'No PO' }}')" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
@@ -166,9 +177,16 @@
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
-                            Shipment Received
-                        </h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-1">
+                                Shipment Received
+                            </h3>
+                            {% if shipment.receiving.closed %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
+                                🔒 CLOSED
+                            </span>
+                            {% endif %}
+                        </div>
                         <p class="text-sm text-gray-600">
                             Received on {{ (shipment.receiving.received_date|to_est)[:10] if shipment.receiving.received_date else 'Unknown' }} at {{ (shipment.receiving.received_date|to_est)[11:19] if shipment.receiving.received_date else '' }} EST
                             {% if shipment.receiving.received_by %}
@@ -189,6 +207,10 @@
                             <button onclick="event.stopPropagation(); openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
                                 Assign PO
+                            </button>
+                            <button onclick="event.stopPropagation(); toggleReceiveClosed({{ shipment.receiving.id }}, {{ 'true' if shipment.receiving.closed else 'false' }})" 
+                                    class="text-xs {% if shipment.receiving.closed %}text-green-600 hover:text-green-800{% else %}text-orange-600 hover:text-orange-800{% endif %} underline">
+                                {% if shipment.receiving.closed %}🔓 Reopen{% else %}🔒 Close{% endif %}
                             </button>
                             <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', 'No PO')" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
@@ -1172,6 +1194,38 @@ function openDeleteShipmentModal(receivingId, receivedDate, poNumber) {
     document.getElementById('delete-confirm-checkbox').checked = false;
     document.getElementById('confirm-delete-btn').disabled = true;
     document.getElementById('delete-shipment-modal').classList.remove('hidden');
+}
+
+async function toggleReceiveClosed(receivingId, currentlyClosed) {
+    const action = currentlyClosed ? 'reopen' : 'close';
+    const confirmMsg = currentlyClosed 
+        ? 'Are you sure you want to REOPEN this receive? It will become available for new submissions again.' 
+        : 'Are you sure you want to CLOSE this receive? All bags in this receive will be marked as closed and will no longer accept new submissions.';
+    
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/receiving/${receivingId}/close`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Reload to show updated status
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update receive status'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to update receive status');
+    }
 }
 
 function closeDeleteShipmentModal(event) {

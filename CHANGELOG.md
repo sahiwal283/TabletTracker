@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.0] - 2025-12-22
+
+### ✨ Feature - Close Bags and Receives
+
+#### Ability to Close Bags and Receives When Physically Emptied
+- **Feature**: Managers and admins can now close bags and receives when they're physically emptied
+- **Problem solved**: 
+  - Bags/receives that are physically empty but have counts less than label were still accepting submissions
+  - Caused confusion and incorrect assignments
+  - No way to mark a bag/receive as "done" even if counts don't match
+- **Implementation**:
+  - Added `closed` column to `receiving` table (BOOLEAN, default FALSE)
+  - Bags already had `status` column - now enforced ('Available' or 'Closed')
+  - New API endpoints:
+    - `POST /api/receiving/<id>/close` - Close/reopen a receive (also closes all its bags)
+    - `POST /api/bag/<id>/close` - Close/reopen a specific bag
+  - Updated `find_bag_for_submission()` to exclude closed bags and receives from matching
+  - Added "🔒 Close" / "🔓 Reopen" buttons on receiving page (managers/admins only)
+  - Visual indicators: Closed receives show "🔒 CLOSED" badge
+- **Benefits**:
+  - Prevents submissions from being assigned to physically empty bags
+  - Reduces confusion about which bags are still active
+  - Allows marking receives as complete even if counts don't match labels
+  - Can reopen if needed (toggle functionality)
+- **Use case**: PO-00156-1 is complete, all bags physically emptied → Close the receive → No more submissions will match to it
+- **Files updated**: 
+  - Database migration: `ceab0232bc0f_add_closed_status_to_receives_and_bags.py`
+  - API: `app/blueprints/api.py` (new endpoints)
+  - Matching logic: `app/utils/receive_tracking.py`
+  - UI: `templates/receiving.html`
+
+---
+
 ## [2.16.5] - 2025-12-22
 
 ### 🐛 Bug Fix

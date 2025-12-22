@@ -3553,6 +3553,142 @@ def delete_receiving(receiving_id):
                 pass
 
 
+@bp.route('/api/receiving/<int:receiving_id>/close', methods=['POST'])
+@role_required('shipping')
+def close_receiving(receiving_id):
+    """Close a receiving record when all bags are physically emptied"""
+    conn = None
+    try:
+        # Check if user is manager or admin
+        user_role = session.get('employee_role')
+        if user_role not in ['manager', 'admin']:
+            return jsonify({'success': False, 'error': 'Only managers and admins can close receives'}), 403
+        
+        conn = get_db()
+        
+        # Check if receiving record exists
+        receiving = conn.execute('''
+            SELECT r.id, r.closed, po.po_number
+            FROM receiving r
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE r.id = ?
+        ''', (receiving_id,)).fetchone()
+        
+        if not receiving:
+            return jsonify({'success': False, 'error': 'Receiving record not found'}), 404
+        
+        # Toggle closed status
+        new_status = not receiving['closed']
+        
+        conn.execute('''
+            UPDATE receiving 
+            SET closed = ?
+            WHERE id = ?
+        ''', (new_status, receiving_id))
+        
+        # Also close all bags in this receive when closing
+        if new_status:
+            conn.execute('''
+                UPDATE bags
+                SET status = 'Closed'
+                WHERE small_box_id IN (
+                    SELECT id FROM small_boxes WHERE receiving_id = ?
+                )
+            ''', (receiving_id,))
+        else:
+            # Reopen bags when reopening receive
+            conn.execute('''
+                UPDATE bags
+                SET status = 'Available'
+                WHERE small_box_id IN (
+                    SELECT id FROM small_boxes WHERE receiving_id = ?
+                )
+            ''', (receiving_id,))
+        
+        conn.commit()
+        
+        action = 'closed' if new_status else 'reopened'
+        po_info = receiving['po_number'] if receiving['po_number'] else 'Unassigned'
+        return jsonify({
+            'success': True,
+            'closed': new_status,
+            'message': f'Successfully {action} receive (PO: {po_info})'
+        })
+        
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': f'Failed to close receiving: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@bp.route('/api/bag/<int:bag_id>/close', methods=['POST'])
+@role_required('shipping')
+def close_bag(bag_id):
+    """Close a specific bag when it's physically emptied"""
+    conn = None
+    try:
+        # Check if user is manager or admin
+        user_role = session.get('employee_role')
+        if user_role not in ['manager', 'admin']:
+            return jsonify({'success': False, 'error': 'Only managers and admins can close bags'}), 403
+        
+        conn = get_db()
+        
+        # Check if bag exists
+        bag = conn.execute('''
+            SELECT b.id, b.status, b.bag_number, sb.box_number, tt.tablet_type_name
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE b.id = ?
+        ''', (bag_id,)).fetchone()
+        
+        if not bag:
+            return jsonify({'success': False, 'error': 'Bag not found'}), 404
+        
+        # Toggle status between 'Closed' and 'Available'
+        current_status = bag['status'] or 'Available'
+        new_status = 'Closed' if current_status != 'Closed' else 'Available'
+        
+        conn.execute('''
+            UPDATE bags 
+            SET status = ?
+            WHERE id = ?
+        ''', (new_status, bag_id))
+        
+        conn.commit()
+        
+        action = 'closed' if new_status == 'Closed' else 'reopened'
+        bag_info = f"{bag['tablet_type_name']} - Box {bag['box_number']}, Bag {bag['bag_number']}"
+        return jsonify({
+            'success': True,
+            'status': new_status,
+            'message': f'Successfully {action} bag: {bag_info}'
+        })
+        
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return jsonify({'success': False, 'error': f'Failed to close bag: {str(e)}'}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 
 @bp.route('/api/process_receiving', methods=['POST'])
 @admin_required
