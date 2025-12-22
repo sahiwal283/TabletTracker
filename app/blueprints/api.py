@@ -5973,11 +5973,12 @@ def get_po_submissions(po_id):
         
         # Get all submissions for this PO (and related OVERS/parent POs) with product details
         # Include inventory_item_id for matching with PO line items
+        # Also include submissions where bag_id points to a bag in this PO, even if assigned_po_id doesn't match
         submission_type_select = ', ws.submission_type' if has_submission_type else ", 'packaged' as submission_type"
         po_verified_select = ', COALESCE(ws.po_assignment_verified, 0) as po_verified' if has_submission_type else ", 0 as po_verified"
         if has_submission_date:
             submissions_query = f'''
-                SELECT 
+                SELECT DISTINCT
                     ws.id,
                     ws.product_name,
                     ws.employee_name,
@@ -6007,12 +6008,17 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 LEFT JOIN bags b ON ws.bag_id = b.id
-                WHERE ws.assigned_po_id IN ({po_ids_placeholders})
+                LEFT JOIN small_boxes sb_bag ON b.small_box_id = sb_bag.id
+                LEFT JOIN receiving r_bag ON sb_bag.receiving_id = r_bag.id
+                WHERE (
+                    ws.assigned_po_id IN ({po_ids_placeholders})
+                    OR (ws.bag_id IS NOT NULL AND r_bag.po_id IN ({po_ids_placeholders}))
+                )
                 ORDER BY ws.created_at ASC
             '''
         else:
             submissions_query = f'''
-                SELECT 
+                SELECT DISTINCT
                     ws.id,
                     ws.product_name,
                     ws.employee_name,
@@ -6042,11 +6048,17 @@ def get_po_submissions(po_id):
                 LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                 LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                 LEFT JOIN bags b ON ws.bag_id = b.id
-                WHERE ws.assigned_po_id IN ({po_ids_placeholders})
+                LEFT JOIN small_boxes sb_bag ON b.small_box_id = sb_bag.id
+                LEFT JOIN receiving r_bag ON sb_bag.receiving_id = r_bag.id
+                WHERE (
+                    ws.assigned_po_id IN ({po_ids_placeholders})
+                    OR (ws.bag_id IS NOT NULL AND r_bag.po_id IN ({po_ids_placeholders}))
+                )
                 ORDER BY ws.created_at ASC
             '''
         
-        submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query)).fetchall()
+        # Execute query with PO IDs duplicated (once for assigned_po_id, once for bag's receiving.po_id)
+        submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query) + tuple(po_ids_to_query)).fetchall()
         print(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query}")
         
         # Calculate total tablets and running bag totals for each submission

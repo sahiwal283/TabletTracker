@@ -1439,12 +1439,44 @@ let typeFilter = null;
 
 async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, bagId = null, boxNumber = null, bagNumber = null) {
     try {
-        const response = await fetch(`/api/po/${poId}/submissions`);
-        const data = await response.json();
+        let data;
         
-        if (!data.success) {
-            alert('Error: ' + (data.error || 'Failed to load submissions'));
-            return;
+        // If viewing a specific bag, use the bag endpoint which queries by bag_id
+        // This ensures we get all submissions for that bag, even if they have wrong assigned_po_id
+        if (bagId !== null) {
+            const bagResponse = await fetch(`/api/bag/${bagId}/submissions`);
+            const bagData = await bagResponse.json();
+            
+            if (!bagData.success) {
+                alert('Error: ' + (bagData.error || 'Failed to load submissions'));
+                return;
+            }
+            
+            // Normalize the response format to match PO endpoint format
+            data = {
+                success: true,
+                submissions: bagData.submissions.map(sub => {
+                    // Use pd_product_name if product_name is missing
+                    if (!sub.product_name && sub.pd_product_name) {
+                        sub.product_name = sub.pd_product_name;
+                    }
+                    // Ensure submission_date exists
+                    if (!sub.submission_date && sub.created_at) {
+                        sub.submission_date = sub.created_at;
+                    }
+                    return sub;
+                }),
+                po: { po_number: poName }
+            };
+        } else {
+            // Use PO endpoint for general PO view
+            const response = await fetch(`/api/po/${poId}/submissions`);
+            data = await response.json();
+            
+            if (!data.success) {
+                alert('Error: ' + (data.error || 'Failed to load submissions'));
+                return;
+            }
         }
         
         // Filter submissions by inventory_item_id if specified
@@ -1455,6 +1487,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         // Further filter by bag_id if specified (unique identifier for specific bag in specific receive)
         // Also match older submissions without bag_id by box/bag numbers
         // UPDATED: Handle flavor-based submissions where box_number might be NULL
+        // Note: If we used bag endpoint, this filtering is redundant but harmless
         if (bagId !== null && bagNumber !== null) {
             filteredSubmissions = filteredSubmissions.filter(sub => 
                 sub.bag_id === bagId || 
