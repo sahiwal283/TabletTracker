@@ -5409,13 +5409,31 @@ def edit_submission(submission_id):
         old_po_id = submission['assigned_po_id']
         inventory_item_id = submission['inventory_item_id']
         
+        # Check if product_name is being changed
+        new_product_name = data.get('product_name')
+        product_name_to_use = new_product_name if new_product_name else submission['product_name']
+        
+        # If product is being changed, update inventory_item_id
+        if new_product_name and new_product_name != submission['product_name']:
+            # Get the new inventory_item_id for the new product
+            new_product_info = conn.execute('''
+                SELECT tt.inventory_item_id
+                FROM tablet_types tt
+                JOIN product_details pd ON tt.id = pd.tablet_type_id
+                WHERE pd.product_name = ?
+                LIMIT 1
+            ''', (new_product_name,)).fetchone()
+            
+            if new_product_info:
+                inventory_item_id = new_product_info['inventory_item_id']
+        
         # Get product details for calculations
         product = conn.execute('''
             SELECT pd.packages_per_display, pd.tablets_per_package
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.product_name = ?
-        ''', (submission['product_name'],)).fetchone()
+        ''', (product_name_to_use,)).fetchone()
         
         if not product:
             return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
@@ -5498,21 +5516,23 @@ def edit_submission(submission_id):
                 UPDATE warehouse_submissions
                 SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
                     damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                    submission_date = ?, admin_notes = ?, receipt_number = ?
+                    submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
                 WHERE id = ?
             ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
                   damaged_tablets, new_box_number, new_bag_number, new_bag_id,
-                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
+                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
+                  product_name_to_use, inventory_item_id, submission_id))
         else:
             conn.execute('''
                 UPDATE warehouse_submissions
                 SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
                         damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                        submission_date = ?, admin_notes = ?, receipt_number = ?
+                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
                 WHERE id = ?
             ''', (displays_made, packs_remaining, loose_tablets,
                       damaged_tablets, new_box_number, new_bag_number, new_bag_id,
-                      data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, submission_id))
+                      data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                      product_name_to_use, inventory_item_id, submission_id))
         
         # Update PO line counts if assigned to a PO
         if old_po_id and inventory_item_id:

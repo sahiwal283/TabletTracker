@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.0] - 2025-12-22
+
+### ✨ Feature - Change Product/Flavor in Edit Submission
+
+#### Added Ability to Change Product/Flavor When Editing Submissions
+- **Problem**: Machine count submission had wrong flavor (Pineapple instead of BlueRaz) with same receipt
+- **Issue**: No way to fix the flavor - edit modal didn't allow changing product_name
+- **Solution**: Added product/flavor dropdown selector to edit submission modal
+- **Features**:
+  - Shows current product with warning message
+  - Dropdown populated with all available products/flavors
+  - Current product shown as "(Current)" in dropdown
+  - Updates both `product_name` and `inventory_item_id` when changed
+  - Recalculates counts with correct product configuration
+  - Admin-only feature (yellow warning box)
+- **Use Case**: Fix submissions entered with wrong flavor (e.g., receipt 2786-17 has both Pineapple and BlueRaz - can now fix the Pineapple to be BlueRaz)
+- **Files updated**:
+  - `templates/base.html` - Added product selector UI and JavaScript
+  - `app/blueprints/api.py` - Updated edit endpoint to handle product changes
+
+---
+
 ## [2.17.6] - 2025-12-22
 
 ### 🎨 UX Improvement
