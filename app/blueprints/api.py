@@ -2167,6 +2167,38 @@ def update_tablet_type_category():
 
 
 
+@bp.route('/api/tablet_types', methods=['GET'])
+@role_required('dashboard')
+def get_tablet_types():
+    """Get all tablet types/products for dropdowns"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get all tablet types
+        tablet_types = conn.execute('''
+            SELECT id, tablet_type_name, inventory_item_id, category
+            FROM tablet_types 
+            ORDER BY tablet_type_name
+        ''').fetchall()
+        
+        return jsonify({
+            'success': True,
+            'tablet_types': [dict(row) for row in tablet_types]
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
 @bp.route('/api/categories', methods=['GET'])
 @admin_required
 def get_categories():

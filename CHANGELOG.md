@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.2] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Products Not Loading in Edit Modal Dropdown
+- **Issue**: Product/flavor dropdown showed "Loading products..." forever - no products loaded
+- **Root cause**: JavaScript was calling `/api/tablet_types` endpoint which didn't exist
+- **Fix**: Created new `GET /api/tablet_types` endpoint to return all products
+- **Returns**: List of all tablet types with id, tablet_type_name, inventory_item_id, category
+- **Access**: Available to dashboard users (managers/admins)
+- **Impact**: Product dropdown now loads correctly in edit submission modal
+- **Files updated**: `app/blueprints/api.py`
+
+---
+
 ## [2.18.1] - 2025-12-22
 
 ### 🐛 Bug Fix - Correct Fields for Machine Count Edit
