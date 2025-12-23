@@ -320,27 +320,18 @@ async function viewPODetailsModal(poId, poNumber) {
                             </div>
                             
                             <!-- Stats Grid -->
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                            <div class="grid grid-cols-3 gap-3 text-center">
                                 <div class="bg-gray-50 rounded-lg p-3">
                                     <div class="text-xs text-gray-500 mb-1">Ordered</div>
                                     <div class="text-lg font-bold text-gray-900">${line.quantity_ordered.toLocaleString()}</div>
-                                </div>
-                                <div class="bg-green-50 rounded-lg p-3">
-                                    <div class="text-xs text-green-600 mb-1">Counted</div>
-                                    <div class="text-base font-bold text-green-600 flex items-center justify-center gap-1">
-                                        <span>${(line.machine_count || 0).toLocaleString()}</span>
-                                        <span class="text-gray-400 font-normal">|</span>
-                                        <span>${(line.packaged_count || 0).toLocaleString()}</span>
-                                </div>
-                                    <div class="text-xs text-gray-500 mt-0.5">Machine | Packaged</div>
                                 </div>
                                 <div class="bg-indigo-50 rounded-lg p-3">
                                     <div class="text-xs text-indigo-600 mb-1">Received</div>
                                     <div class="text-lg font-bold text-indigo-600">${received.toLocaleString()}</div>
                                 </div>
-                                <div class="${bgColor} rounded-lg p-3">
-                                    <div class="text-xs ${labelColor} mb-1">${labelText}</div>
-                                    <div class="text-lg font-bold ${labelColor}">${displayValue.toLocaleString()}</div>
+                                <div class="bg-green-50 rounded-lg p-3">
+                                    <div class="text-xs text-green-600 mb-1">Packaged</div>
+                                    <div class="text-lg font-bold text-green-600">${(line.packaged_count || 0).toLocaleString()}</div>
                                 </div>
                             </div>
                         </div>

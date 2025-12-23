@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.7] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Reordered Purchase Order Modal Line Item Boxes
+- **Change**: Reordered and simplified the stats boxes for each line item in the purchase order modal
+- **New order**: Ordered → Received → Packaged
+- **Removed**: Machine count display and Remaining/Overs box
+- **Updated**: "Counted" box renamed to "Packaged" and now only shows packaging count (not machine count)
+- **Impact**: Cleaner, more focused display showing only the essential metrics
+- **Files updated**: 
+  - `templates/purchase_orders.html` (viewPODetails modal)
+  - `templates/dashboard.html` (viewPODetails modal)
+
+---
+
 ## [2.18.6] - 2025-12-22
 
 ### 🐛 Bug Fix
