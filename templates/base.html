@@ -821,7 +821,7 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             currentProductEl.textContent = sub.product_name || 'Unknown';
         }
         
-        // Load all products for dropdown
+        // Load all products for dropdown and convert to two-level category/product system
         try {
             const productsResponse = await fetch('/api/tablet_types');
             const productsData = await productsResponse.json();
@@ -831,22 +831,21 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 // Clear existing options
                 productSelect.innerHTML = '';
                 
-                // Add current product as default selected option
-                const currentOption = document.createElement('option');
-                currentOption.value = sub.product_name || '';
-                currentOption.textContent = `${sub.product_name || 'Unknown'} (Current)`;
-                currentOption.selected = true;
-                productSelect.appendChild(currentOption);
-                
-                // Add all other products
+                // Add all products (including current one)
                 productsData.tablet_types.forEach(product => {
-                    if (product.tablet_type_name !== sub.product_name) {
-                        const option = document.createElement('option');
-                        option.value = product.tablet_type_name;
-                        option.textContent = product.tablet_type_name;
-                        productSelect.appendChild(option);
+                    const option = document.createElement('option');
+                    option.value = product.tablet_type_name;
+                    option.textContent = product.tablet_type_name;
+                    if (product.tablet_type_name === sub.product_name) {
+                        option.textContent = `${product.tablet_type_name} (Current)`;
+                        option.selected = true;
                     }
+                    productSelect.appendChild(option);
                 });
+                
+                // Convert to two-level dropdown (category then product)
+                // This will organize products by category like other dropdowns in the app
+                convertToTwoLevelDropdown(productSelect);
             }
         } catch (error) {
             console.error('Failed to load products:', error);
@@ -1067,7 +1066,7 @@ async function saveSubmissionEdit() {
         receipt_number: document.getElementById('edit-receipt-number')?.value?.trim() || null,
         submission_date: document.getElementById('edit-submission-date')?.value || null,
         admin_notes: document.getElementById('edit-admin-notes')?.value?.trim() || null,
-        product_name: document.getElementById('edit-product-name')?.value || null
+        product_name: (document.getElementById('edit-product-name')?.value || document.getElementById('edit-product-name_item')?.value) || null
     };
     
     // Add type-specific fields

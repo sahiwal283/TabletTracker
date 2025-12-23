@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.4] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Organized Edit Submission Product Dropdown by Category
+- **Issue**: Product dropdown in edit submission modal showed all products in a flat list
+- **Enhancement**: Converted to two-level category/product dropdown matching other product dropdowns in the app
+- **Implementation**:
+  - Uses same `convertToTwoLevelDropdown()` function used throughout the app
+  - Fetches categories from `/api/tablet_types/categories` endpoint
+  - Groups products by configured categories (FIX Energy, FIX Focus, FIX Relax, FIX MAX, 18mg, XL, Hyroxi, Other)
+  - Shows category dropdown first, then product dropdown when category is selected
+  - Automatically selects current product when modal opens
+  - Updated `saveSubmissionEdit()` to read from correct dropdown field (`edit-product-name_item`)
+- **Impact**: Easier to find and select products when changing submission flavor
+- **Files updated**: 
+  - `templates/base.html` (openEditSubmissionModal, saveSubmissionEdit)
+
+---
+
 ## [2.18.3] - 2025-12-22
 
 ### 🐛 Bug Fix
