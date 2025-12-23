@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.5] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Permission Error When Closing Bags/Receives
+- **Issue**: Clicking close button showed "Failed to update bag status" error
+- **Root cause**: Endpoints used `@role_required('shipping')` but checked for 'manager' or 'admin' role, causing permission mismatch
+- **Fix**: 
+  - Changed decorator from `@role_required('shipping')` to `@role_required('dashboard')`
+  - Added check for `admin_authenticated` session variable to allow admin users
+  - Now properly allows both manager role employees and admin users to close
+- **Impact**: Admins and managers can now close bags and receives as intended
+- **Files updated**: `app/blueprints/api.py` (both close endpoints)
+
+---
+
 ## [2.17.4] - 2025-12-22
 
 ### 🐛 Bug Fix

@@ -3557,14 +3557,15 @@ def delete_receiving(receiving_id):
 
 
 @bp.route('/api/receiving/<int:receiving_id>/close', methods=['POST'])
-@role_required('shipping')
+@role_required('dashboard')  # Changed from 'shipping' to 'dashboard' to allow manager/admin access
 def close_receiving(receiving_id):
     """Close a receiving record when all bags are physically emptied"""
     conn = None
     try:
         # Check if user is manager or admin
         user_role = session.get('employee_role')
-        if user_role not in ['manager', 'admin']:
+        is_admin = session.get('admin_authenticated')
+        if user_role not in ['manager', 'admin'] and not is_admin:
             return jsonify({'success': False, 'error': 'Only managers and admins can close receives'}), 403
         
         conn = get_db()
@@ -3634,14 +3635,15 @@ def close_receiving(receiving_id):
 
 
 @bp.route('/api/bag/<int:bag_id>/close', methods=['POST'])
-@role_required('shipping')
+@role_required('dashboard')  # Changed from 'shipping' to 'dashboard' to allow manager/admin access
 def close_bag(bag_id):
     """Close a specific bag when it's physically emptied"""
     conn = None
     try:
         # Check if user is manager or admin
         user_role = session.get('employee_role')
-        if user_role not in ['manager', 'admin']:
+        is_admin = session.get('admin_authenticated')
+        if user_role not in ['manager', 'admin'] and not is_admin:
             return jsonify({'success': False, 'error': 'Only managers and admins can close bags'}), 403
         
         conn = get_db()
