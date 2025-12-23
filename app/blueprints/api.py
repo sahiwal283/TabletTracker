@@ -1639,12 +1639,30 @@ def submit_machine_count():
         if tablets_per_package == 0:
             return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
         
-        # Get cards_per_turn setting
-        cards_per_turn_setting = get_setting('cards_per_turn', '1')
-        try:
-            cards_per_turn = int(cards_per_turn_setting)
-        except (ValueError, TypeError):
-            cards_per_turn = 1
+        # Get machine_id from form data FIRST (before calculating cards_per_turn)
+        machine_id = data.get('machine_id')
+        if machine_id:
+            try:
+                machine_id = int(machine_id)
+            except (ValueError, TypeError):
+                machine_id = None
+        
+        # Get machine-specific cards_per_turn from machines table
+        cards_per_turn = None
+        if machine_id:
+            machine_row = conn.execute('''
+                SELECT cards_per_turn FROM machines WHERE id = ?
+            ''', (machine_id,)).fetchone()
+            if machine_row:
+                cards_per_turn = machine_row.get('cards_per_turn')
+        
+        # Fallback to global setting if machine not found or doesn't have cards_per_turn
+        if not cards_per_turn:
+            cards_per_turn_setting = get_setting('cards_per_turn', '1')
+            try:
+                cards_per_turn = int(cards_per_turn_setting)
+            except (ValueError, TypeError):
+                cards_per_turn = 1
         
         # Calculate total tablets for machine submissions
         # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
@@ -1656,14 +1674,6 @@ def submit_machine_count():
             tablets_pressed_into_cards = total_tablets
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid machine count value'}), 400
-        
-        # Get machine_id from form data
-        machine_id = data.get('machine_id')
-        if machine_id:
-            try:
-                machine_id = int(machine_id)
-            except (ValueError, TypeError):
-                machine_id = None
         
         # Insert machine count record (for historical tracking)
         if machine_id:
@@ -5136,6 +5146,7 @@ def get_submission_details(submission_id):
                    COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count, 
                    r.id as receive_id, r.received_date,
+                   m.machine_name, m.cards_per_turn as machine_cards_per_turn,
                    (
                        SELECT COUNT(*) + 1
                        FROM receiving r2
@@ -5151,6 +5162,7 @@ def get_submission_details(submission_id):
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN machines m ON ws.machine_id = m.id
             WHERE ws.id = ?
         ''', (submission_id,)).fetchone()
         
@@ -5170,55 +5182,58 @@ def get_submission_details(submission_id):
                     submission_dict['bag_label_count'] = bag_dict.get('bag_label_count')
         
         # Get machine information for machine submissions
-        machine_name = None
-        cards_per_turn = None
+        # First try to get from the JOIN we already did
+        machine_name = submission_dict.get('machine_name')
+        cards_per_turn = submission_dict.get('machine_cards_per_turn')
         
         if submission_type == 'machine':
-            # Try to find machine from machine_counts table by matching submission details
-            # Match on tablet_type_id, machine_count (displays_made), employee_name, and count_date
-            tablet_type_row = conn.execute('''
-                SELECT id FROM tablet_types WHERE inventory_item_id = ?
-            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+            # If not found from JOIN, try to get from machine_id in submission
+            if not cards_per_turn and submission_dict.get('machine_id'):
+                machine_row = conn.execute('''
+                    SELECT machine_name, cards_per_turn
+                    FROM machines
+                    WHERE id = ?
+                ''', (submission_dict.get('machine_id'),)).fetchone()
+                if machine_row:
+                    machine = dict(machine_row)
+                    if not machine_name:
+                        machine_name = machine.get('machine_name')
+                    if not cards_per_turn:
+                        cards_per_turn = machine.get('cards_per_turn')
             
-            if tablet_type_row:
-                tablet_type = dict(tablet_type_row)
-                tablet_type_id = tablet_type.get('id')
+            # If still not found, try to find from machine_counts table by matching submission details
+            if not cards_per_turn:
+                tablet_type_row = conn.execute('''
+                    SELECT id FROM tablet_types WHERE inventory_item_id = ?
+                ''', (submission_dict.get('inventory_item_id'),)).fetchone()
                 
-                # Try to find machine_count record that matches this submission
-                submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
-                machine_count_record_row = conn.execute('''
-                    SELECT mc.machine_id, m.machine_name, m.cards_per_turn
-                    FROM machine_counts mc
-                    LEFT JOIN machines m ON mc.machine_id = m.id
-                    WHERE mc.tablet_type_id = ?
-                    AND mc.machine_count = ?
-                    AND mc.employee_name = ?
-                    AND DATE(mc.count_date) = DATE(?)
-                    ORDER BY mc.created_at DESC
-                    LIMIT 1
-                ''', (tablet_type_id, 
-                      submission_dict.get('displays_made'),
-                      submission_dict.get('employee_name'),
-                      submission_date)).fetchone()
-                
-                if machine_count_record_row:
-                    machine_count_record = dict(machine_count_record_row)
-                    machine_id_from_record = machine_count_record.get('machine_id')
-                    machine_name = machine_count_record.get('machine_name')
-                    cards_per_turn = machine_count_record.get('cards_per_turn')
+                if tablet_type_row:
+                    tablet_type = dict(tablet_type_row)
+                    tablet_type_id = tablet_type.get('id')
                     
-                    # If machine_id exists but machine_name is NULL, try to get it from machines table
-                    if machine_id_from_record and not machine_name:
-                        machine_row = conn.execute('''
-                            SELECT machine_name, cards_per_turn
-                            FROM machines
-                            WHERE id = ?
-                        ''', (machine_id_from_record,)).fetchone()
-                        if machine_row:
-                            machine = dict(machine_row)
-                            machine_name = machine.get('machine_name')
-                            if not cards_per_turn:
-                                cards_per_turn = machine.get('cards_per_turn')
+                    # Try to find machine_count record that matches this submission
+                    submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
+                    machine_count_record_row = conn.execute('''
+                        SELECT mc.machine_id, m.machine_name, m.cards_per_turn
+                        FROM machine_counts mc
+                        LEFT JOIN machines m ON mc.machine_id = m.id
+                        WHERE mc.tablet_type_id = ?
+                        AND mc.machine_count = ?
+                        AND mc.employee_name = ?
+                        AND DATE(mc.count_date) = DATE(?)
+                        ORDER BY mc.created_at DESC
+                        LIMIT 1
+                    ''', (tablet_type_id, 
+                          submission_dict.get('displays_made'),
+                          submission_dict.get('employee_name'),
+                          submission_date)).fetchone()
+                    
+                    if machine_count_record_row:
+                        machine_count_record = dict(machine_count_record_row)
+                        if not machine_name:
+                            machine_name = machine_count_record.get('machine_name')
+                        if not cards_per_turn:
+                            cards_per_turn = machine_count_record.get('cards_per_turn')
             
             # Fallback to app_settings if machine not found
             if not cards_per_turn:
@@ -5231,6 +5246,12 @@ def get_submission_details(submission_id):
                     cards_per_turn = int(cards_per_turn_setting.get('setting_value', 1))
                 else:
                     cards_per_turn = 1
+            
+            # Recalculate cards_made using correct machine-specific cards_per_turn
+            # This fixes submissions that were saved with wrong cards_per_turn
+            machine_count = submission_dict.get('displays_made', 0) or 0  # displays_made stores machine_count (turns)
+            cards_made = machine_count * cards_per_turn
+            submission_dict['cards_made'] = cards_made  # Add recalculated cards_made
             
             # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
             # Fallback to loose_tablets, then calculate from cards_made × tablets_per_package
@@ -5262,6 +5283,8 @@ def get_submission_details(submission_id):
             submission_dict['total_tablets'] = submission_dict['individual_calc']
             submission_dict['cards_per_turn'] = cards_per_turn
             submission_dict['machine_name'] = machine_name
+            # Use recalculated cards_made instead of packs_remaining (which may have wrong value)
+            submission_dict['packs_remaining'] = cards_made
         else:
             # For packaged/bag submissions: calculate from displays and packs
             packages_per_display = submission_dict.get('packages_per_display', 0) or 0

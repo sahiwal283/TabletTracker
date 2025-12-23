@@ -502,12 +502,30 @@ def submit_machine_count():
         if tablets_per_package == 0:
             return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
         
-        # Get cards_per_turn setting
-        cards_per_turn_setting = get_setting('cards_per_turn', '1')
-        try:
-            cards_per_turn = int(cards_per_turn_setting)
-        except (ValueError, TypeError):
-            cards_per_turn = 1
+        # Get machine_id from form data FIRST (before calculating cards_per_turn)
+        machine_id = data.get('machine_id')
+        if machine_id:
+            try:
+                machine_id = int(machine_id)
+            except (ValueError, TypeError):
+                machine_id = None
+        
+        # Get machine-specific cards_per_turn from machines table
+        cards_per_turn = None
+        if machine_id:
+            machine_row = conn.execute('''
+                SELECT cards_per_turn FROM machines WHERE id = ?
+            ''', (machine_id,)).fetchone()
+            if machine_row:
+                cards_per_turn = machine_row.get('cards_per_turn')
+        
+        # Fallback to global setting if machine not found or doesn't have cards_per_turn
+        if not cards_per_turn:
+            cards_per_turn_setting = get_setting('cards_per_turn', '1')
+            try:
+                cards_per_turn = int(cards_per_turn_setting)
+            except (ValueError, TypeError):
+                cards_per_turn = 1
         
         # Calculate total tablets for machine submissions
         # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
@@ -519,14 +537,6 @@ def submit_machine_count():
             tablets_pressed_into_cards = total_tablets
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid machine count value'}), 400
-        
-        # Get machine_id from form data
-        machine_id = data.get('machine_id')
-        if machine_id:
-            try:
-                machine_id = int(machine_id)
-            except (ValueError, TypeError):
-                machine_id = None
         
         # Insert machine count record (for historical tracking)
         if machine_id:

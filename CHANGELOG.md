@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.3] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Cards Made Calculation Using Wrong Machine's Cards Per Turn
+- **Issue**: Machine 2 submissions showed incorrect "Cards Made" (multiplying by 6 instead of 3)
+- **Root cause**: Submission endpoints used global `cards_per_turn` setting instead of machine-specific value
+- **Fix**: 
+  - Updated `submit_machine_count()` in both `api.py` and `production.py` to get `machine_id` first, then fetch machine-specific `cards_per_turn` from `machines` table
+  - Updated `get_submission_details()` to use machine-specific `cards_per_turn` when displaying submissions
+  - Added recalculation of `cards_made` using correct machine-specific `cards_per_turn` for display
+  - Updated frontend to prefer `cards_made` over `packs_remaining` for display
+- **Impact**: Machine submissions now correctly calculate cards made using each machine's specific cards_per_turn setting
+- **Files updated**: 
+  - `app/blueprints/api.py` (submit_machine_count, get_submission_details)
+  - `app/blueprints/production.py` (submit_machine_count)
+  - `templates/base.html` (submission details display)
+
+---
+
 ## [2.18.2] - 2025-12-22
 
 ### 🐛 Bug Fix
