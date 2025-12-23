@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.5] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed SQLite Row Object Error in Machine Submission
+- **Issue**: "'sqlite3.Row' object has no attribute 'get'" error when submitting machine count
+- **Root cause**: Code was calling `.get()` directly on SQLite Row object instead of converting to dict first
+- **Fix**: Convert `machine_row` to dictionary using `dict(machine_row)` before accessing with `.get()`
+- **Impact**: Machine count submissions now work correctly
+- **Files updated**: 
+  - `app/blueprints/production.py` (submit_machine_count)
+  - `app/blueprints/api.py` (submit_machine_count)
+
+---
+
 ## [2.18.4] - 2025-12-22
 
 ### ✨ Enhancement

@@ -517,7 +517,8 @@ def submit_machine_count():
                 SELECT cards_per_turn FROM machines WHERE id = ?
             ''', (machine_id,)).fetchone()
             if machine_row:
-                cards_per_turn = machine_row.get('cards_per_turn')
+                machine = dict(machine_row)
+                cards_per_turn = machine.get('cards_per_turn')
         
         # Fallback to global setting if machine not found or doesn't have cards_per_turn
         if not cards_per_turn:
