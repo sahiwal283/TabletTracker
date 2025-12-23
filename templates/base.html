@@ -1905,7 +1905,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                     <div class="flex items-center gap-2">
                                         <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
                                         ${isAdmin || isManager ? `
-                                            <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number});" 
+                                            <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
                                                     class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
                                                 ${isClosed ? '🔓 Reopen' : '🔒 Close'}
                                             </button>
@@ -1989,7 +1989,7 @@ function closeReceiveDetailsModal(event) {
     }
 }
 
-async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber) {
+async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber, receiveId, receiveName) {
     const action = currentlyClosed ? 'reopen' : 'close';
     const confirmMsg = currentlyClosed 
         ? `Are you sure you want to REOPEN ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will become available for new submissions again.` 
@@ -2010,8 +2010,22 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
         const data = await response.json();
         
         if (data.success) {
-            alert(data.message);
-            location.reload(); // Reload to show updated status
+            // Close the modal
+            closeReceiveDetailsModal();
+            
+            // Show success message briefly
+            const successMsg = document.createElement('div');
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.textContent = data.message;
+            document.body.appendChild(successMsg);
+            
+            // Remove success message after 2 seconds
+            setTimeout(() => successMsg.remove(), 2000);
+            
+            // Reopen the modal with updated data after a brief delay
+            setTimeout(() => {
+                viewReceiveDetails(receiveId, receiveName);
+            }, 300);
         } else {
             alert('Error: ' + (data.error || 'Failed to update bag status'));
         }

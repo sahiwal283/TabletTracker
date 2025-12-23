@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.6] - 2025-12-22
+
+### 🎨 UX Improvement
+
+#### Keep Modal Open After Closing/Reopening Bag
+- **Issue**: Closing a bag triggered full page reload, sending user back to main receiving page
+- **Problem**: User had to navigate back (expand PO → find receive → reopen modal) to continue closing other bags
+- **Fix**: Modal now stays in context after closing/reopening a bag
+  - Closes modal briefly
+  - Shows success message (green toast notification)
+  - Automatically reopens the same modal with updated data
+  - User stays in their workflow without interruption
+- **Benefits**: 
+  - Can close multiple bags in sequence without losing place
+  - Much faster workflow
+  - Less frustrating user experience
+- **Files updated**: `templates/base.html`
+
+---
+
 ## [2.17.5] - 2025-12-22
 
 ### 🐛 Bug Fix
