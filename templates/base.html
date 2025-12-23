@@ -1792,6 +1792,11 @@ function closeSubmissionDetailsModal(event) {
 // Global receive details modal functions (available on all pages)
 async function viewReceiveDetails(receiveId, receiveName) {
     try {
+        // Check user role for showing close buttons
+        const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
+        const isAdmin = userRole === 'admin';
+        const isManager = userRole === 'manager' || isAdmin;
+        
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();
         

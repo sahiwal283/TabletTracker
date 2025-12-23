@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.17.4] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed "isAdmin is not defined" Error in Receive Details Modal
+- **Issue**: Opening receive details modal showed error: "ReferenceError: isAdmin is not defined"
+- **Root cause**: JavaScript variables `isAdmin` and `isManager` were not defined before being used in template
+- **Fix**: Added role detection at the start of `viewReceiveDetails()` function using session data
+- **Impact**: Receive details modal now loads correctly and shows close buttons to admins/managers
+- **Files updated**: `templates/base.html`
+
+---
+
 ## [2.17.3] - 2025-12-22
 
 ### 🐛 Bug Fix
