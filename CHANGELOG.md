@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.8] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Enhanced Purchase Order Modal Progress Bars and Stats
+- **Progress bars**: Now shows two separate progress bars:
+  - "Received vs Ordered" (blue) - shows how much has been received relative to ordered
+  - "Packaged vs Ordered" (green) - shows how much has been packaged relative to ordered
+- **Restored**: Remaining/Overs box (4th box in stats grid)
+- **Stats grid**: Now shows 4 boxes: Ordered, Received, Packaged, Remaining/Overs
+- **Impact**: Better visibility into both receiving progress and packaging progress
+- **Files updated**: 
+  - `templates/purchase_orders.html` (viewPODetails modal)
+  - `templates/dashboard.html` (viewPODetails modal)
+
+---
+
 ## [2.18.7] - 2025-12-22
 
 ### ✨ Enhancement
