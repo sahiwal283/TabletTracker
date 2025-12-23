@@ -6814,6 +6814,7 @@ def get_possible_receives(submission_id):
             }), 400
         
         # Find all matching bags - must match find_bag_for_submission logic
+        # Exclude closed receives - they should not receive new submissions
         # If box_number provided: match with box (old style)
         # If box_number is None: match without box (new flavor-based style)
         if box_number is not None:
@@ -6836,6 +6837,7 @@ def get_possible_receives(submission_id):
                 WHERE b.tablet_type_id = ? 
                 AND sb.box_number = ? 
                 AND b.bag_number = ?
+                AND (r.closed IS NULL OR r.closed = FALSE)
                 ORDER BY r.received_date DESC
             ''', (tablet_type_id, box_number, submission_dict['bag_number'])).fetchall()
         else:
@@ -6858,6 +6860,7 @@ def get_possible_receives(submission_id):
                 JOIN tablet_types tt ON b.tablet_type_id = tt.id
                 WHERE b.tablet_type_id = ? 
                 AND b.bag_number = ?
+                AND (r.closed IS NULL OR r.closed = FALSE)
                 ORDER BY r.received_date DESC
             ''', (tablet_type_id, submission_dict['bag_number'])).fetchall()
         

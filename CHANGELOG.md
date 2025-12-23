@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.6] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Exclude Closed Receives from Ambiguous Submission Review
+- **Issue**: Closed receives were appearing in the "Review Ambiguous Submission" modal
+- **Root cause**: Query for possible receives did not filter out closed receives
+- **Fix**: Added `AND (r.closed IS NULL OR r.closed = FALSE)` filter to both queries in `get_possible_receives()` endpoint
+- **Impact**: Closed receives no longer appear as options when reviewing ambiguous submissions
+- **Files updated**: 
+  - `app/blueprints/api.py` (get_possible_receives)
+
+---
+
 ## [2.18.5] - 2025-12-22
 
 ### 🐛 Bug Fix
