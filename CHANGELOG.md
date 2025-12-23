@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.1] - 2025-12-22
+
+### 🐛 Bug Fix - Correct Fields for Machine Count Edit
+
+#### Fixed Edit Modal Showing Wrong Fields for Machine Submissions
+- **Issue**: Machine count edit modal showed packaging fields (Displays Made, Cards Remaining) instead of machine fields
+- **Root cause**: Edit modal didn't differentiate between submission types
+- **Fix**: Added conditional field display based on `submission_type`
+  - **Machine submissions** now show:
+    - Machine Counter Reading (the actual counter number)
+    - Total Tablets Pressed (read-only, calculated value)
+  - **Packaging/Bag submissions** show:
+    - Displays Made, Cards Remaining
+    - Loose Tablets, Damaged Tablets
+- **Implementation**:
+  - Added `machine-fields` and `packaging-fields` sections with show/hide logic
+  - Machine count stored in `displays_made` field (legacy mapping)
+  - Calculated total stored in `tablets_pressed_into_cards` field
+  - Save function now sends correct values based on submission type
+- **Impact**: Can now properly edit machine count submissions with correct fields
+- **Files updated**: `templates/base.html`
+
+---
+
 ## [2.18.0] - 2025-12-22
 
 ### ✨ Feature - Change Product/Flavor in Edit Submission
