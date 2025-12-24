@@ -191,6 +191,11 @@ def submissions_list():
             query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
         
+        # Apply receipt number filter if provided (partial match)
+        if filter_receipt_number:
+            query += ' AND ws.receipt_number LIKE ?'
+            params.append(f'%{filter_receipt_number}%')
+        
         # Get submissions ordered by created_at ASC for running total calculation
         # Always use created_at ASC for running totals regardless of user's sort preference
         query_asc = query + ' ORDER BY ws.created_at ASC'

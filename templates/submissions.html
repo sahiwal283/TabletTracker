@@ -27,7 +27,7 @@
         </h3>
     </div>
     <div class="px-6 py-4">
-        <form method="GET" action="/submissions" id="filterForm" class="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <form method="GET" action="/submissions" id="filterForm" class="grid grid-cols-1 md:grid-cols-6 gap-4" novalidate>
             <!-- Preserve existing filters -->
             {% if filter_info.po_id %}
             <input type="hidden" name="po_id" value="{{ filter_info.po_id }}">

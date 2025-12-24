@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.10] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Receipt Number Filter Not Working
+- **Issue**: Receipt number filter was not being applied to the main submissions query
+- **Root cause**: Filter logic was added to export function but missing from main submissions_list function
+- **Fix**: Added receipt_number filter to main query in submissions_list function
+- **Additional fix**: Added `novalidate` attribute to form to prevent browser validation errors with hidden select elements
+- **Impact**: Receipt number filter now works correctly when searching submissions
+- **Files updated**: 
+  - `app/blueprints/submissions.py` (submissions_list)
+  - `templates/submissions.html` (filter form)
+
+---
+
 ## [2.18.9] - 2025-12-22
 
 ### ✨ Enhancement
