@@ -2093,7 +2093,7 @@ async function viewPODetailsModal(poId, poNumber) {
                 const packaged = line.packaged_count || 0;
                 const remaining = line.quantity_ordered - received;
                 const receivedProgressPercent = line.quantity_ordered > 0 ? ((received / line.quantity_ordered) * 100).toFixed(1) : 0;
-                const packagedProgressPercent = line.quantity_ordered > 0 ? ((packaged / line.quantity_ordered) * 100).toFixed(1) : 0;
+                const packagedProgressPercent = received > 0 ? ((packaged / received) * 100).toFixed(1) : 0;
                 const isOver = remaining < 0;
                 const displayValue = Math.abs(remaining);
                 const labelText = isOver ? 'Overs' : 'Remaining';
@@ -2124,10 +2124,10 @@ async function viewPODetailsModal(poId, poNumber) {
                                             <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: ${Math.min(receivedProgressPercent, 100)}%"></div>
                                         </div>
                                     </div>
-                                    <!-- Packaged vs Ordered -->
+                                    <!-- Packaged vs Received -->
                                     <div>
                                         <div class="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>Packaged vs Ordered</span>
+                                            <span>Packaged vs Received</span>
                                             <span class="font-semibold">${packagedProgressPercent}%</span>
                                         </div>
                                         <div class="w-full bg-gray-200 rounded-full h-3">

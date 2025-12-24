@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.11] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Changed Packaged Progress Bar to Compare Against Received Instead of Ordered
+- **Change**: "Packaged vs Ordered" progress bar now compares packaged count to received count
+- **Rationale**: Shows how much of what was actually received has been packaged, which is more relevant for warehouse operations
+- **Calculation**: Changed from `packaged / ordered` to `packaged / received` (with check for received > 0)
+- **Label**: Updated from "Packaged vs Ordered" to "Packaged vs Received"
+- **Impact**: More accurate representation of packaging progress based on actual inventory received
+- **Files updated**: 
+  - `templates/purchase_orders.html` (viewPODetails modal)
+  - `templates/dashboard.html` (viewPODetails modal)
+
+---
+
 ## [2.18.10] - 2025-12-22
 
 ### 🐛 Bug Fix
