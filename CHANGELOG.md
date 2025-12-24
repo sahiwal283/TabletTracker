@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.9] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Added Receipt Number Search Filter to Submissions Page
+- **Feature**: Added receipt number search field to filter submissions by receipt number
+- **Implementation**:
+  - Added "Receipt #" input field in the filter form
+  - Supports partial matching (e.g., searching "2786" will find "2786-13", "2786-9", etc.)
+  - Filter is preserved in URL and applied to both list view and CSV export
+  - Shows active filter badge when receipt number filter is applied
+- **Impact**: Users can now quickly find submissions by receipt number without scrolling through all submissions
+- **Files updated**: 
+  - `app/blueprints/submissions.py` (submissions_list, export_submissions_csv)
+  - `templates/submissions.html` (filter form, active filters, export link)
+
+---
+
 ## [2.18.8] - 2025-12-22
 
 ### ✨ Enhancement

@@ -27,7 +27,7 @@
         </h3>
     </div>
     <div class="px-6 py-4">
-        <form method="GET" action="/submissions" id="filterForm" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form method="GET" action="/submissions" id="filterForm" class="grid grid-cols-1 md:grid-cols-6 gap-4">
             <!-- Preserve existing filters -->
             {% if filter_info.po_id %}
             <input type="hidden" name="po_id" value="{{ filter_info.po_id }}">
@@ -92,6 +92,17 @@
                 </select>
             </div>
             
+            <!-- Receipt Number -->
+            <div>
+                <label for="receipt_number" class="block text-sm font-medium text-gray-700 mb-1">Receipt #</label>
+                <input type="text" 
+                       id="receipt_number" 
+                       name="receipt_number" 
+                       value="{{ filter_receipt_number or '' }}"
+                       placeholder="e.g., 2786-13"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+            </div>
+            
             <!-- Filter Buttons -->
             <div class="flex items-end gap-2">
                 <button type="submit" class="btn-primary px-4 py-2 flex-1">
@@ -107,7 +118,7 @@
 </div>
 
 <!-- Active Filters -->
-{% if filter_info and (filter_info.po_number or filter_info.item_name or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_name or filter_info.submission_type) %}
+{% if filter_info and (filter_info.po_number or filter_info.item_name or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_name or filter_info.submission_type or filter_info.receipt_number) %}
 <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow-md">
     <div class="flex items-center justify-between">
         <div class="flex items-center">
@@ -145,6 +156,11 @@
                             📋 {{ filter_info.submission_type|title }}
                         </span>
                     {% endif %}
+                    {% if filter_info.receipt_number %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                            🧾 Receipt: {{ filter_info.receipt_number }}
+                        </span>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -169,7 +185,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <a href="/submissions/export{% if filter_info.po_id or filter_info.item_id or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_id or filter_submission_type or sort_by %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}{% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}{% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}{% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}{% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}{% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
+                <a href="/submissions/export{% if filter_info.po_id or filter_info.item_id or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_id or filter_submission_type or filter_receipt_number or sort_by %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}{% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}{% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}{% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}{% if filter_receipt_number %}{% set _ = query_parts.append('receipt_number=' + filter_receipt_number) %}{% endif %}{% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}{% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
                    class="btn-primary px-4 py-2 text-sm flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>

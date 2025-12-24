@@ -109,6 +109,7 @@ def submissions_list():
         filter_date_to = request.args.get('date_to', type=str)
         filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
         filter_submission_type = request.args.get('submission_type', type=str)
+        filter_receipt_number = request.args.get('receipt_number', type=str)
         
         # Get sort parameters
         sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
@@ -432,11 +433,14 @@ def submissions_list():
         if filter_submission_type:
             filter_info['submission_type'] = filter_submission_type
         
+        if filter_receipt_number:
+            filter_info['receipt_number'] = filter_receipt_number
+        
         # Get all tablet types for the filter dropdown
         tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
         return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
-                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type,
+                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
                              sort_by=sort_by, sort_order=sort_order)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
@@ -462,6 +466,7 @@ def export_submissions_csv():
         filter_date_to = request.args.get('date_to', type=str)
         filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
         filter_submission_type = request.args.get('submission_type', type=str)
+        filter_receipt_number = request.args.get('receipt_number', type=str)
         
         # Get sort parameters
         sort_by = request.args.get('sort_by', 'created_at')
@@ -528,6 +533,11 @@ def export_submissions_csv():
         if filter_submission_type:
             query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
+        
+        # Apply receipt number filter if provided (partial match)
+        if filter_receipt_number:
+            query += ' AND ws.receipt_number LIKE ?'
+            params.append(f'%{filter_receipt_number}%')
         
         # Apply sorting
         allowed_sort_columns = {
