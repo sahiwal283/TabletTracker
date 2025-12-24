@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.13] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed "Failed to update bag status" Error
+- **Issue**: Error when trying to close/reopen a bag
+- **Root cause**: Code was accessing SQLite Row object as dictionary without converting it first
+- **Fix**: Convert `bag_row` to dictionary using `dict(bag_row)` before accessing with `.get()`
+- **Impact**: Bag close/reopen functionality now works correctly
+- **Files updated**: 
+  - `app/blueprints/api.py` (close_bag endpoint)
+
+---
+
 ## [2.18.12] - 2025-12-22
 
 ### ✨ Enhancement

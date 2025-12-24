@@ -3694,7 +3694,7 @@ def close_bag(bag_id):
         conn = get_db()
         
         # Check if bag exists
-        bag = conn.execute('''
+        bag_row = conn.execute('''
             SELECT b.id, b.status, b.bag_number, sb.box_number, tt.tablet_type_name
             FROM bags b
             JOIN small_boxes sb ON b.small_box_id = sb.id
@@ -3702,11 +3702,14 @@ def close_bag(bag_id):
             WHERE b.id = ?
         ''', (bag_id,)).fetchone()
         
-        if not bag:
+        if not bag_row:
             return jsonify({'success': False, 'error': 'Bag not found'}), 404
         
+        # Convert Row to dict for safe access
+        bag = dict(bag_row)
+        
         # Toggle status between 'Closed' and 'Available'
-        current_status = bag['status'] or 'Available'
+        current_status = bag.get('status') or 'Available'
         new_status = 'Closed' if current_status != 'Closed' else 'Available'
         
         conn.execute('''
@@ -3718,7 +3721,7 @@ def close_bag(bag_id):
         conn.commit()
         
         action = 'closed' if new_status == 'Closed' else 'reopened'
-        bag_info = f"{bag['tablet_type_name']} - Box {bag['box_number']}, Bag {bag['bag_number']}"
+        bag_info = f"{bag.get('tablet_type_name')} - Box {bag.get('box_number')}, Bag {bag.get('bag_number')}"
         return jsonify({
             'success': True,
             'status': new_status,
