@@ -1523,8 +1523,9 @@ def submit_count():
         
         # RECEIVE-BASED TRACKING: Find matching bag in receives
         # NEW: Pass bag_number first, box_number as optional parameter
+        # Bag count submissions: exclude closed bags
         bag, needs_review, error_message = find_bag_for_submission(
-            conn, tablet_type_id, data.get('bag_number'), data.get('box_number')
+            conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='bag'
         )
         
         if error_message:
@@ -1722,7 +1723,8 @@ def submit_machine_count():
         
         if bag_number:
             # NEW: Pass bag_number first, box_number as optional parameter
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)
+            # Machine count submissions: exclude closed bags
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
             
             if bag:
                 # Exact match found - auto-assign

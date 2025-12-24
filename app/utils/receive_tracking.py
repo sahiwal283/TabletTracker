@@ -2,7 +2,7 @@
 Receive-based tracking utilities for matching submissions to receives/bags
 """
 
-def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
+def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None, submission_type='packaged'):
     """
     Find matching bag in receives by tablet_type_id and bag_number.
     
@@ -10,7 +10,11 @@ def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
     - If provided: Uses old box-based matching (flavor + box + bag)
     - If None: Uses new flavor-based matching (flavor + bag only)
     
-    Only matches bags that are NOT closed and receives that are NOT closed.
+    Submission type determines bag closure rules:
+    - 'packaged': Can match closed bags (bags may be closed after production but still need packaging submissions)
+    - Other types (machine, bag): Only matches open bags
+    
+    Always excludes closed receives (receives should remain closed).
     
     If exactly 1 match: Returns bag, assigns automatically
     If 2+ matches: Returns None for bag, flags for manual review
@@ -18,40 +22,79 @@ def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None):
     
     Returns: (bag_row or None, needs_review_flag, error_message)
     """
+    # Allow closed bags only for packaging submissions
+    # Managers may close bags after production, but packaging still needs to be recorded
+    allow_closed_bags = (submission_type == 'packaged')
+    
     # Build query based on whether box_number is provided
     if box_number is not None:
         # Old-style: match with box number (for grandfathered receives)
-        matching_bags = conn.execute('''
-            SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
-            FROM bags b
-            JOIN small_boxes sb ON b.small_box_id = sb.id
-            JOIN receiving r ON sb.receiving_id = r.id
-            WHERE b.tablet_type_id = ? 
-            AND sb.box_number = ? 
-            AND b.bag_number = ?
-            AND COALESCE(b.status, 'Available') != 'Closed'
-            AND COALESCE(r.closed, 0) = 0
-            ORDER BY r.received_date DESC
-        ''', (tablet_type_id, box_number, bag_number)).fetchall()
+        if allow_closed_bags:
+            # For packaging: allow closed bags but still exclude closed receives
+            matching_bags = conn.execute('''
+                SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE b.tablet_type_id = ? 
+                AND sb.box_number = ? 
+                AND b.bag_number = ?
+                AND COALESCE(r.closed, 0) = 0
+                ORDER BY r.received_date DESC
+            ''', (tablet_type_id, box_number, bag_number)).fetchall()
+        else:
+            # For other submission types: exclude closed bags
+            matching_bags = conn.execute('''
+                SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE b.tablet_type_id = ? 
+                AND sb.box_number = ? 
+                AND b.bag_number = ?
+                AND COALESCE(b.status, 'Available') != 'Closed'
+                AND COALESCE(r.closed, 0) = 0
+                ORDER BY r.received_date DESC
+            ''', (tablet_type_id, box_number, bag_number)).fetchall()
         
         if not matching_bags:
-            return None, False, f'No open receive found for this product, Box #{box_number}, Bag #{bag_number}. The bag/receive may be closed. Please check receiving records or contact your manager.'
+            if allow_closed_bags:
+                return None, False, f'No open receive found for this product, Box #{box_number}, Bag #{bag_number}. The receive may be closed. Please check receiving records or contact your manager.'
+            else:
+                return None, False, f'No open receive found for this product, Box #{box_number}, Bag #{bag_number}. The bag/receive may be closed. Please check receiving records or contact your manager.'
     else:
         # New flavor-based: match without box number (flavor + bag only)
-        matching_bags = conn.execute('''
-            SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
-            FROM bags b
-            JOIN small_boxes sb ON b.small_box_id = sb.id
-            JOIN receiving r ON sb.receiving_id = r.id
-            WHERE b.tablet_type_id = ? 
-            AND b.bag_number = ?
-            AND COALESCE(b.status, 'Available') != 'Closed'
-            AND COALESCE(r.closed, 0) = 0
-            ORDER BY r.received_date DESC
-        ''', (tablet_type_id, bag_number)).fetchall()
+        if allow_closed_bags:
+            # For packaging: allow closed bags but still exclude closed receives
+            matching_bags = conn.execute('''
+                SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE b.tablet_type_id = ? 
+                AND b.bag_number = ?
+                AND COALESCE(r.closed, 0) = 0
+                ORDER BY r.received_date DESC
+            ''', (tablet_type_id, bag_number)).fetchall()
+        else:
+            # For other submission types: exclude closed bags
+            matching_bags = conn.execute('''
+                SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE b.tablet_type_id = ? 
+                AND b.bag_number = ?
+                AND COALESCE(b.status, 'Available') != 'Closed'
+                AND COALESCE(r.closed, 0) = 0
+                ORDER BY r.received_date DESC
+            ''', (tablet_type_id, bag_number)).fetchall()
         
         if not matching_bags:
-            return None, False, f'No open receive found for this product, Bag #{bag_number}. The bag/receive may be closed. Please check receiving records or contact your manager.'
+            if allow_closed_bags:
+                return None, False, f'No open receive found for this product, Bag #{bag_number}. The receive may be closed. Please check receiving records or contact your manager.'
+            else:
+                return None, False, f'No open receive found for this product, Bag #{bag_number}. The bag/receive may be closed. Please check receiving records or contact your manager.'
     
     # If exactly 1 match: auto-assign
     if len(matching_bags) == 1:

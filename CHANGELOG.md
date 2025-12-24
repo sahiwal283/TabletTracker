@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.12] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Allow Packaging Submissions to Closed Bags
+- **Change**: Closed bags can now accept packaging submissions, but still block machine and bag count submissions
+- **Rationale**: Managers may close bags after production (when emptied), but packaging counts still need to be recorded
+- **Implementation**:
+  - Updated `find_bag_for_submission()` to accept `submission_type` parameter
+  - Packaging submissions (`submission_type='packaged'`) can match closed bags
+  - Machine and bag count submissions still exclude closed bags
+  - Closed receives remain excluded for all submission types
+- **Impact**: More accurate workflow - bags can be closed after production while still allowing packaging submissions
+- **Files updated**: 
+  - `app/utils/receive_tracking.py` (find_bag_for_submission)
+  - `app/blueprints/api.py` (submit_count, submit_machine_count)
+  - `app/blueprints/production.py` (submit_warehouse, submit_machine_count)
+
+---
+
 ## [2.18.11] - 2025-12-22
 
 ### ✨ Enhancement

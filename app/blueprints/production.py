@@ -235,7 +235,8 @@ def submit_warehouse():
                 }), 400
         else:
             # Box/bag provided manually - use old matching logic
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)
+            # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
             
             if bag:
                 # Exact match found - auto-assign
@@ -383,8 +384,9 @@ def submit_count():
         
         # RECEIVE-BASED TRACKING: Find matching bag in receives
         # NEW: Pass bag_number first, box_number as optional parameter
+        # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
         bag, needs_review, error_message = find_bag_for_submission(
-            conn, tablet_type_id, data.get('bag_number'), data.get('box_number')
+            conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='packaged'
         )
         
         if error_message:
@@ -584,7 +586,8 @@ def submit_machine_count():
         
         if bag_number:
             # NEW: Pass bag_number first, box_number as optional parameter
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number)
+            # Machine count submissions: exclude closed bags
+            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
             
             if bag:
                 # Exact match found - auto-assign
