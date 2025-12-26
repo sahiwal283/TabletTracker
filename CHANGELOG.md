@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.14] - 2025-12-22
+
+### ✨ Enhancement
+
+#### Changed PO Modal Line Item Click to Show Receives Instead of Submissions
+- **Change**: Clicking on a line item in the purchase order modal now shows receives for that product instead of submissions
+- **Implementation**:
+  - Created new `viewPOReceivesForProduct()` function that filters receives by product
+  - Shows receives that contain bags matching the selected product
+  - Displays: receive name, received date, boxes, and bags for that product only
+  - Each receive is clickable to open the full receive details modal
+  - Updated onclick handler for line items in both purchase_orders.html and dashboard.html
+- **Impact**: Better workflow - users can see which receives contain a specific product
+- **Files updated**: 
+  - `templates/purchase_orders.html` (viewPODetails, viewPOReceivesForProduct)
+  - `templates/dashboard.html` (viewPODetails, viewPOReceivesForProduct)
+
+---
+
 ## [2.18.13] - 2025-12-22
 
 ### 🐛 Bug Fix

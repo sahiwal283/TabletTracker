@@ -299,8 +299,8 @@ async function viewPODetailsModal(poId, poNumber) {
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
-                         onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${poNumber}', '${line.inventory_item_id}');"
-                         title="Click to view submissions for this product">
+                         onclick="event.stopPropagation(); viewPOReceivesForProduct(${poId}, '${poNumber}', '${line.inventory_item_id}', '${line.line_item_name}');"
+                         title="Click to view receives for this product">
                         <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                             <div class="flex-1">
                                 <div class="flex items-center gap-2 mb-1">
@@ -1303,6 +1303,167 @@ function closeReceivesModal(event) {
         if (modal) {
             modal.remove();
         }
+    }
+}
+
+async function viewPOReceivesForProduct(poId, poNumber, inventoryItemId, productName) {
+    try {
+        // Close PO details modal first
+        closePODetailsModal();
+        
+        const response = await fetch(`/api/po/${poId}/receives`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('Error: ' + (data.error || 'Failed to load receives'));
+            return;
+        }
+        
+        const allReceives = data.receives || [];
+        
+        // Filter receives to only show bags that match this product's inventory_item_id
+        const filteredReceives = [];
+        allReceives.forEach(receiveData => {
+            const filteredBoxes = [];
+            receiveData.boxes.forEach(boxData => {
+                const filteredBags = boxData.bags.filter(bag => {
+                    // Match by inventory_item_id via tablet_type
+                    // First check if bag has tablet_type_id, then match to inventory_item_id
+                    return bag.tablet_type_name && bag.tablet_type_name.includes(productName.split(' - ')[0]);
+                });
+                
+                if (filteredBags.length > 0) {
+                    filteredBoxes.push({
+                        box: boxData.box,
+                        bags: filteredBags
+                    });
+                }
+            });
+            
+            if (filteredBoxes.length > 0) {
+                filteredReceives.push({
+                    receiving: receiveData.receiving,
+                    boxes: filteredBoxes
+                });
+            }
+        });
+        
+        // Calculate totals for this product
+        let totalReceived = 0;
+        filteredReceives.forEach(receiveData => {
+            receiveData.boxes.forEach(boxData => {
+                boxData.bags.forEach(bag => {
+                    totalReceived += parseInt(bag.bag_label_count || 0);
+                });
+            });
+        });
+        
+        // Build modal content
+        let modalContent = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceivesModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div class="flex-1">
+                                <h3 class="text-xl font-bold">📦 Receives for ${poNumber}</h3>
+                                <p class="text-sm text-green-100 mt-1">
+                                    ${productName} • ${filteredReceives.length} shipment${filteredReceives.length !== 1 ? 's' : ''} • ${totalReceived.toLocaleString()} tablets received
+                                </p>
+                            </div>
+                            <button onclick="closeReceivesModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+        `;
+        
+        if (filteredReceives.length === 0) {
+            modalContent += `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No receives found for this product</p>
+                </div>
+            `;
+        } else {
+            modalContent += '<div class="space-y-4">';
+            
+            filteredReceives.forEach((receiveData, index) => {
+                const rcv = receiveData.receiving;
+                const receiveName = rcv.receive_name || `${poNumber}-${rcv.shipment_number || index + 1}`;
+                
+                modalContent += `
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-blue-50 transition-colors cursor-pointer"
+                         onclick="event.stopPropagation(); closeReceivesModal(); viewReceiveDetails(${rcv.id}, '${receiveName}');">
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex-1">
+                                <h4 class="font-bold text-lg text-gray-900">${receiveName}</h4>
+                                <div class="text-sm text-gray-600 mt-1">
+                                    Received: ${new Date(rcv.received_date).toLocaleDateString()} ${rcv.received_by ? 'by ' + rcv.received_by : ''}
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-500">Boxes: ${receiveData.boxes.length}</div>
+                                <div class="text-xs text-gray-500">Bags: ${receiveData.boxes.reduce((sum, box) => sum + box.bags.length, 0)}</div>
+                            </div>
+                        </div>
+                `;
+                
+                receiveData.boxes.forEach(boxData => {
+                    const box = boxData.box;
+                    modalContent += `
+                        <div class="border border-gray-200 rounded-lg p-3 bg-white mb-2">
+                            <div class="flex justify-between items-center mb-2">
+                                <h5 class="font-medium text-gray-900">Box ${box.box_number}</h5>
+                                <span class="text-sm text-gray-600">${boxData.bags.length} bag${boxData.bags.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                    `;
+                    
+                    boxData.bags.forEach(bag => {
+                        modalContent += `
+                            <div class="bg-gray-50 border border-gray-200 rounded p-2 text-sm">
+                                <div class="font-medium text-gray-700">Bag ${bag.bag_number}</div>
+                                <div class="text-gray-600">
+                                    ${bag.tablet_type_name || 'Unknown Type'}
+                                </div>
+                                <div class="text-gray-600">Count: ${bag.bag_label_count || 0}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    modalContent += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                modalContent += `
+                    </div>
+                `;
+            });
+            
+            modalContent += '</div>';
+        }
+        
+        modalContent += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'receives-modal';
+        modalDiv.innerHTML = modalContent;
+        document.body.appendChild(modalDiv);
+        
+    } catch (error) {
+        console.error('Error loading receives:', error);
+        alert('Failed to load receives: ' + error.message);
     }
 }
 

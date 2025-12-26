@@ -194,3 +194,4 @@ def handle_database_error(error: Exception, operation: str = "database operation
         }), 500
 
 
+
