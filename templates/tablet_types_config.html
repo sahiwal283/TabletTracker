@@ -362,11 +362,11 @@ function addVarietyPackFlavor(tabletTypeId) {
     flavorDiv.className = 'flex gap-2 items-center p-2 bg-gray-50 rounded';
     flavorDiv.id = flavorId;
     
-    // Tablet type dropdown
+    // Tablet type dropdown - create as regular select first
     const typeSelect = document.createElement('select');
     typeSelect.className = 'form-input text-xs flex-1';
     typeSelect.required = true;
-    typeSelect.innerHTML = '<option value="">Select Flavor...</option>' + 
+    typeSelect.innerHTML = '<option value="">Select category...</option>' + 
         availableTabletTypes.map(tt => 
             `<option value="${tt.id}">${tt.tablet_type_name}</option>`
         ).join('');
@@ -390,6 +390,11 @@ function addVarietyPackFlavor(tabletTypeId) {
     flavorDiv.appendChild(qtyInput);
     flavorDiv.appendChild(removeBtn);
     container.appendChild(flavorDiv);
+    
+    // Convert to two-level dropdown after adding to DOM
+    if (typeof convertToTwoLevelDropdown === 'function') {
+        convertToTwoLevelDropdown(typeSelect);
+    }
 }
 
 // Load existing variety pack contents when editing
@@ -409,7 +414,7 @@ function loadVarietyPackContents(tabletTypeId, contentsJson) {
             const typeSelect = document.createElement('select');
             typeSelect.className = 'form-input text-xs flex-1';
             typeSelect.required = true;
-            typeSelect.innerHTML = '<option value="">Select Flavor...</option>' + 
+            typeSelect.innerHTML = '<option value="">Select category...</option>' + 
                 availableTabletTypes.map(tt => 
                     `<option value="${tt.id}" ${tt.id == item.tablet_type_id ? 'selected' : ''}>${tt.tablet_type_name}</option>`
                 ).join('');
@@ -431,6 +436,13 @@ function loadVarietyPackContents(tabletTypeId, contentsJson) {
             flavorDiv.appendChild(qtyInput);
             flavorDiv.appendChild(removeBtn);
             container.appendChild(flavorDiv);
+            
+            // Convert to two-level dropdown after adding to DOM
+            if (typeof convertToTwoLevelDropdown === 'function') {
+                // Set the value before conversion so it gets preserved
+                typeSelect.value = item.tablet_type_id || '';
+                convertToTwoLevelDropdown(typeSelect);
+            }
         });
     } catch (e) {
         console.error('Failed to parse variety pack contents:', e);
@@ -555,11 +567,15 @@ async function saveTabletType(tabletTypeId) {
         if (contentsContainer) {
             const flavorEntries = contentsContainer.querySelectorAll('div[id^="flavor-"]');
             varietyPackContents = Array.from(flavorEntries).map(entry => {
-                const select = entry.querySelector('select');
+                // Handle two-level dropdown - check both original select and _item select
+                const select = entry.querySelector('select:not([id$="_group"])');
+                const itemSelect = entry.querySelector('select[id$="_item"]');
+                const actualSelect = itemSelect || select; // Use _item if converted, otherwise original
                 const input = entry.querySelector('input[type="number"]');
-                if (select.value && input.value) {
+                const value = actualSelect ? actualSelect.value : (select ? select.value : '');
+                if (value && input.value) {
                     return {
-                        tablet_type_id: parseInt(select.value),
+                        tablet_type_id: parseInt(value),
                         tablets_per_bottle: parseInt(input.value)
                     };
                 }
