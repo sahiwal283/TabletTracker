@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.17] - 2025-12-22
+
+### 🎨 UX Improvement
+
+#### Added Back Button to Receive Details Modal
+- **Enhancement**: Added "← Back to Receives" button to receive details modal header
+- **Navigation flow**: PO → Receives List → Receive Details → Back to Receives List
+- **Implementation**: Button calls `viewPOReceives()` with PO ID and number from the receive data
+- **Conditional display**: Only shows if receive has an associated PO
+- **Impact**: Users can easily navigate back to the receives list without starting over
+- **Files updated**: 
+  - `templates/base.html` (viewReceiveDetails modal header)
+
+---
+
 ## [2.18.16] - 2025-12-22
 
 ### 🐛 Bug Fix

@@ -1926,7 +1926,13 @@ async function viewReceiveDetails(receiveId, receiveName) {
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
-                            <div>
+                            ${receive.po_id && receive.po_number ? `
+                                <button onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOReceives(${receive.po_id}, '${receive.po_number}');" 
+                                        class="text-white hover:bg-white hover:bg-opacity-20 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
+                                    ← Back to Receives
+                                </button>
+                            ` : '<div></div>'}
+                            <div class="flex-1 text-center">
                                 <h3 class="text-xl font-bold">📦 Receive Details: ${receiveName}</h3>
                                 <p class="text-sm text-blue-100 mt-1">
                                     Received on ${receive.received_date ? (() => {
