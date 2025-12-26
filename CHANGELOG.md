@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.15] - 2025-12-22
+
+### 🎨 UX Improvement
+
+#### Added Back Button to Receives Modal for Easy Navigation
+- **Enhancement**: Added "← Back to PO" button to receives modal header
+- **Navigation flow**: PO Details → Line Item Receives → Back to PO Details
+- **Implementation**: Button calls `viewPODetailsModal()` to reopen the PO details modal
+- **Impact**: Users can easily navigate back without closing and reopening modals
+- **Files updated**: 
+  - `templates/purchase_orders.html` (viewPOReceivesForProduct header)
+  - `templates/dashboard.html` (viewPOReceivesForProduct header)
+
+---
+
 ## [2.18.14] - 2025-12-22
 
 ### ✨ Enhancement
