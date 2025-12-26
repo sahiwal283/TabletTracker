@@ -462,11 +462,15 @@ document.getElementById('add-tablet-type-form').addEventListener('submit', async
         if (contentsContainer) {
             const flavorEntries = contentsContainer.querySelectorAll('div[id^="flavor-"]');
             varietyPackContents = Array.from(flavorEntries).map(entry => {
-                const select = entry.querySelector('select');
+                // Handle two-level dropdown - check both original select and _item select
+                const select = entry.querySelector('select:not([id$="_group"])');
+                const itemSelect = entry.querySelector('select[id$="_item"]');
+                const actualSelect = itemSelect || select; // Use _item if converted, otherwise original
                 const input = entry.querySelector('input[type="number"]');
-                if (select.value && input.value) {
+                const value = actualSelect ? actualSelect.value : (select ? select.value : '');
+                if (value && input.value) {
                     return {
-                        tablet_type_id: parseInt(select.value),
+                        tablet_type_id: parseInt(value),
                         tablets_per_bottle: parseInt(input.value)
                     };
                 }
