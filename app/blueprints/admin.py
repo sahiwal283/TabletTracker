@@ -181,13 +181,17 @@ def tablet_types_config():
         conn = get_db()
         
         # Get all tablet types with their current inventory item IDs
-        tablet_types = conn.execute('''
+        tablet_types_rows = conn.execute('''
             SELECT * FROM tablet_types 
             ORDER BY COALESCE(category, ''), tablet_type_name
         ''').fetchall()
         
+        # Convert Row objects to dictionaries
+        tablet_types = [dict(row) for row in tablet_types_rows]
+        
         # Get all tablet types for resolving variety pack contents
-        all_tablet_types = {tt['id']: tt['tablet_type_name'] for tt in conn.execute('SELECT id, tablet_type_name FROM tablet_types').fetchall()}
+        all_tablet_types_rows = conn.execute('SELECT id, tablet_type_name FROM tablet_types').fetchall()
+        all_tablet_types = {dict(tt)['id']: dict(tt)['tablet_type_name'] for tt in all_tablet_types_rows}
         
         # Enrich tablet types with resolved variety pack contents
         import json
@@ -207,12 +211,12 @@ def tablet_types_config():
                     tt['variety_pack_contents_resolved'] = []
         
         # Get unique categories
-        categories = conn.execute('''
+        categories_rows = conn.execute('''
             SELECT DISTINCT category FROM tablet_types 
             WHERE category IS NOT NULL AND category != '' 
             ORDER BY category
         ''').fetchall()
-        category_list = [cat['category'] for cat in categories] if categories else []
+        category_list = [dict(cat)['category'] for cat in categories_rows] if categories_rows else []
         
         return render_template('tablet_types_config.html', tablet_types=tablet_types, categories=category_list)
     except Exception as e:
