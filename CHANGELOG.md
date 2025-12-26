@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.19] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed "receive is not defined" Error in viewPOReceives Function
+- **Issue**: "Failed to load receives: receive is not defined" error when viewing all receives for a PO
+- **Root cause**: Code used `receive.receiving.shipment_number` instead of `rec.shipment_number`
+- **Fix**: Changed variable name from `receive` to `rec` (the correct variable name in scope)
+- **Impact**: Viewing receives for a PO now works correctly
+- **Files updated**: 
+  - `templates/purchase_orders.html` (viewPOReceives function line 1223)
+
+---
+
 ## [2.18.18] - 2025-12-22
 
 ### 🐛 Bug Fix
