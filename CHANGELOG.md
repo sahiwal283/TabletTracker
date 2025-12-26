@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.19.0] - 2025-12-26
+
+### ✨ New Feature
+
+#### Variety Pack Support
+- **Feature**: Added support for variety pack products with different configuration than regular tablet types
+- **Details**: 
+  - Variety packs come in bottles (12 tabs/bottle) and have different flavors
+  - Added database fields: `is_variety_pack`, `tablets_per_bottle`, `bottles_per_pack` to `tablet_types` table
+  - Updated admin UI to configure variety packs with visual indicators
+  - Added ability to create and edit variety pack configurations
+  - Variety packs are marked with a purple badge in the admin interface
+- **Database Changes**:
+  - Added migration to add variety pack columns to existing databases
+  - Schema updated to support variety pack configuration
+- **API Changes**:
+  - Updated `/api/add_tablet_type` to accept variety pack configuration
+  - Updated `/api/update_tablet_type_inventory` to update variety pack fields
+- **UI Changes**:
+  - Added variety pack checkbox and fields in "Add New Tablet Type" form
+  - Added variety pack column in tablet types configuration table
+  - Added edit functionality for variety pack configuration
+- **Files updated**: 
+  - `app/models/schema.py` (tablet_types table schema)
+  - `app/models/migrations.py` (variety pack migration)
+  - `app/blueprints/api.py` (add/update endpoints)
+  - `templates/tablet_types_config.html` (UI updates)
+
+---
+
 ## [2.18.22] - 2025-12-26
 
 ### 🐛 Bug Fix

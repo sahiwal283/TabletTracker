@@ -91,7 +91,10 @@ class SchemaManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tablet_type_name TEXT UNIQUE NOT NULL,
             inventory_item_id TEXT UNIQUE,
-            category TEXT
+            category TEXT,
+            is_variety_pack BOOLEAN DEFAULT 0,
+            tablets_per_bottle INTEGER,
+            bottles_per_pack INTEGER
         )''')
     
     def _create_product_details_table(self, c):

@@ -1159,7 +1159,7 @@ def save_shipment():
 @bp.route('/api/update_tablet_type_inventory', methods=['POST'])
 @admin_required
 def update_tablet_type_inventory():
-    """Update a tablet type's inventory item ID"""
+    """Update a tablet type's inventory item ID and variety pack configuration"""
     conn = None
     try:
         data = request.get_json()
@@ -1172,16 +1172,19 @@ def update_tablet_type_inventory():
             
         inventory_item_id = (data.get('inventory_item_id') or '').strip()
         
+        # Get variety pack configuration if provided
+        is_variety_pack = data.get('is_variety_pack', False)
+        tablets_per_bottle = data.get('tablets_per_bottle')
+        bottles_per_pack = data.get('bottles_per_pack')
+        
         conn = get_db()
         
-        # Clear the inventory_item_id if empty
-        if not inventory_item_id:
-            conn.execute('''
-                UPDATE tablet_types 
-                SET inventory_item_id = NULL
-                WHERE id = ?
-            ''', (tablet_type_id,))
-        else:
+        # Build update query dynamically based on what's provided
+        updates = []
+        params = []
+        
+        # Handle inventory_item_id
+        if inventory_item_id:
             # Check if this inventory_item_id is already used
             existing = conn.execute('''
                 SELECT tablet_type_name FROM tablet_types 
@@ -1193,12 +1196,31 @@ def update_tablet_type_inventory():
                     'success': False, 
                     'error': f'Inventory ID already used by {existing["tablet_type_name"]}'
                 })
-            
-            conn.execute('''
+            updates.append('inventory_item_id = ?')
+            params.append(inventory_item_id)
+        else:
+            updates.append('inventory_item_id = NULL')
+        
+        # Handle variety pack fields
+        if 'is_variety_pack' in data:
+            updates.append('is_variety_pack = ?')
+            params.append(is_variety_pack)
+        
+        if 'tablets_per_bottle' in data:
+            updates.append('tablets_per_bottle = ?')
+            params.append(tablets_per_bottle)
+        
+        if 'bottles_per_pack' in data:
+            updates.append('bottles_per_pack = ?')
+            params.append(bottles_per_pack)
+        
+        if updates:
+            params.append(tablet_type_id)
+            conn.execute(f'''
                 UPDATE tablet_types 
-                SET inventory_item_id = ?
+                SET {', '.join(updates)}
                 WHERE id = ?
-            ''', (inventory_item_id, tablet_type_id))
+            ''', tuple(params))
         
         conn.commit()
         
@@ -2601,11 +2623,17 @@ def add_tablet_type():
                     'error': f'Inventory ID already used by {existing_id["tablet_type_name"]}'
                 }), 400
         
+        # Get variety pack configuration if provided
+        is_variety_pack = data.get('is_variety_pack', False)
+        tablets_per_bottle = data.get('tablets_per_bottle')
+        bottles_per_pack = data.get('bottles_per_pack')
+        
         # Insert new tablet type
         conn.execute('''
-            INSERT INTO tablet_types (tablet_type_name, inventory_item_id)
-            VALUES (?, ?)
-        ''', (tablet_type_name, inventory_item_id if inventory_item_id else None))
+            INSERT INTO tablet_types (tablet_type_name, inventory_item_id, is_variety_pack, tablets_per_bottle, bottles_per_pack)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (tablet_type_name, inventory_item_id if inventory_item_id else None, 
+              is_variety_pack, tablets_per_bottle, bottles_per_pack))
         
         conn.commit()
         
