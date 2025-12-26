@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.20] - 2025-12-26
+
+### 🐛 Bug Fix
+
+#### Fixed IndentationError in production.py Causing Site Crash
+- **Issue**: Site showing "Something went wrong" - IndentationError in production.py line 527
+- **Root cause**: Code after `if not cards_per_turn:` was not indented properly
+- **Fix**: Indented lines 527-531 under the if statement
+- **Impact**: Site loads correctly again
+- **Files updated**: 
+  - `app/blueprints/production.py` (submit_machine_count function)
+
+---
+
 ## [2.18.19] - 2025-12-22
 
 ### 🐛 Bug Fix
