@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.18] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed "receive is not defined" Error in Receive Details Modal
+- **Issue**: "Failed to load receives: receive is not defined" error when trying to use back button
+- **Root cause**: Template string was trying to use `receive` object inside template literal before it was available
+- **Fix**: Moved receive availability check and button creation outside of template literal
+- **Impact**: Back button now works correctly in receive details modal
+- **Files updated**: 
+  - `templates/base.html` (viewReceiveDetails function)
+
+---
+
 ## [2.18.17] - 2025-12-22
 
 ### 🎨 UX Improvement

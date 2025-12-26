@@ -1919,6 +1919,15 @@ async function viewReceiveDetails(receiveId, receiveName) {
         const receive = data.receive;
         const products = data.products;
         
+        // Check if we have PO info for the back button
+        const hasPO = receive && receive.po_id && receive.po_number;
+        const backButton = hasPO ? `
+            <button onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOReceives(${receive.po_id}, '${receive.po_number}');" 
+                    class="text-white hover:bg-white hover:bg-opacity-20 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
+                ← Back to Receives
+            </button>
+        ` : '<div></div>';
+        
         // Build modal content
         let modalContent = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceiveDetailsModal(event)">
@@ -1926,12 +1935,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
-                            ${receive.po_id && receive.po_number ? `
-                                <button onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOReceives(${receive.po_id}, '${receive.po_number}');" 
-                                        class="text-white hover:bg-white hover:bg-opacity-20 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
-                                    ← Back to Receives
-                                </button>
-                            ` : '<div></div>'}
+                            ${backButton}
                             <div class="flex-1 text-center">
                                 <h3 class="text-xl font-bold">📦 Receive Details: ${receiveName}</h3>
                                 <p class="text-sm text-blue-100 mt-1">
