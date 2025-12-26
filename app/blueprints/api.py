@@ -6102,7 +6102,7 @@ def get_po_receives(po_id):
             for box in boxes:
                 box_dict = dict(box)
                 bags = conn.execute('''
-                    SELECT b.*, tt.tablet_type_name
+                    SELECT b.*, tt.tablet_type_name, tt.inventory_item_id
                     FROM bags b
                     LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
                     WHERE b.small_box_id = ?

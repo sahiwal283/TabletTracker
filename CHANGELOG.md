@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.16] - 2025-12-22
+
+### 🐛 Bug Fix
+
+#### Fixed Product Filtering in Receives Modal
+- **Issue**: Clicking on a line item showed "No receives found for this product" even when receives existed
+- **Root cause**: Frontend was filtering by product name string matching instead of using inventory_item_id
+- **Fix**: 
+  - Updated backend to include `inventory_item_id` in bags response
+  - Updated frontend to filter by exact `inventory_item_id` match
+- **Impact**: Product filtering now works correctly when viewing receives for a specific line item
+- **Files updated**: 
+  - `app/blueprints/api.py` (get_po_receives - added inventory_item_id to bags query)
+  - `templates/purchase_orders.html` (viewPOReceivesForProduct - filter by inventory_item_id)
+  - `templates/dashboard.html` (viewPOReceivesForProduct - filter by inventory_item_id)
+
+---
+
 ## [2.18.15] - 2025-12-22
 
 ### 🎨 UX Improvement

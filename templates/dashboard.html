@@ -2221,8 +2221,8 @@ async function viewPOReceivesForProduct(poId, poNumber, inventoryItemId, product
             const filteredBoxes = [];
             receiveData.boxes.forEach(boxData => {
                 const filteredBags = boxData.bags.filter(bag => {
-                    // Match by tablet_type_name
-                    return bag.tablet_type_name && bag.tablet_type_name.includes(productName.split(' - ')[0]);
+                    // Match by inventory_item_id
+                    return bag.inventory_item_id === inventoryItemId;
                 });
                 
                 if (filteredBags.length > 0) {
