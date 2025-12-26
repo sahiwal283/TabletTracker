@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.21] - 2025-12-26
+
+### 🐛 Bug Fix
+
+#### Fixed IndentationError (v2 - Actually Fixed Now)
+- **Issue**: Previous fix didn't actually save properly - indentation error still present
+- **Root cause**: Lines 527-531 still not indented correctly under if statement
+- **Fix**: Properly indented all lines under `if not cards_per_turn:`
+- **Verification**: Tested with `python -m py_compile` to ensure no syntax errors
+- **Files updated**: 
+  - `app/blueprints/production.py` (submit_machine_count function)
+
+---
+
 ## [2.18.20] - 2025-12-26
 
 ### 🐛 Bug Fix
