@@ -2627,13 +2627,14 @@ def add_tablet_type():
         is_variety_pack = data.get('is_variety_pack', False)
         tablets_per_bottle = data.get('tablets_per_bottle')
         bottles_per_pack = data.get('bottles_per_pack')
+        variety_pack_contents = data.get('variety_pack_contents')
         
         # Insert new tablet type
         conn.execute('''
-            INSERT INTO tablet_types (tablet_type_name, inventory_item_id, is_variety_pack, tablets_per_bottle, bottles_per_pack)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO tablet_types (tablet_type_name, inventory_item_id, is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents)
+            VALUES (?, ?, ?, ?, ?, ?)
         ''', (tablet_type_name, inventory_item_id if inventory_item_id else None, 
-              is_variety_pack, tablets_per_bottle, bottles_per_pack))
+              is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents))
         
         conn.commit()
         

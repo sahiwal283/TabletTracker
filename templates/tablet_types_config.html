@@ -31,14 +31,26 @@
                     <input type="checkbox" id="new-is-variety-pack" class="form-checkbox">
                     <span class="text-sm font-medium text-gray-700">This is a Variety Pack</span>
                 </label>
-                <div id="variety-pack-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tablets per Bottle</label>
-                        <input type="number" id="new-tablets-per-bottle" placeholder="e.g., 12" class="form-input" min="1">
+                <div id="variety-pack-fields" class="space-y-4 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tablets per Bottle</label>
+                            <input type="number" id="new-tablets-per-bottle" placeholder="e.g., 12" class="form-input" min="1">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bottles per Pack</label>
+                            <input type="number" id="new-bottles-per-pack" placeholder="e.g., 1" class="form-input" min="1">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Bottles per Pack</label>
-                        <input type="number" id="new-bottles-per-pack" placeholder="e.g., 1" class="form-input" min="1">
+                    <div class="border-t pt-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <label class="block text-sm font-medium text-gray-700">Pack Contents (Flavors & Quantities)</label>
+                            <button type="button" onclick="addVarietyPackFlavor('new')" class="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add Flavor</button>
+                        </div>
+                        <div id="new-variety-pack-contents" class="space-y-2">
+                            <!-- Flavor entries will be added here dynamically -->
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Specify which flavors are in this variety pack and how many tablets of each flavor per bottle.</p>
                     </div>
                 </div>
             </div>
@@ -207,9 +219,23 @@
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     <div class="tablet-display" id="variety-display-{{ tt.id }}">
                                         {% if tt.is_variety_pack %}
-                                            <div class="text-xs">
+                                            <div class="text-xs space-y-1">
                                                 <div><strong>Tablets/Bottle:</strong> {{ tt.tablets_per_bottle or 'N/A' }}</div>
                                                 <div><strong>Bottles/Pack:</strong> {{ tt.bottles_per_pack or 'N/A' }}</div>
+                                                {% if tt.variety_pack_contents_resolved %}
+                                                    <div class="mt-2 pt-2 border-t">
+                                                        <strong>Contents:</strong>
+                                                        <div class="text-xs text-gray-600 mt-1">
+                                                            {% for item in tt.variety_pack_contents_resolved %}
+                                                                <div>• {{ item.tablets_per_bottle }}x {{ item.tablet_type_name }}</div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                {% elif tt.variety_pack_contents %}
+                                                    <div class="mt-2 pt-2 border-t text-xs text-gray-400">
+                                                        Contents configured (view in edit mode)
+                                                    </div>
+                                                {% endif %}
                                             </div>
                                         {% else %}
                                             <span class="text-gray-400 italic">Regular</span>
@@ -222,7 +248,7 @@
                                                    onchange="toggleVarietyFields({{ tt.id }})">
                                             <span class="text-xs">Variety Pack</span>
                                         </label>
-                                        <div id="variety-fields-{{ tt.id }}" class="{% if not tt.is_variety_pack %}hidden{% endif %} space-y-2">
+                                        <div id="variety-fields-{{ tt.id }}" class="{% if not tt.is_variety_pack %}hidden{% endif %} space-y-3">
                                             <input type="number" id="tablets-bottle-{{ tt.id }}" 
                                                    value="{{ tt.tablets_per_bottle or '' }}" 
                                                    placeholder="Tablets per bottle" 
@@ -231,6 +257,17 @@
                                                    value="{{ tt.bottles_per_pack or '' }}" 
                                                    placeholder="Bottles per pack" 
                                                    class="form-input text-xs" min="1">
+                                            <div class="border-t pt-2">
+                                                <div class="flex justify-between items-center mb-2">
+                                                    <label class="block text-xs font-medium text-gray-700">Pack Contents</label>
+                                                    <button type="button" onclick="addVarietyPackFlavor({{ tt.id }})" class="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Add</button>
+                                                </div>
+                                                <div id="variety-pack-contents-{{ tt.id }}" 
+                                                     data-contents="{{ tt.variety_pack_contents or '' }}"
+                                                     class="space-y-2">
+                                                    <!-- Flavor entries will be added here dynamically -->
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -282,6 +319,27 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.category-chevron').forEach(chevron => chevron.style.transform = 'rotate(-90deg)');
 });
 
+// Store available tablet types for variety pack dropdowns
+let availableTabletTypes = [];
+
+// Load tablet types for variety pack dropdowns
+async function loadTabletTypes() {
+    try {
+        const response = await fetch('/api/tablet_types');
+        const data = await response.json();
+        if (data.success) {
+            availableTabletTypes = data.tablet_types.filter(tt => !tt.is_variety_pack); // Exclude variety packs themselves
+        }
+    } catch (error) {
+        console.error('Failed to load tablet types:', error);
+    }
+}
+
+// Load tablet types on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadTabletTypes();
+});
+
 // Toggle variety pack fields in add form
 document.getElementById('new-is-variety-pack').addEventListener('change', function(e) {
     const fields = document.getElementById('variety-pack-fields');
@@ -292,17 +350,126 @@ document.getElementById('new-is-variety-pack').addEventListener('change', functi
     }
 });
 
+// Add a flavor entry to variety pack configuration
+let flavorCounter = 0;
+function addVarietyPackFlavor(tabletTypeId) {
+    const containerId = tabletTypeId === 'new' ? 'new-variety-pack-contents' : `variety-pack-contents-${tabletTypeId}`;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const flavorId = `flavor-${tabletTypeId}-${++flavorCounter}`;
+    const flavorDiv = document.createElement('div');
+    flavorDiv.className = 'flex gap-2 items-center p-2 bg-gray-50 rounded';
+    flavorDiv.id = flavorId;
+    
+    // Tablet type dropdown
+    const typeSelect = document.createElement('select');
+    typeSelect.className = 'form-input text-xs flex-1';
+    typeSelect.required = true;
+    typeSelect.innerHTML = '<option value="">Select Flavor...</option>' + 
+        availableTabletTypes.map(tt => 
+            `<option value="${tt.id}">${tt.tablet_type_name}</option>`
+        ).join('');
+    
+    // Quantity input
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.className = 'form-input text-xs w-20';
+    qtyInput.placeholder = 'Qty';
+    qtyInput.min = '1';
+    qtyInput.required = true;
+    
+    // Remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'text-red-600 hover:text-red-800 text-xs font-bold px-2';
+    removeBtn.textContent = '×';
+    removeBtn.onclick = () => flavorDiv.remove();
+    
+    flavorDiv.appendChild(typeSelect);
+    flavorDiv.appendChild(qtyInput);
+    flavorDiv.appendChild(removeBtn);
+    container.appendChild(flavorDiv);
+}
+
+// Load existing variety pack contents when editing
+function loadVarietyPackContents(tabletTypeId, contentsJson) {
+    const container = document.getElementById(`variety-pack-contents-${tabletTypeId}`);
+    if (!container || !contentsJson) return;
+    
+    container.innerHTML = '';
+    try {
+        const contents = JSON.parse(contentsJson);
+        contents.forEach(item => {
+            const flavorId = `flavor-${tabletTypeId}-${++flavorCounter}`;
+            const flavorDiv = document.createElement('div');
+            flavorDiv.className = 'flex gap-2 items-center p-2 bg-gray-50 rounded';
+            flavorDiv.id = flavorId;
+            
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'form-input text-xs flex-1';
+            typeSelect.required = true;
+            typeSelect.innerHTML = '<option value="">Select Flavor...</option>' + 
+                availableTabletTypes.map(tt => 
+                    `<option value="${tt.id}" ${tt.id == item.tablet_type_id ? 'selected' : ''}>${tt.tablet_type_name}</option>`
+                ).join('');
+            
+            const qtyInput = document.createElement('input');
+            qtyInput.type = 'number';
+            qtyInput.className = 'form-input text-xs w-20';
+            qtyInput.value = item.tablets_per_bottle || '';
+            qtyInput.min = '1';
+            qtyInput.required = true;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'text-red-600 hover:text-red-800 text-xs font-bold px-2';
+            removeBtn.textContent = '×';
+            removeBtn.onclick = () => flavorDiv.remove();
+            
+            flavorDiv.appendChild(typeSelect);
+            flavorDiv.appendChild(qtyInput);
+            flavorDiv.appendChild(removeBtn);
+            container.appendChild(flavorDiv);
+        });
+    } catch (e) {
+        console.error('Failed to parse variety pack contents:', e);
+    }
+}
+
 // Add new tablet type
 document.getElementById('add-tablet-type-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const isVarietyPack = document.getElementById('new-is-variety-pack').checked;
+    
+    // Collect variety pack contents
+    let varietyPackContents = null;
+    if (isVarietyPack) {
+        const contentsContainer = document.getElementById('new-variety-pack-contents');
+        if (contentsContainer) {
+            const flavorEntries = contentsContainer.querySelectorAll('div[id^="flavor-"]');
+            varietyPackContents = Array.from(flavorEntries).map(entry => {
+                const select = entry.querySelector('select');
+                const input = entry.querySelector('input[type="number"]');
+                if (select.value && input.value) {
+                    return {
+                        tablet_type_id: parseInt(select.value),
+                        tablets_per_bottle: parseInt(input.value)
+                    };
+                }
+                return null;
+            }).filter(item => item !== null);
+        }
+    }
+    
     const data = {
         tablet_type_name: document.getElementById('new-tablet-name').value.trim(),
         inventory_item_id: document.getElementById('new-inventory-id').value.trim() || null,
         is_variety_pack: isVarietyPack,
         tablets_per_bottle: isVarietyPack ? parseInt(document.getElementById('new-tablets-per-bottle').value) || null : null,
-        bottles_per_pack: isVarietyPack ? parseInt(document.getElementById('new-bottles-per-pack').value) || null : null
+        bottles_per_pack: isVarietyPack ? parseInt(document.getElementById('new-bottles-per-pack').value) || null : null,
+        variety_pack_contents: varietyPackContents ? JSON.stringify(varietyPackContents) : null
     };
     
     try {
@@ -357,6 +524,13 @@ function editTabletType(tabletTypeId) {
     const checkbox = document.getElementById(`variety-check-${tabletTypeId}`);
     if (checkbox) {
         toggleVarietyFields(tabletTypeId);
+        // Load existing variety pack contents if it's a variety pack
+        if (checkbox.checked) {
+            const contentsJson = document.getElementById(`variety-pack-contents-${tabletTypeId}`)?.dataset.contents;
+            if (contentsJson) {
+                loadVarietyPackContents(tabletTypeId, contentsJson);
+            }
+        }
     }
 }
 
@@ -374,6 +548,26 @@ async function saveTabletType(tabletTypeId) {
     const bottlesPerPack = document.getElementById(`bottles-pack-${tabletTypeId}`)?.value ? 
         parseInt(document.getElementById(`bottles-pack-${tabletTypeId}`).value) : null;
     
+    // Collect variety pack contents
+    let varietyPackContents = null;
+    if (isVarietyPack) {
+        const contentsContainer = document.getElementById(`variety-pack-contents-${tabletTypeId}`);
+        if (contentsContainer) {
+            const flavorEntries = contentsContainer.querySelectorAll('div[id^="flavor-"]');
+            varietyPackContents = Array.from(flavorEntries).map(entry => {
+                const select = entry.querySelector('select');
+                const input = entry.querySelector('input[type="number"]');
+                if (select.value && input.value) {
+                    return {
+                        tablet_type_id: parseInt(select.value),
+                        tablets_per_bottle: parseInt(input.value)
+                    };
+                }
+                return null;
+            }).filter(item => item !== null);
+        }
+    }
+    
     try {
         const response = await csrfFetch('/api/update_tablet_type_inventory', {
             method: 'POST',
@@ -383,7 +577,8 @@ async function saveTabletType(tabletTypeId) {
                 inventory_item_id: inventoryItemId,
                 is_variety_pack: isVarietyPack,
                 tablets_per_bottle: tabletsPerBottle,
-                bottles_per_pack: bottlesPerPack
+                bottles_per_pack: bottlesPerPack,
+                variety_pack_contents: varietyPackContents ? JSON.stringify(varietyPackContents) : null
             })
         });
         

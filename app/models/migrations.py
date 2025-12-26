@@ -56,6 +56,7 @@ class MigrationRunner:
         self._add_column_if_not_exists('tablet_types', 'is_variety_pack', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('tablet_types', 'tablets_per_bottle', 'INTEGER')
         self._add_column_if_not_exists('tablet_types', 'bottles_per_pack', 'INTEGER')
+        self._add_column_if_not_exists('tablet_types', 'variety_pack_contents', 'TEXT')
     
     def _migrate_warehouse_submissions(self):
         """Migrate warehouse_submissions table"""

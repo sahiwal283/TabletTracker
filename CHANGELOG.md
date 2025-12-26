@@ -11,29 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ New Feature
 
-#### Variety Pack Support
-- **Feature**: Added support for variety pack products with different configuration than regular tablet types
+#### Variety Pack Support with Contents Configuration
+- **Feature**: Added comprehensive support for variety pack products with configurable flavor composition
 - **Details**: 
   - Variety packs come in bottles (12 tabs/bottle) and have different flavors
-  - Added database fields: `is_variety_pack`, `tablets_per_bottle`, `bottles_per_pack` to `tablet_types` table
+  - Added database fields: `is_variety_pack`, `tablets_per_bottle`, `bottles_per_pack`, `variety_pack_contents` to `tablet_types` table
+  - **Variety Pack Contents Configuration**: 
+    - Configure which flavors/tablet types are in each variety pack
+    - Specify quantity of each flavor per bottle
+    - Dynamic UI to add/remove flavors from variety packs
+    - Contents displayed in admin interface with flavor names and quantities
   - Updated admin UI to configure variety packs with visual indicators
-  - Added ability to create and edit variety pack configurations
+  - Added ability to create and edit variety pack configurations including contents
   - Variety packs are marked with a purple badge in the admin interface
 - **Database Changes**:
   - Added migration to add variety pack columns to existing databases
+  - Added `variety_pack_contents` JSON field to store pack composition
   - Schema updated to support variety pack configuration
 - **API Changes**:
-  - Updated `/api/add_tablet_type` to accept variety pack configuration
-  - Updated `/api/update_tablet_type_inventory` to update variety pack fields
+  - Updated `/api/add_tablet_type` to accept variety pack configuration and contents
+  - Updated `/api/update_tablet_type_inventory` to update variety pack fields and contents
+  - Variety pack contents stored as JSON array: `[{"tablet_type_id": 1, "tablets_per_bottle": 4}, ...]`
 - **UI Changes**:
   - Added variety pack checkbox and fields in "Add New Tablet Type" form
+  - Added "Pack Contents" section with dynamic flavor selection
   - Added variety pack column in tablet types configuration table
-  - Added edit functionality for variety pack configuration
+  - Added edit functionality for variety pack configuration including contents
+  - Contents displayed with flavor names and quantities in view mode
 - **Files updated**: 
   - `app/models/schema.py` (tablet_types table schema)
   - `app/models/migrations.py` (variety pack migration)
   - `app/blueprints/api.py` (add/update endpoints)
-  - `templates/tablet_types_config.html` (UI updates)
+  - `app/blueprints/admin.py` (variety pack contents resolution)
+  - `templates/tablet_types_config.html` (UI updates with contents configuration)
 
 ---
 

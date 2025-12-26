@@ -186,6 +186,26 @@ def tablet_types_config():
             ORDER BY COALESCE(category, ''), tablet_type_name
         ''').fetchall()
         
+        # Get all tablet types for resolving variety pack contents
+        all_tablet_types = {tt['id']: tt['tablet_type_name'] for tt in conn.execute('SELECT id, tablet_type_name FROM tablet_types').fetchall()}
+        
+        # Enrich tablet types with resolved variety pack contents
+        import json
+        for tt in tablet_types:
+            if tt.get('variety_pack_contents'):
+                try:
+                    contents = json.loads(tt['variety_pack_contents'])
+                    tt['variety_pack_contents_resolved'] = [
+                        {
+                            'tablet_type_id': item['tablet_type_id'],
+                            'tablet_type_name': all_tablet_types.get(item['tablet_type_id'], f"ID {item['tablet_type_id']}"),
+                            'tablets_per_bottle': item['tablets_per_bottle']
+                        }
+                        for item in contents
+                    ]
+                except:
+                    tt['variety_pack_contents_resolved'] = []
+        
         # Get unique categories
         categories = conn.execute('''
             SELECT DISTINCT category FROM tablet_types 

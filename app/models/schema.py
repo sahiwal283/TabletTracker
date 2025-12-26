@@ -94,7 +94,8 @@ class SchemaManager:
             category TEXT,
             is_variety_pack BOOLEAN DEFAULT 0,
             tablets_per_bottle INTEGER,
-            bottles_per_pack INTEGER
+            bottles_per_pack INTEGER,
+            variety_pack_contents TEXT
         )''')
     
     def _create_product_details_table(self, c):
