@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.18.22] - 2025-12-26
+
+### 🐛 Bug Fix
+
+#### Fixed IndentationError in receive_tracking.py
+- **Issue**: After fixing production.py, new IndentationError appeared in receive_tracking.py line 47
+- **Root cause**: Lines 47 and 81 were not indented under their respective `else:` blocks
+- **Fix**: Properly indented `matching_bags = conn.execute(...)` statements under `else:` blocks
+- **Files updated**: 
+  - `app/utils/receive_tracking.py` (find_bag_for_submission function)
+
+---
+
 ## [2.18.21] - 2025-12-26
 
 ### 🐛 Bug Fix
