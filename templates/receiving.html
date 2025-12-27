@@ -567,7 +567,46 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     return html;
 }
 
+// Load max bag numbers for selected PO (for new entries only - doesn't affect existing data)
+async function loadMaxBagNumbersForPO() {
+    const poSelect = document.getElementById('po-select');
+    if (!poSelect || !poSelect.value) {
+        // No PO selected, reset counters
+        flavorBagCounter = {};
+        return;
+    }
+    
+    const poId = parseInt(poSelect.value);
+    if (!poId) {
+        flavorBagCounter = {};
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/po/${poId}/max_bag_numbers`);
+        const data = await response.json();
+        
+        if (data.success && data.max_bag_numbers) {
+            // Initialize counters with max values from existing bags
+            // This ensures new bags continue numbering from where existing bags left off
+            flavorBagCounter = {};
+            for (const [tabletTypeId, maxBagNumber] of Object.entries(data.max_bag_numbers)) {
+                flavorBagCounter[tabletTypeId] = parseInt(maxBagNumber) || 0;
+            }
+            console.log('Loaded max bag numbers for PO:', flavorBagCounter);
+        } else {
+            // No existing bags, start from 0
+            flavorBagCounter = {};
+        }
+    } catch (error) {
+        console.error('Error loading max bag numbers:', error);
+        // On error, start from 0
+        flavorBagCounter = {};
+    }
+}
+
 // Get next bag number for a flavor (global across all boxes)
+// For new entries: starts from max existing bag number + 1 for that flavor in the PO
 function getNextFlavorBagNumber(tabletTypeId) {
     if (!flavorBagCounter[tabletTypeId]) {
         flavorBagCounter[tabletTypeId] = 0;
@@ -633,7 +672,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function openAddReceivesModal() {
+async function openAddReceivesModal() {
     // Reset form
     boxCounter = 0;
     bagCounter = {};
@@ -646,6 +685,17 @@ function openAddReceivesModal() {
     
     // Show modal
     document.getElementById('add-receives-modal').classList.remove('hidden');
+    
+    // Load max bag numbers when PO is selected (if PO select exists)
+    const poSelect = document.getElementById('po-select');
+    if (poSelect) {
+        // Add event listener to load max bag numbers when PO changes
+        poSelect.addEventListener('change', loadMaxBagNumbersForPO);
+        // Load max bag numbers if PO is already selected
+        if (poSelect.value) {
+            await loadMaxBagNumbersForPO();
+        }
+    }
 }
 
 function closeAddReceivesModal(event) {

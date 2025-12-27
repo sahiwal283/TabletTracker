@@ -110,6 +110,46 @@ def get_bag_submissions(bag_id):
                 pass
 
 
+@bp.route('/api/po/<int:po_id>/max_bag_numbers', methods=['GET'])
+@role_required('shipping')
+def get_po_max_bag_numbers(po_id):
+    """Get the maximum bag number for each flavor (tablet_type) in a PO across all receives"""
+    conn = None
+    try:
+        conn = get_db()
+        
+        # Get max bag number per tablet_type_id for all bags in this PO
+        # Join through receiving -> small_boxes -> bags
+        max_bag_numbers = conn.execute('''
+            SELECT b.tablet_type_id, MAX(b.bag_number) as max_bag_number
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            WHERE r.po_id = ?
+            GROUP BY b.tablet_type_id
+        ''', (po_id,)).fetchall()
+        
+        # Convert to dictionary: {tablet_type_id: max_bag_number}
+        result = {}
+        for row in max_bag_numbers:
+            result[row['tablet_type_id']] = row['max_bag_number'] or 0
+        
+        return jsonify({
+            'success': True,
+            'max_bag_numbers': result
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @bp.route('/api/receive/<int:receive_id>/details', methods=['GET'])
 @role_required('shipping')
 def get_receive_details(receive_id):
