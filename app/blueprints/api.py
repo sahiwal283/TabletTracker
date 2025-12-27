@@ -6860,9 +6860,72 @@ def get_possible_receives(submission_id):
         print(f"   inventory_item_id: {submission_dict.get('inventory_item_id')}")
         
         if not submission_dict.get('bag_number'):
+            # Try to find receives by product name and receipt number as fallback
+            receipt_number = submission_dict.get('receipt_number')
+            if receipt_number:
+                # Look for any receives with matching product in open POs
+                fallback_receives = conn.execute('''
+                    SELECT DISTINCT b.id as bag_id, 
+                           sb.box_number, 
+                           b.bag_number, 
+                           b.bag_label_count,
+                           r.id as receive_id,
+                           r.received_date,
+                           r.receive_name as stored_receive_name,
+                           po.po_number,
+                           po.id as po_id,
+                           tt.tablet_type_name
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    JOIN purchase_orders po ON r.po_id = po.id
+                    JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE tt.id = ?
+                    AND (r.closed IS NULL OR r.closed = FALSE)
+                    ORDER BY r.received_date DESC
+                    LIMIT 20
+                ''', (tablet_type_id,)).fetchall()
+                
+                if fallback_receives:
+                    receives = []
+                    for bag_row in fallback_receives:
+                        bag = dict(bag_row)
+                        stored_receive_name = bag.get('stored_receive_name')
+                        if stored_receive_name:
+                            receive_name = stored_receive_name
+                        else:
+                            receive_number = conn.execute('''
+                                SELECT COUNT(*) + 1
+                                FROM receiving r2
+                                WHERE r2.po_id = ?
+                                AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                                     OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                                         AND r2.id < ?))
+                            ''', (bag['po_id'], bag['receive_id'], bag['receive_id'], bag['receive_id'])).fetchone()[0]
+                            receive_name = f"{bag['po_number']}-{receive_number}"
+                        
+                        receives.append({
+                            'bag_id': bag['bag_id'],
+                            'receive_id': bag['receive_id'],
+                            'receive_name': receive_name,
+                            'po_number': bag['po_number'],
+                            'received_date': bag['received_date'],
+                            'box_number': bag['box_number'],
+                            'bag_number': bag['bag_number'],
+                            'bag_label_count': bag['bag_label_count'],
+                            'tablet_type_name': bag['tablet_type_name']
+                        })
+                    
+                    return jsonify({
+                        'success': True,
+                        'submission': submission_dict,
+                        'possible_receives': receives,
+                        'warning': 'Submission missing bag_number. Showing all available receives for this product.'
+                    })
+            
             return jsonify({
                 'success': False, 
-                'error': 'Submission missing bag_number. Cannot find matching receives.'
+                'error': 'Submission missing bag_number. Cannot find matching receives. Please check if the bag number was entered when submitting.'
             }), 400
         
         # Box number is optional for flavor-based receives
