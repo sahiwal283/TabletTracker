@@ -689,10 +689,15 @@ async function openAddReceivesModal() {
     // Load max bag numbers when PO is selected (if PO select exists)
     const poSelect = document.getElementById('po-select');
     if (poSelect) {
+        // Remove existing listener to avoid duplicates
+        const newPoSelect = poSelect.cloneNode(true);
+        poSelect.parentNode.replaceChild(newPoSelect, poSelect);
+        
         // Add event listener to load max bag numbers when PO changes
-        poSelect.addEventListener('change', loadMaxBagNumbersForPO);
+        newPoSelect.addEventListener('change', loadMaxBagNumbersForPO);
+        
         // Load max bag numbers if PO is already selected
-        if (poSelect.value) {
+        if (newPoSelect.value) {
             await loadMaxBagNumbersForPO();
         }
     }
