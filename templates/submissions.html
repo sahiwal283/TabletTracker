@@ -530,9 +530,20 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
             posList.innerHTML = `
                 <div class="text-center py-8 text-gray-500">
                     <p>Error loading possible receives: ${data.error || 'Unknown error'}</p>
+                    ${data.error && data.error.includes('bag_number') ? `
+                        <p class="text-xs mt-2 text-orange-600">
+                            ⚠️ This submission is missing a bag number. 
+                            This usually happens when the bag number wasn't entered during submission.
+                        </p>
+                    ` : ''}
                 </div>
             `;
             return;
+        }
+        
+        // Show warning if submission is missing bag_number but we found receives
+        if (data.warning) {
+            document.querySelector('#reassign-modal .text-sm').textContent = data.warning;
         }
         
         const submission = data.submission || {};
