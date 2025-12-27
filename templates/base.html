@@ -950,19 +950,19 @@ async function loadEditAdminPOs(submissionId, productName) {
                         <div class="grid grid-cols-4 gap-3 text-sm">
                             <div>
                                 <div class="text-xs text-gray-500">Ordered</div>
-                                <div class="font-medium">${po.ordered.toLocaleString()}</div>
+                                <div class="font-medium">${(po.ordered || 0).toLocaleString()}</div>
                             </div>
                             <div>
                                 <div class="text-xs text-green-600">Good</div>
-                                <div class="font-medium text-green-600">${po.good.toLocaleString()}</div>
+                                <div class="font-medium text-green-600">${(po.good || 0).toLocaleString()}</div>
                             </div>
                             <div>
                                 <div class="text-xs text-red-600">Damaged</div>
-                                <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
+                                <div class="font-medium text-red-600">${(po.damaged || 0).toLocaleString()}</div>
                             </div>
                             <div>
                                 <div class="text-xs text-blue-600">Remaining</div>
-                                <div class="font-medium text-blue-600">${po.remaining.toLocaleString()}</div>
+                                <div class="font-medium text-blue-600">${(po.remaining || 0).toLocaleString()}</div>
                             </div>
                         </div>
                     </div>
@@ -1991,10 +1991,13 @@ async function viewReceiveDetails(receiveId, receiveName) {
                     
                     // Loop through each bag in the box
                     box.bags.forEach(bag => {
-                        const totalCounted = bag.machine_count + bag.packaged_count;
-                        const remaining = bag.received_count - bag.packaged_count;
-                        const percentComplete = bag.received_count > 0 
-                            ? Math.round((totalCounted / bag.received_count) * 100) 
+                        const receivedCount = bag.received_count || 0;
+                        const machineCount = bag.machine_count || 0;
+                        const packagedCount = bag.packaged_count || 0;
+                        const totalCounted = machineCount + packagedCount;
+                        const remaining = receivedCount - packagedCount;
+                        const percentComplete = receivedCount > 0 
+                            ? Math.round((totalCounted / receivedCount) * 100) 
                             : 0;
                         
                         // Determine status colors
@@ -2045,7 +2048,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                 <!-- Compact Stats -->
                                 <div class="grid grid-cols-4 gap-2 text-center text-xs">
                                     <div class="bg-indigo-50 rounded px-2 py-1">
-                                        <div class="text-indigo-600 font-semibold">${bag.received_count.toLocaleString()}</div>
+                                        <div class="text-indigo-600 font-semibold">${(bag.received_count || 0).toLocaleString()}</div>
                                         <div class="text-gray-500">Received</div>
                                     </div>
                                     <div class="bg-blue-50 rounded px-2 py-1">
@@ -2057,7 +2060,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                         <div class="text-gray-500">Packaged</div>
                                     </div>
                                     <div class="${bgColor} rounded px-2 py-1">
-                                        <div class="${labelColor} font-semibold">${remaining.toLocaleString()}</div>
+                                        <div class="${labelColor} font-semibold">${(remaining || 0).toLocaleString()}</div>
                                         <div class="text-gray-500">Remaining</div>
                                     </div>
                                 </div>
