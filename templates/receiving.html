@@ -533,6 +533,7 @@ let flavorBagCounter = {}; // Track bag numbers globally per flavor
 let bagFlavorAssignments = {}; // Track which flavor is assigned to which bag
 let currentReceivingId = null;
 let currentPoId = null;
+let poSelectListenerAdded = false; // Track if PO select listener has been added
 
 // Store categories and tablet types from server (converted from Jinja2 to JavaScript)
 const categories = {{ categories | tojson }};
@@ -689,15 +690,14 @@ async function openAddReceivesModal() {
     // Load max bag numbers when PO is selected (if PO select exists)
     const poSelect = document.getElementById('po-select');
     if (poSelect) {
-        // Remove existing listener to avoid duplicates
-        const newPoSelect = poSelect.cloneNode(true);
-        poSelect.parentNode.replaceChild(newPoSelect, poSelect);
-        
-        // Add event listener to load max bag numbers when PO changes
-        newPoSelect.addEventListener('change', loadMaxBagNumbersForPO);
+        // Add event listener only once
+        if (!poSelectListenerAdded) {
+            poSelect.addEventListener('change', loadMaxBagNumbersForPO);
+            poSelectListenerAdded = true;
+        }
         
         // Load max bag numbers if PO is already selected
-        if (newPoSelect.value) {
+        if (poSelect.value) {
             await loadMaxBagNumbersForPO();
         }
     }
