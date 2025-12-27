@@ -3764,7 +3764,7 @@ def close_bag(bag_id):
         
         # Check if bag exists
         bag_row = conn.execute('''
-            SELECT b.id, b.status, b.bag_number, sb.box_number, tt.tablet_type_name
+            SELECT b.id, COALESCE(b.status, 'Available') as status, b.bag_number, sb.box_number, tt.tablet_type_name
             FROM bags b
             JOIN small_boxes sb ON b.small_box_id = sb.id
             JOIN tablet_types tt ON b.tablet_type_id = tt.id
@@ -3778,7 +3778,7 @@ def close_bag(bag_id):
         bag = dict(bag_row)
         
         # Toggle status between 'Closed' and 'Available'
-        current_status = bag.get('status') or 'Available'
+        current_status = bag.get('status', 'Available')
         new_status = 'Closed' if current_status != 'Closed' else 'Available'
         
         conn.execute('''
@@ -3790,7 +3790,7 @@ def close_bag(bag_id):
         conn.commit()
         
         action = 'closed' if new_status == 'Closed' else 'reopened'
-        bag_info = f"{bag.get('tablet_type_name')} - Box {bag.get('box_number')}, Bag {bag.get('bag_number')}"
+        bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {bag.get('box_number', 'N/A')}, Bag {bag.get('bag_number', 'N/A')}"
         return jsonify({
             'success': True,
             'status': new_status,
@@ -3798,6 +3798,10 @@ def close_bag(bag_id):
         })
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Error closing bag {bag_id}: {str(e)}")
+        print(error_trace)
         if conn:
             try:
                 conn.rollback()
