@@ -5282,37 +5282,37 @@ def get_submission_details(submission_id):
             
             # If still not found, try to find from machine_counts table by matching submission details
             if not cards_per_turn:
-            tablet_type_row = conn.execute('''
-                SELECT id FROM tablet_types WHERE inventory_item_id = ?
-            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
-            
-            if tablet_type_row:
-                tablet_type = dict(tablet_type_row)
-                tablet_type_id = tablet_type.get('id')
+                tablet_type_row = conn.execute('''
+                    SELECT id FROM tablet_types WHERE inventory_item_id = ?
+                ''', (submission_dict.get('inventory_item_id'),)).fetchone()
                 
-                # Try to find machine_count record that matches this submission
-                submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
-                machine_count_record_row = conn.execute('''
-                    SELECT mc.machine_id, m.machine_name, m.cards_per_turn
-                    FROM machine_counts mc
-                    LEFT JOIN machines m ON mc.machine_id = m.id
-                    WHERE mc.tablet_type_id = ?
-                    AND mc.machine_count = ?
-                    AND mc.employee_name = ?
-                    AND DATE(mc.count_date) = DATE(?)
-                    ORDER BY mc.created_at DESC
-                    LIMIT 1
-                ''', (tablet_type_id, 
-                      submission_dict.get('displays_made'),
-                      submission_dict.get('employee_name'),
-                      submission_date)).fetchone()
-                
-                if machine_count_record_row:
-                    machine_count_record = dict(machine_count_record_row)
+                if tablet_type_row:
+                    tablet_type = dict(tablet_type_row)
+                    tablet_type_id = tablet_type.get('id')
+                    
+                    # Try to find machine_count record that matches this submission
+                    submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
+                    machine_count_record_row = conn.execute('''
+                        SELECT mc.machine_id, m.machine_name, m.cards_per_turn
+                        FROM machine_counts mc
+                        LEFT JOIN machines m ON mc.machine_id = m.id
+                        WHERE mc.tablet_type_id = ?
+                        AND mc.machine_count = ?
+                        AND mc.employee_name = ?
+                        AND DATE(mc.count_date) = DATE(?)
+                        ORDER BY mc.created_at DESC
+                        LIMIT 1
+                    ''', (tablet_type_id, 
+                          submission_dict.get('displays_made'),
+                          submission_dict.get('employee_name'),
+                          submission_date)).fetchone()
+                    
+                    if machine_count_record_row:
+                        machine_count_record = dict(machine_count_record_row)
                         if not machine_name:
-                    machine_name = machine_count_record.get('machine_name')
+                            machine_name = machine_count_record.get('machine_name')
                         if not cards_per_turn:
-                    cards_per_turn = machine_count_record.get('cards_per_turn')
+                            cards_per_turn = machine_count_record.get('cards_per_turn')
             
             # Fallback to app_settings if machine not found
             if not cards_per_turn:
