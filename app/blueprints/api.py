@@ -1722,11 +1722,11 @@ def submit_machine_count():
         
         # Fallback to global setting if machine not found or doesn't have cards_per_turn
         if not cards_per_turn:
-            cards_per_turn_setting = get_setting('cards_per_turn', '1')
-            try:
-                cards_per_turn = int(cards_per_turn_setting)
-            except (ValueError, TypeError):
-                cards_per_turn = 1
+        cards_per_turn_setting = get_setting('cards_per_turn', '1')
+        try:
+            cards_per_turn = int(cards_per_turn_setting)
+        except (ValueError, TypeError):
+            cards_per_turn = 1
         
         # Calculate total tablets for machine submissions
         # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
@@ -5282,37 +5282,37 @@ def get_submission_details(submission_id):
             
             # If still not found, try to find from machine_counts table by matching submission details
             if not cards_per_turn:
-                tablet_type_row = conn.execute('''
-                    SELECT id FROM tablet_types WHERE inventory_item_id = ?
-                ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+            tablet_type_row = conn.execute('''
+                SELECT id FROM tablet_types WHERE inventory_item_id = ?
+            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+            
+            if tablet_type_row:
+                tablet_type = dict(tablet_type_row)
+                tablet_type_id = tablet_type.get('id')
                 
-                if tablet_type_row:
-                    tablet_type = dict(tablet_type_row)
-                    tablet_type_id = tablet_type.get('id')
-                    
-                    # Try to find machine_count record that matches this submission
-                    submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
-                    machine_count_record_row = conn.execute('''
-                        SELECT mc.machine_id, m.machine_name, m.cards_per_turn
-                        FROM machine_counts mc
-                        LEFT JOIN machines m ON mc.machine_id = m.id
-                        WHERE mc.tablet_type_id = ?
-                        AND mc.machine_count = ?
-                        AND mc.employee_name = ?
-                        AND DATE(mc.count_date) = DATE(?)
-                        ORDER BY mc.created_at DESC
-                        LIMIT 1
-                    ''', (tablet_type_id, 
-                          submission_dict.get('displays_made'),
-                          submission_dict.get('employee_name'),
-                          submission_date)).fetchone()
-                    
-                    if machine_count_record_row:
-                        machine_count_record = dict(machine_count_record_row)
+                # Try to find machine_count record that matches this submission
+                submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
+                machine_count_record_row = conn.execute('''
+                    SELECT mc.machine_id, m.machine_name, m.cards_per_turn
+                    FROM machine_counts mc
+                    LEFT JOIN machines m ON mc.machine_id = m.id
+                    WHERE mc.tablet_type_id = ?
+                    AND mc.machine_count = ?
+                    AND mc.employee_name = ?
+                    AND DATE(mc.count_date) = DATE(?)
+                    ORDER BY mc.created_at DESC
+                    LIMIT 1
+                ''', (tablet_type_id, 
+                      submission_dict.get('displays_made'),
+                      submission_dict.get('employee_name'),
+                      submission_date)).fetchone()
+                
+                if machine_count_record_row:
+                    machine_count_record = dict(machine_count_record_row)
                         if not machine_name:
-                            machine_name = machine_count_record.get('machine_name')
+                    machine_name = machine_count_record.get('machine_name')
                         if not cards_per_turn:
-                            cards_per_turn = machine_count_record.get('cards_per_turn')
+                    cards_per_turn = machine_count_record.get('cards_per_turn')
             
             # Fallback to app_settings if machine not found
             if not cards_per_turn:
@@ -6856,39 +6856,85 @@ def get_possible_receives(submission_id):
         # Convert Row to dict for easier access
         submission_dict = dict(submission)
         
+        # Get submission type to determine if closed bags should be excluded
+        submission_type = submission_dict.get('submission_type', 'packaged')
+        # Machine count submissions should not match closed bags
+        # Packaging submissions can match closed bags (bags may be closed after production but still need packaging)
+        exclude_closed_bags = (submission_type != 'packaged')
+        
         # Debug logging
         print(f"🔍 Finding possible receives for submission {submission_id}")
+        print(f"   submission_type: {submission_type}")
+        print(f"   exclude_closed_bags: {exclude_closed_bags}")
         print(f"   tablet_type_id: {submission_dict.get('tablet_type_id')}")
         print(f"   box_number: {submission_dict.get('box_number')}")
         print(f"   bag_number: {submission_dict.get('bag_number')}")
         print(f"   inventory_item_id: {submission_dict.get('inventory_item_id')}")
         
+        # Get tablet_type_id - if not found via JOIN, try to get it from inventory_item_id
+        tablet_type_id = submission_dict.get('tablet_type_id')
+        if not tablet_type_id and submission_dict.get('inventory_item_id'):
+            # Try to get tablet_type_id from inventory_item_id
+            tt_row = conn.execute('''
+                SELECT id FROM tablet_types WHERE inventory_item_id = ?
+            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+            if tt_row:
+                tablet_type_id = tt_row['id']
+                print(f"   Found tablet_type_id via inventory_item_id lookup: {tablet_type_id}")
+        
         if not submission_dict.get('bag_number'):
             # Try to find receives by product name and receipt number as fallback
             receipt_number = submission_dict.get('receipt_number')
-            if receipt_number:
+            if receipt_number and tablet_type_id:
                 # Look for any receives with matching product in open POs
-                fallback_receives = conn.execute('''
-                    SELECT DISTINCT b.id as bag_id, 
-                           sb.box_number, 
-                           b.bag_number, 
-                           b.bag_label_count,
-                           r.id as receive_id,
-                           r.received_date,
-                           r.receive_name as stored_receive_name,
-                           po.po_number,
-                           po.id as po_id,
-                           tt.tablet_type_name
-                    FROM bags b
-                    JOIN small_boxes sb ON b.small_box_id = sb.id
-                    JOIN receiving r ON sb.receiving_id = r.id
-                    JOIN purchase_orders po ON r.po_id = po.id
-                    JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                    WHERE tt.id = ?
-                    AND (r.closed IS NULL OR r.closed = FALSE)
-                    ORDER BY r.received_date DESC
-                    LIMIT 20
-                ''', (tablet_type_id,)).fetchall()
+                # Build query with conditional closed bag filtering
+                if exclude_closed_bags:
+                    # For machine count submissions: exclude closed bags
+                    fallback_receives = conn.execute('''
+                        SELECT DISTINCT b.id as bag_id, 
+                               sb.box_number, 
+                               b.bag_number, 
+                               b.bag_label_count,
+                               r.id as receive_id,
+                               r.received_date,
+                               r.receive_name as stored_receive_name,
+                               po.po_number,
+                               po.id as po_id,
+                               tt.tablet_type_name
+                        FROM bags b
+                        JOIN small_boxes sb ON b.small_box_id = sb.id
+                        JOIN receiving r ON sb.receiving_id = r.id
+                        JOIN purchase_orders po ON r.po_id = po.id
+                        JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                        WHERE tt.id = ?
+                        AND COALESCE(b.status, 'Available') != 'Closed'
+                        AND (r.closed IS NULL OR r.closed = FALSE)
+                        ORDER BY r.received_date DESC
+                        LIMIT 20
+                    ''', (tablet_type_id,)).fetchall()
+                else:
+                    # For packaging submissions: allow closed bags but exclude closed receives
+                    fallback_receives = conn.execute('''
+                        SELECT DISTINCT b.id as bag_id, 
+                               sb.box_number, 
+                               b.bag_number, 
+                               b.bag_label_count,
+                               r.id as receive_id,
+                               r.received_date,
+                               r.receive_name as stored_receive_name,
+                               po.po_number,
+                               po.id as po_id,
+                               tt.tablet_type_name
+                        FROM bags b
+                        JOIN small_boxes sb ON b.small_box_id = sb.id
+                        JOIN receiving r ON sb.receiving_id = r.id
+                        JOIN purchase_orders po ON r.po_id = po.id
+                        JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                        WHERE tt.id = ?
+                        AND (r.closed IS NULL OR r.closed = FALSE)
+                        ORDER BY r.received_date DESC
+                        LIMIT 20
+                    ''', (tablet_type_id,)).fetchall()
                 
                 if fallback_receives:
                     receives = []
@@ -6937,17 +6983,6 @@ def get_possible_receives(submission_id):
         box_number_raw = submission_dict.get('box_number')
         box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
         
-        # Get tablet_type_id - if not found via JOIN, try to get it from inventory_item_id
-        tablet_type_id = submission_dict.get('tablet_type_id')
-        if not tablet_type_id and submission_dict.get('inventory_item_id'):
-            # Try to get tablet_type_id from inventory_item_id
-            tt_row = conn.execute('''
-                SELECT id FROM tablet_types WHERE inventory_item_id = ?
-            ''', (submission_dict.get('inventory_item_id'),)).fetchone()
-            if tt_row:
-                tablet_type_id = tt_row['id']
-                print(f"   Found tablet_type_id via inventory_item_id lookup: {tablet_type_id}")
-        
         if not tablet_type_id:
             return jsonify({
                 'success': False,
@@ -6956,54 +6991,109 @@ def get_possible_receives(submission_id):
         
         # Find all matching bags - must match find_bag_for_submission logic
         # Exclude closed receives - they should not receive new submissions
+        # For machine count submissions: also exclude closed bags
+        # For packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
         # If box_number provided: match with box (old style)
         # If box_number is None: match without box (new flavor-based style)
         if box_number is not None:
-            matching_bags = conn.execute('''
-                SELECT b.id as bag_id, 
-                       sb.box_number, 
-                       b.bag_number, 
-                       b.bag_label_count,
-                       r.id as receive_id,
-                       r.received_date,
-                       r.receive_name as stored_receive_name,
-                       po.po_number,
-                       po.id as po_id,
-                       tt.tablet_type_name
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN receiving r ON sb.receiving_id = r.id
-                JOIN purchase_orders po ON r.po_id = po.id
-                JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE b.tablet_type_id = ? 
-                AND sb.box_number = ? 
-                AND b.bag_number = ?
-                AND (r.closed IS NULL OR r.closed = FALSE)
-                ORDER BY r.received_date DESC
-            ''', (tablet_type_id, box_number, submission_dict['bag_number'])).fetchall()
+            if exclude_closed_bags:
+                # For machine count submissions: exclude closed bags
+                matching_bags = conn.execute('''
+                    SELECT b.id as bag_id, 
+                           sb.box_number, 
+                           b.bag_number, 
+                           b.bag_label_count,
+                           r.id as receive_id,
+                           r.received_date,
+                           r.receive_name as stored_receive_name,
+                           po.po_number,
+                           po.id as po_id,
+                           tt.tablet_type_name
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    JOIN purchase_orders po ON r.po_id = po.id
+                    JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.tablet_type_id = ? 
+                    AND sb.box_number = ? 
+                    AND b.bag_number = ?
+                    AND COALESCE(b.status, 'Available') != 'Closed'
+                    AND (r.closed IS NULL OR r.closed = FALSE)
+                    ORDER BY r.received_date DESC
+                ''', (tablet_type_id, box_number, submission_dict['bag_number'])).fetchall()
+            else:
+                # For packaging submissions: allow closed bags but exclude closed receives
+                matching_bags = conn.execute('''
+                    SELECT b.id as bag_id, 
+                           sb.box_number, 
+                           b.bag_number, 
+                           b.bag_label_count,
+                           r.id as receive_id,
+                           r.received_date,
+                           r.receive_name as stored_receive_name,
+                           po.po_number,
+                           po.id as po_id,
+                           tt.tablet_type_name
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    JOIN purchase_orders po ON r.po_id = po.id
+                    JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.tablet_type_id = ? 
+                    AND sb.box_number = ? 
+                    AND b.bag_number = ?
+                    AND (r.closed IS NULL OR r.closed = FALSE)
+                    ORDER BY r.received_date DESC
+                ''', (tablet_type_id, box_number, submission_dict['bag_number'])).fetchall()
         else:
             # New flavor-based: match without box number
-            matching_bags = conn.execute('''
-                SELECT b.id as bag_id, 
-                       sb.box_number, 
-                       b.bag_number, 
-                       b.bag_label_count,
-                       r.id as receive_id,
-                       r.received_date,
-                       r.receive_name as stored_receive_name,
-                       po.po_number,
-                       po.id as po_id,
-                       tt.tablet_type_name
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN receiving r ON sb.receiving_id = r.id
-                JOIN purchase_orders po ON r.po_id = po.id
-                JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE b.tablet_type_id = ? 
-                AND b.bag_number = ?
-                AND (r.closed IS NULL OR r.closed = FALSE)
-                ORDER BY r.received_date DESC
-            ''', (tablet_type_id, submission_dict['bag_number'])).fetchall()
+            if exclude_closed_bags:
+                # For machine count submissions: exclude closed bags
+                matching_bags = conn.execute('''
+                    SELECT b.id as bag_id, 
+                           sb.box_number, 
+                           b.bag_number, 
+                           b.bag_label_count,
+                           r.id as receive_id,
+                           r.received_date,
+                           r.receive_name as stored_receive_name,
+                           po.po_number,
+                           po.id as po_id,
+                           tt.tablet_type_name
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    JOIN purchase_orders po ON r.po_id = po.id
+                    JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.tablet_type_id = ? 
+                    AND b.bag_number = ?
+                    AND COALESCE(b.status, 'Available') != 'Closed'
+                    AND (r.closed IS NULL OR r.closed = FALSE)
+                    ORDER BY r.received_date DESC
+                ''', (tablet_type_id, submission_dict['bag_number'])).fetchall()
+            else:
+                # For packaging submissions: allow closed bags but exclude closed receives
+                matching_bags = conn.execute('''
+                    SELECT b.id as bag_id, 
+                           sb.box_number, 
+                           b.bag_number, 
+                           b.bag_label_count,
+                           r.id as receive_id,
+                           r.received_date,
+                           r.receive_name as stored_receive_name,
+                           po.po_number,
+                           po.id as po_id,
+                           tt.tablet_type_name
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    JOIN purchase_orders po ON r.po_id = po.id
+                    JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE b.tablet_type_id = ? 
+                    AND b.bag_number = ?
+                    AND (r.closed IS NULL OR r.closed = FALSE)
+                    ORDER BY r.received_date DESC
+                ''', (tablet_type_id, submission_dict['bag_number'])).fetchall()
         
         print(f"   Found {len(matching_bags)} matching bags")
         
