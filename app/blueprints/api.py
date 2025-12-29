@@ -1722,11 +1722,11 @@ def submit_machine_count():
         
         # Fallback to global setting if machine not found or doesn't have cards_per_turn
         if not cards_per_turn:
-        cards_per_turn_setting = get_setting('cards_per_turn', '1')
-        try:
-            cards_per_turn = int(cards_per_turn_setting)
-        except (ValueError, TypeError):
-            cards_per_turn = 1
+            cards_per_turn_setting = get_setting('cards_per_turn', '1')
+            try:
+                cards_per_turn = int(cards_per_turn_setting)
+            except (ValueError, TypeError):
+                cards_per_turn = 1
         
         # Calculate total tablets for machine submissions
         # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
