@@ -235,7 +235,7 @@ def submit_warehouse():
                 }), 400
         else:
             # Box/bag provided manually - use old matching logic
-            # Closed bags are excluded from all submissions
+            # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
             bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
             
             if bag:
@@ -384,7 +384,7 @@ def submit_count():
         
         # RECEIVE-BASED TRACKING: Find matching bag in receives
         # NEW: Pass bag_number first, box_number as optional parameter
-        # Closed bags are excluded from all submissions
+        # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
         bag, needs_review, error_message = find_bag_for_submission(
             conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='packaged'
         )
