@@ -124,7 +124,7 @@ class MigrationRunner:
                     AND loose_tablets > 0
                 ''')
             except Exception as e:
-                print(f"Warning: Could not add tablets_pressed_into_cards column: {str(e)}")
+                logger.warning(f"Could not add tablets_pressed_into_cards column: {str(e)}")
     
         # Add receipt_number column for tracking receipt numbers
         self._add_column_if_not_exists('warehouse_submissions', 'receipt_number', 'TEXT')

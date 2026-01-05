@@ -21,8 +21,8 @@ def init_db():
     # Check if database file exists
     import os
     if not os.path.exists(Config.DATABASE_PATH):
-        print(f"WARNING: Database file not found at {Config.DATABASE_PATH}")
-        print("Run 'alembic upgrade head' to initialize the database")
+        logger.warning(f"Database file not found at {Config.DATABASE_PATH}")
+        logger.warning("Run 'alembic upgrade head' to initialize the database")
     
     # Database exists - Alembic handles schema
     pass
@@ -44,6 +44,6 @@ def check_db_initialized():
         conn.close()
         return alembic_table is not None
     except Exception as e:
-        print(f"Error checking database: {e}")
+        logger.error(f"Error checking database: {e}")
         return False
 

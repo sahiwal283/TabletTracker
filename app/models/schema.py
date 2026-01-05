@@ -46,7 +46,7 @@ class SchemaManager:
             
             conn.commit()
         except Exception as e:
-            print(f"Error initializing database schema: {str(e)}")
+            logger.error(f"Error initializing database schema: {str(e)}")
             traceback.print_exc()
             conn.rollback()
             raise
