@@ -65,7 +65,7 @@ def purchase_orders_list():
             
             # First pass: separate overs POs
             for po in all_pos:
-            po_dict = dict(po)
+                po_dict = dict(po)
             if po_dict.get('parent_po_number'):
                 # This is an overs PO
                 parent_num = po_dict['parent_po_number']
