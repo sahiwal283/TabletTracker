@@ -176,7 +176,7 @@ def normalize_fedex_response(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def refresh_shipment_row(conn, shipment_id: int) -> Dict[str, Any]:
+def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> Dict[str, Any]:
     """Fetch shipment, call provider, and persist results."""
     try:
         cur = conn.cursor()
