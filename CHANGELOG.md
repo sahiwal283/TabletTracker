@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.21.10+dev] - 2025-01-05
+
+### 🐛 Database Migration Fix
+
+#### Made Migration Idempotent
+- **Issue**: Migration `ceab0232bc0f` failed on production when trying to add `closed` column that already existed
+- **Root Cause**: Migration was not idempotent - didn't check if column existed before adding
+- **Fix**: 
+  - Added column existence check using SQLAlchemy inspector before adding/dropping columns
+  - Both `upgrade()` and `downgrade()` now check schema state before making changes
+  - Migration can now be safely run multiple times without errors
+- **Impact**: Migration now follows Database Agent best practice of idempotent operations
+- **Files Updated**:
+  - `database/migrations/versions/ceab0232bc0f_add_closed_status_to_receives_and_bags.py`
+
+---
+
 ## [2.19.0] - 2025-12-26
 
 ### ✨ New Feature
