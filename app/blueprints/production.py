@@ -124,23 +124,23 @@ def submit_warehouse():
             packages_per_display = product.get('packages_per_display')
             tablets_per_package = product.get('tablets_per_package')
         
-            if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
+                return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
             return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
         
             # Convert to int after validation
-            try:
-            packages_per_display = int(packages_per_display)
+                packages_per_display = int(packages_per_display)
+                tablets_per_package = int(tablets_per_package)
             tablets_per_package = int(tablets_per_package)
-            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
             return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
         
             # Calculate tablet counts with safe type conversion
-            try:
-            displays_made = int(data.get('displays_made', 0) or 0)
-            packs_remaining = int(data.get('packs_remaining', 0) or 0)
-            loose_tablets = int(data.get('loose_tablets', 0) or 0)
+                displays_made = int(data.get('displays_made', 0) or 0)
+                packs_remaining = int(data.get('packs_remaining', 0) or 0)
+                loose_tablets = int(data.get('loose_tablets', 0) or 0)
+                damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
             damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
-            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid numeric values for counts'}), 400
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
             good_tablets = (displays_made * packages_per_display * tablets_per_package + 
@@ -152,7 +152,7 @@ def submit_warehouse():
         
             # Get admin_notes if user is admin or manager
             admin_notes = None
-            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+                admin_notes_raw = data.get('admin_notes', '')
             admin_notes_raw = data.get('admin_notes', '')
             if admin_notes_raw and isinstance(admin_notes_raw, str):
                 admin_notes = admin_notes_raw.strip() or None
@@ -161,17 +161,17 @@ def submit_warehouse():
         
             # Insert submission record using logged-in employee name WITH inventory_item_id
             inventory_item_id = product.get('inventory_item_id')
-            if not inventory_item_id:
+                return jsonify({'error': 'Product inventory_item_id not found'}), 400
             return jsonify({'error': 'Product inventory_item_id not found'}), 400
         
             # Get tablet_type_id for receive-based matching
             tablet_type_id = product.get('tablet_type_id')
-            if not tablet_type_id:
+                return jsonify({'error': 'Product tablet_type_id not found'}), 400
             return jsonify({'error': 'Product tablet_type_id not found'}), 400
         
             # Get receipt_number (required for packaging submissions)
             receipt_number = (data.get('receipt_number') or '').strip() or None
-            if not receipt_number:
+                return jsonify({'error': 'Receipt number is required'}), 400
             return jsonify({'error': 'Receipt number is required'}), 400
         
             # Try to get box/bag from form data first
@@ -187,16 +187,16 @@ def submit_warehouse():
         
             # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
             # This is much more reliable than looking up box/bag and re-matching
-            if not (box_number and bag_number):
+                machine_count = conn.execute('''
             machine_count = conn.execute('''
                 SELECT bag_id, assigned_po_id, box_number, bag_number, 
                        inventory_item_id, product_name
                 FROM warehouse_submissions
                 WHERE receipt_number = ? AND submission_type = 'machine'
                 ORDER BY created_at DESC LIMIT 1
-            ''', (receipt_number,)).fetchone()
-            
-            if machine_count:
+                ''', (receipt_number,)).fetchone()
+                
+                if machine_count:
                 # CRITICAL: Verify the machine count is for the SAME product/flavor
                 if machine_count['inventory_item_id'] != inventory_item_id:
                     return jsonify({
@@ -223,7 +223,7 @@ def submit_warehouse():
                 return jsonify({
                     'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
                 }), 400
-            else:
+                # Box/bag provided manually - use old matching logic
             # Box/bag provided manually - use old matching logic
             # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
             bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
@@ -249,14 +249,14 @@ def submit_warehouse():
             # Note: receipt_number already extracted and validated above
             # bag_label_count already set from receipt lookup or manual matching
             conn.execute('''
-            INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
-             submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
+                INSERT INTO warehouse_submissions 
+                (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
+                 displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
+                 submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
             ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
-              bag_label_count or data.get('bag_label_count') or 0,
-              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
+                  bag_label_count or data.get('bag_label_count') or 0,
+                  displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
                   bag_id, assigned_po_id, needs_review, receipt_number))
             
             # Return appropriate message based on matching result
@@ -340,14 +340,14 @@ def submit_count():
         # Get submission_date (defaults to today if not provided)
         submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-        # Get admin_notes if user is admin or manager
-        admin_notes = None
-        if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
-            admin_notes_raw = data.get('admin_notes', '')
-            if admin_notes_raw and isinstance(admin_notes_raw, str):
-                admin_notes = admin_notes_raw.strip() or None
-            elif admin_notes_raw:
-                admin_notes = str(admin_notes_raw).strip() or None
+            # Get admin_notes if user is admin or manager
+            admin_notes = None
+            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+                admin_notes_raw = data.get('admin_notes', '')
+                if admin_notes_raw and isinstance(admin_notes_raw, str):
+                    admin_notes = admin_notes_raw.strip() or None
+                elif admin_notes_raw:
+                    admin_notes = str(admin_notes_raw).strip() or None
         
         # Get inventory_item_id and tablet_type_id
         inventory_item_id = tablet_type.get('inventory_item_id')
