@@ -4,6 +4,7 @@ Submission query service for building reusable SQL queries.
 This service extracts common SQL query patterns for submissions
 to reduce duplication across blueprint files.
 """
+import sqlite3
 from typing import Dict, List, Optional, Tuple, Any
 from app.services.submission_calculator import calculate_submission_total_with_fallback
 
@@ -163,7 +164,7 @@ def build_submission_filters(
 
 
 def get_submissions_with_totals(
-    conn: Any,
+    conn: sqlite3.Connection,
     filters: Optional[Dict[str, Any]] = None,
     order_by: Optional[str] = None,
     limit: Optional[int] = None
