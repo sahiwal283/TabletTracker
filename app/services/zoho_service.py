@@ -1,7 +1,10 @@
 import requests
 import json
+import logging
 from datetime import datetime, timedelta
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 class ZohoInventoryAPI:
     def __init__(self):
@@ -26,7 +29,7 @@ class ZohoInventoryAPI:
         # Validate credentials are present
         if not Config.ZOHO_CLIENT_ID or not Config.ZOHO_CLIENT_SECRET or not Config.ZOHO_REFRESH_TOKEN:
             error_msg = "Zoho API credentials not configured. Please set ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, and ZOHO_REFRESH_TOKEN in .env file."
-            print(error_msg)
+            logger.error(error_msg)
             raise ValueError(error_msg)
         
         try:
@@ -39,7 +42,7 @@ class ZohoInventoryAPI:
             if 'access_token' not in token_data:
                 error_details = token_data.get('error', 'Unknown error')
                 error_msg = f"Zoho API did not return access_token. Response: {error_details}"
-                print(error_msg)
+                logger.error(error_msg)
                 raise ValueError(error_msg)
             
             self.access_token = token_data['access_token']
@@ -49,9 +52,9 @@ class ZohoInventoryAPI:
             return self.access_token
             
         except requests.exceptions.RequestException as e:
-            print(f"Error getting access token from Zoho: {e}")
+            logger.error(f"Error getting access token from Zoho: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"Response body: {e.response.text}")
+                logger.error(f"Response body: {e.response.text}")
             raise
     
     def make_request(self, endpoint, method='GET', data=None, extra_params=None):
@@ -80,20 +83,20 @@ class ZohoInventoryAPI:
             elif method == 'PUT':
                 response = requests.put(url, headers=headers, params=params, json=data, timeout=timeout)
             
-            print(f"Request URL: {response.url}")
-            print(f"Response Status: {response.status_code}")
+            logger.debug(f"Request URL: {response.url}")
+            logger.debug(f"Response Status: {response.status_code}")
             
             if response.status_code != 200:
-                print(f"Error Response Body: {response.text}")
+                logger.error(f"Error Response Body: {response.text}")
             
             response.raise_for_status()
             return response.json()
             
         except requests.exceptions.Timeout as e:
-            print(f"Zoho API request timed out after {timeout} seconds: {e}")
+            logger.error(f"Zoho API request timed out after {timeout} seconds: {e}")
             return None
         except requests.exceptions.RequestException as e:
-            print(f"Error making Zoho API request: {e}")
+            logger.error(f"Error making Zoho API request: {e}")
             return None
     
     def get_purchase_orders(self, status='all', per_page=200):
@@ -137,11 +140,11 @@ class ZohoInventoryAPI:
         synced_count = 0
         skipped_count = 0
         total_pos = len(pos_data.get('purchaseorders', []))
-        print(f"📊 Processing {total_pos} total POs from Zoho...")
+        logger.info(f"📊 Processing {total_pos} total POs from Zoho...")
         
         for idx, po in enumerate(pos_data['purchaseorders'], 1):
             if idx % 10 == 0:
-                print(f"📊 Progress: {idx}/{total_pos} POs processed ({synced_count} synced, {skipped_count} skipped)")
+                logger.debug(f"📊 Progress: {idx}/{total_pos} POs processed ({synced_count} synced, {skipped_count} skipped)")
             # Check if it's a tablet PO AND not closed
             is_tablet_po = False
             po_number = po.get('purchaseorder_number', '')
@@ -150,19 +153,19 @@ class ZohoInventoryAPI:
             # Check the tablets custom field (the one you just marked in Zoho)
             if po.get('cf_tablets_unformatted') in [True, 'true', 'True', 1, '1']:
                 is_tablet_po = True
-                print(f"✅ Tablet PO found: {po_number} (cf_tablets_unformatted = {po.get('cf_tablets_unformatted')})")
+                logger.debug(f"✅ Tablet PO found: {po_number} (cf_tablets_unformatted = {po.get('cf_tablets_unformatted')})")
             elif po.get('cf_tablets') in [True, 'true', 'True', 1, '1']:
                 is_tablet_po = True  
-                print(f"✅ Tablet PO found: {po_number} (cf_tablets = {po.get('cf_tablets')})")
+                logger.debug(f"✅ Tablet PO found: {po_number} (cf_tablets = {po.get('cf_tablets')})")
             
             # Also check if it's an overs PO (ends with -OVERS)
             if is_overs_po:
                 is_tablet_po = True
-                print(f"✅ Overs PO detected: {po_number}")
+                logger.debug(f"✅ Overs PO detected: {po_number}")
             
             if not is_tablet_po:
                 skipped_count += 1
-                print(f"⏭️  Skipping non-tablet PO: {po_number} (tablets field not marked)")
+                logger.debug(f"⏭️  Skipping non-tablet PO: {po_number} (tablets field not marked)")
                 continue
                 
             # We'll sync closed POs too, but mark them properly for separate display
@@ -193,8 +196,8 @@ class ZohoInventoryAPI:
             custom_status = po.get('cf_status', '') or po.get('cf_status_unformatted', '')
             
             # Debug all relevant fields
-            print(f"PO {po['purchaseorder_number']}: status='{zoho_status}', billing_status='{billing_status}', is_billed={is_billed}, bills_count={bill_count}")
-            print(f"  received_date='{received_date}', is_received={is_received}, receives_count={receives_count}, custom_status='{custom_status}'")
+            logger.debug(f"PO {po['purchaseorder_number']}: status='{zoho_status}', billing_status='{billing_status}', is_billed={is_billed}, bills_count={bill_count}")
+            logger.debug(f"  received_date='{received_date}', is_received={is_received}, receives_count={receives_count}, custom_status='{custom_status}'")
             
             # Check for the REAL closed status fields from debug output
             order_status = po.get('order_status', '').upper()
@@ -248,10 +251,10 @@ class ZohoInventoryAPI:
             
             # Log cancelled status specifically for debugging
             if is_cancelled:
-                print(f"⚠️  CANCELLED PO detected: {po['purchaseorder_number']} - setting internal_status to 'Cancelled'")
+                logger.warning(f"⚠️  CANCELLED PO detected: {po['purchaseorder_number']} - setting internal_status to 'Cancelled'")
             
-            print(f"PO {po['purchaseorder_number']}: status='{main_status}', order_status='{order_status}', current_sub_status='{current_sub_status}', billed_status='{billed_status}'")
-            print(f"Final status determination: cancelled={is_cancelled}, closed={is_closed}")
+            logger.debug(f"PO {po['purchaseorder_number']}: status='{main_status}', order_status='{order_status}', current_sub_status='{current_sub_status}', billed_status='{billed_status}'")
+            logger.debug(f"Final status determination: cancelled={is_cancelled}, closed={is_closed}")
             
             # Get PO creation date from Zoho (they use 'date' field for PO date)
             po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
@@ -261,7 +264,7 @@ class ZohoInventoryAPI:
             if is_overs_po and po_number:
                 # Extract parent PO number by removing "-OVERS" suffix
                 parent_po_number = po_number[:-6]  # Remove "-OVERS" (6 characters)
-                print(f"📋 Overs PO {po_number} linked to parent PO: {parent_po_number}")
+                logger.info(f"📋 Overs PO {po_number} linked to parent PO: {parent_po_number}")
             
             if existing:
                 # Convert Row to dict for .get() method access
@@ -295,7 +298,7 @@ class ZohoInventoryAPI:
                 
                 # Update existing PO with proper status and tablet type
                 status_msg = "CANCELLED" if is_cancelled else ("CLOSED" if is_closed else "OPEN")
-                print(f"Updating existing PO {po['purchaseorder_number']}: zoho_status='{zoho_status}', closed={is_now_closed}, internal_status='{new_internal_status}'")
+                logger.debug(f"Updating existing PO {po['purchaseorder_number']}: zoho_status='{zoho_status}', closed={is_now_closed}, internal_status='{new_internal_status}'")
                 
                 # Update created_at only if we have a date from Zoho and current created_at is different
                 if po_date and po_date != existing.get('created_at', '')[:10]:
@@ -315,15 +318,15 @@ class ZohoInventoryAPI:
                 # Log status changes
                 if (was_closed != is_now_closed) or (was_cancelled != is_cancelled):
                     if (is_now_closed and not was_closed) or (is_cancelled and not was_cancelled):
-                        print(f"⚠️  PO {po['purchaseorder_number']} changed from OPEN to {status_msg}")
+                        logger.warning(f"⚠️  PO {po['purchaseorder_number']} changed from OPEN to {status_msg}")
                     else:
-                        print(f"✅ PO {po['purchaseorder_number']} changed from CLOSED/CANCELLED to OPEN")
+                        logger.info(f"✅ PO {po['purchaseorder_number']} changed from CLOSED/CANCELLED to OPEN")
                 elif was_closed == is_now_closed and was_cancelled == is_cancelled:
                     if is_now_closed:
                         status_display = "cancelled" if is_cancelled else "closed"
-                        print(f"✅ Updated PO {po['purchaseorder_number']}: {status_display}={is_now_closed} (already {status_display})")
+                        logger.debug(f"✅ Updated PO {po['purchaseorder_number']}: {status_display}={is_now_closed} (already {status_display})")
                     else:
-                        print(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_now_closed} (still open)")
+                        logger.debug(f"✅ Updated PO {po['purchaseorder_number']}: closed={is_now_closed} (still open)")
             else:
                 # Insert new PO with proper status and creation date
                 # Determine internal status for new PO
@@ -368,7 +371,7 @@ class ZohoInventoryAPI:
                     
                     # Only sync line items that match configured tablet types
                     if item_id and item_id not in tablet_item_ids_set:
-                        print(f"⏭️  Skipping non-tablet line item '{line['name']}' (ID: {item_id}) - not in tablet_types")
+                        logger.debug(f"⏭️  Skipping non-tablet line item '{line['name']}' (ID: {item_id}) - not in tablet_types")
                         continue
                     
                     # Check if line item already exists
@@ -395,7 +398,7 @@ class ZohoInventoryAPI:
                             VALUES (?, ?, ?, ?, ?)
                         ''', (po_id, po['purchaseorder_number'], item_id, 
                               line['name'], line['quantity']))
-                        print(f"✅ Synced tablet line item '{line['name']}' (ID: {item_id})")
+                        logger.debug(f"✅ Synced tablet line item '{line['name']}' (ID: {item_id})")
                     
                     # Extract tablet type using inventory_item_id from configured tablet types
                     # (Only tablet items reach this point due to filtering above)
@@ -414,7 +417,7 @@ class ZohoInventoryAPI:
                             tablet_type_match = dict(tablet_type_match)
                             tablet_types_found.append(tablet_type_match['tablet_type_name'])
                             matched_this_line = True
-                            print(f"✅ Matched line item '{line['name']}' (ID: {item_id}) to tablet type: {tablet_type_match['tablet_type_name']}")
+                            logger.debug(f"✅ Matched line item '{line['name']}' (ID: {item_id}) to tablet type: {tablet_type_match['tablet_type_name']}")
                     
                     # Fallback: Extract tablet type from line item name if no ID match for this specific line
                     if not matched_this_line:
@@ -461,15 +464,15 @@ class ZohoInventoryAPI:
                 new_internal_status = 'Issued'
             elif zoho_status == 'RECEIVED':
                 new_internal_status = 'Received' 
-                print(f"Auto-progressed {po['purchaseorder_number']} to Received (Zoho status={zoho_status})")
+                logger.info(f"Auto-progressed {po['purchaseorder_number']} to Received (Zoho status={zoho_status})")
             elif zoho_status == 'PARTIALLY_RECEIVED':
                 new_internal_status = 'Partially Received'
-                print(f"Detected partial receive for {po['purchaseorder_number']} - waiting for additional shipments")
+                logger.info(f"Detected partial receive for {po['purchaseorder_number']} - waiting for additional shipments")
             elif receives_count > 0 or received_date or is_received:
                 new_internal_status = 'Received' 
-                print(f"Auto-progressed {po['purchaseorder_number']} to Received (receives_count={receives_count}, received_date={received_date})")
+                logger.info(f"Auto-progressed {po['purchaseorder_number']} to Received (receives_count={receives_count}, received_date={received_date})")
             
-            print(f"Set internal status for {po['purchaseorder_number']}: {current_status} → {new_internal_status}")
+            logger.debug(f"Set internal status for {po['purchaseorder_number']}: {current_status} → {new_internal_status}")
             
             # Update PO with inferred tablet type and internal status
             if tablet_types_found:

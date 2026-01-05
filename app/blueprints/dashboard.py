@@ -1,7 +1,7 @@
 """
 Dashboard routes
 """
-from flask import Blueprint, render_template, flash
+from flask import Blueprint, render_template, flash, current_app
 import traceback
 from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
@@ -97,7 +97,7 @@ def dashboard_view():
             try:
                 active_receives = conn.execute(active_receives_query).fetchall()
             except Exception as e:
-                print(f"Error loading active receives: {e}")
+                current_app.logger.error(f"Error loading active receives: {e}")
                 traceback.print_exc()
                 active_receives = []
             
@@ -302,7 +302,7 @@ def dashboard_view():
             
             return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types, submissions_needing_review=review_submissions)
     except Exception as e:
-        print(f"Error in dashboard_view: {e}")
+        current_app.logger.error(f"Error in dashboard_view: {e}")
         traceback.print_exc()
         flash('An error occurred while loading the dashboard. Please try again.', 'error')
         # Create default stats dict to match expected structure (SQLite Row-like object)

@@ -1,7 +1,7 @@
 """
 Purchase Orders routes
 """
-from flask import Blueprint, render_template, flash
+from flask import Blueprint, render_template, flash, current_app
 import traceback
 from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
@@ -94,8 +94,8 @@ def purchase_orders_list():
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"❌ ALL PURCHASE ORDERS ERROR: {str(e)}")
-        print(error_trace)
+        current_app.logger.error(f"ALL PURCHASE ORDERS ERROR: {str(e)}")
+        current_app.logger.error(error_trace)
         flash(f'Error loading purchase orders: {str(e)}', 'error')
         return render_template('purchase_orders.html', purchase_orders=[])
 

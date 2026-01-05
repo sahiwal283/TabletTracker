@@ -1,7 +1,7 @@
 """
 Admin routes
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
 from datetime import datetime, timedelta
 import json
 import traceback
@@ -54,7 +54,7 @@ def admin_login():
         return redirect(url_for('admin.admin_panel')) if request.form else jsonify({'success': True})
     else:
         # Log failed login attempt
-        print(f"Failed admin login attempt from {request.remote_addr} at {datetime.now()}")
+        current_app.logger.warning(f"Failed admin login attempt from {request.remote_addr} at {datetime.now()}")
         
         if request.form:
             flash('Invalid password', 'error')
@@ -97,7 +97,7 @@ def product_mapping():
                 conn.commit()
                 has_category_column = True
             except Exception as e:
-                print(f"Warning: Could not add category column: {e}")
+                current_app.logger.warning(f"Warning: Could not add category column: {e}")
         
         # Get tablet types for dropdown
         if has_category_column:
@@ -123,7 +123,7 @@ def product_mapping():
             if deleted_categories_json and deleted_categories_json['setting_value']:
                 deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
         except Exception as e:
-            print(f"Warning: Could not load deleted categories: {e}")
+            current_app.logger.warning(f"Warning: Could not load deleted categories: {e}")
             # Continue without filtering if there's an error
         
         # Get category order from app_settings (or use alphabetical as fallback)
@@ -137,7 +137,7 @@ def product_mapping():
                 # No saved order - use alphabetical
                 preferred_order = sorted(category_list)
         except Exception as e:
-            print(f"Warning: Could not load category order: {e}")
+            current_app.logger.warning(f"Warning: Could not load category order: {e}")
             preferred_order = sorted(category_list)
         
         # Filter out deleted categories from the list
@@ -231,7 +231,7 @@ def manage_employees():
             
             return render_template('employee_management.html', employees=employees)
     except Exception as e:
-        print(f"Error in manage_employees: {e}")
+        current_app.logger.error(f"Error in manage_employees: {e}")
         traceback.print_exc()
         flash('An error occurred while loading employees', 'error')
         return render_template('employee_management.html', employees=[])

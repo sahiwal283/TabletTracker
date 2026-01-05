@@ -1,7 +1,7 @@
 """
 Submissions routes
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app
 from datetime import datetime
 import traceback
 import csv
@@ -447,7 +447,7 @@ def submissions_list():
                                  filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
                                  sort_by=sort_by, sort_order=sort_order)
     except Exception as e:
-        print(f"Error in all_submissions: {e}")
+        current_app.logger.error(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
         return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0)
@@ -687,7 +687,7 @@ def export_submissions_csv():
         
             return response
     except Exception as e:
-        print(f"Error exporting submissions CSV: {e}")
+        current_app.logger.error(f"Error exporting submissions CSV: {e}")
         traceback.print_exc()
         flash('An error occurred while exporting submissions. Please try again.', 'error')
         return redirect(url_for('submissions.submissions_list'))

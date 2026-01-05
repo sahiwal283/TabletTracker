@@ -1,7 +1,7 @@
 """
 Receiving routes - shipment receiving and tracking
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
 import traceback
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, role_required
@@ -148,7 +148,7 @@ def receiving_list():
                                  user_role=session.get('employee_role'))
     except Exception as e:
         error_details = traceback.format_exc()
-        print(f"Error in shipping_unified: {str(e)}\n{error_details}")
+        current_app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
         return render_template('error.html', 
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
 
@@ -225,8 +225,8 @@ def public_shipments():
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"❌ Error loading public shipments: {str(e)}")
-        print(f"Traceback: {error_trace}")
+        current_app.logger.error(f"❌ Error loading public shipments: {str(e)}")
+        current_app.logger.error(f"Traceback: {error_trace}")
         flash('Failed to load shipments. Please try again later.', 'error')
         return render_template('shipments_public.html', shipments=[])
 

@@ -1165,4 +1165,4 @@ if __name__ == "__main__":
     with open('production_report_test.pdf', 'wb') as f:
         f.write(pdf_content)
     
-    print("Test report generated: production_report_test.pdf")
+    # Test report generation - logging handled by caller

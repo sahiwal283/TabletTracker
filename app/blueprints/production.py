@@ -1,7 +1,7 @@
 """
 Production routes - warehouse submissions, bag counts, machine counts
 """
-from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
 from datetime import datetime
 import traceback
 from app.utils.db_utils import db_read_only, db_transaction
@@ -60,7 +60,7 @@ def production_form():
             return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
     except Exception as e:
         # Log error and re-raise to let Flask handle it
-        print(f"Error in production_form(): {str(e)}")
+        current_app.logger.error(f"Error in production_form(): {str(e)}")
         raise
 
 
@@ -216,11 +216,11 @@ def submit_warehouse():
                     bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (bag_id,)).fetchone()
                     if bag_row:
                         bag_label_count = bag_row['bag_label_count']
-                    print(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
+                    current_app.logger.info(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
                 else:
                     # Machine count didn't have bag_id (needs review), packaging also needs review
                     needs_review = True
-                    print(f"⚠️ Machine count for receipt {receipt_number} was flagged for review - packaging also needs review")
+                    current_app.logger.warning(f"⚠️ Machine count for receipt {receipt_number} was flagged for review - packaging also needs review")
             else:
                 return jsonify({
                     'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
@@ -239,11 +239,11 @@ def submit_warehouse():
                 # This ensures we store the actual box_number even if user didn't enter it
                 box_number = bag.get('box_number') or box_number
                 box_ref = f", box={box_number}" if box_number else ""
-                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
+                current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:
                 # Multiple matches - needs manual review
                 box_ref = f" Box {box_number}," if box_number else ""
-                print(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
+                current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
             elif error_message:
                 return jsonify({'error': error_message}), 400
         
@@ -288,7 +288,7 @@ def submit_warehouse():
                     'needs_review': needs_review
                 })
     except Exception as e:
-        print(f"Error in submit_warehouse: {e}")
+        current_app.logger.error(f"Error in submit_warehouse: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
@@ -558,14 +558,14 @@ def submit_machine_count():
                 # This ensures we store the actual box_number even if user didn't enter it
                 box_number = bag.get('box_number') or box_number
                 box_ref = f", box={box_number}" if box_number else ""
-                print(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
+                current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:
                 # Multiple matches - needs manual review
                 box_ref = f" Box {box_number}," if box_number else ""
-                print(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
+                current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
             elif error_message:
                 # No match found
-                print(f"❌ {error_message}")
+                current_app.logger.error(f"❌ {error_message}")
         
         # Get receipt_number from form data
         receipt_number = (data.get('receipt_number') or '').strip() or None
@@ -623,7 +623,7 @@ def submit_machine_count():
                 SET machine_good_count = machine_good_count + ?
                 WHERE id = ?
             ''', (tablets_pressed_into_cards, line['id']))
-            print(f"Machine count - Updated PO line {line['id']}: +{tablets_pressed_into_cards} tablets pressed into cards")
+            current_app.logger.info(f"Machine count - Updated PO line {line['id']}: +{tablets_pressed_into_cards} tablets pressed into cards")
         
         # Update PO header totals (separate machine counts)
         updated_pos = set()
@@ -713,7 +713,7 @@ def get_machine_count_by_receipt():
                 'machine_count': dict(machine_counts[0])
             })
     except Exception as e:
-        print(f"Error in get_machine_count_by_receipt: {e}")
+        current_app.logger.error(f"Error in get_machine_count_by_receipt: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 

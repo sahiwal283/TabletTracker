@@ -152,7 +152,8 @@ def create_app(config_class=Config):
     from app.blueprints import (
         auth, admin, dashboard, production, submissions, 
         purchase_orders, receiving, api as api_bp,
-        api_purchase_orders
+        api_purchase_orders, api_receiving, api_admin, api_tablet_types,
+        api_machines, api_reports
     )
     
     app.register_blueprint(auth.bp)
@@ -164,5 +165,10 @@ def create_app(config_class=Config):
     app.register_blueprint(receiving.bp)
     app.register_blueprint(api_bp.bp)
     app.register_blueprint(api_purchase_orders.bp)
+    app.register_blueprint(api_receiving.bp)
+    app.register_blueprint(api_admin.bp)
+    app.register_blueprint(api_tablet_types.bp)
+    app.register_blueprint(api_machines.bp)
+    app.register_blueprint(api_reports.bp)
     
     return app
