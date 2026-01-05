@@ -171,7 +171,6 @@ def submit_warehouse():
         
             # Get receipt_number (required for packaging submissions)
             receipt_number = (data.get('receipt_number') or '').strip() or None
-                return jsonify({'error': 'Receipt number is required'}), 400
         
             # Try to get box/bag from form data first
             # Normalize empty strings to None for flavor-based bags (new system)
