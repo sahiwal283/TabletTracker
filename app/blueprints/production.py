@@ -526,12 +526,12 @@ def submit_machine_count():
         # Get admin_notes if user is admin or manager
             admin_notes = None
             if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
-            admin_notes_raw = data.get('admin_notes', '')
-            if admin_notes_raw and isinstance(admin_notes_raw, str):
-                admin_notes = admin_notes_raw.strip() or None
-            elif admin_notes_raw:
-                # Handle non-string values (shouldn't happen, but be safe)
-                admin_notes = str(admin_notes_raw).strip() or None
+                admin_notes_raw = data.get('admin_notes', '')
+                if admin_notes_raw and isinstance(admin_notes_raw, str):
+                    admin_notes = admin_notes_raw.strip() or None
+                elif admin_notes_raw:
+                    # Handle non-string values (shouldn't happen, but be safe)
+                    admin_notes = str(admin_notes_raw).strip() or None
         
         # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
             bag = None
@@ -541,9 +541,9 @@ def submit_machine_count():
             bag_id = None
         
             if bag_number:
-            # NEW: Pass bag_number first, box_number as optional parameter
-            # Machine count submissions: exclude closed bags
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
+                # NEW: Pass bag_number first, box_number as optional parameter
+                # Machine count submissions: exclude closed bags
+                bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
             
             if bag:
                 # Exact match found - auto-assign
