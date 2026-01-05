@@ -624,31 +624,31 @@ def submit_machine_count():
             updated_pos = set()
             for line in assigned_po_lines:
                 if line['po_id'] not in updated_pos:
-                totals = conn.execute('''
-                    SELECT 
-                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                        COALESCE(SUM(good_count), 0) as total_good,
-                        COALESCE(SUM(damaged_count), 0) as total_damaged,
-                        COALESCE(SUM(machine_good_count), 0) as total_machine_good,
-                        COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
-                    FROM po_lines 
-                    WHERE po_id = ?
-                ''', (line['po_id'],)).fetchone()
-                
-                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
-                
-                conn.execute('''
-                    UPDATE purchase_orders 
-                    SET ordered_quantity = ?, current_good_count = ?, 
-                        current_damaged_count = ?, remaining_quantity = ?,
-                        machine_good_count = ?, machine_damaged_count = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ''', (totals['total_ordered'], totals['total_good'], 
-                      totals['total_damaged'], remaining,
-                      totals['total_machine_good'], totals['total_machine_damaged'],
-                      line['po_id']))
-                
+                    totals = conn.execute('''
+                        SELECT 
+                            COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                            COALESCE(SUM(good_count), 0) as total_good,
+                            COALESCE(SUM(damaged_count), 0) as total_damaged,
+                            COALESCE(SUM(machine_good_count), 0) as total_machine_good,
+                            COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
+                        FROM po_lines 
+                        WHERE po_id = ?
+                    ''', (line['po_id'],)).fetchone()
+                    
+                    remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+                    
+                    conn.execute('''
+                        UPDATE purchase_orders 
+                        SET ordered_quantity = ?, current_good_count = ?, 
+                            current_damaged_count = ?, remaining_quantity = ?,
+                            machine_good_count = ?, machine_damaged_count = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    ''', (totals['total_ordered'], totals['total_good'], 
+                          totals['total_damaged'], remaining,
+                          totals['total_machine_good'], totals['total_machine_damaged'],
+                          line['po_id']))
+                    
                     updated_pos.add(line['po_id'])
             
             return jsonify({
