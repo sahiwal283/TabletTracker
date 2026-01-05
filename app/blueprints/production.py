@@ -198,7 +198,7 @@ def submit_warehouse():
                 if machine_count:
                     # CRITICAL: Verify the machine count is for the SAME product/flavor
                     if machine_count['inventory_item_id'] != inventory_item_id:
-                    return jsonify({
+                        return jsonify({
                         'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
                     }), 400
                 
