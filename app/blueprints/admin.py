@@ -77,10 +77,9 @@ def product_mapping():
     """Show product → tablet mapping and calculation examples"""
     try:
         with db_transaction() as conn:
-        
-        # Get all products with their tablet type and calculation details
-        # Use LEFT JOIN to include products even if tablet_type_id is NULL or invalid
-        products = conn.execute('''
+            # Get all products with their tablet type and calculation details
+            # Use LEFT JOIN to include products even if tablet_type_id is NULL or invalid
+            products = conn.execute('''
             SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, tt.category
             FROM product_details pd
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
