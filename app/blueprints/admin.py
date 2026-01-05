@@ -199,8 +199,8 @@ def tablet_types_config():
             WHERE category IS NOT NULL AND category != '' 
             ORDER BY category
         ''').fetchall()
-        category_list = [dict(cat)['category'] for cat in categories_rows] if categories_rows else []
-        
+            category_list = [dict(cat)['category'] for cat in categories_rows] if categories_rows else []
+            
             return render_template('tablet_types_config.html', tablet_types=tablet_types, categories=category_list)
     except Exception as e:
         flash(f'Error loading tablet types: {str(e)}', 'error')
