@@ -440,11 +440,11 @@ def submit_machine_count():
             WHERE id = ?
             ''', (tablet_type_id,)).fetchone()
             if not tablet_type:
-            return jsonify({'error': 'Invalid tablet type'}), 400
-        
+                return jsonify({'error': 'Invalid tablet type'}), 400
+            
             tablet_type = dict(tablet_type)
-        
-        # Get a product for this tablet type to get tablets_per_package
+            
+            # Get a product for this tablet type to get tablets_per_package
             product = conn.execute('''
             SELECT product_name, tablets_per_package 
             FROM product_details 
