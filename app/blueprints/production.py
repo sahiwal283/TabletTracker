@@ -612,18 +612,18 @@ def submit_machine_count():
         
         # Update machine_good_count (separate from regular good_count)
             if assigned_po_lines:
-            line = assigned_po_lines[0]
-            conn.execute('''
-                UPDATE po_lines 
-                SET machine_good_count = machine_good_count + ?
-                WHERE id = ?
-            ''', (tablets_pressed_into_cards, line['id']))
-            current_app.logger.info(f"Machine count - Updated PO line {line['id']}: +{tablets_pressed_into_cards} tablets pressed into cards")
-        
-        # Update PO header totals (separate machine counts)
+                line = assigned_po_lines[0]
+                conn.execute('''
+                    UPDATE po_lines 
+                    SET machine_good_count = machine_good_count + ?
+                    WHERE id = ?
+                ''', (tablets_pressed_into_cards, line['id']))
+                current_app.logger.info(f"Machine count - Updated PO line {line['id']}: +{tablets_pressed_into_cards} tablets pressed into cards")
+            
+            # Update PO header totals (separate machine counts)
             updated_pos = set()
             for line in assigned_po_lines:
-            if line['po_id'] not in updated_pos:
+                if line['po_id'] not in updated_pos:
                 totals = conn.execute('''
                     SELECT 
                         COALESCE(SUM(quantity_ordered), 0) as total_ordered,
