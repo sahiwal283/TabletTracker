@@ -100,23 +100,22 @@ def submissions_list():
     """Full submissions page showing all submissions"""
     try:
         with db_read_only() as conn:
-        
-        # Get filter parameters from query string
-        filter_po_id = request.args.get('po_id', type=int)
-        filter_item_id = request.args.get('item_id', type=str)
-        filter_date_from = request.args.get('date_from', type=str)
-        filter_date_to = request.args.get('date_to', type=str)
-        filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
-        filter_submission_type = request.args.get('submission_type', type=str)
-        filter_receipt_number = request.args.get('receipt_number', type=str)
+            # Get filter parameters from query string
+            filter_po_id = request.args.get('po_id', type=int)
+            filter_item_id = request.args.get('item_id', type=str)
+            filter_date_from = request.args.get('date_from', type=str)
+            filter_date_to = request.args.get('date_to', type=str)
+            filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
+            filter_submission_type = request.args.get('submission_type', type=str)
+            filter_receipt_number = request.args.get('receipt_number', type=str)
         
         # Get sort parameters
-        sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
-        sort_order = request.args.get('sort_order', 'desc')  # Default descending
+            sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
+            sort_order = request.args.get('sort_order', 'desc')  # Default descending
         
         # Build query with optional filters
         # Use stored receive_name from receiving table
-        query = '''
+            query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
@@ -157,60 +156,60 @@ def submissions_list():
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
             WHERE 1=1
-        '''
+            '''
         
-        params = []
+            params = []
         
         # Apply PO filter if provided
-        if filter_po_id:
+            if filter_po_id:
             query += ' AND ws.assigned_po_id = ?'
             params.append(filter_po_id)
         
         # Apply item filter if provided
-        if filter_item_id:
+            if filter_item_id:
             query += ' AND tt.inventory_item_id = ?'
             params.append(filter_item_id)
         
         # Apply date range filters
-        if filter_date_from:
+            if filter_date_from:
             query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
             params.append(filter_date_from)
         
-        if filter_date_to:
+            if filter_date_to:
             query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
             params.append(filter_date_to)
         
         # Apply tablet type filter if provided
-        if filter_tablet_type_id:
+            if filter_tablet_type_id:
             query += ' AND tt.id = ?'
             params.append(filter_tablet_type_id)
         
         # Apply submission type filter if provided
-        if filter_submission_type:
+            if filter_submission_type:
             query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
         
         # Apply receipt number filter if provided (partial match)
-        if filter_receipt_number:
+            if filter_receipt_number:
             query += ' AND ws.receipt_number LIKE ?'
             params.append(f'%{filter_receipt_number}%')
         
         # Get submissions ordered by created_at ASC for running total calculation
         # Always use created_at ASC for running totals regardless of user's sort preference
-        query_asc = query + ' ORDER BY ws.created_at ASC'
-        submissions_raw_asc = conn.execute(query_asc, params).fetchall()
+            query_asc = query + ' ORDER BY ws.created_at ASC'
+            submissions_raw_asc = conn.execute(query_asc, params).fetchall()
         
         # Calculate running totals by bag PER PO (each PO has its own physical bags)
         # Separate running totals for each submission type
         # Process in chronological order (oldest first) for correct running totals
-        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
-        bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
-        bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
-        bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
-        submissions_dict = {}  # Store by submission ID for later lookup
+            bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
+            bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
+            bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
+            bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
+            submissions_dict = {}  # Store by submission ID for later lookup
         
         # First pass: Calculate running totals in chronological order (oldest first)
-        for sub in submissions_raw_asc:
+            for sub in submissions_raw_asc:
             sub_dict = dict(sub)
             # Create bag identifier from box_number/bag_number
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
@@ -460,20 +459,20 @@ def export_submissions_csv():
         with db_read_only() as conn:
         
         # Get filter parameters from query string (same as all_submissions)
-        filter_po_id = request.args.get('po_id', type=int)
-        filter_item_id = request.args.get('item_id', type=str)
-        filter_date_from = request.args.get('date_from', type=str)
-        filter_date_to = request.args.get('date_to', type=str)
-        filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
-        filter_submission_type = request.args.get('submission_type', type=str)
-        filter_receipt_number = request.args.get('receipt_number', type=str)
+            filter_po_id = request.args.get('po_id', type=int)
+            filter_item_id = request.args.get('item_id', type=str)
+            filter_date_from = request.args.get('date_from', type=str)
+            filter_date_to = request.args.get('date_to', type=str)
+            filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
+            filter_submission_type = request.args.get('submission_type', type=str)
+            filter_receipt_number = request.args.get('receipt_number', type=str)
         
         # Get sort parameters
-        sort_by = request.args.get('sort_by', 'created_at')
-        sort_order = request.args.get('sort_order', 'asc')  # Default ASC for CSV export
+            sort_by = request.args.get('sort_by', 'created_at')
+            sort_order = request.args.get('sort_order', 'asc')  # Default ASC for CSV export
         
         # Build query with optional filters (same logic as all_submissions)
-        query = '''
+            query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
@@ -501,58 +500,58 @@ def export_submissions_csv():
             LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
             LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             WHERE 1=1
-        '''
+            '''
         
-        params = []
+            params = []
         
         # Apply PO filter if provided
-        if filter_po_id:
+            if filter_po_id:
             query += ' AND ws.assigned_po_id = ?'
             params.append(filter_po_id)
         
         # Apply item filter if provided
-        if filter_item_id:
+            if filter_item_id:
             query += ' AND tt.inventory_item_id = ?'
             params.append(filter_item_id)
         
         # Apply date range filters
-        if filter_date_from:
+            if filter_date_from:
             query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
             params.append(filter_date_from)
         
-        if filter_date_to:
+            if filter_date_to:
             query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
             params.append(filter_date_to)
         
         # Apply tablet type filter if provided
-        if filter_tablet_type_id:
+            if filter_tablet_type_id:
             query += ' AND tt.id = ?'
             params.append(filter_tablet_type_id)
         
         # Apply submission type filter if provided
-        if filter_submission_type:
+            if filter_submission_type:
             query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
         
         # Apply receipt number filter if provided (partial match)
-        if filter_receipt_number:
+            if filter_receipt_number:
             query += ' AND ws.receipt_number LIKE ?'
             params.append(f'%{filter_receipt_number}%')
         
         # Apply sorting
-        allowed_sort_columns = {
+            allowed_sort_columns = {
             'created_at': 'ws.created_at',
             'receipt_number': 'ws.receipt_number',
             'employee_name': 'ws.employee_name',
             'product_name': 'ws.product_name',
             'total': 'calculated_total'
-        }
+            }
         
-        sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
-        sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
+            sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
+            sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
         
         # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
-        if sort_by == 'receipt_number':
+            if sort_by == 'receipt_number':
             # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
             # Split by dash and cast both parts to integers for proper numeric comparison
             query += f''' ORDER BY 
@@ -560,16 +559,16 @@ def export_submissions_csv():
                 CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
                 CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
             '''
-        else:
+            else:
             query += f' ORDER BY {sort_column} {sort_direction}'
         
-        submissions_raw = conn.execute(query, params).fetchall()
+            submissions_raw = conn.execute(query, params).fetchall()
         
         # Calculate running totals by bag PER PO (same logic as all_submissions)
-        bag_running_totals = {}
-        submissions_processed = []
+            bag_running_totals = {}
+            submissions_processed = []
         
-        for sub in submissions_raw:
+            for sub in submissions_raw:
             sub_dict = dict(sub)
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
             bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
@@ -603,14 +602,14 @@ def export_submissions_csv():
             submissions_processed.append(sub_dict)
         
         # Group submissions by receipt_number while maintaining sort order within groups
-        submissions_processed = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
+            submissions_processed = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
         
         # Create CSV in memory
-        output = io.StringIO()
-        writer = csv.writer(output)
+            output = io.StringIO()
+            writer = csv.writer(output)
         
         # Write header row
-        writer.writerow([
+            writer.writerow([
             'Submission Date',
             'Created At',
             'Employee Name',
@@ -629,10 +628,10 @@ def export_submissions_csv():
             'Count Status',
             'PO Assignment Verified',
             'Admin Notes'
-        ])
+            ])
         
         # Write data rows (respecting sort order)
-        for sub in submissions_processed:
+            for sub in submissions_processed:
             submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
             created_at = sub.get('created_at', '')
             if created_at:
