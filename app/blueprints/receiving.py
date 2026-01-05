@@ -22,11 +22,11 @@ def receiving_list():
             ORDER BY tablet_type_name
             ''').fetchall()
             tablet_types = [dict(row) for row in tablet_types_rows]
-        
-        # Get unique categories for dropdown grouping
+            
+            # Get unique categories for dropdown grouping
             categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
-        
-        # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
+            
+            # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
             purchase_orders = []
             if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
                 po_rows = conn.execute('''
@@ -35,10 +35,10 @@ def receiving_list():
                 WHERE closed = FALSE
                 AND COALESCE(internal_status, '') != 'Cancelled'
                 ORDER BY po_number DESC
-            ''').fetchall()
-            purchase_orders = [dict(row) for row in po_rows]
-        
-        # Get all receiving records with their boxes and bags
+                ''').fetchall()
+                purchase_orders = [dict(row) for row in po_rows]
+            
+            # Get all receiving records with their boxes and bags
             receiving_records = conn.execute('''
             SELECT r.*, 
                    COUNT(DISTINCT sb.id) as box_count,
@@ -52,97 +52,97 @@ def receiving_list():
             GROUP BY r.id
             ORDER BY r.received_date DESC
             ''').fetchall()
-        
-        # Calculate shipment numbers for each PO (numbered sequentially by received_date)
-        # Group shipments by PO and assign numbers
+            
+            # Calculate shipment numbers for each PO (numbered sequentially by received_date)
+            # Group shipments by PO and assign numbers
             po_shipment_counts = {}
             for rec in receiving_records:
                 po_id = rec['po_id']
-            if po_id:
-                if po_id not in po_shipment_counts:
-                    # Get all shipments for this PO ordered by received_date
-                    po_shipments = conn.execute('''
-                        SELECT id, received_date
-                        FROM receiving
-                        WHERE po_id = ?
-                        ORDER BY received_date ASC, id ASC
-                    ''', (po_id,)).fetchall()
-                    po_shipment_counts[po_id] = {
-                        shipment['id']: idx + 1 
-                        for idx, shipment in enumerate(po_shipments)
-                    }
-        
-        # For each receiving record, get its boxes and bags
-        shipments = []
-        for rec in receiving_records:
-            # Add shipment number if PO is assigned
-            rec_dict = dict(rec)
-            if rec['po_id'] and rec['po_id'] in po_shipment_counts:
-                rec_dict['shipment_number'] = po_shipment_counts[rec['po_id']].get(rec['id'], 1)
-            else:
-                rec_dict['shipment_number'] = None
-            boxes = conn.execute('''
-                SELECT sb.*, COUNT(b.id) as bag_count
-                FROM small_boxes sb
-                LEFT JOIN bags b ON sb.id = b.small_box_id
-                WHERE sb.receiving_id = ?
-                GROUP BY sb.id
-                ORDER BY sb.box_number
-            ''', (rec['id'],)).fetchall()
+                if po_id:
+                    if po_id not in po_shipment_counts:
+                        # Get all shipments for this PO ordered by received_date
+                        po_shipments = conn.execute('''
+                            SELECT id, received_date
+                            FROM receiving
+                            WHERE po_id = ?
+                            ORDER BY received_date ASC, id ASC
+                        ''', (po_id,)).fetchall()
+                        po_shipment_counts[po_id] = {
+                            shipment['id']: idx + 1 
+                            for idx, shipment in enumerate(po_shipments)
+                        }
             
-            # Get bags for each box with tablet type info
-            boxes_with_bags = []
-            for box in boxes:
-                bags = conn.execute('''
-                    SELECT b.*, tt.tablet_type_name
-                    FROM bags b
-                    LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                    WHERE b.small_box_id = ?
-                    ORDER BY b.bag_number
-                ''', (box['id'],)).fetchall()
-                boxes_with_bags.append({
-                    'box': dict(box),
-                    'bags': [dict(bag) for bag in bags]
+            # For each receiving record, get its boxes and bags
+            shipments = []
+            for rec in receiving_records:
+                # Add shipment number if PO is assigned
+                rec_dict = dict(rec)
+                if rec['po_id'] and rec['po_id'] in po_shipment_counts:
+                    rec_dict['shipment_number'] = po_shipment_counts[rec['po_id']].get(rec['id'], 1)
+                else:
+                    rec_dict['shipment_number'] = None
+                boxes = conn.execute('''
+                    SELECT sb.*, COUNT(b.id) as bag_count
+                    FROM small_boxes sb
+                    LEFT JOIN bags b ON sb.id = b.small_box_id
+                    WHERE sb.receiving_id = ?
+                    GROUP BY sb.id
+                    ORDER BY sb.box_number
+                ''', (rec['id'],)).fetchall()
+                
+                # Get bags for each box with tablet type info
+                boxes_with_bags = []
+                for box in boxes:
+                    bags = conn.execute('''
+                        SELECT b.*, tt.tablet_type_name
+                        FROM bags b
+                        LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                        WHERE b.small_box_id = ?
+                        ORDER BY b.bag_number
+                    ''', (box['id'],)).fetchall()
+                    boxes_with_bags.append({
+                        'box': dict(box),
+                        'bags': [dict(bag) for bag in bags]
+                    })
+                
+                shipments.append({
+                    'receiving': rec_dict,
+                    'boxes': boxes_with_bags
                 })
             
-            shipments.append({
-                'receiving': rec_dict,
-                'boxes': boxes_with_bags
-            })
-        
-        # NEW: Group shipments by PO for better organization
-        # Group by PO and sort receives within each PO (oldest first = bottom when reversed for display)
-        po_groups = {}
-        shipments_without_po = []
-        
-        for shipment in shipments:
-            po_id = shipment['receiving']['po_id']
-            if po_id:
-                if po_id not in po_groups:
-                    po_groups[po_id] = {
-                        'po_number': shipment['receiving']['po_number'],
-                        'po_closed': shipment['receiving']['po_closed'],
-                        'po_id': po_id,
-                        'receives': []
-                    }
-                po_groups[po_id]['receives'].append(shipment)
-            else:
-                shipments_without_po.append(shipment)
-        
-        # Sort receives within each PO group (newest first, oldest at bottom)
-        for po_id, po_group in po_groups.items():
-            po_group['receives'].sort(key=lambda x: x['receiving']['received_date'], reverse=True)
-        
-        # Convert to list and sort by PO number (newest PO first)
-        grouped_shipments = [po_groups[po_id] for po_id in sorted(po_groups.keys(), 
-                                                                    key=lambda pid: po_groups[pid]['po_number'], 
-                                                                    reverse=True)]
-        
-        return render_template('receiving.html', 
-                             tablet_types=tablet_types,
-                             categories=categories,
-                             purchase_orders=purchase_orders,
-                             grouped_shipments=grouped_shipments,
+            # NEW: Group shipments by PO for better organization
+            # Group by PO and sort receives within each PO (oldest first = bottom when reversed for display)
+            po_groups = {}
+            shipments_without_po = []
+            
+            for shipment in shipments:
+                po_id = shipment['receiving']['po_id']
+                if po_id:
+                    if po_id not in po_groups:
+                        po_groups[po_id] = {
+                            'po_number': shipment['receiving']['po_number'],
+                            'po_closed': shipment['receiving']['po_closed'],
+                            'po_id': po_id,
+                            'receives': []
+                        }
+                    po_groups[po_id]['receives'].append(shipment)
+                else:
+                    shipments_without_po.append(shipment)
+            
+            # Sort receives within each PO group (newest first, oldest at bottom)
+            for po_id, po_group in po_groups.items():
+                po_group['receives'].sort(key=lambda x: x['receiving']['received_date'], reverse=True)
+            
+            # Convert to list and sort by PO number (newest PO first)
+            grouped_shipments = [po_groups[po_id] for po_id in sorted(po_groups.keys(), 
+                                                                        key=lambda pid: po_groups[pid]['po_number'], 
+                                                                        reverse=True)]
+            
+            return render_template('receiving.html', 
+                                 tablet_types=tablet_types,
+                                 categories=categories,
+                                 purchase_orders=purchase_orders,
+                                 grouped_shipments=grouped_shipments,
                                  shipments_without_po=shipments_without_po,
                                  user_role=session.get('employee_role'))
     except Exception as e:

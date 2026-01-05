@@ -108,13 +108,13 @@ def submissions_list():
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
             filter_receipt_number = request.args.get('receipt_number', type=str)
-        
-        # Get sort parameters
+            
+            # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
             sort_order = request.args.get('sort_order', 'desc')  # Default descending
-        
-        # Build query with optional filters
-        # Use stored receive_name from receiving table
+            
+            # Build query with optional filters
+            # Use stored receive_name from receiving table
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
@@ -157,118 +157,118 @@ def submissions_list():
             LEFT JOIN receiving r ON sb.receiving_id = r.id
             WHERE 1=1
             '''
-        
+            
             params = []
-        
-        # Apply PO filter if provided
+            
+            # Apply PO filter if provided
             if filter_po_id:
                 query += ' AND ws.assigned_po_id = ?'
-            params.append(filter_po_id)
-        
-        # Apply item filter if provided
+                params.append(filter_po_id)
+            
+            # Apply item filter if provided
             if filter_item_id:
                 query += ' AND tt.inventory_item_id = ?'
-            params.append(filter_item_id)
-        
-        # Apply date range filters
+                params.append(filter_item_id)
+            
+            # Apply date range filters
             if filter_date_from:
                 query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
-            params.append(filter_date_from)
-        
+                params.append(filter_date_from)
+            
             if filter_date_to:
                 query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
-            params.append(filter_date_to)
-        
-        # Apply tablet type filter if provided
+                params.append(filter_date_to)
+            
+            # Apply tablet type filter if provided
             if filter_tablet_type_id:
                 query += ' AND tt.id = ?'
-            params.append(filter_tablet_type_id)
-        
-        # Apply submission type filter if provided
+                params.append(filter_tablet_type_id)
+            
+            # Apply submission type filter if provided
             if filter_submission_type:
                 query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
-            params.append(filter_submission_type)
-        
-        # Apply receipt number filter if provided (partial match)
+                params.append(filter_submission_type)
+            
+            # Apply receipt number filter if provided (partial match)
             if filter_receipt_number:
                 query += ' AND ws.receipt_number LIKE ?'
-            params.append(f'%{filter_receipt_number}%')
-        
-        # Get submissions ordered by created_at ASC for running total calculation
-        # Always use created_at ASC for running totals regardless of user's sort preference
+                params.append(f'%{filter_receipt_number}%')
+            
+            # Get submissions ordered by created_at ASC for running total calculation
+            # Always use created_at ASC for running totals regardless of user's sort preference
             query_asc = query + ' ORDER BY ws.created_at ASC'
             submissions_raw_asc = conn.execute(query_asc, params).fetchall()
-        
-        # Calculate running totals by bag PER PO (each PO has its own physical bags)
-        # Separate running totals for each submission type
-        # Process in chronological order (oldest first) for correct running totals
+            
+            # Calculate running totals by bag PER PO (each PO has its own physical bags)
+            # Separate running totals for each submission type
+            # Process in chronological order (oldest first) for correct running totals
             bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
             bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
             bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
             bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
             submissions_dict = {}  # Store by submission ID for later lookup
-        
-        # First pass: Calculate running totals in chronological order (oldest first)
+            
+            # First pass: Calculate running totals in chronological order (oldest first)
             for sub in submissions_raw_asc:
                 sub_dict = dict(sub)
-            # Create bag identifier from box_number/bag_number
-            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-            # Key includes PO ID so each PO tracks its own bag totals independently
-            bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
-            
-            # Individual calculation for this submission
-            individual_calc = sub_dict.get('calculated_total', 0) or 0
-            submission_type = sub_dict.get('submission_type', 'packaged')
-            
-            # Initialize running totals for this bag if not exists
-            if bag_key not in bag_running_totals:
-                bag_running_totals[bag_key] = 0
-            if bag_key not in bag_running_totals_bag:
-                bag_running_totals_bag[bag_key] = 0
-            if bag_key not in bag_running_totals_machine:
-                bag_running_totals_machine[bag_key] = 0
-            if bag_key not in bag_running_totals_packaged:
-                bag_running_totals_packaged[bag_key] = 0
-            
-            # Update appropriate running total based on submission type
-            if submission_type == 'bag':
-                # For bag count submissions, use loose_tablets (the actual count from form)
-                bag_count_value = sub_dict.get('loose_tablets', 0) or 0
-                bag_running_totals_bag[bag_key] += bag_count_value
-            elif submission_type == 'machine':
-                bag_running_totals_machine[bag_key] += individual_calc
-            else:  # 'packaged'
-                bag_running_totals_packaged[bag_key] += individual_calc
-            
-            # Update total running total (only packaged counts - machine counts are consumed, not in bag)
-            # Bag counts are also separate inventory counts, not added to total
-            if submission_type == 'packaged':
-                bag_running_totals[bag_key] += individual_calc
-            
-            # Add running total and comparison fields
-            sub_dict['individual_calc'] = individual_calc
-            sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
-            sub_dict['bag_running_total'] = bag_running_totals_bag[bag_key]
-            sub_dict['machine_running_total'] = bag_running_totals_machine[bag_key]
-            sub_dict['packaged_running_total'] = bag_running_totals_packaged[bag_key]
-            sub_dict['running_total'] = bag_running_totals[bag_key]
-            
-            # Compare running total to bag label count
-            bag_count = sub_dict.get('bag_label_count', 0) or 0
-            running_total = bag_running_totals[bag_key]
-            
-            # Determine status - check if bag_id is NULL, not just bag_label_count
-            # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
-            if not sub_dict.get('bag_id'):
-                sub_dict['count_status'] = 'no_bag'
-            elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
-                sub_dict['count_status'] = 'match'
-            elif running_total < bag_count:
-                sub_dict['count_status'] = 'under'
-            else:
-                sub_dict['count_status'] = 'over'
-            
-            sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+                # Create bag identifier from box_number/bag_number
+                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+                # Key includes PO ID so each PO tracks its own bag totals independently
+                bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+                
+                # Individual calculation for this submission
+                individual_calc = sub_dict.get('calculated_total', 0) or 0
+                submission_type = sub_dict.get('submission_type', 'packaged')
+                
+                # Initialize running totals for this bag if not exists
+                if bag_key not in bag_running_totals:
+                    bag_running_totals[bag_key] = 0
+                if bag_key not in bag_running_totals_bag:
+                    bag_running_totals_bag[bag_key] = 0
+                if bag_key not in bag_running_totals_machine:
+                    bag_running_totals_machine[bag_key] = 0
+                if bag_key not in bag_running_totals_packaged:
+                    bag_running_totals_packaged[bag_key] = 0
+                
+                # Update appropriate running total based on submission type
+                if submission_type == 'bag':
+                    # For bag count submissions, use loose_tablets (the actual count from form)
+                    bag_count_value = sub_dict.get('loose_tablets', 0) or 0
+                    bag_running_totals_bag[bag_key] += bag_count_value
+                elif submission_type == 'machine':
+                    bag_running_totals_machine[bag_key] += individual_calc
+                else:  # 'packaged'
+                    bag_running_totals_packaged[bag_key] += individual_calc
+                
+                # Update total running total (only packaged counts - machine counts are consumed, not in bag)
+                # Bag counts are also separate inventory counts, not added to total
+                if submission_type == 'packaged':
+                    bag_running_totals[bag_key] += individual_calc
+                
+                # Add running total and comparison fields
+                sub_dict['individual_calc'] = individual_calc
+                sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
+                sub_dict['bag_running_total'] = bag_running_totals_bag[bag_key]
+                sub_dict['machine_running_total'] = bag_running_totals_machine[bag_key]
+                sub_dict['packaged_running_total'] = bag_running_totals_packaged[bag_key]
+                sub_dict['running_total'] = bag_running_totals[bag_key]
+                
+                # Compare running total to bag label count
+                bag_count = sub_dict.get('bag_label_count', 0) or 0
+                running_total = bag_running_totals[bag_key]
+                
+                # Determine status - check if bag_id is NULL, not just bag_label_count
+                # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
+                if not sub_dict.get('bag_id'):
+                    sub_dict['count_status'] = 'no_bag'
+                elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+                    sub_dict['count_status'] = 'match'
+                elif running_total < bag_count:
+                    sub_dict['count_status'] = 'under'
+                else:
+                    sub_dict['count_status'] = 'over'
+                
+                sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
             
             # Build receive name using stored receive_name from database
             # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2)
