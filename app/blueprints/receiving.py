@@ -163,7 +163,7 @@ def receiving_management_v2():
             try:
                 test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
                 receiving_count = test_query['count'] if test_query else 0
-        except Exception as e:
+            except Exception as e:
             return f"""
             <h2>Database Error (v1.7.6 REBUILT)</h2>
             <p>Cannot access receiving table: {str(e)}</p>
@@ -178,10 +178,10 @@ def receiving_management_v2():
             LEFT JOIN receiving r ON s.id = r.shipment_id
             WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
             ORDER BY s.delivered_at DESC, s.created_at DESC
-        ''').fetchall()
+            ''').fetchall()
         
         # Get recent receiving history
-        recent_receiving = conn.execute('''
+            recent_receiving = conn.execute('''
             SELECT r.*, po.po_number,
                    COUNT(sb.id) as total_boxes,
                    SUM(sb.total_bags) as total_bags
@@ -191,7 +191,7 @@ def receiving_management_v2():
             GROUP BY r.id
             ORDER BY r.received_date DESC
             LIMIT 20
-        ''').fetchall()
+            ''').fetchall()
         
             return render_template('receiving_management.html', 
                                  pending_shipments=pending_shipments,
