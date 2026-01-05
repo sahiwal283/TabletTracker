@@ -224,10 +224,10 @@ def submit_warehouse():
                     }), 400
             else:
                 # Box/bag provided manually - use old matching logic
-            # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
-            bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
-            
-            if bag:
+                # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
+                bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
+                
+                if bag:
                 # Exact match found - auto-assign
                 bag_id = bag['id']
                 assigned_po_id = bag['po_id']
