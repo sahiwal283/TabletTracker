@@ -35,7 +35,7 @@ def dashboard_view():
             active_pos = conn.execute(active_pos_query).fetchall()
             
             # Get active receives that have submissions assigned (last 2)
-        active_receives_query = '''
+            active_receives_query = '''
             SELECT r.*,
                    po.po_number,
                    po.id as po_id,
