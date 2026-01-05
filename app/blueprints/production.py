@@ -351,27 +351,27 @@ def submit_count():
             inventory_item_id = tablet_type.get('inventory_item_id')
             tablet_type_id = tablet_type.get('id')
             if not inventory_item_id:
-            return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
+                return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
             if not tablet_type_id:
-            return jsonify({'error': 'Tablet type_id not found'}), 400
-        
-        # RECEIVE-BASED TRACKING: Find matching bag in receives
-        # NEW: Pass bag_number first, box_number as optional parameter
-        # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
+                return jsonify({'error': 'Tablet type_id not found'}), 400
+            
+            # RECEIVE-BASED TRACKING: Find matching bag in receives
+            # NEW: Pass bag_number first, box_number as optional parameter
+            # Bag count submissions: exclude closed bags
             bag, needs_review, error_message = find_bag_for_submission(
-            conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='packaged'
+                conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='bag'
             )
-        
+            
             if error_message:
-            return jsonify({'error': error_message}), 404
-        
-        # If needs_review, bag will be None (ambiguous submission)
+                return jsonify({'error': error_message}), 404
+            
+            # If needs_review, bag will be None (ambiguous submission)
             bag_id = bag['id'] if bag else None
             assigned_po_id = bag['po_id'] if bag else None
-        # Use box_number from matched bag if available (ensures we store actual box_number)
+            # Use box_number from matched bag if available (ensures we store actual box_number)
             submission_box_number = bag.get('box_number') if bag else data.get('box_number')
-        
-        # Insert count record with bag_id (or NULL if needs review)
+            
+            # Insert count record with bag_id (or NULL if needs review)
             conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
