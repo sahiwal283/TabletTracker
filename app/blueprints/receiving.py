@@ -15,21 +15,20 @@ def receiving_list():
     """Receiving page - record shipments that arrive"""
     try:
         with db_read_only() as conn:
-        
-        # Get all tablet types for the form dropdown
-        tablet_types_rows = conn.execute('''
+            # Get all tablet types for the form dropdown
+            tablet_types_rows = conn.execute('''
             SELECT id, tablet_type_name, category
             FROM tablet_types 
             ORDER BY tablet_type_name
-        ''').fetchall()
-        tablet_types = [dict(row) for row in tablet_types_rows]
+            ''').fetchall()
+            tablet_types = [dict(row) for row in tablet_types_rows]
         
         # Get unique categories for dropdown grouping
-        categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
+            categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
         
         # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
-        purchase_orders = []
-        if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
+            purchase_orders = []
+            if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
             po_rows = conn.execute('''
                 SELECT id, po_number, closed, internal_status, zoho_status
                 FROM purchase_orders
@@ -40,7 +39,7 @@ def receiving_list():
             purchase_orders = [dict(row) for row in po_rows]
         
         # Get all receiving records with their boxes and bags
-        receiving_records = conn.execute('''
+            receiving_records = conn.execute('''
             SELECT r.*, 
                    COUNT(DISTINCT sb.id) as box_count,
                    COUNT(DISTINCT b.id) as total_bags,
@@ -52,12 +51,12 @@ def receiving_list():
             LEFT JOIN purchase_orders po ON r.po_id = po.id
             GROUP BY r.id
             ORDER BY r.received_date DESC
-        ''').fetchall()
+            ''').fetchall()
         
         # Calculate shipment numbers for each PO (numbered sequentially by received_date)
         # Group shipments by PO and assign numbers
-        po_shipment_counts = {}
-        for rec in receiving_records:
+            po_shipment_counts = {}
+            for rec in receiving_records:
             po_id = rec['po_id']
             if po_id:
                 if po_id not in po_shipment_counts:
@@ -161,7 +160,7 @@ def receiving_management_v2():
         with db_read_only() as conn:
         
         # Simple query first - just check if we can access receiving table
-        try:
+            try:
             test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
             receiving_count = test_query['count'] if test_query else 0
         except Exception as e:
@@ -213,14 +212,14 @@ def public_shipments():
     """Read-only shipment status page for staff (no login required)."""
     try:
         with db_read_only() as conn:
-        rows = conn.execute('''
+            rows = conn.execute('''
             SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
                    s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
             FROM shipments s
             JOIN purchase_orders po ON po.id = s.po_id
             ORDER BY s.updated_at DESC
             LIMIT 200
-        ''').fetchall()
+            ''').fetchall()
             return render_template('shipments_public.html', shipments=rows)
     except Exception as e:
         import traceback
@@ -240,21 +239,21 @@ def receiving_debug():
         with db_read_only() as conn:
         
         # Test database connections
-        po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
-        shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
-        receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+            po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
+            shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
+            receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
         
         # Test the actual query
-        pending_shipments = conn.execute('''
+            pending_shipments = conn.execute('''
             SELECT s.*, po.po_number
             FROM shipments s
             JOIN purchase_orders po ON s.po_id = po.id
             LEFT JOIN receiving r ON s.id = r.shipment_id
             WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
             ORDER BY s.delivered_at DESC, s.created_at DESC
-        ''').fetchall()
+            ''').fetchall()
         
-        debug_info = {
+            debug_info = {
             'status': 'success',
             'database_counts': {
                 'purchase_orders': po_count['count'] if po_count else 0,
@@ -264,7 +263,7 @@ def receiving_debug():
             'pending_shipments': len(pending_shipments),
             'template_exists': 'receiving_management.html exists',
             'version': '1.7.1'
-        }
+            }
         
             return f"""
             <h2>Receiving Debug Info (v1.7.1)</h2>
@@ -288,20 +287,20 @@ def receiving_details(receiving_id):
         with db_read_only() as conn:
         
         # Get receiving record with PO and shipment info
-        receiving = conn.execute('''
+            receiving = conn.execute('''
             SELECT r.*, po.po_number, s.tracking_number, s.carrier
             FROM receiving r
             JOIN purchase_orders po ON r.po_id = po.id
             LEFT JOIN shipments s ON r.shipment_id = s.id
             WHERE r.id = ?
-        ''', (receiving_id,)).fetchone()
+            ''', (receiving_id,)).fetchone()
         
-        if not receiving:
+            if not receiving:
             flash('Receiving record not found', 'error')
             return redirect(url_for('shipping.receiving_management_v2'))
         
         # Get box and bag details
-        boxes = conn.execute('''
+            boxes = conn.execute('''
             SELECT sb.*, 
                    GROUP_CONCAT(b.bag_number) as bag_numbers, 
                    COUNT(b.id) as bag_count,
@@ -311,7 +310,7 @@ def receiving_details(receiving_id):
             WHERE sb.receiving_id = ?
             GROUP BY sb.id
             ORDER BY sb.box_number
-        ''', (receiving_id,)).fetchall()
+            ''', (receiving_id,)).fetchall()
         
             return render_template('receiving_details.html', 
                                  receiving=dict(receiving),
