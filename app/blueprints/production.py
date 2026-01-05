@@ -185,6 +185,7 @@ def submit_warehouse():
         
             # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
             # This is much more reliable than looking up box/bag and re-matching
+            if not (box_number and bag_number):
                 machine_count = conn.execute('''
                        inventory_item_id, product_name
                 FROM warehouse_submissions
