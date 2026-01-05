@@ -57,7 +57,7 @@ def receiving_list():
         # Group shipments by PO and assign numbers
             po_shipment_counts = {}
             for rec in receiving_records:
-            po_id = rec['po_id']
+                po_id = rec['po_id']
             if po_id:
                 if po_id not in po_shipment_counts:
                     # Get all shipments for this PO ordered by received_date
@@ -296,7 +296,7 @@ def receiving_details(receiving_id):
             ''', (receiving_id,)).fetchone()
         
             if not receiving:
-            flash('Receiving record not found', 'error')
+                flash('Receiving record not found', 'error')
             return redirect(url_for('shipping.receiving_management_v2'))
         
         # Get box and bag details
