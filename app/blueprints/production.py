@@ -317,8 +317,8 @@ def submit_count():
             
             employee_name = employee['full_name']
         
-        # Get tablet type details
-        tablet_type = conn.execute('''
+            # Get tablet type details
+            tablet_type = conn.execute('''
             SELECT * FROM tablet_types
             WHERE tablet_type_name = ?
         ''', (data.get('tablet_type'),)).fetchone()
@@ -433,8 +433,8 @@ def submit_machine_count():
             
             employee_name = employee['full_name']
         
-        # Verify tablet type exists and get its info
-        tablet_type = conn.execute('''
+            # Verify tablet type exists and get its info
+            tablet_type = conn.execute('''
             SELECT id, tablet_type_name, inventory_item_id 
             FROM tablet_types 
             WHERE id = ?
