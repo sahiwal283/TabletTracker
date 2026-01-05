@@ -419,7 +419,7 @@ def submit_machine_count():
         if not count_date:
             return jsonify({'error': 'Date is required'}), 400
         
-            with db_transaction() as conn:
+        with db_transaction() as conn:
             # Get employee name from session (logged-in user)
             if session.get('admin_authenticated'):
                 employee_name = 'Admin'
