@@ -25,15 +25,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add closed column to receiving table
-    with op.batch_alter_table('receiving', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('closed', sa.Boolean(), nullable=False, server_default='0'))
+    # Add closed column to receiving table (idempotent - check if exists first)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('receiving')]
+    
+    if 'closed' not in columns:
+        with op.batch_alter_table('receiving', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('closed', sa.Boolean(), nullable=False, server_default='0'))
     
     # Update existing bags to have 'Available' status if NULL
     op.execute("UPDATE bags SET status = 'Available' WHERE status IS NULL OR status = ''")
 
 
 def downgrade() -> None:
-    # Remove closed column from receiving table
-    with op.batch_alter_table('receiving', schema=None) as batch_op:
-        batch_op.drop_column('closed')
+    # Remove closed column from receiving table (idempotent - check if exists first)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('receiving')]
+    
+    if 'closed' in columns:
+        with op.batch_alter_table('receiving', schema=None) as batch_op:
+            batch_op.drop_column('closed')
