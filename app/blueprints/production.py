@@ -166,6 +166,7 @@ def submit_warehouse():
         
             # Get tablet_type_id for receive-based matching
             tablet_type_id = product.get('tablet_type_id')
+            if not tablet_type_id:
                 return jsonify({'error': 'Product tablet_type_id not found'}), 400
         
             # Get receipt_number (required for packaging submissions)
