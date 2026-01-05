@@ -113,9 +113,9 @@ def submit_warehouse():
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.product_name = ?
             ''', (data.get('product_name'),)).fetchone()
-        
+            
             if not product:
-            return jsonify({'error': 'Product not found'}), 400
+                return jsonify({'error': 'Product not found'}), 400
         
             # Convert Row to dict for safe access
             product = dict(product)
