@@ -125,6 +125,111 @@ class ZohoInventoryAPI:
         endpoint = 'purchaseorders'
         return self.make_request(endpoint, method='POST', data=po_data)
     
+    def create_purchase_receive(self, purchaseorder_id, line_items, date, notes=None, image_bytes=None, image_filename=None):
+        """
+        Create a purchase receive in Zoho Inventory.
+        
+        Args:
+            purchaseorder_id: The Zoho purchase order ID
+            line_items: List of dicts with 'item_id' and 'quantity'
+            date: Date string in ISO format (YYYY-MM-DD)
+            notes: Optional notes string
+            image_bytes: Optional bytes of image to attach
+            image_filename: Optional filename for the image
+            
+        Returns:
+            Dict with receive data including 'purchasereceive_id', or None on error
+        """
+        endpoint = 'purchasereceives'
+        
+        # Build the receive data payload
+        receive_data = {
+            'purchaseorder_id': purchaseorder_id,
+            'date': date,
+            'line_items': line_items
+        }
+        
+        if notes:
+            receive_data['notes'] = notes
+        
+        # Create the purchase receive first
+        result = self.make_request(endpoint, method='POST', data=receive_data)
+        
+        if not result:
+            logger.error("Failed to create purchase receive - no response from API")
+            return None
+        
+        # Check for errors in response
+        if result.get('code') and result.get('code') != 0:
+            error_msg = result.get('message', 'Unknown error')
+            logger.error(f"Failed to create purchase receive: {error_msg}")
+            return result
+        
+        # If we have an image to attach, upload it
+        if image_bytes and image_filename and result.get('purchasereceive'):
+            receive_id = result['purchasereceive'].get('purchasereceive_id')
+            if receive_id:
+                attach_result = self.attach_file_to_receive(receive_id, image_bytes, image_filename)
+                if attach_result:
+                    logger.info(f"Successfully attached image to purchase receive {receive_id}")
+                else:
+                    logger.warning(f"Failed to attach image to purchase receive {receive_id}")
+        
+        return result
+    
+    def attach_file_to_receive(self, receive_id, file_bytes, filename):
+        """
+        Attach a file to a purchase receive.
+        
+        Args:
+            receive_id: The Zoho purchase receive ID
+            file_bytes: Bytes of the file to attach
+            filename: Filename for the attachment
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        token = self.get_access_token()
+        if not token:
+            return False
+        
+        url = f"{self.base_url}/purchasereceives/{receive_id}/attachment"
+        headers = {
+            'Authorization': f'Zoho-oauthtoken {token}'
+            # Note: Don't set Content-Type for multipart/form-data, requests handles it
+        }
+        
+        params = {'organization_id': self.organization_id}
+        
+        try:
+            # Prepare the file for upload
+            files = {
+                'attachment': (filename, file_bytes, 'image/png')
+            }
+            
+            response = requests.post(
+                url,
+                headers=headers,
+                params=params,
+                files=files,
+                timeout=30
+            )
+            
+            logger.debug(f"Attachment upload response status: {response.status_code}")
+            
+            if response.status_code in [200, 201]:
+                return True
+            else:
+                logger.error(f"Failed to attach file: {response.status_code} - {response.text}")
+                return False
+                
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Attachment upload timed out: {e}")
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error uploading attachment: {e}")
+            return False
+    
     def sync_tablet_pos_to_db(self, db_conn):
         """Sync ONLY tablet POs from Zoho to local database"""
         # Get all POs (open, closed, draft, etc.)

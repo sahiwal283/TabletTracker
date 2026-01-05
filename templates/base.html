@@ -2013,7 +2013,9 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         }
                         
                         const isClosed = bag.status === 'Closed';
+                        const zohoReceivePushed = bag.zoho_receive_pushed || false;
                         const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
+                        const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">✓ Zoho</span>' : '';
                         
                         modalContent += `
                             <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
@@ -2024,10 +2026,17 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                         <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name} Bag ${bag.bag_number}</span>
                                         <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
                                         ${closedBadge}
+                                        ${zohoPushedBadge}
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                        ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
+                                            <button onclick="event.stopPropagation(); openPushToZohoModal(${bag.bag_id}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${bag.received_count || 0}, ${bag.packaged_count || 0}, ${receiveId}, '${receiveName}');" 
+                                                    class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">
+                                                📤 Push to Zoho
+                                            </button>
+                                        ` : ''}
                                         ${isAdmin || isManager ? `
                                             <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
                                                     class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
@@ -2156,6 +2165,148 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
     } catch (error) {
         console.error('Error:', error);
         alert('Failed to update bag status');
+    }
+}
+
+// Push to Zoho Modal and Functions
+function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedCount, packagedCount, receiveId, receiveName) {
+    // Remove existing modal if present
+    const existingModal = document.getElementById('push-to-zoho-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const modalHtml = `
+        <div id="push-to-zoho-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closePushToZohoModal(event)">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">📤 Push to Zoho Receives</h3>
+                        <button onclick="closePushToZohoModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Bag Info -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <div class="text-sm text-gray-600 mb-2">
+                            <strong>${productName}</strong> - Box ${boxNumber}, Bag ${bagNumber}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-center">
+                            <div class="bg-indigo-100 rounded p-2">
+                                <div class="text-indigo-700 font-semibold">${receivedCount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Bag Label</div>
+                            </div>
+                            <div class="bg-purple-100 rounded p-2">
+                                <div class="text-purple-700 font-semibold">${packagedCount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Packaged</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Custom Notes -->
+                    <div class="mb-4">
+                        <label for="zoho-custom-notes" class="block text-sm font-medium text-gray-700 mb-1">
+                            Additional Notes (optional)
+                        </label>
+                        <textarea id="zoho-custom-notes" rows="3" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="Enter any additional notes for this receive..."></textarea>
+                    </div>
+                    
+                    <!-- Info -->
+                    <div class="text-xs text-gray-500 mb-4">
+                        This will create a purchase receive in Zoho with the packaged count (${packagedCount.toLocaleString()}) and attach a chart image.
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex gap-3">
+                        <button onclick="closePushToZohoModal()" 
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button id="push-to-zoho-btn" onclick="executePushToZoho(${bagId}, ${receiveId}, '${receiveName}')" 
+                                class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2">
+                            <span>📤</span>
+                            <span>Push to Zoho</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closePushToZohoModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('push-to-zoho-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+}
+
+async function executePushToZoho(bagId, receiveId, receiveName) {
+    const btn = document.getElementById('push-to-zoho-btn');
+    const customNotes = document.getElementById('zoho-custom-notes')?.value || '';
+    
+    // Disable button and show loading
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin">⏳</span> <span>Pushing...</span>';
+    
+    try {
+        const response = await csrfFetch(`/api/bag/${bagId}/push_to_zoho`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ custom_notes: customNotes })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Close the push modal
+            closePushToZohoModal();
+            
+            // Close the receive details modal
+            closeReceiveDetailsModal();
+            
+            // Show success message
+            const successMsg = document.createElement('div');
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.innerHTML = `<div class="font-semibold">✓ ${data.message}</div>`;
+            if (data.zoho_receive_id) {
+                successMsg.innerHTML += `<div class="text-sm opacity-90">Zoho Receive ID: ${data.zoho_receive_id}</div>`;
+            }
+            document.body.appendChild(successMsg);
+            
+            // Remove success message after 3 seconds
+            setTimeout(() => successMsg.remove(), 3000);
+            
+            // Reopen the receive modal with updated data
+            setTimeout(() => {
+                viewReceiveDetails(receiveId, receiveName);
+            }, 300);
+        } else {
+            // Show error message
+            alert('Error: ' + (data.error || 'Failed to push to Zoho'));
+            
+            // Re-enable button
+            btn.disabled = false;
+            btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
+        }
+    } catch (error) {
+        console.error('Error pushing to Zoho:', error);
+        alert('Failed to push to Zoho: ' + error.message);
+        
+        // Re-enable button
+        btn.disabled = false;
+        btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
     }
 }
 
