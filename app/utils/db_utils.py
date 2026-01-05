@@ -9,7 +9,7 @@ This module provides:
 import sqlite3
 import traceback
 from contextlib import contextmanager
-from typing import Optional, Callable, Any, List, Dict, Tuple
+from typing import Optional, Callable, Any, List, Dict, Tuple, Iterator
 from functools import wraps
 from config import Config
 
