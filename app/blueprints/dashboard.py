@@ -16,7 +16,7 @@ def dashboard_view():
     try:
         with db_read_only() as conn:
             # Get active POs that have submissions assigned (last 10) - for PO section
-        active_pos_query = '''
+            active_pos_query = '''
             SELECT po.*, 
                    COUNT(DISTINCT pl.id) as line_count,
                    COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
