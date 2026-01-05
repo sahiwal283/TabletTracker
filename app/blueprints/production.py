@@ -403,9 +403,10 @@ def submit_machine_count():
         data = request.get_json()
         
         # Ensure required tables/columns exist
-            ensure_submission_type_column()
-            ensure_machine_counts_table()
-            ensure_machine_count_columns()
+        ensure_submission_type_column()
+        from app.utils.route_helpers import ensure_machine_counts_table, ensure_machine_count_columns
+        ensure_machine_counts_table()
+        ensure_machine_count_columns()
         
             tablet_type_id = data.get('tablet_type_id')
             machine_count = data.get('machine_count')
