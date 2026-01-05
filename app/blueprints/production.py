@@ -210,9 +210,9 @@ def submit_warehouse():
                 
                     # Get bag_label_count if bag_id exists
                     if bag_id:
-                    bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (bag_id,)).fetchone()
-                    if bag_row:
-                        bag_label_count = bag_row['bag_label_count']
+                        bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (bag_id,)).fetchone()
+                        if bag_row:
+                            bag_label_count = bag_row['bag_label_count']
                     current_app.logger.info(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
                 else:
                     # Machine count didn't have bag_id (needs review), packaging also needs review
