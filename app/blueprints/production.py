@@ -451,81 +451,81 @@ def submit_machine_count():
             WHERE tablet_type_id = ? 
             LIMIT 1
             ''', (tablet_type_id,)).fetchone()
-        
+            
             if not product:
-            return jsonify({'error': 'No product found for this tablet type. Please configure a product first.'}), 400
-        
+                return jsonify({'error': 'No product found for this tablet type. Please configure a product first.'}), 400
+            
             product = dict(product)
             tablets_per_package = product.get('tablets_per_package', 0)
-        
+            
             if tablets_per_package == 0:
-            return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
-        
-        # Get machine_id from form data FIRST (before calculating cards_per_turn)
+                return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
+            
+            # Get machine_id from form data FIRST (before calculating cards_per_turn)
             machine_id = data.get('machine_id')
             if machine_id:
+                try:
+                    machine_id = int(machine_id)
+                except (ValueError, TypeError):
+                    machine_id = None
+            
+            # Get machine-specific cards_per_turn from machines table
+            cards_per_turn = None
+            if machine_id:
+                machine_row = conn.execute('''
+                    SELECT cards_per_turn FROM machines WHERE id = ?
+                ''', (machine_id,)).fetchone()
+                if machine_row:
+                    machine = dict(machine_row)
+                    cards_per_turn = machine.get('cards_per_turn')
+            
+            # Fallback to global setting if machine not found or doesn't have cards_per_turn
+            if not cards_per_turn:
+                cards_per_turn_setting = get_setting('cards_per_turn', '1')
+                try:
+                    cards_per_turn = int(cards_per_turn_setting)
+                except (ValueError, TypeError):
+                    cards_per_turn = 1
+            
+            # Calculate total tablets for machine submissions
+            # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
             try:
-                machine_id = int(machine_id)
+                machine_count_int = int(machine_count)
+                total_tablets = machine_count_int * cards_per_turn * tablets_per_package
+                # For machine submissions: these tablets are pressed into blister cards (not loose)
+                # Store in a clearly named variable to distinguish from actual loose tablets
+                tablets_pressed_into_cards = total_tablets
             except (ValueError, TypeError):
-                machine_id = None
-        
-        # Get machine-specific cards_per_turn from machines table
-        cards_per_turn = None
-        if machine_id:
-            machine_row = conn.execute('''
-                SELECT cards_per_turn FROM machines WHERE id = ?
-            ''', (machine_id,)).fetchone()
-            if machine_row:
-                machine = dict(machine_row)
-                cards_per_turn = machine.get('cards_per_turn')
-        
-        # Fallback to global setting if machine not found or doesn't have cards_per_turn
-        if not cards_per_turn:
-            cards_per_turn_setting = get_setting('cards_per_turn', '1')
-            try:
-                cards_per_turn = int(cards_per_turn_setting)
-            except (ValueError, TypeError):
-                cards_per_turn = 1
-        
-        # Calculate total tablets for machine submissions
-        # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
-        try:
-            machine_count_int = int(machine_count)
-            total_tablets = machine_count_int * cards_per_turn * tablets_per_package
-            # For machine submissions: these tablets are pressed into blister cards (not loose)
-            # Store in a clearly named variable to distinguish from actual loose tablets
-            tablets_pressed_into_cards = total_tablets
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid machine count value'}), 400
-        
-        # Insert machine count record (for historical tracking)
-        if machine_id:
-            conn.execute('''
-                INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (tablet_type_id, machine_id, machine_count_int, employee_name, count_date))
-        else:
-            conn.execute('''
-                INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
-                VALUES (?, ?, ?, ?)
-            ''', (tablet_type_id, machine_count_int, employee_name, count_date))
-        
-        # Get inventory_item_id and tablet_type_id
-        inventory_item_id = tablet_type.get('inventory_item_id')
-        tablet_type_id = tablet_type.get('id')
-        
+                return jsonify({'error': 'Invalid machine count value'}), 400
+            
+            # Insert machine count record (for historical tracking)
+            if machine_id:
+                conn.execute('''
+                    INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (tablet_type_id, machine_id, machine_count_int, employee_name, count_date))
+            else:
+                conn.execute('''
+                    INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
+                    VALUES (?, ?, ?, ?)
+                ''', (tablet_type_id, machine_count_int, employee_name, count_date))
+            
+            # Get inventory_item_id and tablet_type_id
+            inventory_item_id = tablet_type.get('inventory_item_id')
+            tablet_type_id = tablet_type.get('id')
+            
             if not inventory_item_id or not tablet_type_id:
                 return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
         
         # Get box/bag numbers from form data
         # Normalize empty strings to None for flavor-based bags (new system)
-        box_number_raw = data.get('box_number')
-        box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
-        bag_number = data.get('bag_number')
+            box_number_raw = data.get('box_number')
+            box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
+            bag_number = data.get('bag_number')
         
         # Get admin_notes if user is admin or manager
-        admin_notes = None
-        if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+            admin_notes = None
+            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
             admin_notes_raw = data.get('admin_notes', '')
             if admin_notes_raw and isinstance(admin_notes_raw, str):
                 admin_notes = admin_notes_raw.strip() or None
@@ -534,13 +534,13 @@ def submit_machine_count():
                 admin_notes = str(admin_notes_raw).strip() or None
         
         # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
-        bag = None
-        needs_review = False
-        error_message = None
-        assigned_po_id = None
-        bag_id = None
+            bag = None
+            needs_review = False
+            error_message = None
+            assigned_po_id = None
+            bag_id = None
         
-        if bag_number:
+            if bag_number:
             # NEW: Pass bag_number first, box_number as optional parameter
             # Machine count submissions: exclude closed bags
             bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
@@ -563,21 +563,21 @@ def submit_machine_count():
                 current_app.logger.error(f"❌ {error_message}")
         
         # Get receipt_number from form data
-        receipt_number = (data.get('receipt_number') or '').strip() or None
+            receipt_number = (data.get('receipt_number') or '').strip() or None
         
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
         # - packs_remaining = machine_count_int * cards_per_turn (cards made)
         # - tablets_pressed_into_cards = total tablets pressed into blister cards (properly named column)
-        cards_made = machine_count_int * cards_per_turn
-        conn.execute('''
+            cards_made = machine_count_int * cards_per_turn
+            conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              displays_made, packs_remaining, tablets_pressed_into_cards,
              submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?)
-        ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
+            ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
               machine_count_int, cards_made, tablets_pressed_into_cards,
               count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number))
         
