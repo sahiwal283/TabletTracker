@@ -93,7 +93,7 @@ def dashboard_view():
             HAVING submission_count > 0
             ORDER BY r.received_date DESC
             LIMIT 2
-        '''
+            '''
             try:
                 active_receives = conn.execute(active_receives_query).fetchall()
             except Exception as e:
