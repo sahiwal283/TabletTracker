@@ -123,20 +123,24 @@ def submit_warehouse():
             # Validate product configuration
             packages_per_display = product.get('packages_per_display')
             tablets_per_package = product.get('tablets_per_package')
-        
+            
+            if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
                 return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
-            return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
-        
+            
             # Convert to int after validation
+            try:
                 packages_per_display = int(packages_per_display)
                 tablets_per_package = int(tablets_per_package)
+            except (ValueError, TypeError):
                 return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
-        
+            
             # Calculate tablet counts with safe type conversion
+            try:
                 displays_made = int(data.get('displays_made', 0) or 0)
                 packs_remaining = int(data.get('packs_remaining', 0) or 0)
                 loose_tablets = int(data.get('loose_tablets', 0) or 0)
                 damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+            except (ValueError, TypeError):
                 return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
             good_tablets = (displays_made * packages_per_display * tablets_per_package + 
@@ -214,12 +218,12 @@ def submit_warehouse():
                     # Machine count didn't have bag_id (needs review), packaging also needs review
                     needs_review = True
                     current_app.logger.warning(f"⚠️ Machine count for receipt {receipt_number} was flagged for review - packaging also needs review")
+                else:
+                    return jsonify({
+                        'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
+                    }), 400
             else:
-                return jsonify({
-                    'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
-                }), 400
                 # Box/bag provided manually - use old matching logic
-            # Box/bag provided manually - use old matching logic
             # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
             bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
             
