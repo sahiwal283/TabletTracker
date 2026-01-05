@@ -130,18 +130,14 @@ def submit_warehouse():
             # Convert to int after validation
                 packages_per_display = int(packages_per_display)
                 tablets_per_package = int(tablets_per_package)
-            tablets_per_package = int(tablets_per_package)
                 return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
-            return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
         
             # Calculate tablet counts with safe type conversion
                 displays_made = int(data.get('displays_made', 0) or 0)
                 packs_remaining = int(data.get('packs_remaining', 0) or 0)
                 loose_tablets = int(data.get('loose_tablets', 0) or 0)
                 damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
-            damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
                 return jsonify({'error': 'Invalid numeric values for counts'}), 400
-            return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
             good_tablets = (displays_made * packages_per_display * tablets_per_package + 
                        packs_remaining * tablets_per_package + 
@@ -153,7 +149,6 @@ def submit_warehouse():
             # Get admin_notes if user is admin or manager
             admin_notes = None
                 admin_notes_raw = data.get('admin_notes', '')
-            admin_notes_raw = data.get('admin_notes', '')
             if admin_notes_raw and isinstance(admin_notes_raw, str):
                 admin_notes = admin_notes_raw.strip() or None
             elif admin_notes_raw:
@@ -305,8 +300,7 @@ def submit_count():
             return jsonify({'error': 'tablet_type is required'}), 400
         
         with db_transaction() as conn:
-        
-        # Get employee name from session (logged-in user)
+            # Get employee name from session (logged-in user)
         if session.get('admin_authenticated'):
             employee_name = 'Admin'
         else:
@@ -422,8 +416,7 @@ def submit_machine_count():
             return jsonify({'error': 'Date is required'}), 400
         
         with db_transaction() as conn:
-        
-        # Get employee name from session (logged-in user)
+            # Get employee name from session (logged-in user)
         if session.get('admin_authenticated'):
             employee_name = 'Admin'
         else:
