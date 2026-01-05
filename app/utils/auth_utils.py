@@ -16,10 +16,10 @@ ROLE_PERMISSIONS = {
 }
 
 
-def admin_required(f):
+def admin_required(f: Callable) -> Callable:
     """Decorator to require admin authentication"""
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         # Allow if admin authenticated OR if employee authenticated with admin role
         if not (session.get('admin_authenticated') or 
                 (session.get('employee_authenticated') and session.get('employee_role') == 'admin')):
@@ -31,11 +31,11 @@ def admin_required(f):
     return decorated_function
 
 
-def role_required(required_permission):
+def role_required(required_permission: str) -> Callable:
     """Decorator that requires a specific permission/role"""
-    def decorator(f):
+    def decorator(f: Callable) -> Callable:
         @wraps(f)
-        def decorated_function(*args, **kwargs):
+        def decorated_function(*args: Any, **kwargs: Any) -> Any:
             # Allow admin users to access any role-based route
             if session.get('admin_authenticated'):
                 return f(*args, **kwargs)
@@ -55,10 +55,10 @@ def role_required(required_permission):
     return decorator
 
 
-def employee_required(f):
+def employee_required(f: Callable) -> Callable:
     """Helper function to require employee login"""
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         # Allow if employee authenticated OR if admin authenticated
         if not (session.get('employee_authenticated') or session.get('admin_authenticated')):
             return redirect(url_for('auth.index'))  # Redirect to unified login
