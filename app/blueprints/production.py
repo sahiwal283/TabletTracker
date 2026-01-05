@@ -348,37 +348,37 @@ def submit_count():
                     admin_notes = str(admin_notes_raw).strip() or None
         
         # Get inventory_item_id and tablet_type_id
-        inventory_item_id = tablet_type.get('inventory_item_id')
-        tablet_type_id = tablet_type.get('id')
-        if not inventory_item_id:
+            inventory_item_id = tablet_type.get('inventory_item_id')
+            tablet_type_id = tablet_type.get('id')
+            if not inventory_item_id:
             return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
-        if not tablet_type_id:
+            if not tablet_type_id:
             return jsonify({'error': 'Tablet type_id not found'}), 400
         
         # RECEIVE-BASED TRACKING: Find matching bag in receives
         # NEW: Pass bag_number first, box_number as optional parameter
         # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
-        bag, needs_review, error_message = find_bag_for_submission(
+            bag, needs_review, error_message = find_bag_for_submission(
             conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='packaged'
-        )
+            )
         
-        if error_message:
+            if error_message:
             return jsonify({'error': error_message}), 404
         
         # If needs_review, bag will be None (ambiguous submission)
-        bag_id = bag['id'] if bag else None
-        assigned_po_id = bag['po_id'] if bag else None
+            bag_id = bag['id'] if bag else None
+            assigned_po_id = bag['po_id'] if bag else None
         # Use box_number from matched bag if available (ensures we store actual box_number)
-        submission_box_number = bag.get('box_number') if bag else data.get('box_number')
+            submission_box_number = bag.get('box_number') if bag else data.get('box_number')
         
         # Insert count record with bag_id (or NULL if needs review)
-        conn.execute('''
+            conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              bag_id, assigned_po_id, needs_review, loose_tablets, 
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
-        ''', (employee_name, data.get('tablet_type'), inventory_item_id, submission_box_number,
+            ''', (employee_name, data.get('tablet_type'), inventory_item_id, submission_box_number,
                   data.get('bag_number'), bag_id, assigned_po_id, needs_review,
                   actual_count, submission_date, admin_notes))
             
@@ -403,23 +403,23 @@ def submit_machine_count():
         data = request.get_json()
         
         # Ensure required tables/columns exist
-        ensure_submission_type_column()
-        ensure_machine_counts_table()
-        ensure_machine_count_columns()
+            ensure_submission_type_column()
+            ensure_machine_counts_table()
+            ensure_machine_count_columns()
         
-        tablet_type_id = data.get('tablet_type_id')
-        machine_count = data.get('machine_count')
-        count_date = data.get('count_date')
+            tablet_type_id = data.get('tablet_type_id')
+            machine_count = data.get('machine_count')
+            count_date = data.get('count_date')
         
         # Validation
-        if not tablet_type_id:
+            if not tablet_type_id:
             return jsonify({'error': 'Tablet type is required'}), 400
-        if machine_count is None or machine_count < 0:
+            if machine_count is None or machine_count < 0:
             return jsonify({'error': 'Valid machine count is required'}), 400
-        if not count_date:
+            if not count_date:
             return jsonify({'error': 'Date is required'}), 400
         
-        with db_transaction() as conn:
+            with db_transaction() as conn:
             # Get employee name from session (logged-in user)
             if session.get('admin_authenticated'):
                 employee_name = 'Admin'
@@ -438,14 +438,14 @@ def submit_machine_count():
             SELECT id, tablet_type_name, inventory_item_id 
             FROM tablet_types 
             WHERE id = ?
-        ''', (tablet_type_id,)).fetchone()
-        if not tablet_type:
+            ''', (tablet_type_id,)).fetchone()
+            if not tablet_type:
             return jsonify({'error': 'Invalid tablet type'}), 400
         
-        tablet_type = dict(tablet_type)
+            tablet_type = dict(tablet_type)
         
         # Get a product for this tablet type to get tablets_per_package
-        product = conn.execute('''
+            product = conn.execute('''
             SELECT product_name, tablets_per_package 
             FROM product_details 
             WHERE tablet_type_id = ? 
