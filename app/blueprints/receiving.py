@@ -170,17 +170,17 @@ def receiving_management_v2():
                 <p><a href="/debug/server-info">Check Database</a></p>
                 """
         
-        # Get pending shipments (delivered but not yet received)
-        pending_shipments = conn.execute('''
-            SELECT s.*, po.po_number
-            FROM shipments s
-            JOIN purchase_orders po ON s.po_id = po.id
-            LEFT JOIN receiving r ON s.id = r.shipment_id
-            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
-            ORDER BY s.delivered_at DESC, s.created_at DESC
+            # Get pending shipments (delivered but not yet received)
+            pending_shipments = conn.execute('''
+                SELECT s.*, po.po_number
+                FROM shipments s
+                JOIN purchase_orders po ON s.po_id = po.id
+                LEFT JOIN receiving r ON s.id = r.shipment_id
+                WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
+                ORDER BY s.delivered_at DESC, s.created_at DESC
             ''').fetchall()
-        
-        # Get recent receiving history
+            
+            # Get recent receiving history
             recent_receiving = conn.execute('''
             SELECT r.*, po.po_number,
                    COUNT(sb.id) as total_boxes,
@@ -198,13 +198,13 @@ def receiving_management_v2():
                                  recent_receiving=recent_receiving)
     except Exception as e:
         # If template fails, return simple HTML with version
-        return f"""
-        <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
-        <p>Template error: {str(e)}</p>
-        <p><a href="/receiving/debug">View debug info</a></p>
-        <p><a href="/debug/server-info">Check Server Info</a></p>
-        <p><a href="/admin">Back to admin</a></p>
-        """
+            return f"""
+            <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
+            <p>Template error: {str(e)}</p>
+            <p><a href="/receiving/debug">View debug info</a></p>
+            <p><a href="/debug/server-info">Check Server Info</a></p>
+            <p><a href="/admin">Back to admin</a></p>
+            """
 
 
 @bp.route('/shipments')
