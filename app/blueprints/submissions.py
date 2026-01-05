@@ -210,7 +210,7 @@ def submissions_list():
         
         # First pass: Calculate running totals in chronological order (oldest first)
             for sub in submissions_raw_asc:
-            sub_dict = dict(sub)
+                sub_dict = dict(sub)
             # Create bag identifier from box_number/bag_number
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
             # Key includes PO ID so each PO tracks its own bag totals independently
@@ -569,7 +569,7 @@ def export_submissions_csv():
             submissions_processed = []
         
             for sub in submissions_raw:
-            sub_dict = dict(sub)
+                sub_dict = dict(sub)
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
             bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
             
@@ -632,7 +632,7 @@ def export_submissions_csv():
         
         # Write data rows (respecting sort order)
             for sub in submissions_processed:
-            submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
+                submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
             created_at = sub.get('created_at', '')
             if created_at:
                 try:
