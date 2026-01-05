@@ -439,9 +439,9 @@ def submissions_list():
         if filter_receipt_number:
             filter_info['receipt_number'] = filter_receipt_number
         
-        # Get all tablet types for the filter dropdown
-        tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
-        
+            # Get all tablet types for the filter dropdown
+            tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
+            
             return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
                                  filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
                                  sort_by=sort_by, sort_order=sort_order)
