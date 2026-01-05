@@ -196,20 +196,20 @@ def submit_warehouse():
                 ''', (receipt_number,)).fetchone()
                 
                 if machine_count:
-                # CRITICAL: Verify the machine count is for the SAME product/flavor
-                if machine_count['inventory_item_id'] != inventory_item_id:
+                    # CRITICAL: Verify the machine count is for the SAME product/flavor
+                    if machine_count['inventory_item_id'] != inventory_item_id:
                     return jsonify({
                         'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
                     }), 400
                 
-                # Use bag_id DIRECTLY from machine count (no second lookup needed!)
-                bag_id = machine_count['bag_id']
-                assigned_po_id = machine_count['assigned_po_id']
-                box_number = machine_count['box_number']
-                bag_number = machine_count['bag_number']
+                    # Use bag_id DIRECTLY from machine count (no second lookup needed!)
+                    bag_id = machine_count['bag_id']
+                    assigned_po_id = machine_count['assigned_po_id']
+                    box_number = machine_count['box_number']
+                    bag_number = machine_count['bag_number']
                 
-                # Get bag_label_count if bag_id exists
-                if bag_id:
+                    # Get bag_label_count if bag_id exists
+                    if bag_id:
                     bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (bag_id,)).fetchone()
                     if bag_row:
                         bag_label_count = bag_row['bag_label_count']
