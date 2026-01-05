@@ -600,18 +600,18 @@ def submit_machine_count():
                     })
         
         # Get PO lines for the matched PO to update counts
-        po_lines = conn.execute('''
+            po_lines = conn.execute('''
             SELECT pl.*, po.closed
             FROM po_lines pl
             JOIN purchase_orders po ON pl.po_id = po.id
             WHERE pl.inventory_item_id = ? AND po.id = ?
-        ''', (inventory_item_id, assigned_po_id)).fetchall()
+            ''', (inventory_item_id, assigned_po_id)).fetchall()
         
         # Only allocate to lines from the ASSIGNED PO
-        assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
+            assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
         
         # Update machine_good_count (separate from regular good_count)
-        if assigned_po_lines:
+            if assigned_po_lines:
             line = assigned_po_lines[0]
             conn.execute('''
                 UPDATE po_lines 
@@ -621,8 +621,8 @@ def submit_machine_count():
             current_app.logger.info(f"Machine count - Updated PO line {line['id']}: +{tablets_pressed_into_cards} tablets pressed into cards")
         
         # Update PO header totals (separate machine counts)
-        updated_pos = set()
-        for line in assigned_po_lines:
+            updated_pos = set()
+            for line in assigned_po_lines:
             if line['po_id'] not in updated_pos:
                 totals = conn.execute('''
                     SELECT 
