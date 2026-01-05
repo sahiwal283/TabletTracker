@@ -85,70 +85,70 @@ def product_mapping():
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             ORDER BY COALESCE(tt.tablet_type_name, ''), pd.product_name
         ''').fetchall()
-        
-        # Check if category column exists and add it if missing
-        table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
-        has_category_column = any(col[1] == 'category' for col in table_info)
-        
-        if not has_category_column:
-            try:
-                conn.execute('ALTER TABLE tablet_types ADD COLUMN category TEXT')
-                conn.commit()
-                has_category_column = True
-            except Exception as e:
-                current_app.logger.warning(f"Warning: Could not add category column: {e}")
-        
-        # Get tablet types for dropdown
-        if has_category_column:
-            tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
-            # Get unique categories (including those with tablet types assigned)
-            categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
-            category_list = [cat['category'] for cat in categories] if categories else []
-        else:
-            # Fallback: get tablet types without category column
-            tablet_types_raw = conn.execute('SELECT id, tablet_type_name, inventory_item_id FROM tablet_types ORDER BY tablet_type_name').fetchall()
-            # Convert to dict format with None category
-            tablet_types = [dict(row) for row in tablet_types_raw]
-            for tt in tablet_types:
-                tt['category'] = None
-            category_list = []
-        
-        # Get deleted categories from app_settings
-        deleted_categories_set = set()
-        try:
-            deleted_categories_json = conn.execute('''
-                SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
-            ''').fetchone()
-            if deleted_categories_json and deleted_categories_json['setting_value']:
-                deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
-        except Exception as e:
-            current_app.logger.warning(f"Warning: Could not load deleted categories: {e}")
-            # Continue without filtering if there's an error
-        
-        # Get category order from app_settings (or use alphabetical as fallback)
-        try:
-            category_order_json = conn.execute('''
-                SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
-            ''').fetchone()
-            if category_order_json and category_order_json['setting_value']:
-                preferred_order = json.loads(category_order_json['setting_value'])
+            
+            # Check if category column exists and add it if missing
+            table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
+            has_category_column = any(col[1] == 'category' for col in table_info)
+            
+            if not has_category_column:
+                try:
+                    conn.execute('ALTER TABLE tablet_types ADD COLUMN category TEXT')
+                    conn.commit()
+                    has_category_column = True
+                except Exception as e:
+                    current_app.logger.warning(f"Warning: Could not add category column: {e}")
+            
+            # Get tablet types for dropdown
+            if has_category_column:
+                tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
+                # Get unique categories (including those with tablet types assigned)
+                categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
+                category_list = [cat['category'] for cat in categories] if categories else []
             else:
-                # No saved order - use alphabetical
+                # Fallback: get tablet types without category column
+                tablet_types_raw = conn.execute('SELECT id, tablet_type_name, inventory_item_id FROM tablet_types ORDER BY tablet_type_name').fetchall()
+                # Convert to dict format with None category
+                tablet_types = [dict(row) for row in tablet_types_raw]
+                for tt in tablet_types:
+                    tt['category'] = None
+                category_list = []
+            
+            # Get deleted categories from app_settings
+            deleted_categories_set = set()
+            try:
+                deleted_categories_json = conn.execute('''
+                    SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
+                ''').fetchone()
+                if deleted_categories_json and deleted_categories_json['setting_value']:
+                    deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
+            except Exception as e:
+                current_app.logger.warning(f"Warning: Could not load deleted categories: {e}")
+                # Continue without filtering if there's an error
+            
+            # Get category order from app_settings (or use alphabetical as fallback)
+            try:
+                category_order_json = conn.execute('''
+                    SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
+                ''').fetchone()
+                if category_order_json and category_order_json['setting_value']:
+                    preferred_order = json.loads(category_order_json['setting_value'])
+                else:
+                    # No saved order - use alphabetical
+                    preferred_order = sorted(category_list)
+            except Exception as e:
+                current_app.logger.warning(f"Warning: Could not load category order: {e}")
                 preferred_order = sorted(category_list)
-        except Exception as e:
-            current_app.logger.warning(f"Warning: Could not load category order: {e}")
-            preferred_order = sorted(category_list)
-        
-        # Filter out deleted categories from the list
-        all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
-        
-        # Sort by preferred order (categories not in preferred_order go at the end alphabetically)
-        all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
-        
-        # Find tablet types that don't have product configurations yet
-        product_tablet_type_ids = set(p['tablet_type_id'] for p in products if p['tablet_type_id'])
-        tablet_types_without_products = [tt for tt in tablet_types if tt['id'] not in product_tablet_type_ids]
-        
+            
+            # Filter out deleted categories from the list
+            all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
+            
+            # Sort by preferred order (categories not in preferred_order go at the end alphabetically)
+            all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
+            
+            # Find tablet types that don't have product configurations yet
+            product_tablet_type_ids = set(p['tablet_type_id'] for p in products if p['tablet_type_id'])
+            tablet_types_without_products = [tt for tt in tablet_types if tt['id'] not in product_tablet_type_ids]
+            
             return render_template('product_mapping.html', products=products, tablet_types=tablet_types, 
                                  categories=all_categories, tablet_types_without_products=tablet_types_without_products)
     except Exception as e:
