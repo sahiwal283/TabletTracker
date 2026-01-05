@@ -167,11 +167,9 @@ def submit_warehouse():
             # Get tablet_type_id for receive-based matching
             tablet_type_id = product.get('tablet_type_id')
                 return jsonify({'error': 'Product tablet_type_id not found'}), 400
-            return jsonify({'error': 'Product tablet_type_id not found'}), 400
         
             # Get receipt_number (required for packaging submissions)
             receipt_number = (data.get('receipt_number') or '').strip() or None
-            if not receipt_number:
                 return jsonify({'error': 'Receipt number is required'}), 400
         
             # Try to get box/bag from form data first
@@ -188,8 +186,6 @@ def submit_warehouse():
             # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
             # This is much more reliable than looking up box/bag and re-matching
                 machine_count = conn.execute('''
-            machine_count = conn.execute('''
-                SELECT bag_id, assigned_po_id, box_number, bag_number, 
                        inventory_item_id, product_name
                 FROM warehouse_submissions
                 WHERE receipt_number = ? AND submission_type = 'machine'
