@@ -308,14 +308,14 @@ def submit_count():
             if session.get('admin_authenticated'):
                 employee_name = 'Admin'
             else:
-            employee = conn.execute('''
-                SELECT full_name FROM employees WHERE id = ?
-            ''', (session.get('employee_id'),)).fetchone()
-            
-            if not employee:
-                return jsonify({'error': 'Employee not found'}), 400
-            
-            employee_name = employee['full_name']
+                employee = conn.execute('''
+                    SELECT full_name FROM employees WHERE id = ?
+                ''', (session.get('employee_id'),)).fetchone()
+                
+                if not employee:
+                    return jsonify({'error': 'Employee not found'}), 400
+                
+                employee_name = employee['full_name']
         
             # Get tablet type details
             tablet_type = conn.execute('''
@@ -424,14 +424,14 @@ def submit_machine_count():
             if session.get('admin_authenticated'):
                 employee_name = 'Admin'
             else:
-            employee = conn.execute('''
-                SELECT full_name FROM employees WHERE id = ?
-            ''', (session.get('employee_id'),)).fetchone()
-            
-            if not employee:
-                return jsonify({'error': 'Employee not found'}), 400
-            
-            employee_name = employee['full_name']
+                employee = conn.execute('''
+                    SELECT full_name FROM employees WHERE id = ?
+                ''', (session.get('employee_id'),)).fetchone()
+                
+                if not employee:
+                    return jsonify({'error': 'Employee not found'}), 400
+                
+                employee_name = employee['full_name']
         
             # Verify tablet type exists and get its info
             tablet_type = conn.execute('''
