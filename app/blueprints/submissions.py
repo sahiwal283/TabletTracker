@@ -296,8 +296,8 @@ def submissions_list():
                 if box_number is not None and bag_number is not None:
                     receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
             
-            sub_dict['receive_name'] = receive_name
-            
+                sub_dict['receive_name'] = receive_name
+                
                 # Store in dict by submission ID for lookup
                 submissions_dict[sub_dict.get('id')] = sub_dict
             
