@@ -133,7 +133,8 @@ def db_query(query: str, params: Optional[Tuple] = None, fetch_one: bool = False
             return result.fetchone()
         return result.fetchall()
     except Exception as e:
-        print(f"Database query error: {e}")
+        import logging
+        logging.error(f"Database query error: {e}")
         traceback.print_exc()
         raise
     finally:
@@ -169,7 +170,8 @@ def db_execute(query: str, params: Optional[Tuple] = (), commit: bool = True) ->
                 conn.rollback()
             except:
                 pass
-        print(f"Database execute error: {e}")
+        import logging
+        logging.error(f"Database execute error: {e}")
         traceback.print_exc()
         raise
     finally:
@@ -211,7 +213,8 @@ def db_execute_many(queries: List[Tuple[str, Optional[Tuple]]], commit: bool = T
                 conn.rollback()
             except:
                 pass
-        print(f"Database execute_many error: {e}")
+        import logging
+        logging.error(f"Database execute_many error: {e}")
         traceback.print_exc()
         raise
     finally:
