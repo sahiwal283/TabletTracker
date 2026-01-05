@@ -66,29 +66,29 @@ def purchase_orders_list():
             # First pass: separate overs POs
             for po in all_pos:
                 po_dict = dict(po)
-            if po_dict.get('parent_po_number'):
-                # This is an overs PO
-                parent_num = po_dict['parent_po_number']
-                if parent_num not in overs_pos:
-                    overs_pos[parent_num] = []
-                overs_pos[parent_num].append(po_dict)
-            else:
-                # Regular PO - will be added in second pass
-                pass
-        
-        # Second pass: add parent POs and their overs
-        for po in all_pos:
-            po_dict = dict(po)
-            if not po_dict.get('parent_po_number'):
-                # Add parent PO
-                po_dict['is_overs'] = False
-                organized_pos.append(po_dict)
-                
-                # Add any overs POs for this parent
-                if po_dict['po_number'] in overs_pos:
-                    for overs_po in overs_pos[po_dict['po_number']]:
-                        overs_po['is_overs'] = True
-                        organized_pos.append(overs_po)
+                if po_dict.get('parent_po_number'):
+                    # This is an overs PO
+                    parent_num = po_dict['parent_po_number']
+                    if parent_num not in overs_pos:
+                        overs_pos[parent_num] = []
+                    overs_pos[parent_num].append(po_dict)
+                else:
+                    # Regular PO - will be added in second pass
+                    pass
+            
+            # Second pass: add parent POs and their overs
+            for po in all_pos:
+                po_dict = dict(po)
+                if not po_dict.get('parent_po_number'):
+                    # Add parent PO
+                    po_dict['is_overs'] = False
+                    organized_pos.append(po_dict)
+                    
+                    # Add any overs POs for this parent
+                    if po_dict['po_number'] in overs_pos:
+                        for overs_po in overs_pos[po_dict['po_number']]:
+                            overs_po['is_overs'] = True
+                            organized_pos.append(overs_po)
             
             return render_template('purchase_orders.html', purchase_orders=organized_pos)
     except Exception as e:

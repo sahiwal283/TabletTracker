@@ -298,12 +298,12 @@ def submissions_list():
             
             sub_dict['receive_name'] = receive_name
             
-            # Store in dict by submission ID for lookup
-            submissions_dict[sub_dict.get('id')] = sub_dict
-        
-        # Second pass: Get submissions in display order (based on user's sort preference) and apply pre-calculated running totals
-        # Validate sort column to prevent SQL injection
-        allowed_sort_columns = {
+                # Store in dict by submission ID for lookup
+                submissions_dict[sub_dict.get('id')] = sub_dict
+            
+            # Second pass: Get submissions in display order (based on user's sort preference) and apply pre-calculated running totals
+            # Validate sort column to prevent SQL injection
+            allowed_sort_columns = {
             'created_at': 'ws.created_at',
             'receipt_number': 'ws.receipt_number',
             'employee_name': 'ws.employee_name',
@@ -315,130 +315,130 @@ def submissions_list():
         sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
         
         # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
-        if sort_by == 'receipt_number':
-            # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
-            # Split by dash and cast both parts to integers for proper numeric comparison
-            query += f''' ORDER BY 
-                CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
-                CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
-                CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
+            if sort_by == 'receipt_number':
+                # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
+                # Split by dash and cast both parts to integers for proper numeric comparison
+                query += f''' ORDER BY 
+                    CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
+                    CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
+                    CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
+                '''
+            else:
+                query += f' ORDER BY {sort_column} {sort_direction}'
+            
+            submissions_raw = conn.execute(query, params).fetchall()
+            submissions_processed = []
+            
+            for sub in submissions_raw:
+                sub_dict = dict(sub)
+                sub_id = sub_dict.get('id')
+                # Get the pre-calculated running totals from the first pass
+                if sub_id in submissions_dict:
+                    pre_calculated = submissions_dict[sub_id]
+                    sub_dict['bag_running_total'] = pre_calculated.get('bag_running_total', 0)
+                    sub_dict['machine_running_total'] = pre_calculated.get('machine_running_total', 0)
+                    sub_dict['packaged_running_total'] = pre_calculated.get('packaged_running_total', 0)
+                    sub_dict['running_total'] = pre_calculated.get('running_total', 0)
+                    sub_dict['count_status'] = pre_calculated.get('count_status', 'no_bag')
+                    sub_dict['has_discrepancy'] = pre_calculated.get('has_discrepancy', 0)
+                    sub_dict['receive_name'] = pre_calculated.get('receive_name')
+                
+                # Individual calculation for display
+                individual_calc = sub_dict.get('calculated_total', 0) or 0
+                sub_dict['individual_calc'] = individual_calc
+                sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
+                
+                submissions_processed.append(sub_dict)
+            
+            # Group submissions by receipt_number while maintaining sort order within groups
+            all_submissions = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
+            
+            # Pagination
+            page = request.args.get('page', 1, type=int)
+            per_page = 15
+            total_submissions = len(all_submissions)
+            total_pages = (total_submissions + per_page - 1) // per_page  # Ceiling division
+            
+            # Calculate start and end indices
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            
+            # Get submissions for current page
+            submissions = all_submissions[start_idx:end_idx]
+            
+            # Count unverified submissions (respecting current filters)
+            unverified_query = '''
+                SELECT COUNT(*) as count
+                FROM warehouse_submissions ws
+                LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                WHERE COALESCE(ws.po_assignment_verified, 0) = 0
             '''
-        else:
-            query += f' ORDER BY {sort_column} {sort_direction}'
-        
-        submissions_raw = conn.execute(query, params).fetchall()
-        submissions_processed = []
-        
-        for sub in submissions_raw:
-            sub_dict = dict(sub)
-            sub_id = sub_dict.get('id')
-            # Get the pre-calculated running totals from the first pass
-            if sub_id in submissions_dict:
-                pre_calculated = submissions_dict[sub_id]
-                sub_dict['bag_running_total'] = pre_calculated.get('bag_running_total', 0)
-                sub_dict['machine_running_total'] = pre_calculated.get('machine_running_total', 0)
-                sub_dict['packaged_running_total'] = pre_calculated.get('packaged_running_total', 0)
-                sub_dict['running_total'] = pre_calculated.get('running_total', 0)
-                sub_dict['count_status'] = pre_calculated.get('count_status', 'no_bag')
-                sub_dict['has_discrepancy'] = pre_calculated.get('has_discrepancy', 0)
-                sub_dict['receive_name'] = pre_calculated.get('receive_name')
+            unverified_params = []
+            if filter_po_id:
+                unverified_query += ' AND ws.assigned_po_id = ?'
+                unverified_params.append(filter_po_id)
+            if filter_item_id:
+                unverified_query += ' AND tt.inventory_item_id = ?'
+                unverified_params.append(filter_item_id)
+            if filter_date_from:
+                unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
+                unverified_params.append(filter_date_from)
+            if filter_date_to:
+                unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
+                unverified_params.append(filter_date_to)
+            if filter_tablet_type_id:
+                unverified_query += ' AND tt.id = ?'
+                unverified_params.append(filter_tablet_type_id)
+            if filter_submission_type:
+                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
+                unverified_params.append(filter_submission_type)
             
-            # Individual calculation for display
-            individual_calc = sub_dict.get('calculated_total', 0) or 0
-            sub_dict['individual_calc'] = individual_calc
-            sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
+            unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
             
-            submissions_processed.append(sub_dict)
-        
-        # Group submissions by receipt_number while maintaining sort order within groups
-        all_submissions = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
-        
-        # Pagination
-        page = request.args.get('page', 1, type=int)
-        per_page = 15
-        total_submissions = len(all_submissions)
-        total_pages = (total_submissions + per_page - 1) // per_page  # Ceiling division
-        
-        # Calculate start and end indices
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        
-        # Get submissions for current page
-        submissions = all_submissions[start_idx:end_idx]
-        
-        # Count unverified submissions (respecting current filters)
-        unverified_query = '''
-            SELECT COUNT(*) as count
-            FROM warehouse_submissions ws
-            LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            WHERE COALESCE(ws.po_assignment_verified, 0) = 0
-        '''
-        unverified_params = []
-        if filter_po_id:
-            unverified_query += ' AND ws.assigned_po_id = ?'
-            unverified_params.append(filter_po_id)
-        if filter_item_id:
-            unverified_query += ' AND tt.inventory_item_id = ?'
-            unverified_params.append(filter_item_id)
-        if filter_date_from:
-            unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
-            unverified_params.append(filter_date_from)
-        if filter_date_to:
-            unverified_query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
-            unverified_params.append(filter_date_to)
-        if filter_tablet_type_id:
-            unverified_query += ' AND tt.id = ?'
-            unverified_params.append(filter_tablet_type_id)
-        if filter_submission_type:
-            unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
-            unverified_params.append(filter_submission_type)
-        
-        unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
-        
-        # Pagination info
-        pagination = {
-            'page': page,
-            'per_page': per_page,
-            'total': total_submissions,
-            'total_pages': total_pages,
-            'has_prev': page > 1,
-            'has_next': page < total_pages,
-            'prev_page': page - 1 if page > 1 else None,
-            'next_page': page + 1 if page < total_pages else None
-        }
-        
-        # Get filter info for display
-        filter_info = {}
-        if filter_po_id:
-            po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
-            if po_info:
-                filter_info['po_number'] = po_info['po_number']
-                filter_info['po_id'] = filter_po_id
-        
-        if filter_item_id:
-            item_info = conn.execute('SELECT line_item_name FROM po_lines WHERE inventory_item_id = ? LIMIT 1', (filter_item_id,)).fetchone()
-            if item_info:
-                filter_info['item_name'] = item_info['line_item_name']
-                filter_info['item_id'] = filter_item_id
-        
-        if filter_date_from:
-            filter_info['date_from'] = filter_date_from
-        if filter_date_to:
-            filter_info['date_to'] = filter_date_to
-        if filter_tablet_type_id:
-            tablet_type_info = conn.execute('SELECT tablet_type_name FROM tablet_types WHERE id = ?', (filter_tablet_type_id,)).fetchone()
-            if tablet_type_info:
-                filter_info['tablet_type_name'] = tablet_type_info['tablet_type_name']
-                filter_info['tablet_type_id'] = filter_tablet_type_id
-        
-        if filter_submission_type:
-            filter_info['submission_type'] = filter_submission_type
-        
-        if filter_receipt_number:
-            filter_info['receipt_number'] = filter_receipt_number
-        
+            # Pagination info
+            pagination = {
+                'page': page,
+                'per_page': per_page,
+                'total': total_submissions,
+                'total_pages': total_pages,
+                'has_prev': page > 1,
+                'has_next': page < total_pages,
+                'prev_page': page - 1 if page > 1 else None,
+                'next_page': page + 1 if page < total_pages else None
+            }
+            
+            # Get filter info for display
+            filter_info = {}
+            if filter_po_id:
+                po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
+                if po_info:
+                    filter_info['po_number'] = po_info['po_number']
+                    filter_info['po_id'] = filter_po_id
+            
+            if filter_item_id:
+                item_info = conn.execute('SELECT line_item_name FROM po_lines WHERE inventory_item_id = ? LIMIT 1', (filter_item_id,)).fetchone()
+                if item_info:
+                    filter_info['item_name'] = item_info['line_item_name']
+                    filter_info['item_id'] = filter_item_id
+            
+            if filter_date_from:
+                filter_info['date_from'] = filter_date_from
+            if filter_date_to:
+                filter_info['date_to'] = filter_date_to
+            if filter_tablet_type_id:
+                tablet_type_info = conn.execute('SELECT tablet_type_name FROM tablet_types WHERE id = ?', (filter_tablet_type_id,)).fetchone()
+                if tablet_type_info:
+                    filter_info['tablet_type_name'] = tablet_type_info['tablet_type_name']
+                    filter_info['tablet_type_id'] = filter_tablet_type_id
+            
+            if filter_submission_type:
+                filter_info['submission_type'] = filter_submission_type
+            
+            if filter_receipt_number:
+                filter_info['receipt_number'] = filter_receipt_number
+            
             # Get all tablet types for the filter dropdown
             tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
             
@@ -540,17 +540,17 @@ def export_submissions_csv():
         
         # Apply sorting
             allowed_sort_columns = {
-            'created_at': 'ws.created_at',
-            'receipt_number': 'ws.receipt_number',
-            'employee_name': 'ws.employee_name',
-            'product_name': 'ws.product_name',
-            'total': 'calculated_total'
+                'created_at': 'ws.created_at',
+                'receipt_number': 'ws.receipt_number',
+                'employee_name': 'ws.employee_name',
+                'product_name': 'ws.product_name',
+                'total': 'calculated_total'
             }
-        
+            
             sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
             sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
-        
-        # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
+            
+            # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
             if sort_by == 'receipt_number':
                 # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
                 # Split by dash and cast both parts to integers for proper numeric comparison
