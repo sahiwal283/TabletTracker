@@ -164,11 +164,11 @@ def receiving_management_v2():
                 test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
                 receiving_count = test_query['count'] if test_query else 0
             except Exception as e:
-            return f"""
-            <h2>Database Error (v1.7.6 REBUILT)</h2>
-            <p>Cannot access receiving table: {str(e)}</p>
-            <p><a href="/debug/server-info">Check Database</a></p>
-            """
+                return f"""
+                <h2>Database Error (v1.7.6 REBUILT)</h2>
+                <p>Cannot access receiving table: {str(e)}</p>
+                <p><a href="/debug/server-info">Check Database</a></p>
+                """
         
         # Get pending shipments (delivered but not yet received)
         pending_shipments = conn.execute('''
