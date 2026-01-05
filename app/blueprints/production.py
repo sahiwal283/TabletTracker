@@ -450,20 +450,20 @@ def submit_machine_count():
             FROM product_details 
             WHERE tablet_type_id = ? 
             LIMIT 1
-        ''', (tablet_type_id,)).fetchone()
+            ''', (tablet_type_id,)).fetchone()
         
-        if not product:
+            if not product:
             return jsonify({'error': 'No product found for this tablet type. Please configure a product first.'}), 400
         
-        product = dict(product)
-        tablets_per_package = product.get('tablets_per_package', 0)
+            product = dict(product)
+            tablets_per_package = product.get('tablets_per_package', 0)
         
-        if tablets_per_package == 0:
+            if tablets_per_package == 0:
             return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
         
         # Get machine_id from form data FIRST (before calculating cards_per_turn)
-        machine_id = data.get('machine_id')
-        if machine_id:
+            machine_id = data.get('machine_id')
+            if machine_id:
             try:
                 machine_id = int(machine_id)
             except (ValueError, TypeError):
