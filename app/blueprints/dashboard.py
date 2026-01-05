@@ -106,13 +106,13 @@ def dashboard_view():
             
             # Get tablet types for report filters
             tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
-        
-        # Get recent submissions (last 7 days, limit 10) with calculated totals
-        # Filter by date to show only actually recent submissions
-        from datetime import datetime, timedelta
-        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        
-        submissions_query = '''
+            
+            # Get recent submissions (last 7 days, limit 10) with calculated totals
+            # Filter by date to show only actually recent submissions
+            from datetime import datetime, timedelta
+            seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            
+            submissions_query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
