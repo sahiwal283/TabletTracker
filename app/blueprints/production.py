@@ -306,8 +306,8 @@ def submit_count():
         with db_transaction() as conn:
             # Get employee name from session (logged-in user)
             if session.get('admin_authenticated'):
-            employee_name = 'Admin'
-        else:
+                employee_name = 'Admin'
+            else:
             employee = conn.execute('''
                 SELECT full_name FROM employees WHERE id = ?
             ''', (session.get('employee_id'),)).fetchone()
@@ -422,8 +422,8 @@ def submit_machine_count():
         with db_transaction() as conn:
             # Get employee name from session (logged-in user)
             if session.get('admin_authenticated'):
-            employee_name = 'Admin'
-        else:
+                employee_name = 'Admin'
+            else:
             employee = conn.execute('''
                 SELECT full_name FROM employees WHERE id = ?
             ''', (session.get('employee_id'),)).fetchone()
