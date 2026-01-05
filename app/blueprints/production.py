@@ -679,10 +679,9 @@ def get_machine_count_by_receipt():
             return jsonify({'error': 'Receipt number required'}), 400
         
         with db_read_only() as conn:
-        
-        # Find all machine count submissions with this receipt number
-        # Join with product_details and tablet_types to get tablet type info
-        machine_counts = conn.execute('''
+            # Find all machine count submissions with this receipt number
+            # Join with product_details and tablet_types to get tablet type info
+            machine_counts = conn.execute('''
             SELECT ws.id, ws.box_number, ws.bag_number, ws.product_name, 
                    ws.displays_made as turns, ws.employee_name, ws.submission_date,
                    pd.tablet_type_id, tt.tablet_type_name
