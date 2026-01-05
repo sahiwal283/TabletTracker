@@ -3,7 +3,7 @@ Dashboard routes
 """
 from flask import Blueprint, render_template, flash
 import traceback
-from app.utils.db_utils import get_db
+from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
 
 bp = Blueprint('dashboard', __name__)
@@ -13,11 +13,9 @@ bp = Blueprint('dashboard', __name__)
 @role_required('dashboard')
 def dashboard_view():
     """Desktop dashboard for managers/admins"""
-    conn = None
     try:
-        conn = get_db()
-        
-        # Get active POs that have submissions assigned (last 10) - for PO section
+        with db_read_only() as conn:
+            # Get active POs that have submissions assigned (last 10) - for PO section
         active_pos_query = '''
             SELECT po.*, 
                    COUNT(DISTINCT pl.id) as line_count,
@@ -34,9 +32,9 @@ def dashboard_view():
             ORDER BY po.po_number DESC
             LIMIT 10
         '''
-        active_pos = conn.execute(active_pos_query).fetchall()
-        
-        # Get active receives that have submissions assigned (last 2)
+            active_pos = conn.execute(active_pos_query).fetchall()
+            
+            # Get active receives that have submissions assigned (last 2)
         active_receives_query = '''
             SELECT r.*,
                    po.po_number,
@@ -96,18 +94,18 @@ def dashboard_view():
             ORDER BY r.received_date DESC
             LIMIT 2
         '''
-        try:
-            active_receives = conn.execute(active_receives_query).fetchall()
-        except Exception as e:
-            print(f"Error loading active receives: {e}")
-            traceback.print_exc()
-            active_receives = []
-        
-        # Get closed POs for historical reference (removed from dashboard)
-        closed_pos = []
-        
-        # Get tablet types for report filters
-        tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
+            try:
+                active_receives = conn.execute(active_receives_query).fetchall()
+            except Exception as e:
+                print(f"Error loading active receives: {e}")
+                traceback.print_exc()
+                active_receives = []
+            
+            # Get closed POs for historical reference (removed from dashboard)
+            closed_pos = []
+            
+            # Get tablet types for report filters
+            tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
         # Get recent submissions (last 7 days, limit 10) with calculated totals
         # Filter by date to show only actually recent submissions
@@ -153,17 +151,17 @@ def dashboard_view():
             ORDER BY ws.created_at DESC
             LIMIT 10
         '''
-        submissions_raw = conn.execute(submissions_query, (seven_days_ago,)).fetchall()
-        
-        # Calculate running totals by bag PER PO (each PO has its own physical bags)
-        # Separate running totals for each submission type
-        bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
-        bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
-        bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
-        bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
-        submissions_processed = []
-        
-        for sub in submissions_raw:
+            submissions_raw = conn.execute(submissions_query, (seven_days_ago,)).fetchall()
+            
+            # Calculate running totals by bag PER PO (each PO has its own physical bags)
+            # Separate running totals for each submission type
+            bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
+            bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
+            bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
+            bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
+            submissions_processed = []
+            
+            for sub in submissions_raw:
             sub_dict = dict(sub)
             # Create bag identifier from box_number/bag_number
             bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
@@ -245,15 +243,15 @@ def dashboard_view():
                 if box_number is not None and bag_number is not None:
                     receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
             
-            sub_dict['receive_name'] = receive_name
+                sub_dict['receive_name'] = receive_name
+                
+                submissions_processed.append(sub_dict)
             
-            submissions_processed.append(sub_dict)
-        
-        # Submissions are already ordered DESC and limited to 10, newest first
-        submissions = submissions_processed
-        
-        # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
-        stats = conn.execute('''
+            # Submissions are already ordered DESC and limited to 10, newest first
+            submissions = submissions_processed
+            
+            # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
+            stats = conn.execute('''
             SELECT 
                 COUNT(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
                 COUNT(CASE WHEN closed = TRUE AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
@@ -261,19 +259,19 @@ def dashboard_view():
                 COALESCE(SUM(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 
                     (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
             FROM purchase_orders
-        ''').fetchone()
-        
-        # Count ALL submissions needing verification (not verified yet)
-        verification_count = conn.execute('''
+            ''').fetchone()
+            
+            # Count ALL submissions needing verification (not verified yet)
+            verification_count = conn.execute('''
             SELECT COUNT(*) as count
             FROM warehouse_submissions
             WHERE COALESCE(po_assignment_verified, 0) = 0
-        ''').fetchone()['count']
-        
-        # Find submissions that need review (ambiguous submissions)
-        # These are submissions where flavor + box + bag match multiple receives
-        # They have needs_review=TRUE and bag_id=NULL (not yet assigned)
-        submissions_needing_review = conn.execute('''
+            ''').fetchone()['count']
+            
+            # Find submissions that need review (ambiguous submissions)
+            # These are submissions where flavor + box + bag match multiple receives
+            # They have needs_review=TRUE and bag_id=NULL (not yet assigned)
+            submissions_needing_review = conn.execute('''
             SELECT ws.*, 
                    tt.tablet_type_name,
                    (
@@ -297,12 +295,12 @@ def dashboard_view():
             LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             WHERE COALESCE(ws.needs_review, 0) = 1
             ORDER BY ws.created_at DESC
-        ''').fetchall()
-        
-        # Convert to list of dicts
-        review_submissions = [dict(row) for row in submissions_needing_review]
-        
-        return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types, submissions_needing_review=review_submissions)
+            ''').fetchall()
+            
+            # Convert to list of dicts
+            review_submissions = [dict(row) for row in submissions_needing_review]
+            
+            return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types, submissions_needing_review=review_submissions)
     except Exception as e:
         print(f"Error in dashboard_view: {e}")
         traceback.print_exc()
@@ -315,10 +313,4 @@ def dashboard_view():
             'total_remaining': 0
         })()
         return render_template('dashboard.html', active_pos=[], active_receives=[], closed_pos=[], submissions=[], stats=default_stats, verification_count=0, tablet_types=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 

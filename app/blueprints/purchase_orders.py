@@ -3,7 +3,7 @@ Purchase Orders routes
 """
 from flask import Blueprint, render_template, flash
 import traceback
-from app.utils.db_utils import get_db
+from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
 
 bp = Blueprint('purchase_orders', __name__)
@@ -13,12 +13,11 @@ bp = Blueprint('purchase_orders', __name__)
 @role_required('dashboard')
 def purchase_orders_list():
     """Full purchase orders page showing all POs with filtering"""
-    conn = None
     try:
-        conn = get_db()
-        
-        # Get ALL POs with line counts, submission counts, and aggregated counts (matching modal format)
-        all_pos = conn.execute('''
+        with db_read_only() as conn:
+            
+            # Get ALL POs with line counts, submission counts, and aggregated counts (matching modal format)
+            all_pos = conn.execute('''
             SELECT po.*, 
                    COUNT(DISTINCT pl.id) as line_count,
                    COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
@@ -58,14 +57,14 @@ def purchase_orders_list():
             LEFT JOIN po_lines pl ON po.id = pl.po_id
             GROUP BY po.id
             ORDER BY po.po_number DESC
-        ''').fetchall()
-        
-        # Organize POs: group overs POs under their parents
-        organized_pos = []
-        overs_pos = {}  # Key: parent_po_number, Value: list of overs POs
-        
-        # First pass: separate overs POs
-        for po in all_pos:
+            ''').fetchall()
+            
+            # Organize POs: group overs POs under their parents
+            organized_pos = []
+            overs_pos = {}  # Key: parent_po_number, Value: list of overs POs
+            
+            # First pass: separate overs POs
+            for po in all_pos:
             po_dict = dict(po)
             if po_dict.get('parent_po_number'):
                 # This is an overs PO
@@ -90,8 +89,8 @@ def purchase_orders_list():
                     for overs_po in overs_pos[po_dict['po_number']]:
                         overs_po['is_overs'] = True
                         organized_pos.append(overs_po)
-        
-        return render_template('purchase_orders.html', purchase_orders=organized_pos)
+            
+            return render_template('purchase_orders.html', purchase_orders=organized_pos)
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
@@ -99,12 +98,6 @@ def purchase_orders_list():
         print(error_trace)
         flash(f'Error loading purchase orders: {str(e)}', 'error')
         return render_template('purchase_orders.html', purchase_orders=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 # Backwards-compatible route alias (deprecated)

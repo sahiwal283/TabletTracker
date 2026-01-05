@@ -51,7 +51,7 @@ class MigrationRunner:
         
         # Add category_id column
         self._add_column_if_not_exists('tablet_types', 'category_id', 'INTEGER')
-        
+    
         # Add variety pack support columns
         self._add_column_if_not_exists('tablet_types', 'is_variety_pack', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('tablet_types', 'tablets_per_bottle', 'INTEGER')

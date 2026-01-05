@@ -6,7 +6,7 @@ from datetime import datetime
 import traceback
 import csv
 import io
-from app.utils.db_utils import get_db
+from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import role_required
 
 bp = Blueprint('submissions', __name__)
@@ -98,9 +98,8 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
 @role_required('dashboard')
 def submissions_list():
     """Full submissions page showing all submissions"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Get filter parameters from query string
         filter_po_id = request.args.get('po_id', type=int)
@@ -444,25 +443,21 @@ def submissions_list():
         # Get all tablet types for the filter dropdown
         tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
         
-        return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
-                             filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
-                             sort_by=sort_by, sort_order=sort_order)
+            return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
+                                 filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
+                                 sort_by=sort_by, sort_order=sort_order)
     except Exception as e:
         print(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
         return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0)
-    finally:
-        if conn:
-            conn.close()
 
 @bp.route('/submissions/export')
 @role_required('dashboard')
 def export_submissions_csv():
     """Export submissions to CSV with all active filters applied"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Get filter parameters from query string (same as all_submissions)
         filter_po_id = request.args.get('po_id', type=int)
@@ -690,17 +685,10 @@ def export_submissions_csv():
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
         response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
         
-        return response
-        
+            return response
     except Exception as e:
         print(f"Error exporting submissions CSV: {e}")
         traceback.print_exc()
         flash('An error occurred while exporting submissions. Please try again.', 'error')
-        return redirect(url_for('submissions.all_submissions'))
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        return redirect(url_for('submissions.submissions_list'))
 

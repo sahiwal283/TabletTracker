@@ -3,7 +3,7 @@ Receiving routes - shipment receiving and tracking
 """
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
 import traceback
-from app.utils.db_utils import get_db
+from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, role_required
 
 bp = Blueprint('receiving', __name__)
@@ -13,9 +13,8 @@ bp = Blueprint('receiving', __name__)
 @role_required('shipping')
 def receiving_list():
     """Receiving page - record shipments that arrive"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Get all tablet types for the form dropdown
         tablet_types_rows = conn.execute('''
@@ -145,29 +144,21 @@ def receiving_list():
                              categories=categories,
                              purchase_orders=purchase_orders,
                              grouped_shipments=grouped_shipments,
-                             shipments_without_po=shipments_without_po,
-                             user_role=session.get('employee_role'))
-                             
+                                 shipments_without_po=shipments_without_po,
+                                 user_role=session.get('employee_role'))
     except Exception as e:
         error_details = traceback.format_exc()
         print(f"Error in shipping_unified: {str(e)}\n{error_details}")
         return render_template('error.html', 
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 @bp.route('/receiving')
 @admin_required  
 def receiving_management_v2():
     """Receiving management page - REBUILT VERSION"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Simple query first - just check if we can access receiving table
         try:
@@ -203,10 +194,9 @@ def receiving_management_v2():
             LIMIT 20
         ''').fetchall()
         
-        return render_template('receiving_management.html', 
-                             pending_shipments=pending_shipments,
-                             recent_receiving=recent_receiving)
-                             
+            return render_template('receiving_management.html', 
+                                 pending_shipments=pending_shipments,
+                                 recent_receiving=recent_receiving)
     except Exception as e:
         # If template fails, return simple HTML with version
         return f"""
@@ -216,20 +206,13 @@ def receiving_management_v2():
         <p><a href="/debug/server-info">Check Server Info</a></p>
         <p><a href="/admin">Back to admin</a></p>
         """
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 @bp.route('/shipments')
 def public_shipments():
     """Read-only shipment status page for staff (no login required)."""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         rows = conn.execute('''
             SELECT po.po_number, s.id as shipment_id, s.tracking_number, s.carrier, s.tracking_status,
                    s.estimated_delivery, s.last_checkpoint, s.actual_delivery, s.updated_at
@@ -238,7 +221,7 @@ def public_shipments():
             ORDER BY s.updated_at DESC
             LIMIT 200
         ''').fetchall()
-        return render_template('shipments_public.html', shipments=rows)
+            return render_template('shipments_public.html', shipments=rows)
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
@@ -246,12 +229,6 @@ def public_shipments():
         print(f"Traceback: {error_trace}")
         flash('Failed to load shipments. Please try again later.', 'error')
         return render_template('shipments_public.html', shipments=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 
@@ -259,9 +236,8 @@ def public_shipments():
 @admin_required
 def receiving_debug():
     """Debug route to test receiving functionality"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Test database connections
         po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
@@ -290,24 +266,17 @@ def receiving_debug():
             'version': '1.7.1'
         }
         
-        return f"""
-        <h2>Receiving Debug Info (v1.7.1)</h2>
-        <pre>{debug_info}</pre>
-        <p><a href="/receiving">Go to actual receiving page</a></p>
-        """
-        
+            return f"""
+            <h2>Receiving Debug Info (v1.7.1)</h2>
+            <pre>{debug_info}</pre>
+            <p><a href="/receiving">Go to actual receiving page</a></p>
+            """
     except Exception as e:
         return f"""
         <h2>Receiving Debug Error</h2>
         <p>Error: {str(e)}</p>
         <p><a href="/receiving">Try receiving page anyway</a></p>
         """
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 
@@ -315,9 +284,8 @@ def receiving_debug():
 @admin_required
 def receiving_details(receiving_id):
     """View detailed information about a specific receiving record"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Get receiving record with PO and shipment info
         receiving = conn.execute('''
@@ -345,19 +313,12 @@ def receiving_details(receiving_id):
             ORDER BY sb.box_number
         ''', (receiving_id,)).fetchall()
         
-        return render_template('receiving_details.html', 
-                             receiving=dict(receiving),
-                             boxes=[dict(box) for box in boxes])
-                             
+            return render_template('receiving_details.html', 
+                                 receiving=dict(receiving),
+                                 boxes=[dict(box) for box in boxes])
     except Exception as e:
         flash(f'Error loading receiving details: {str(e)}', 'error')
-        return redirect(url_for('shipping.receiving_management_v2'))
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        return redirect(url_for('receiving.receiving_management_v2'))
 
 
 # Backwards-compatible route alias (deprecated)

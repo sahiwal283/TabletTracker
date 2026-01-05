@@ -4,7 +4,7 @@ Production routes - warehouse submissions, bag counts, machine counts
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from datetime import datetime
 import traceback
-from app.utils.db_utils import get_db
+from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import employee_required
 from app.utils.route_helpers import (
     get_setting, ensure_submission_type_column,
@@ -19,9 +19,8 @@ bp = Blueprint('production', __name__)
 @employee_required
 def production_form():
     """Combined production submission and bag count form"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Get product list for dropdown
         products = conn.execute('''
@@ -58,17 +57,11 @@ def production_form():
         # Check if user is admin or manager (for admin notes access)
         is_admin = session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']
         
-        return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
+            return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
     except Exception as e:
         # Log error and re-raise to let Flask handle it
         print(f"Error in production_form(): {str(e)}")
         raise
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 @bp.route('/warehouse')
@@ -89,7 +82,6 @@ def count_form():
 @employee_required
 def submit_warehouse():
     """Process warehouse submission and update PO counts"""
-    conn = None
     try:
         data = request.get_json() if request.is_json else request.form
         
@@ -101,7 +93,7 @@ def submit_warehouse():
         ensure_submission_type_column()
         
         # Get employee name from session
-        conn = get_db()
+        with db_transaction() as conn:
         
         # Handle admin users (they don't have employee_id in session)
         if session.get('admin_authenticated'):
@@ -267,58 +259,43 @@ def submit_warehouse():
         ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
               bag_label_count or data.get('bag_label_count') or 0,
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
-              bag_id, assigned_po_id, needs_review, receipt_number))
-        
-        conn.commit()
-        
-        # Return appropriate message based on matching result
-        if error_message:
-            return jsonify({
-                'success': True,
-                'warning': error_message,
-                'submission_saved': True,
-                'needs_review': needs_review,
-                'bag_id': bag_id,
-                'po_id': assigned_po_id
-            })
-        elif needs_review:
-            return jsonify({
-                'success': True,
-                'message': 'Submission flagged for manager review - multiple matching receives found.',
-                'bag_id': bag_id,
-                'po_id': assigned_po_id,
-                'needs_review': needs_review
-            })
-        else:
-            return jsonify({
-                'success': True,
-                'message': 'Packaged count submitted successfully',
-                'bag_id': bag_id,
-                'po_id': assigned_po_id,
-                'needs_review': needs_review
-            })
-        
+                  bag_id, assigned_po_id, needs_review, receipt_number))
+            
+            # Return appropriate message based on matching result
+            if error_message:
+                return jsonify({
+                    'success': True,
+                    'warning': error_message,
+                    'submission_saved': True,
+                    'needs_review': needs_review,
+                    'bag_id': bag_id,
+                    'po_id': assigned_po_id
+                })
+            elif needs_review:
+                return jsonify({
+                    'success': True,
+                    'message': 'Submission flagged for manager review - multiple matching receives found.',
+                    'bag_id': bag_id,
+                    'po_id': assigned_po_id,
+                    'needs_review': needs_review
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'message': 'Packaged count submitted successfully',
+                    'bag_id': bag_id,
+                    'po_id': assigned_po_id,
+                    'needs_review': needs_review
+                })
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         print(f"Error in submit_warehouse: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 @bp.route('/api/submissions/bag-count', methods=['POST'])
 def submit_count():
     """Process manual count submission for PO close-outs - RECEIVE-BASED TRACKING"""
-    conn = None
     try:
         data = request.get_json() if request.is_json else request.form
         
@@ -329,7 +306,7 @@ def submit_count():
         if not data.get('tablet_type'):
             return jsonify({'error': 'tablet_type is required'}), 400
         
-        conn = get_db()
+        with db_transaction() as conn:
         
         # Get employee name from session (logged-in user)
         if session.get('admin_authenticated'):
@@ -406,41 +383,26 @@ def submit_count():
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
         ''', (employee_name, data.get('tablet_type'), inventory_item_id, submission_box_number,
-              data.get('bag_number'), bag_id, assigned_po_id, needs_review,
-              actual_count, submission_date, admin_notes))
-        
-        conn.commit()
-        
-        message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Bag count submitted successfully!'
-        
-        return jsonify({
-            'success': True,
-            'message': message,
-            'bag_id': bag_id,
-            'po_id': assigned_po_id,
-            'needs_review': needs_review
-        })
-        
+                  data.get('bag_number'), bag_id, assigned_po_id, needs_review,
+                  actual_count, submission_date, admin_notes))
+            
+            message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Bag count submitted successfully!'
+            
+            return jsonify({
+                'success': True,
+                'message': message,
+                'bag_id': bag_id,
+                'po_id': assigned_po_id,
+                'needs_review': needs_review
+            })
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 @bp.route('/api/submissions/machine-count', methods=['POST'])
 @employee_required
 def submit_machine_count():
     """Submit machine count reading and create warehouse submission"""
-    conn = None
     try:
         data = request.get_json()
         
@@ -461,7 +423,7 @@ def submit_machine_count():
         if not count_date:
             return jsonify({'error': 'Date is required'}), 400
         
-        conn = get_db()
+        with db_transaction() as conn:
         
         # Get employee name from session (logged-in user)
         if session.get('admin_authenticated'):
@@ -557,9 +519,8 @@ def submit_machine_count():
         inventory_item_id = tablet_type.get('inventory_item_id')
         tablet_type_id = tablet_type.get('id')
         
-        if not inventory_item_id or not tablet_type_id:
-            conn.commit()
-            return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
+            if not inventory_item_id or not tablet_type_id:
+                return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
         
         # Get box/bag numbers from form data
         # Normalize empty strings to None for flavor-based bags (new system)
@@ -625,24 +586,23 @@ def submit_machine_count():
               machine_count_int, cards_made, tablets_pressed_into_cards,
               count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number))
         
-        # If no receive match, submission is saved but not assigned
-        if not assigned_po_id:
-            conn.commit()
-            if error_message:
-                return jsonify({
-                    'success': True,
-                    'warning': error_message,
-                    'submission_saved': True,
-                    'needs_review': needs_review,
-                    'message': 'Machine count submitted successfully.'
-                })
-            else:
-                return jsonify({
-                    'success': True,
-                    'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
-                    'submission_saved': True,
-                    'message': 'Machine count submitted successfully.'
-                })
+            # If no receive match, submission is saved but not assigned
+            if not assigned_po_id:
+                if error_message:
+                    return jsonify({
+                        'success': True,
+                        'warning': error_message,
+                        'submission_saved': True,
+                        'needs_review': needs_review,
+                        'message': 'Machine count submitted successfully.'
+                    })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
+                        'submission_saved': True,
+                        'message': 'Machine count submitted successfully.'
+                    })
         
         # Get PO lines for the matched PO to update counts
         po_lines = conn.execute('''
@@ -694,28 +654,15 @@ def submit_machine_count():
                       totals['total_machine_good'], totals['total_machine_damaged'],
                       line['po_id']))
                 
-                updated_pos.add(line['po_id'])
-        
-        conn.commit()
-        
-        return jsonify({
-            'success': True, 
-            'message': 'Machine count submitted successfully.'
-        })
+                    updated_pos.add(line['po_id'])
+            
+            return jsonify({
+                'success': True, 
+                'message': 'Machine count submitted successfully.'
+            })
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 @bp.route('/api/machine-count/by-receipt', methods=['GET'])
@@ -726,14 +673,13 @@ def get_machine_count_by_receipt():
     Returns box_number, bag_number, tablet_type_id, and tablet_type_name
     for use in packaging submission
     """
-    conn = None
     try:
         receipt_number = request.args.get('receipt')
         
         if not receipt_number:
             return jsonify({'error': 'Receipt number required'}), 400
         
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Find all machine count submissions with this receipt number
         # Join with product_details and tablet_types to get tablet type info
@@ -770,12 +716,6 @@ def get_machine_count_by_receipt():
         print(f"Error in get_machine_count_by_receipt: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 # Backwards-compatible route aliases (deprecated)

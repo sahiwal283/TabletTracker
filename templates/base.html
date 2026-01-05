@@ -576,29 +576,29 @@
                 
                 <!-- Packaging Fields (for packaged and bag count submissions) -->
                 <div id="packaging-fields" class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Displays Made</label>
-                            <input type="number" id="edit-displays" min="0" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Cards Remaining</label>
-                            <input type="number" id="edit-packs" min="0" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Displays Made</label>
+                        <input type="number" id="edit-displays" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Loose Tablets</label>
-                            <input type="number" id="edit-loose" min="0" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Damaged Tablets</label>
-                            <input type="number" id="edit-damaged" min="0" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cards Remaining</label>
+                        <input type="number" id="edit-packs" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Loose Tablets</label>
+                        <input type="number" id="edit-loose" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Damaged Tablets</label>
+                        <input type="number" id="edit-damaged" min="0" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
                         </div>
                     </div>
                 </div>
@@ -795,10 +795,10 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             document.getElementById('edit-tablets-pressed').value = sub.tablets_pressed_into_cards || 0;
         } else {
             // Packaging fields
-            document.getElementById('edit-displays').value = sub.displays_made || 0;
-            document.getElementById('edit-packs').value = sub.packs_remaining || 0;
-            document.getElementById('edit-loose').value = sub.loose_tablets || 0;
-            document.getElementById('edit-damaged').value = sub.damaged_tablets || 0;
+        document.getElementById('edit-displays').value = sub.displays_made || 0;
+        document.getElementById('edit-packs').value = sub.packs_remaining || 0;
+        document.getElementById('edit-loose').value = sub.loose_tablets || 0;
+        document.getElementById('edit-damaged').value = sub.damaged_tablets || 0;
         }
         
         // Common fields
@@ -2027,7 +2027,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                    <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
                                         ${isAdmin || isManager ? `
                                             <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
                                                     class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">

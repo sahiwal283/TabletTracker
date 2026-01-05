@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import json
 import traceback
 from config import Config
-from app.utils.db_utils import get_db
+from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import admin_required
 from app.utils.route_helpers import ensure_app_settings_table
 
@@ -19,27 +19,20 @@ def admin_panel():
     if not session.get('admin_authenticated'):
         return render_template('admin_login.html')
     
-    conn = None
     try:
         ensure_app_settings_table()  # Ensure table exists
-        conn = get_db()
-        # Get current settings
-        cards_per_turn = conn.execute(
-            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-            ('cards_per_turn',)
-        ).fetchone()
-        cards_per_turn_value = int(cards_per_turn['setting_value']) if cards_per_turn else 1
-        return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
+        with db_read_only() as conn:
+            # Get current settings
+            cards_per_turn = conn.execute(
+                'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+                ('cards_per_turn',)
+            ).fetchone()
+            cards_per_turn_value = int(cards_per_turn['setting_value']) if cards_per_turn else 1
+            return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
     except Exception as e:
         import traceback
         traceback.print_exc()
         return render_template('admin_panel.html', cards_per_turn=1)
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 
@@ -82,9 +75,8 @@ def admin_logout():
 @admin_required
 def product_mapping():
     """Show product → tablet mapping and calculation examples"""
-    conn = None
     try:
-        conn = get_db()
+        with db_transaction() as conn:
         
         # Get all products with their tablet type and calculation details
         # Use LEFT JOIN to include products even if tablet_type_id is NULL or invalid
@@ -158,17 +150,11 @@ def product_mapping():
         product_tablet_type_ids = set(p['tablet_type_id'] for p in products if p['tablet_type_id'])
         tablet_types_without_products = [tt for tt in tablet_types if tt['id'] not in product_tablet_type_ids]
         
-        return render_template('product_mapping.html', products=products, tablet_types=tablet_types, 
-                             categories=all_categories, tablet_types_without_products=tablet_types_without_products)
+            return render_template('product_mapping.html', products=products, tablet_types=tablet_types, 
+                                 categories=all_categories, tablet_types_without_products=tablet_types_without_products)
     except Exception as e:
         flash(f'Error loading product mapping: {str(e)}', 'error')
         return render_template('product_mapping.html', products=[], tablet_types=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 
@@ -176,9 +162,8 @@ def product_mapping():
 @admin_required
 def tablet_types_config():
     """Configuration page for tablet types and their inventory item IDs"""
-    conn = None
     try:
-        conn = get_db()
+        with db_read_only() as conn:
         
         # Get all tablet types with their current inventory item IDs
         tablet_types_rows = conn.execute('''
@@ -218,16 +203,10 @@ def tablet_types_config():
         ''').fetchall()
         category_list = [dict(cat)['category'] for cat in categories_rows] if categories_rows else []
         
-        return render_template('tablet_types_config.html', tablet_types=tablet_types, categories=category_list)
+            return render_template('tablet_types_config.html', tablet_types=tablet_types, categories=category_list)
     except Exception as e:
         flash(f'Error loading tablet types: {str(e)}', 'error')
         return render_template('tablet_types_config.html', tablet_types=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
 
 
@@ -242,25 +221,18 @@ def fix_bags_page():
 @admin_required
 def manage_employees():
     """Employee management page"""
-    conn = None
     try:
-        conn = get_db()
-        employees = conn.execute('''
-            SELECT id, username, full_name, role, is_active, created_at
-            FROM employees 
-            ORDER BY role, full_name
-        ''').fetchall()
-        
-        return render_template('employee_management.html', employees=employees)
+        with db_read_only() as conn:
+            employees = conn.execute('''
+                SELECT id, username, full_name, role, is_active, created_at
+                FROM employees 
+                ORDER BY role, full_name
+            ''').fetchall()
+            
+            return render_template('employee_management.html', employees=employees)
     except Exception as e:
         print(f"Error in manage_employees: {e}")
         traceback.print_exc()
         flash('An error occurred while loading employees', 'error')
         return render_template('employee_management.html', employees=[])
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
 
