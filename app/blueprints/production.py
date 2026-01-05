@@ -404,20 +404,19 @@ def submit_machine_count():
         
         # Ensure required tables/columns exist
         ensure_submission_type_column()
-        from app.utils.route_helpers import ensure_machine_counts_table, ensure_machine_count_columns
         ensure_machine_counts_table()
         ensure_machine_count_columns()
         
-            tablet_type_id = data.get('tablet_type_id')
-            machine_count = data.get('machine_count')
-            count_date = data.get('count_date')
+        tablet_type_id = data.get('tablet_type_id')
+        machine_count = data.get('machine_count')
+        count_date = data.get('count_date')
         
         # Validation
-            if not tablet_type_id:
+        if not tablet_type_id:
             return jsonify({'error': 'Tablet type is required'}), 400
-            if machine_count is None or machine_count < 0:
+        if machine_count is None or machine_count < 0:
             return jsonify({'error': 'Valid machine count is required'}), 400
-            if not count_date:
+        if not count_date:
             return jsonify({'error': 'Date is required'}), 400
         
             with db_transaction() as conn:
