@@ -161,8 +161,8 @@ def submit_warehouse():
         
             # Insert submission record using logged-in employee name WITH inventory_item_id
             inventory_item_id = product.get('inventory_item_id')
+            if not inventory_item_id:
                 return jsonify({'error': 'Product inventory_item_id not found'}), 400
-            return jsonify({'error': 'Product inventory_item_id not found'}), 400
         
             # Get tablet_type_id for receive-based matching
             tablet_type_id = product.get('tablet_type_id')
