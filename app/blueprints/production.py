@@ -22,40 +22,40 @@ def production_form():
     try:
         with db_read_only() as conn:
             # Get product list for dropdown
-        products = conn.execute('''
+            products = conn.execute('''
             SELECT pd.product_name, tt.tablet_type_name, pd.packages_per_display, pd.tablets_per_package
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             ORDER BY pd.product_name
-        ''').fetchall()
-        
-        # Get all tablet types for bag count dropdown
-        tablet_types_raw = conn.execute('''
-            SELECT * FROM tablet_types 
-            ORDER BY tablet_type_name
-        ''').fetchall()
-        
-        # Convert to list of dicts for proper JSON serialization
-        tablet_types = [dict(tt) for tt in tablet_types_raw]
-        
-        # Get employee info for display (handle admin users)
-        employee = None
-        if session.get('admin_authenticated'):
-            # Create a mock employee object for admin
-            class MockEmployee:
-                full_name = 'Admin'
-            employee = MockEmployee()
-        elif session.get('employee_id'):
-            employee = conn.execute('''
-                SELECT full_name FROM employees WHERE id = ?
-            ''', (session.get('employee_id'),)).fetchone()
-        
-        # Get today's date for the date picker
-        today_date = datetime.now().date().isoformat()
-        
-        # Check if user is admin or manager (for admin notes access)
-        is_admin = session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']
-        
+            ''').fetchall()
+            
+            # Get all tablet types for bag count dropdown
+            tablet_types_raw = conn.execute('''
+                SELECT * FROM tablet_types 
+                ORDER BY tablet_type_name
+            ''').fetchall()
+            
+            # Convert to list of dicts for proper JSON serialization
+            tablet_types = [dict(tt) for tt in tablet_types_raw]
+            
+            # Get employee info for display (handle admin users)
+            employee = None
+            if session.get('admin_authenticated'):
+                # Create a mock employee object for admin
+                class MockEmployee:
+                    full_name = 'Admin'
+                employee = MockEmployee()
+            elif session.get('employee_id'):
+                employee = conn.execute('''
+                    SELECT full_name FROM employees WHERE id = ?
+                ''', (session.get('employee_id'),)).fetchone()
+            
+            # Get today's date for the date picker
+            today_date = datetime.now().date().isoformat()
+            
+            # Check if user is admin or manager (for admin notes access)
+            is_admin = session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']
+            
             return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
     except Exception as e:
         # Log error and re-raise to let Flask handle it
