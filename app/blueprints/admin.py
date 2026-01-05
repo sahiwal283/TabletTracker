@@ -168,33 +168,33 @@ def tablet_types_config():
             SELECT * FROM tablet_types 
             ORDER BY COALESCE(category, ''), tablet_type_name
         ''').fetchall()
-        
-        # Convert Row objects to dictionaries
-        tablet_types = [dict(row) for row in tablet_types_rows]
-        
-        # Get all tablet types for resolving variety pack contents
-        all_tablet_types_rows = conn.execute('SELECT id, tablet_type_name FROM tablet_types').fetchall()
-        all_tablet_types = {dict(tt)['id']: dict(tt)['tablet_type_name'] for tt in all_tablet_types_rows}
-        
-        # Enrich tablet types with resolved variety pack contents
-        import json
-        for tt in tablet_types:
-            if tt.get('variety_pack_contents'):
-                try:
-                    contents = json.loads(tt['variety_pack_contents'])
-                    tt['variety_pack_contents_resolved'] = [
-                        {
-                            'tablet_type_id': item['tablet_type_id'],
-                            'tablet_type_name': all_tablet_types.get(item['tablet_type_id'], f"ID {item['tablet_type_id']}"),
-                            'tablets_per_bottle': item['tablets_per_bottle']
-                        }
-                        for item in contents
-                    ]
-                except:
-                    tt['variety_pack_contents_resolved'] = []
-        
-        # Get unique categories
-        categories_rows = conn.execute('''
+            
+            # Convert Row objects to dictionaries
+            tablet_types = [dict(row) for row in tablet_types_rows]
+            
+            # Get all tablet types for resolving variety pack contents
+            all_tablet_types_rows = conn.execute('SELECT id, tablet_type_name FROM tablet_types').fetchall()
+            all_tablet_types = {dict(tt)['id']: dict(tt)['tablet_type_name'] for tt in all_tablet_types_rows}
+            
+            # Enrich tablet types with resolved variety pack contents
+            import json
+            for tt in tablet_types:
+                if tt.get('variety_pack_contents'):
+                    try:
+                        contents = json.loads(tt['variety_pack_contents'])
+                        tt['variety_pack_contents_resolved'] = [
+                            {
+                                'tablet_type_id': item['tablet_type_id'],
+                                'tablet_type_name': all_tablet_types.get(item['tablet_type_id'], f"ID {item['tablet_type_id']}"),
+                                'tablets_per_bottle': item['tablets_per_bottle']
+                            }
+                            for item in contents
+                        ]
+                    except:
+                        tt['variety_pack_contents_resolved'] = []
+            
+            # Get unique categories
+            categories_rows = conn.execute('''
             SELECT DISTINCT category FROM tablet_types 
             WHERE category IS NOT NULL AND category != '' 
             ORDER BY category
