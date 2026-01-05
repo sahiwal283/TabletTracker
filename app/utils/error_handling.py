@@ -147,24 +147,11 @@ def success_response(data: Optional[Dict[str, Any]] = None,
     return response
 
 
-class DatabaseError(Exception):
-    """Custom exception for database errors"""
-    pass
-
-
-class ValidationError(Exception):
-    """Custom exception for validation errors"""
-    pass
-
-
-class AuthenticationError(Exception):
-    """Custom exception for authentication errors"""
-    pass
-
-
-class AuthorizationError(Exception):
-    """Custom exception for authorization errors"""
-    pass
+# Import exceptions from centralized exceptions module
+from app.utils.exceptions import (
+    DatabaseError, ValidationError, AuthenticationError, AuthorizationError,
+    NotFoundError, ServiceError
+)
 
 
 def handle_database_error(error: Exception, operation: str = "database operation") -> Tuple[Any, int]:
@@ -192,6 +179,7 @@ def handle_database_error(error: Exception, operation: str = "database operation
             'error': f'Database error during {operation}',
             'details': str(error)
         }), 500
+
 
 
 
