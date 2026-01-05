@@ -228,21 +228,21 @@ def submit_warehouse():
                 bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
                 
                 if bag:
-                # Exact match found - auto-assign
-                bag_id = bag['id']
-                assigned_po_id = bag['po_id']
-                bag_label_count = bag.get('bag_label_count', 0)
-                # Use box_number from matched bag (bag always has box_number from small_boxes)
-                # This ensures we store the actual box_number even if user didn't enter it
-                box_number = bag.get('box_number') or box_number
-                box_ref = f", box={box_number}" if box_number else ""
-                current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
-            elif needs_review:
-                # Multiple matches - needs manual review
-                box_ref = f" Box {box_number}," if box_number else ""
-                current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
-            elif error_message:
-                return jsonify({'error': error_message}), 400
+                    # Exact match found - auto-assign
+                    bag_id = bag['id']
+                    assigned_po_id = bag['po_id']
+                    bag_label_count = bag.get('bag_label_count', 0)
+                    # Use box_number from matched bag (bag always has box_number from small_boxes)
+                    # This ensures we store the actual box_number even if user didn't enter it
+                    box_number = bag.get('box_number') or box_number
+                    box_ref = f", box={box_number}" if box_number else ""
+                    current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
+                elif needs_review:
+                    # Multiple matches - needs manual review
+                    box_ref = f" Box {box_number}," if box_number else ""
+                    current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
+                elif error_message:
+                    return jsonify({'error': error_message}), 400
         
             # Insert submission with bag_id and po_id if matched
             # Note: receipt_number already extracted and validated above
