@@ -1,5 +1,6 @@
 import time
 import base64
+import sqlite3
 from typing import Optional, Dict, Any
 import requests
 from datetime import datetime
