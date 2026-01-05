@@ -21,8 +21,7 @@ def production_form():
     """Combined production submission and bag count form"""
     try:
         with db_read_only() as conn:
-        
-        # Get product list for dropdown
+            # Get product list for dropdown
         products = conn.execute('''
             SELECT pd.product_name, tt.tablet_type_name, pd.packages_per_display, pd.tablets_per_package
             FROM product_details pd
