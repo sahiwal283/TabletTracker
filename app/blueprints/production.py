@@ -316,28 +316,28 @@ def submit_count():
                     return jsonify({'error': 'Employee not found'}), 400
                 
                 employee_name = employee['full_name']
-        
+            
             # Get tablet type details
             tablet_type = conn.execute('''
-            SELECT * FROM tablet_types
-            WHERE tablet_type_name = ?
-        ''', (data.get('tablet_type'),)).fetchone()
-        
-        if not tablet_type:
-            return jsonify({'error': 'Tablet type not found'}), 400
-        
-        # Convert Row to dict for safe access
-        tablet_type = dict(tablet_type)
-        
-        # Safe type conversion
-        try:
-            actual_count = int(data.get('actual_count', 0) or 0)
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid numeric values for counts'}), 400
-        
-        # Get submission_date (defaults to today if not provided)
-        submission_date = data.get('submission_date', datetime.now().date().isoformat())
-        
+                SELECT * FROM tablet_types
+                WHERE tablet_type_name = ?
+            ''', (data.get('tablet_type'),)).fetchone()
+            
+            if not tablet_type:
+                return jsonify({'error': 'Tablet type not found'}), 400
+            
+            # Convert Row to dict for safe access
+            tablet_type = dict(tablet_type)
+            
+            # Safe type conversion
+            try:
+                actual_count = int(data.get('actual_count', 0) or 0)
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid numeric values for counts'}), 400
+            
+            # Get submission_date (defaults to today if not provided)
+            submission_date = data.get('submission_date', datetime.now().date().isoformat())
+            
             # Get admin_notes if user is admin or manager
             admin_notes = None
             if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
