@@ -29,7 +29,7 @@ def receiving_list():
         # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
             purchase_orders = []
             if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
-            po_rows = conn.execute('''
+                po_rows = conn.execute('''
                 SELECT id, po_number, closed, internal_status, zoho_status
                 FROM purchase_orders
                 WHERE closed = FALSE
