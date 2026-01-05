@@ -554,13 +554,13 @@ def export_submissions_csv():
             if sort_by == 'receipt_number':
                 # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
                 # Split by dash and cast both parts to integers for proper numeric comparison
-            query += f''' ORDER BY 
-                CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
-                CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
-                CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
+                query += f''' ORDER BY 
+                    CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
+                    CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
+                    CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
                 '''
             else:
-            query += f' ORDER BY {sort_column} {sort_direction}'
+                query += f' ORDER BY {sort_column} {sort_direction}'
         
             submissions_raw = conn.execute(query, params).fetchall()
         
