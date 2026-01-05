@@ -3,6 +3,9 @@ Database migration utilities
 Handles schema changes and column additions
 """
 import sqlite3
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class MigrationRunner:
