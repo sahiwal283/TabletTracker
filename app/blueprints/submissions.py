@@ -684,7 +684,7 @@ def export_submissions_csv():
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
         response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
         
-            return response
+        return response
     except Exception as e:
         current_app.logger.error(f"Error exporting submissions CSV: {e}")
         traceback.print_exc()
