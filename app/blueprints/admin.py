@@ -163,9 +163,8 @@ def tablet_types_config():
     """Configuration page for tablet types and their inventory item IDs"""
     try:
         with db_read_only() as conn:
-        
-        # Get all tablet types with their current inventory item IDs
-        tablet_types_rows = conn.execute('''
+            # Get all tablet types with their current inventory item IDs
+            tablet_types_rows = conn.execute('''
             SELECT * FROM tablet_types 
             ORDER BY COALESCE(category, ''), tablet_type_name
         ''').fetchall()
