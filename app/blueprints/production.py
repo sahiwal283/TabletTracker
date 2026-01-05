@@ -93,102 +93,101 @@ def submit_warehouse():
         
         # Get employee name from session
         with db_transaction() as conn:
-        
-        # Handle admin users (they don't have employee_id in session)
-        if session.get('admin_authenticated'):
-            employee_name = 'Admin'
-        else:
-            employee = conn.execute('''
-                SELECT full_name FROM employees WHERE id = ?
-            ''', (session.get('employee_id'),)).fetchone()
+            # Handle admin users (they don't have employee_id in session)
+            if session.get('admin_authenticated'):
+                employee_name = 'Admin'
+            else:
+                employee = conn.execute('''
+                    SELECT full_name FROM employees WHERE id = ?
+                ''', (session.get('employee_id'),)).fetchone()
+                
+                if not employee:
+                    return jsonify({'error': 'Employee not found'}), 400
+                
+                employee_name = employee['full_name']
             
-            if not employee:
-                return jsonify({'error': 'Employee not found'}), 400
-            
-            employee_name = employee['full_name']
-        
-        # Get product details
-        product = conn.execute('''
+            # Get product details
+            product = conn.execute('''
             SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.product_name = ?
-        ''', (data.get('product_name'),)).fetchone()
+            ''', (data.get('product_name'),)).fetchone()
         
-        if not product:
+            if not product:
             return jsonify({'error': 'Product not found'}), 400
         
-        # Convert Row to dict for safe access
-        product = dict(product)
+            # Convert Row to dict for safe access
+            product = dict(product)
         
-        # Validate product configuration
-        packages_per_display = product.get('packages_per_display')
-        tablets_per_package = product.get('tablets_per_package')
+            # Validate product configuration
+            packages_per_display = product.get('packages_per_display')
+            tablets_per_package = product.get('tablets_per_package')
         
-        if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
+            if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
             return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
         
-        # Convert to int after validation
-        try:
+            # Convert to int after validation
+            try:
             packages_per_display = int(packages_per_display)
             tablets_per_package = int(tablets_per_package)
-        except (ValueError, TypeError):
+            except (ValueError, TypeError):
             return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
         
-        # Calculate tablet counts with safe type conversion
-        try:
+            # Calculate tablet counts with safe type conversion
+            try:
             displays_made = int(data.get('displays_made', 0) or 0)
             packs_remaining = int(data.get('packs_remaining', 0) or 0)
             loose_tablets = int(data.get('loose_tablets', 0) or 0)
             damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
-        except (ValueError, TypeError):
+            except (ValueError, TypeError):
             return jsonify({'error': 'Invalid numeric values for counts'}), 400
         
-        good_tablets = (displays_made * packages_per_display * tablets_per_package + 
+            good_tablets = (displays_made * packages_per_display * tablets_per_package + 
                        packs_remaining * tablets_per_package + 
                        loose_tablets)
         
-        # Get submission_date (defaults to today if not provided)
-        submission_date = data.get('submission_date', datetime.now().date().isoformat())
+            # Get submission_date (defaults to today if not provided)
+            submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-        # Get admin_notes if user is admin or manager
-        admin_notes = None
-        if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
+            # Get admin_notes if user is admin or manager
+            admin_notes = None
+            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
             admin_notes_raw = data.get('admin_notes', '')
             if admin_notes_raw and isinstance(admin_notes_raw, str):
                 admin_notes = admin_notes_raw.strip() or None
             elif admin_notes_raw:
                 admin_notes = str(admin_notes_raw).strip() or None
         
-        # Insert submission record using logged-in employee name WITH inventory_item_id
-        inventory_item_id = product.get('inventory_item_id')
-        if not inventory_item_id:
+            # Insert submission record using logged-in employee name WITH inventory_item_id
+            inventory_item_id = product.get('inventory_item_id')
+            if not inventory_item_id:
             return jsonify({'error': 'Product inventory_item_id not found'}), 400
         
-        # Get tablet_type_id for receive-based matching
-        tablet_type_id = product.get('tablet_type_id')
-        if not tablet_type_id:
+            # Get tablet_type_id for receive-based matching
+            tablet_type_id = product.get('tablet_type_id')
+            if not tablet_type_id:
             return jsonify({'error': 'Product tablet_type_id not found'}), 400
         
-        # Get receipt_number (required for packaging submissions)
-        receipt_number = (data.get('receipt_number') or '').strip() or None
-        if not receipt_number:
+            # Get receipt_number (required for packaging submissions)
+            receipt_number = (data.get('receipt_number') or '').strip() or None
+            if not receipt_number:
             return jsonify({'error': 'Receipt number is required'}), 400
         
-        # Try to get box/bag from form data first
-        # Normalize empty strings to None for flavor-based bags (new system)
-        box_number_raw = data.get('box_number')
-        box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
-        bag_number = data.get('bag_number')
-        bag_id = None
-        assigned_po_id = None
-        bag_label_count = None
-        needs_review = False
-        error_message = None  # Initialize error_message for all code paths
+            # Try to get box/bag from form data first
+            # Normalize empty strings to None for flavor-based bags (new system)
+            box_number_raw = data.get('box_number')
+            box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
+            bag_number = data.get('bag_number')
+            bag_id = None
+            assigned_po_id = None
+            bag_label_count = None
+            needs_review = False
+            error_message = None  # Initialize error_message for all code paths
         
-        # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
-        # This is much more reliable than looking up box/bag and re-matching
-        if not (box_number and bag_number):
+            # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
+            # This is much more reliable than looking up box/bag and re-matching
+            if not (box_number and bag_number):
             machine_count = conn.execute('''
                 SELECT bag_id, assigned_po_id, box_number, bag_number, 
                        inventory_item_id, product_name
@@ -224,7 +223,7 @@ def submit_warehouse():
                 return jsonify({
                     'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
                 }), 400
-        else:
+            else:
             # Box/bag provided manually - use old matching logic
             # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
             bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
@@ -246,16 +245,16 @@ def submit_warehouse():
             elif error_message:
                 return jsonify({'error': error_message}), 400
         
-        # Insert submission with bag_id and po_id if matched
-        # Note: receipt_number already extracted and validated above
-        # bag_label_count already set from receipt lookup or manual matching
-        conn.execute('''
+            # Insert submission with bag_id and po_id if matched
+            # Note: receipt_number already extracted and validated above
+            # bag_label_count already set from receipt lookup or manual matching
+            conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
              displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
              submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
-        ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
+            ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
               bag_label_count or data.get('bag_label_count') or 0,
               displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
                   bag_id, assigned_po_id, needs_review, receipt_number))
