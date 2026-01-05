@@ -162,36 +162,36 @@ def submissions_list():
         
         # Apply PO filter if provided
             if filter_po_id:
-            query += ' AND ws.assigned_po_id = ?'
+                query += ' AND ws.assigned_po_id = ?'
             params.append(filter_po_id)
         
         # Apply item filter if provided
             if filter_item_id:
-            query += ' AND tt.inventory_item_id = ?'
+                query += ' AND tt.inventory_item_id = ?'
             params.append(filter_item_id)
         
         # Apply date range filters
             if filter_date_from:
-            query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
+                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
             params.append(filter_date_from)
         
             if filter_date_to:
-            query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
+                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
             params.append(filter_date_to)
         
         # Apply tablet type filter if provided
             if filter_tablet_type_id:
-            query += ' AND tt.id = ?'
+                query += ' AND tt.id = ?'
             params.append(filter_tablet_type_id)
         
         # Apply submission type filter if provided
             if filter_submission_type:
-            query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
         
         # Apply receipt number filter if provided (partial match)
             if filter_receipt_number:
-            query += ' AND ws.receipt_number LIKE ?'
+                query += ' AND ws.receipt_number LIKE ?'
             params.append(f'%{filter_receipt_number}%')
         
         # Get submissions ordered by created_at ASC for running total calculation
@@ -506,36 +506,36 @@ def export_submissions_csv():
         
         # Apply PO filter if provided
             if filter_po_id:
-            query += ' AND ws.assigned_po_id = ?'
+                query += ' AND ws.assigned_po_id = ?'
             params.append(filter_po_id)
         
         # Apply item filter if provided
             if filter_item_id:
-            query += ' AND tt.inventory_item_id = ?'
+                query += ' AND tt.inventory_item_id = ?'
             params.append(filter_item_id)
         
         # Apply date range filters
             if filter_date_from:
-            query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
+                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
             params.append(filter_date_from)
         
             if filter_date_to:
-            query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
+                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
             params.append(filter_date_to)
         
         # Apply tablet type filter if provided
             if filter_tablet_type_id:
-            query += ' AND tt.id = ?'
+                query += ' AND tt.id = ?'
             params.append(filter_tablet_type_id)
         
         # Apply submission type filter if provided
             if filter_submission_type:
-            query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
             params.append(filter_submission_type)
         
         # Apply receipt number filter if provided (partial match)
             if filter_receipt_number:
-            query += ' AND ws.receipt_number LIKE ?'
+                query += ' AND ws.receipt_number LIKE ?'
             params.append(f'%{filter_receipt_number}%')
         
         # Apply sorting
