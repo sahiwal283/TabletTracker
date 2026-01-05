@@ -1,8 +1,16 @@
 """
 Receive-based tracking utilities for matching submissions to receives/bags
 """
+import sqlite3
+from typing import Optional, Tuple, Dict, Any
 
-def find_bag_for_submission(conn, tablet_type_id, bag_number, box_number=None, submission_type='packaged'):
+def find_bag_for_submission(
+    conn: sqlite3.Connection,
+    tablet_type_id: int,
+    bag_number: int,
+    box_number: Optional[int] = None,
+    submission_type: str = 'packaged'
+) -> Tuple[Optional[Dict[str, Any]], bool, Optional[str]]:
     """
     Find matching bag in receives by tablet_type_id and bag_number.
     

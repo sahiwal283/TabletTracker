@@ -4,11 +4,12 @@ Bag matching service for finding bags that match submission criteria.
 This service extracts the bag matching logic that was previously
 duplicated in blueprint files.
 """
+import sqlite3
 from typing import Dict, List, Optional, Any, Tuple
 
 
 def find_matching_bags(
-    conn: Any,
+    conn: sqlite3.Connection,
     submission_dict: Dict[str, Any],
     exclude_closed_bags: bool = False
 ) -> List[Dict[str, Any]]:
@@ -180,7 +181,7 @@ def find_matching_bags(
 
 def build_receive_name(
     bag: Dict[str, Any],
-    conn: Any
+    conn: sqlite3.Connection
 ) -> str:
     """
     Build receive name from bag information.
@@ -240,7 +241,7 @@ def build_receive_name(
 
 
 def find_matching_bags_with_receive_names(
-    conn: Any,
+    conn: sqlite3.Connection,
     submission_dict: Dict[str, Any],
     exclude_closed_bags: bool = False
 ) -> List[Dict[str, Any]]:

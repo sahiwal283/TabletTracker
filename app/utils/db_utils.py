@@ -14,7 +14,7 @@ from functools import wraps
 from config import Config
 
 
-def get_db():
+def get_db() -> sqlite3.Connection:
     """Get a database connection with Row factory"""
     conn = sqlite3.connect(Config.DATABASE_PATH)
     conn.row_factory = sqlite3.Row
@@ -22,7 +22,7 @@ def get_db():
 
 
 @contextmanager
-def db_connection(read_only: bool = False):
+def db_connection(read_only: bool = False) -> Iterator[sqlite3.Connection]:
     """
     Context manager for database connections.
     Ensures proper connection cleanup even on errors.
@@ -57,7 +57,7 @@ def db_connection(read_only: bool = False):
 
 
 @contextmanager
-def db_transaction():
+def db_transaction() -> Iterator[sqlite3.Connection]:
     """
     Context manager for database transactions.
     Automatically commits on success, rolls back on failure.
@@ -88,7 +88,7 @@ def db_transaction():
 
 
 @contextmanager
-def db_read_only():
+def db_read_only() -> Iterator[sqlite3.Connection]:
     """
     Context manager for read-only database operations.
     No commit is performed, connection is automatically closed.

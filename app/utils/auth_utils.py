@@ -2,7 +2,8 @@
 Authentication and authorization utilities
 """
 from functools import wraps
-from flask import session, request, jsonify, redirect, url_for
+from typing import Callable, Any, Optional
+from flask import session, request, jsonify, redirect, url_for, Response
 import bcrypt
 import hmac
 
@@ -65,8 +66,16 @@ def employee_required(f):
     return decorated_function
 
 
-def get_employee_role(username):
-    """Get the role of an employee"""
+def get_employee_role(username: str) -> Optional[str]:
+    """
+    Get the role of an employee.
+    
+    Args:
+        username: Employee username
+    
+    Returns:
+        Employee role or None if not found
+    """
     from app.utils.db_utils import db_query
     result = db_query(
         'SELECT role FROM employees WHERE username = ? AND is_active = 1',
@@ -76,8 +85,17 @@ def get_employee_role(username):
     return result['role'] if result else None
 
 
-def has_permission(username, required_permission):
-    """Check if an employee has a specific permission"""
+def has_permission(username: str, required_permission: str) -> bool:
+    """
+    Check if an employee has a specific permission.
+    
+    Args:
+        username: Employee username
+        required_permission: Required permission name
+    
+    Returns:
+        True if employee has permission, False otherwise
+    """
     role = get_employee_role(username)
     if not role:
         return False
@@ -86,20 +104,37 @@ def has_permission(username, required_permission):
     return 'all' in permissions or required_permission in permissions
 
 
-def hash_password(password):
-    """Hash a password using bcrypt with automatic salt"""
+def hash_password(password: str) -> str:
+    """
+    Hash a password using bcrypt with automatic salt.
+    
+    Args:
+        password: Plain text password
+    
+    Returns:
+        Hashed password string
+    """
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
-def verify_password(password, hash):
-    """Verify a password against its hash using constant-time comparison"""
+def verify_password(password: str, password_hash: str) -> bool:
+    """
+    Verify a password against its hash using constant-time comparison.
+    
+    Args:
+        password: Plain text password to verify
+        password_hash: Stored password hash
+    
+    Returns:
+        True if password matches, False otherwise
+    """
     try:
         # Try bcrypt verification first (new format)
-        return bcrypt.checkpw(password.encode('utf-8'), hash.encode('utf-8'))
+        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
     except (ValueError, AttributeError):
         # Fallback for old SHA256 hashes (for migration period)
         # This allows existing passwords to work until users log in and passwords are rehashed
         import hashlib
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        return hmac.compare_digest(password_hash, hash)
+        computed_hash = hashlib.sha256(password.encode()).hexdigest()
+        return hmac.compare_digest(computed_hash, password_hash)
 
