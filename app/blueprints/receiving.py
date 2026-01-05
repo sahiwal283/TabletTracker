@@ -161,7 +161,7 @@ def receiving_management_v2():
         
         # Simple query first - just check if we can access receiving table
             try:
-            test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
+                test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
             receiving_count = test_query['count'] if test_query else 0
         except Exception as e:
             return f"""
