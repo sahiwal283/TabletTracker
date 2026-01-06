@@ -1956,9 +1956,8 @@ function closeSubmissionDetailsModal(event) {
 async function viewReceiveDetails(receiveId, receiveName) {
     try {
         // Check user role for showing close buttons
-        const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
-        const isAdmin = userRole === 'admin';
-        const isManager = userRole === 'manager' || isAdmin;
+        const isAdmin = {% if session.get('admin_authenticated') or session.get('employee_role') == 'admin' %}true{% else %}false{% endif %};
+        const isManager = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
         
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();
