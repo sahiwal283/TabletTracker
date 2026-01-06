@@ -162,7 +162,8 @@ def submit_warehouse():
             # Insert submission record using logged-in employee name WITH inventory_item_id
             inventory_item_id = product.get('inventory_item_id')
             if not inventory_item_id:
-                return jsonify({'error': 'Product inventory_item_id not found'}), 400
+                current_app.logger.error(f"Product '{data.get('product_name')}' missing inventory_item_id. Product data: {dict(product)}")
+                return jsonify({'error': f"Product '{data.get('product_name')}' is missing inventory_item_id configuration. Please contact admin to configure this product."}), 400
         
             # Get tablet_type_id for receive-based matching
             tablet_type_id = product.get('tablet_type_id')
@@ -247,16 +248,21 @@ def submit_warehouse():
             # Insert submission with bag_id and po_id if matched
             # Note: receipt_number already extracted and validated above
             # bag_label_count already set from receipt lookup or manual matching
-            conn.execute('''
-                INSERT INTO warehouse_submissions 
-                (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-                 displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
-                 submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
-            ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
-                  bag_label_count or data.get('bag_label_count') or 0,
-                  displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
-                  bag_id, assigned_po_id, needs_review, receipt_number))
+            try:
+                conn.execute('''
+                    INSERT INTO warehouse_submissions 
+                    (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
+                     displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
+                     submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
+                ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
+                      bag_label_count or data.get('bag_label_count') or 0,
+                      displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
+                      bag_id, assigned_po_id, needs_review, receipt_number))
+            except Exception as e:
+                current_app.logger.error(f"SQL Error inserting submission: {e}")
+                current_app.logger.error(f"Values: product_name={data.get('product_name')}, inventory_item_id={inventory_item_id}, box={box_number}, bag={bag_number}")
+                raise
             
             # Return appropriate message based on matching result
             if error_message:
