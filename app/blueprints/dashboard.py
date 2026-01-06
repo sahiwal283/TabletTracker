@@ -124,8 +124,8 @@ def dashboard_view():
                    r.id as receive_id,
                    r.received_date,
                    r.receive_name as stored_receive_name,
-                   sb.box_number,
-                   b.bag_number,
+                   COALESCE(sb.box_number, ws.box_number) as box_number,
+                   COALESCE(b.bag_number, ws.bag_number) as bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
