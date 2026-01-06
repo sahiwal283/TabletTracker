@@ -1129,6 +1129,27 @@ def get_possible_receives_for_submission(submission_id):
             submission_type = submission_dict.get('submission_type', 'packaged')
             exclude_closed_bags = (submission_type != 'packaged')
             
+            # Ensure tablet_type_id is populated - try fallback lookup if missing
+            # This handles cases where LEFT JOIN didn't match but inventory_item_id exists
+            tablet_type_id = submission_dict.get('tablet_type_id')
+            if not tablet_type_id and submission_dict.get('inventory_item_id'):
+                tt_row = conn.execute('''
+                    SELECT id FROM tablet_types WHERE inventory_item_id = ?
+                ''', (submission_dict.get('inventory_item_id'),)).fetchone()
+                if tt_row:
+                    tablet_type_id = tt_row['id']
+                    submission_dict['tablet_type_id'] = tablet_type_id
+            
+            # Additional fallback: try to get tablet_type_id from product_name via product_details
+            # This handles cases where inventory_item_id lookup failed (data inconsistency)
+            if not tablet_type_id and submission_dict.get('product_name'):
+                product_row = conn.execute('''
+                    SELECT tablet_type_id FROM product_details WHERE product_name = ?
+                ''', (submission_dict.get('product_name'),)).fetchone()
+                if product_row:
+                    tablet_type_id = product_row['tablet_type_id']
+                    submission_dict['tablet_type_id'] = tablet_type_id
+            
             # Use bag matching service
             matching_bags = find_matching_bags_with_receive_names(
                 conn,
@@ -1138,14 +1159,6 @@ def get_possible_receives_for_submission(submission_id):
             
             if not submission_dict.get('bag_number'):
                 # Fallback: try to find receives by tablet type
-                tablet_type_id = submission_dict.get('tablet_type_id')
-                if not tablet_type_id and submission_dict.get('inventory_item_id'):
-                    tt_row = conn.execute('''
-                        SELECT id FROM tablet_types WHERE inventory_item_id = ?
-                    ''', (submission_dict.get('inventory_item_id'),)).fetchone()
-                    if tt_row:
-                        tablet_type_id = tt_row['id']
-                
                 if tablet_type_id:
                     if exclude_closed_bags:
                         fallback_receives = conn.execute('''
