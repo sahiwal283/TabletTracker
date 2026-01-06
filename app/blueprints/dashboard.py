@@ -107,11 +107,8 @@ def dashboard_view():
             # Get tablet types for report filters
             tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
             
-            # Get recent submissions (last 7 days, limit 10) with calculated totals
-            # Filter by date to show only actually recent submissions
-            from datetime import datetime, timedelta
-            seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-            
+            # Get recent submissions (last 10 most recent, no date filter) with calculated totals
+            # Show the most recent submissions regardless of date
             submissions_query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
@@ -147,11 +144,10 @@ def dashboard_view():
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
-            WHERE COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?
             ORDER BY ws.created_at DESC
             LIMIT 10
         '''
-            submissions_raw = conn.execute(submissions_query, (seven_days_ago,)).fetchall()
+            submissions_raw = conn.execute(submissions_query).fetchall()
             
             # Calculate running totals by bag PER PO (each PO has its own physical bags)
             # Separate running totals for each submission type
