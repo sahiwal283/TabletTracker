@@ -302,6 +302,118 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
         alert('Failed to update bag status');
     }
 }
+
+// Show admin notes - defined early
+function showAdminNotes(adminNotes) {
+    const modal = document.getElementById('admin-notes-view-modal');
+    const content = document.getElementById('admin-notes-content');
+    
+    if (modal && content) {
+        // Decode HTML entities and preserve newlines
+        const decodedNotes = adminNotes 
+            ? adminNotes.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+            : 'No notes available.';
+        content.textContent = decodedNotes;
+        modal.classList.remove('hidden');
+    }
+}
+
+// Edit submission modal - defined early
+async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
+    try {
+        const response = await fetch(`/api/submission/${submissionId}/details`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert(data.error || 'Failed to load submission');
+            return;
+        }
+        
+        const sub = data.submission;
+        const submissionType = sub.submission_type || 'packaged';
+        
+        // Show/hide appropriate fields based on submission type
+        const machineFields = document.getElementById('machine-fields');
+        const packagingFields = document.getElementById('packaging-fields');
+        
+        if (submissionType === 'machine') {
+            if (machineFields) machineFields.classList.remove('hidden');
+            if (packagingFields) packagingFields.classList.add('hidden');
+        } else {
+            if (machineFields) machineFields.classList.add('hidden');
+            if (packagingFields) packagingFields.classList.remove('hidden');
+        }
+        
+        // Populate the form
+        const editSubIdInput = document.getElementById('edit-submission-id');
+        if (editSubIdInput) editSubIdInput.value = sub.id;
+        
+        const poContextInput = document.getElementById('edit-po-context-po-id');
+        const itemContextInput = document.getElementById('edit-po-context-item-id');
+        if (poContextInput && poId !== null) poContextInput.value = poId || '';
+        if (itemContextInput && inventoryItemId !== null) itemContextInput.value = inventoryItemId || '';
+        
+        // Populate fields based on submission type
+        if (submissionType === 'machine') {
+            const editEmployee = document.getElementById('edit-employee');
+            const editProduct = document.getElementById('edit-product');
+            const editTurns = document.getElementById('edit-turns');
+            const editCards = document.getElementById('edit-cards');
+            const editTablets = document.getElementById('edit-tablets-pressed');
+            const editDate = document.getElementById('edit-date');
+            const editBox = document.getElementById('edit-box');
+            const editBag = document.getElementById('edit-bag');
+            const editReceipt = document.getElementById('edit-receipt');
+            
+            if (editEmployee) editEmployee.value = sub.employee_name || '';
+            if (editProduct) editProduct.value = sub.product_name || '';
+            if (editTurns) editTurns.value = sub.displays_made || 0;
+            if (editCards) editCards.value = sub.packs_remaining || 0;
+            if (editTablets) editTablets.value = sub.tablets_pressed_into_cards || 0;
+            if (editDate) editDate.value = sub.submission_date || '';
+            if (editBox) editBox.value = sub.box_number || '';
+            if (editBag) editBag.value = sub.bag_number || '';
+            if (editReceipt) editReceipt.value = sub.receipt_number || '';
+        } else {
+            const editEmployee = document.getElementById('edit-employee');
+            const editProduct = document.getElementById('edit-product');
+            const editDisplays = document.getElementById('edit-displays');
+            const editPacks = document.getElementById('edit-packs');
+            const editLoose = document.getElementById('edit-loose');
+            const editDamaged = document.getElementById('edit-damaged');
+            const editDate = document.getElementById('edit-date');
+            const editBox = document.getElementById('edit-box');
+            const editBag = document.getElementById('edit-bag');
+            const editReceipt = document.getElementById('edit-receipt');
+            
+            if (editEmployee) editEmployee.value = sub.employee_name || '';
+            if (editProduct) editProduct.value = sub.product_name || '';
+            if (editDisplays) editDisplays.value = sub.displays_made || 0;
+            if (editPacks) editPacks.value = sub.packs_remaining || 0;
+            if (editLoose) editLoose.value = sub.loose_tablets || 0;
+            if (editDamaged) editDamaged.value = sub.damaged_tablets || 0;
+            if (editDate) editDate.value = sub.submission_date || '';
+            if (editBox) editBox.value = sub.box_number || '';
+            if (editBag) editBag.value = sub.bag_number || '';
+            if (editReceipt) editReceipt.value = sub.receipt_number || '';
+        }
+        
+        // Populate admin notes if exists
+        const adminNotesTextarea = document.getElementById('edit-admin-notes');
+        if (adminNotesTextarea) {
+            adminNotesTextarea.value = sub.admin_notes || '';
+        }
+        
+        // Show modal
+        const modal = document.getElementById('edit-submission-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error loading submission:', error);
+        alert('Failed to load submission: ' + error.message);
+    }
+}
 </script>    
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -833,20 +945,7 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
 
 <!-- Shared Edit Submission Modal JavaScript (Available on all pages) -->
 <script>
-// Admin Notes View Modal Functions (shared across all pages)
-function showAdminNotes(adminNotes) {
-    const modal = document.getElementById('admin-notes-view-modal');
-    const content = document.getElementById('admin-notes-content');
-    
-    if (modal && content) {
-        // Decode HTML entities and preserve newlines
-        const decodedNotes = adminNotes 
-            ? adminNotes.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
-            : 'No notes available.';
-        content.textContent = decodedNotes;
-        modal.classList.remove('hidden');
-    }
-}
+// showAdminNotes and openEditSubmissionModal moved to early script section at top of body
 
 function closeAdminNotesModal(event) {
     const modal = document.getElementById('admin-notes-view-modal');
@@ -858,8 +957,7 @@ function closeAdminNotesModal(event) {
     }
 }
 
-// Edit Submission Modal Functions (shared across all pages)
-async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
+// Note: openEditSubmissionModal is now in early script block above
     try {
         const response = await fetch(`/api/submission/${submissionId}/details`);
         const data = await response.json();
