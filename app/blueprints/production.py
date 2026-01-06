@@ -498,6 +498,13 @@ def submit_machine_count():
             except (ValueError, TypeError):
                 return jsonify({'error': 'Invalid machine count value'}), 400
             
+            # Get inventory_item_id and tablet_type_id from tablet_type (BEFORE using them)
+            inventory_item_id = tablet_type.get('inventory_item_id')
+            tablet_type_id = tablet_type.get('id')
+            
+            if not inventory_item_id or not tablet_type_id:
+                return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
+            
             # Insert machine count record (for historical tracking)
             if machine_id:
                 conn.execute('''
@@ -509,13 +516,6 @@ def submit_machine_count():
                     INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
                     VALUES (?, ?, ?, ?)
                 ''', (tablet_type_id, machine_count_int, employee_name, count_date))
-            
-            # Get inventory_item_id and tablet_type_id
-            inventory_item_id = tablet_type.get('inventory_item_id')
-            tablet_type_id = tablet_type.get('id')
-            
-            if not inventory_item_id or not tablet_type_id:
-                return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
         
             # Get box/bag numbers from form data
             # Normalize empty strings to None for flavor-based bags (new system)
