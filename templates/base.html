@@ -318,6 +318,17 @@ function showAdminNotes(adminNotes) {
     }
 }
 
+// Close admin notes modal - defined early
+function closeAdminNotesModal(event) {
+    const modal = document.getElementById('admin-notes-view-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    if (event) {
+        event.stopPropagation();
+    }
+}
+
 // Edit submission modal - defined early
 async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
     try {
@@ -945,17 +956,7 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
 
 <!-- Shared Edit Submission Modal JavaScript (Available on all pages) -->
 <script>
-// showAdminNotes and openEditSubmissionModal moved to early script section at top of body
-
-function closeAdminNotesModal(event) {
-    const modal = document.getElementById('admin-notes-view-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-    if (event) {
-        event.stopPropagation();
-    }
-}
+// showAdminNotes, closeAdminNotesModal, and openEditSubmissionModal moved to early script section at top of body
 
 // Note: openEditSubmissionModal is now in early script block above
     try {
