@@ -1626,71 +1626,71 @@ def get_submission_details(submission_id):
                 total_running_total = 0
                 
                 for bag_sub in bag_submissions:
-                bag_sub_dict = dict(bag_sub)
-                bag_sub_type = bag_sub_dict.get('submission_type', 'packaged')
+                    bag_sub_dict = dict(bag_sub)
+                    bag_sub_type = bag_sub_dict.get('submission_type', 'packaged')
+                    
+                    # Calculate individual total for this submission
+                    if bag_sub_type == 'machine':
+                        # Use tablets_pressed_into_cards, fallback to loose_tablets, then calculate from cards_made
+                        # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
+                        bag_tablets_per_package = (bag_sub_dict.get('tablets_per_package_final') or 
+                                                 bag_sub_dict.get('tablets_per_package') or 0)
+                        individual_total = (bag_sub_dict.get('tablets_pressed_into_cards') or
+                                           bag_sub_dict.get('loose_tablets') or
+                                           ((bag_sub_dict.get('packs_remaining', 0) or 0) * bag_tablets_per_package) or
+                                           0)
+                        machine_running_total += individual_total
+                        # Machine counts are NOT added to total - they're consumed in production
+                    elif bag_sub_type == 'bag':
+                        # For bag count submissions, use loose_tablets (the actual count from form)
+                        individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
+                        bag_running_total += individual_total
+                        # Bag counts are NOT added to total - they're just inventory counts
+                    else:  # 'packaged'
+                        packages_per_display = bag_sub_dict.get('packages_per_display', 0) or 0
+                        tablets_per_package = bag_sub_dict.get('tablets_per_package', 0) or 0
+                        displays_made = bag_sub_dict.get('displays_made', 0) or 0
+                        packs_remaining = bag_sub_dict.get('packs_remaining', 0) or 0
+                        loose_tablets = bag_sub_dict.get('loose_tablets', 0) or 0
+                        damaged_tablets = bag_sub_dict.get('damaged_tablets', 0) or 0
+                        individual_total = (
+                            (displays_made * packages_per_display * tablets_per_package) +
+                            (packs_remaining * tablets_per_package) +
+                            loose_tablets + damaged_tablets
+                        )
+                        packaged_running_total += individual_total
+                        # Only packaged counts are added to total - these are tablets actually in the bag
+                        total_running_total += individual_total
                 
-                # Calculate individual total for this submission
-                if bag_sub_type == 'machine':
-                    # Use tablets_pressed_into_cards, fallback to loose_tablets, then calculate from cards_made
-                    # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
-                    bag_tablets_per_package = (bag_sub_dict.get('tablets_per_package_final') or 
-                                             bag_sub_dict.get('tablets_per_package') or 0)
-                    individual_total = (bag_sub_dict.get('tablets_pressed_into_cards') or
-                                       bag_sub_dict.get('loose_tablets') or
-                                       ((bag_sub_dict.get('packs_remaining', 0) or 0) * bag_tablets_per_package) or
-                                       0)
-                    machine_running_total += individual_total
-                    # Machine counts are NOT added to total - they're consumed in production
-                elif bag_sub_type == 'bag':
-                    # For bag count submissions, use loose_tablets (the actual count from form)
-                    individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
-                    bag_running_total += individual_total
-                    # Bag counts are NOT added to total - they're just inventory counts
-                else:  # 'packaged'
-                    packages_per_display = bag_sub_dict.get('packages_per_display', 0) or 0
-                    tablets_per_package = bag_sub_dict.get('tablets_per_package', 0) or 0
-                    displays_made = bag_sub_dict.get('displays_made', 0) or 0
-                    packs_remaining = bag_sub_dict.get('packs_remaining', 0) or 0
-                    loose_tablets = bag_sub_dict.get('loose_tablets', 0) or 0
-                    damaged_tablets = bag_sub_dict.get('damaged_tablets', 0) or 0
-                    individual_total = (
-                        (displays_made * packages_per_display * tablets_per_package) +
-                        (packs_remaining * tablets_per_package) +
-                        loose_tablets + damaged_tablets
-                    )
-                    packaged_running_total += individual_total
-                    # Only packaged counts are added to total - these are tablets actually in the bag
-                    total_running_total += individual_total
-            
-            submission_dict['bag_running_total'] = bag_running_total
-            submission_dict['machine_running_total'] = machine_running_total
-            submission_dict['packaged_running_total'] = packaged_running_total
-            # Total should only include packaged counts (tablets actually in the bag)
-            # Machine counts are consumed, bag counts are just inventory
-            submission_dict['running_total'] = packaged_running_total
-            
-            # Calculate count status and tablet difference
-            # Use packaged_running_total for comparison - machine counts are consumed, not in bag
-            bag_label_count = submission_dict.get('bag_label_count', 0) or 0
-            if not submission_dict.get('bag_id'):
+                submission_dict['bag_running_total'] = bag_running_total
+                submission_dict['machine_running_total'] = machine_running_total
+                submission_dict['packaged_running_total'] = packaged_running_total
+                # Total should only include packaged counts (tablets actually in the bag)
+                # Machine counts are consumed, bag counts are just inventory
+                submission_dict['running_total'] = packaged_running_total
+                
+                # Calculate count status and tablet difference
+                # Use packaged_running_total for comparison - machine counts are consumed, not in bag
+                bag_label_count = submission_dict.get('bag_label_count', 0) or 0
+                if not submission_dict.get('bag_id'):
+                    submission_dict['count_status'] = 'no_bag'
+                    submission_dict['tablet_difference'] = None
+                elif abs(packaged_running_total - bag_label_count) <= 5:  # Allow 5 tablet tolerance
+                    submission_dict['count_status'] = 'match'
+                    submission_dict['tablet_difference'] = abs(packaged_running_total - bag_label_count)
+                elif packaged_running_total < bag_label_count:
+                    submission_dict['count_status'] = 'under'
+                    submission_dict['tablet_difference'] = bag_label_count - packaged_running_total
+                else:
+                    submission_dict['count_status'] = 'over'
+                    submission_dict['tablet_difference'] = packaged_running_total - bag_label_count
+            else:
+                submission_dict['bag_running_total'] = 0
+                submission_dict['machine_running_total'] = 0
+                submission_dict['packaged_running_total'] = 0
+                submission_dict['running_total'] = 0
                 submission_dict['count_status'] = 'no_bag'
                 submission_dict['tablet_difference'] = None
-            elif abs(packaged_running_total - bag_label_count) <= 5:  # Allow 5 tablet tolerance
-                submission_dict['count_status'] = 'match'
-                submission_dict['tablet_difference'] = abs(packaged_running_total - bag_label_count)
-            elif packaged_running_total < bag_label_count:
-                submission_dict['count_status'] = 'under'
-                submission_dict['tablet_difference'] = bag_label_count - packaged_running_total
-            else:
-                submission_dict['count_status'] = 'over'
-                submission_dict['tablet_difference'] = packaged_running_total - bag_label_count
-        else:
-            submission_dict['bag_running_total'] = 0
-            submission_dict['machine_running_total'] = 0
-            submission_dict['packaged_running_total'] = 0
-            submission_dict['running_total'] = 0
-            submission_dict['count_status'] = 'no_bag'
-            submission_dict['tablet_difference'] = None
             
             return jsonify({
                 'success': True,
