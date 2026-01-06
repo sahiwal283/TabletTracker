@@ -24,7 +24,7 @@ def check_product_config(product_name=None):
     
     try:
         if product_name:
-            # Check specific product
+            # Check specific product (exact match first)
             print(f"🔍 Checking configuration for: {product_name}\n")
             
             product = cursor.execute('''
@@ -34,9 +34,54 @@ def check_product_config(product_name=None):
                 WHERE pd.product_name = ?
             ''', (product_name,)).fetchone()
             
+            # If exact match not found, try case-insensitive partial match
             if not product:
-                print(f"❌ Product '{product_name}' not found in product_details table")
-                return False
+                print(f"⚠️  Exact match not found, searching for products containing '{product_name}'...\n")
+                products = cursor.execute('''
+                    SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name, tt.id as tablet_type_id
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name LIKE ?
+                    ORDER BY pd.product_name
+                ''', (f'%{product_name}%',)).fetchall()
+                
+                if products:
+                    print(f"✅ Found {len(products)} matching product(s):\n")
+                    for p in products:
+                        print(f"   Product Name: {p['product_name']}")
+                        print(f"   Tablet Type: {p['tablet_type_name']}")
+                        print(f"   Tablet Type ID: {p['tablet_type_id']}")
+                        print(f"   Inventory Item ID: {p['inventory_item_id'] or '❌ MISSING'}")
+                        print(f"   Packages per Display: {p.get('packages_per_display', 'N/A')}")
+                        print(f"   Tablets per Package: {p.get('tablets_per_package', 'N/A')}")
+                        print()
+                    
+                    # Check if any are missing inventory_item_id
+                    missing = [p for p in products if not p['inventory_item_id']]
+                    if missing:
+                        print(f"⚠️  {len(missing)} product(s) missing inventory_item_id:")
+                        for p in missing:
+                            print(f"   - {p['product_name']} (Tablet Type: {p['tablet_type_name']})")
+                        return False
+                    else:
+                        print("✅ All matching products have inventory_item_id configured!")
+                        return True
+                else:
+                    print(f"❌ No products found containing '{product_name}'")
+                    print("\n📋 Available products in product_details:")
+                    all_products = cursor.execute('''
+                        SELECT pd.product_name, tt.tablet_type_name
+                        FROM product_details pd
+                        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                        ORDER BY pd.product_name
+                    ''').fetchall()
+                    for p in all_products[:20]:  # Show first 20
+                        print(f"   - {p['product_name']}")
+                    if len(all_products) > 20:
+                        print(f"   ... and {len(all_products) - 20} more")
+                    return False
+            
+            # Exact match found - continue with original logic
             
             print(f"✅ Product found:")
             print(f"   Product Name: {product['product_name']}")
