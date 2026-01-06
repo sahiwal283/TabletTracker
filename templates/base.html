@@ -199,7 +199,59 @@
     <script src="{{ url_for('static', filename='js/api-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal-manager.js') }}"></script>
 </head>
-<body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">    
+<body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
+<script>
+// CSRF Token Helper Functions - Defined early so they're available in all child templates
+function getCSRFToken() {
+    // Try to get CSRF token from meta tag first
+    let token = document.querySelector('meta[name="csrf-token"]');
+    if (token) {
+        return token.getAttribute('content');
+    }
+    
+    // Try to get from hidden input in any form
+    token = document.querySelector('input[name="csrf_token"]');
+    if (token) {
+        return token.value;
+    }
+    
+    // Try to get from cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrf_token') {
+            return value;
+        }
+    }
+    
+    return null;
+}
+
+// Helper to add CSRF token to fetch headers
+function getCSRFHeaders(additionalHeaders = {}) {
+    const token = getCSRFToken();
+    if (token) {
+        return {
+            'X-CSRFToken': token,
+            'X-CSRF-Token': token, // Alternative header name
+            ...additionalHeaders
+        };
+    }
+    return additionalHeaders;
+}
+
+// Wrapper for fetch with CSRF token
+async function csrfFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    
+    // Add CSRF token for state-changing methods
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        options.headers = getCSRFHeaders(options.headers || {});
+    }
+    
+    return fetch(url, options);
+}
+</script>    
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
         <symbol id="icon-chart" viewBox="0 0 24 24" fill="currentColor">
@@ -2543,56 +2595,7 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
     }
 }
 
-// CSRF Token Helper Functions
-function getCSRFToken() {
-    // Try to get CSRF token from meta tag first
-    let token = document.querySelector('meta[name="csrf-token"]');
-    if (token) {
-        return token.getAttribute('content');
-    }
-    
-    // Try to get from hidden input in any form
-    token = document.querySelector('input[name="csrf_token"]');
-    if (token) {
-        return token.value;
-    }
-    
-    // Try to get from cookie
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'csrf_token') {
-            return value;
-        }
-    }
-    
-    return null;
-}
-
-// Helper to add CSRF token to fetch headers
-function getCSRFHeaders(additionalHeaders = {}) {
-    const token = getCSRFToken();
-    if (token) {
-        return {
-            'X-CSRFToken': token,
-            'X-CSRF-Token': token, // Alternative header name
-            ...additionalHeaders
-        };
-    }
-    return additionalHeaders;
-}
-
-// Wrapper for fetch with CSRF token
-async function csrfFetch(url, options = {}) {
-    const method = (options.method || 'GET').toUpperCase();
-    
-    // Add CSRF token for state-changing methods
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-        options.headers = getCSRFHeaders(options.headers || {});
-    }
-    
-    return fetch(url, options);
-}
+// CSRF Token Helper Functions (duplicate removed - now defined at top of body)
 </script>
 </body>
 </html>
