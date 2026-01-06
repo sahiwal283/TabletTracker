@@ -1753,6 +1753,7 @@ def edit_submission(submission_id):
                     inventory_item_id = new_product_info['inventory_item_id']
             
             # Get product details for calculations
+            # Make this more resilient - try multiple approaches
             product = conn.execute('''
                 SELECT pd.packages_per_display, pd.tablets_per_package
                 FROM product_details pd
@@ -1761,10 +1762,32 @@ def edit_submission(submission_id):
             ''', (product_name_to_use,)).fetchone()
             
             if not product:
-                return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
+                # Fallback: try to get product details without the JOIN
+                product = conn.execute('''
+                    SELECT packages_per_display, tablets_per_package
+                    FROM product_details
+                    WHERE product_name = ?
+                ''', (product_name_to_use,)).fetchone()
+            
+            if not product:
+                # Last resort: get from existing submission or use defaults
+                existing_config = conn.execute('''
+                    SELECT pd.packages_per_display, pd.tablets_per_package
+                    FROM warehouse_submissions ws
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    WHERE ws.id = ?
+                ''', (submission_id,)).fetchone()
+                
+                if existing_config and (existing_config.get('packages_per_display') or existing_config.get('tablets_per_package')):
+                    product = existing_config
+                else:
+                    # Use defaults to allow edit (admin can fix product config later)
+                    current_app.logger.warning(f"Product configuration not found for {product_name_to_use}, using defaults")
+                    product = {'packages_per_display': 1, 'tablets_per_package': 1}
             
             # Convert Row to dict for safe access
-            product = dict(product)
+            if not isinstance(product, dict):
+                product = dict(product)
             
             # Validate product configuration values
             packages_per_display = product.get('packages_per_display')
