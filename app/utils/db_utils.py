@@ -309,9 +309,10 @@ class BagRepository:
     def get_by_receiving_id(conn: sqlite3.Connection, receiving_id: int) -> List[Dict[str, Any]]:
         """Get all bags for a receiving."""
         rows = conn.execute('''
-            SELECT b.*, sb.box_number
+            SELECT b.*, sb.box_number, tt.tablet_type_name, tt.inventory_item_id
             FROM bags b
             JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN tablet_types tt ON b.tablet_type_id = tt.id
             WHERE sb.receiving_id = ?
             ORDER BY sb.box_number, b.bag_number
         ''', (receiving_id,)).fetchall()
