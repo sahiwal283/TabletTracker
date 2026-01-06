@@ -214,13 +214,15 @@ def submit_warehouse():
             # This is much more reliable than looking up box/bag and re-matching
             if not (box_number and bag_number):
                 machine_count = conn.execute('''
-                    SELECT inventory_item_id, product_name
+                    SELECT inventory_item_id, product_name, bag_id, assigned_po_id, box_number, bag_number
                     FROM warehouse_submissions
                     WHERE receipt_number = ? AND submission_type = 'machine'
                     ORDER BY created_at DESC LIMIT 1
                 ''', (receipt_number,)).fetchone()
                 
                 if machine_count:
+                    # Convert Row to dict for safe access
+                    machine_count = dict(machine_count)
                     # CRITICAL: Verify the machine count is for the SAME product/flavor
                     if machine_count['inventory_item_id'] != inventory_item_id:
                         return jsonify({
