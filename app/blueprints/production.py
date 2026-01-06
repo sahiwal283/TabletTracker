@@ -245,6 +245,21 @@ def submit_warehouse():
                 elif error_message:
                     return jsonify({'error': error_message}), 400
         
+            # Verify inventory_item_id column exists before inserting
+            try:
+                columns = [row[1] for row in conn.execute("PRAGMA table_info(warehouse_submissions)").fetchall()]
+                if 'inventory_item_id' not in columns:
+                    current_app.logger.error("inventory_item_id column missing from warehouse_submissions table")
+                    # Try to add it
+                    try:
+                        conn.execute('ALTER TABLE warehouse_submissions ADD COLUMN inventory_item_id TEXT')
+                        current_app.logger.info("Added inventory_item_id column to warehouse_submissions")
+                    except Exception as alter_error:
+                        current_app.logger.error(f"Failed to add inventory_item_id column: {alter_error}")
+                        return jsonify({'error': 'Database schema error: inventory_item_id column missing. Please run migration script.'}), 500
+            except Exception as pragma_error:
+                current_app.logger.error(f"Error checking table schema: {pragma_error}")
+            
             # Insert submission with bag_id and po_id if matched
             # Note: receipt_number already extracted and validated above
             # bag_label_count already set from receipt lookup or manual matching
@@ -262,6 +277,9 @@ def submit_warehouse():
             except Exception as e:
                 current_app.logger.error(f"SQL Error inserting submission: {e}")
                 current_app.logger.error(f"Values: product_name={data.get('product_name')}, inventory_item_id={inventory_item_id}, box={box_number}, bag={bag_number}")
+                # Check if it's a column error
+                if 'inventory_item_id' in str(e).lower() or 'syntax error' in str(e).lower():
+                    return jsonify({'error': f'Database schema error: {str(e)}. Please ensure inventory_item_id column exists in warehouse_submissions table.'}), 500
                 raise
             
             # Return appropriate message based on matching result
