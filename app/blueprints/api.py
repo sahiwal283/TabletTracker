@@ -1578,54 +1578,54 @@ def get_submission_details(submission_id):
                 packs_remaining = submission_dict.get('packs_remaining', 0) or 0
                 loose_tablets = submission_dict.get('loose_tablets', 0) or 0
                 damaged_tablets = submission_dict.get('damaged_tablets', 0) or 0
+                
+                calculated_total = (
+                    (displays_made * packages_per_display * tablets_per_package) +
+                    (packs_remaining * tablets_per_package) +
+                    loose_tablets + damaged_tablets
+                )
+                submission_dict['individual_calc'] = calculated_total
+                submission_dict['total_tablets'] = calculated_total
             
-            calculated_total = (
-                (displays_made * packages_per_display * tablets_per_package) +
-                (packs_remaining * tablets_per_package) +
-                loose_tablets + damaged_tablets
-            )
-            submission_dict['individual_calc'] = calculated_total
-            submission_dict['total_tablets'] = calculated_total
-        
-        # Build receive name if we have the necessary information
-        receive_name = None
-        if submission_dict.get('receive_id') and submission_dict.get('po_number') and submission_dict.get('shipment_number'):
-            receive_name = f"{submission_dict.get('po_number')}-{submission_dict.get('shipment_number')}-{submission_dict.get('box_number', '')}-{submission_dict.get('bag_number', '')}"
-        submission_dict['receive_name'] = receive_name
-        
-        # Calculate bag running totals for this submission
-        # Get all submissions to the same bag up to and including this submission (chronological order)
-        if submission_dict.get('assigned_po_id') and submission_dict.get('product_name') and submission_dict.get('box_number') is not None and submission_dict.get('bag_number') is not None:
-            bag_identifier = f"{submission_dict.get('box_number')}/{submission_dict.get('bag_number')}"
-            bag_key = (submission_dict.get('assigned_po_id'), submission_dict.get('product_name'), bag_identifier)
+            # Build receive name if we have the necessary information
+            receive_name = None
+            if submission_dict.get('receive_id') and submission_dict.get('po_number') and submission_dict.get('shipment_number'):
+                receive_name = f"{submission_dict.get('po_number')}-{submission_dict.get('shipment_number')}-{submission_dict.get('box_number', '')}-{submission_dict.get('bag_number', '')}"
+            submission_dict['receive_name'] = receive_name
             
-            # Get all submissions to this bag up to and including this one, in chronological order
-            bag_submissions = conn.execute('''
-                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package,
-                       COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final
-                FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-                LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
-                WHERE ws.assigned_po_id = ?
-                AND ws.product_name = ?
-                AND ws.box_number = ?
-                AND ws.bag_number = ?
-                AND ws.created_at <= ?
-                ORDER BY ws.created_at ASC
-            ''', (submission_dict.get('assigned_po_id'),
-                  submission_dict.get('product_name'),
-                  submission_dict.get('box_number'),
-                  submission_dict.get('bag_number'),
-                  submission_dict.get('created_at'))).fetchall()
-            
-            # Calculate running totals
-            bag_running_total = 0
-            machine_running_total = 0
-            packaged_running_total = 0
-            total_running_total = 0
-            
-            for bag_sub in bag_submissions:
+            # Calculate bag running totals for this submission
+            # Get all submissions to the same bag up to and including this submission (chronological order)
+            if submission_dict.get('assigned_po_id') and submission_dict.get('product_name') and submission_dict.get('box_number') is not None and submission_dict.get('bag_number') is not None:
+                bag_identifier = f"{submission_dict.get('box_number')}/{submission_dict.get('bag_number')}"
+                bag_key = (submission_dict.get('assigned_po_id'), submission_dict.get('product_name'), bag_identifier)
+                
+                # Get all submissions to this bag up to and including this one, in chronological order
+                bag_submissions = conn.execute('''
+                    SELECT ws.*, pd.packages_per_display, pd.tablets_per_package,
+                           COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final
+                    FROM warehouse_submissions ws
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
+                    LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
+                    WHERE ws.assigned_po_id = ?
+                    AND ws.product_name = ?
+                    AND ws.box_number = ?
+                    AND ws.bag_number = ?
+                    AND ws.created_at <= ?
+                    ORDER BY ws.created_at ASC
+                ''', (submission_dict.get('assigned_po_id'),
+                      submission_dict.get('product_name'),
+                      submission_dict.get('box_number'),
+                      submission_dict.get('bag_number'),
+                      submission_dict.get('created_at'))).fetchall()
+                
+                # Calculate running totals
+                bag_running_total = 0
+                machine_running_total = 0
+                packaged_running_total = 0
+                total_running_total = 0
+                
+                for bag_sub in bag_submissions:
                 bag_sub_dict = dict(bag_sub)
                 bag_sub_type = bag_sub_dict.get('submission_type', 'packaged')
                 
