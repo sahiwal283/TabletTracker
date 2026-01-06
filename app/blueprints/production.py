@@ -517,13 +517,13 @@ def submit_machine_count():
             if not inventory_item_id or not tablet_type_id:
                 return jsonify({'warning': 'Tablet type inventory_item_id or id not found. Submission saved but not assigned to PO.', 'submission_saved': True})
         
-        # Get box/bag numbers from form data
-        # Normalize empty strings to None for flavor-based bags (new system)
+            # Get box/bag numbers from form data
+            # Normalize empty strings to None for flavor-based bags (new system)
             box_number_raw = data.get('box_number')
             box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
             bag_number = data.get('bag_number')
         
-        # Get admin_notes if user is admin or manager
+            # Get admin_notes if user is admin or manager
             admin_notes = None
             if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
                 admin_notes_raw = data.get('admin_notes', '')
@@ -533,7 +533,7 @@ def submit_machine_count():
                     # Handle non-string values (shouldn't happen, but be safe)
                     admin_notes = str(admin_notes_raw).strip() or None
         
-        # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
+            # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
             bag = None
             needs_review = False
             error_message = None

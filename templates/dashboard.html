@@ -2958,6 +2958,10 @@ if (typeof window.syncZohoPOs === 'undefined') {
 // Keep the old modal function for backwards compatibility (if needed elsewhere)
 async function viewReceiveDetailsModal(receiveId, receiveName) {
     try {
+        // Check user role for showing close buttons
+        const isAdmin = {% if session.get('admin_authenticated') or session.get('employee_role') == 'admin' %}true{% else %}false{% endif %};
+        const isManager = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+        
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();
         
@@ -3042,16 +3046,29 @@ async function viewReceiveDetailsModal(receiveId, receiveName) {
                             labelColor = 'text-yellow-600';
                         }
                         
+                        const isClosed = bag.status === 'Closed';
+                        const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
+                        
                         modalContent += `
-                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all cursor-pointer" 
-                                 onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});"
-                                 title="Click to view submissions for Box ${box.box_number}, Bag ${bag.bag_number}">
+                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
+                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for Box ' + box.box_number + ', Bag ' + bag.bag_number}">
                                 <div class="flex justify-between items-center mb-2">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm font-medium text-gray-700">🎒 Bag ${bag.bag_number}</span>
+                                    <div class="flex items-center gap-2 flex-1 cursor-pointer"
+                                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});">
+                                        <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name || 'Bag'} ${bag.bag_number}</span>
+                                        <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
+                                        ${closedBadge}
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
+                                    <div class="flex items-center gap-2">
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                        ${isAdmin || isManager ? `
+                                            <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name || 'Product'}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
+                                                    class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
+                                                ${isClosed ? '🔓 Reopen' : '🔒 Close'}
+                                            </button>
+                                        ` : ''}
+                                    </div>
                                 </div>
                                 
                                 <div class="grid grid-cols-4 gap-2 text-xs">

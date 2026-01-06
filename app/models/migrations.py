@@ -149,9 +149,7 @@ class MigrationRunner:
         self._add_column_if_not_exists('bags', 'pill_count', 'INTEGER')
         self._add_column_if_not_exists('bags', 'tablet_type_id', 'INTEGER')
         
-        # Add Zoho receive push tracking columns
-        # zoho_receive_pushed: tracks if bag has been pushed to Zoho receives
-        # zoho_receive_id: stores the Zoho receive ID after successful push
+        # Add Zoho receive push tracking columns (v2.23.0+dev)
         self._add_column_if_not_exists('bags', 'zoho_receive_pushed', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('bags', 'zoho_receive_id', 'TEXT')
     

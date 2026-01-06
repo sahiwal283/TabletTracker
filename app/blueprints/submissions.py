@@ -131,8 +131,8 @@ def submissions_list():
                    r.id as receive_id,
                    r.received_date,
                    r.receive_name as stored_receive_name,
-                   sb.box_number,
-                   b.bag_number,
+                   COALESCE(sb.box_number, ws.box_number) as box_number,
+                   COALESCE(b.bag_number, ws.bag_number) as bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
@@ -271,30 +271,46 @@ def submissions_list():
                 sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
                 
                 # Build receive name using stored receive_name from database
-                # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2)
+                # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2) or PO-receive-bag for flavor-based
+                # If bag_id exists, we should always be able to build a receive_name
                 receive_name = None
                 stored_receive_name = sub_dict.get('stored_receive_name')
                 box_number = sub_dict.get('box_number')
                 bag_number = sub_dict.get('bag_number')
+                bag_id = sub_dict.get('bag_id')
                 
-                if stored_receive_name and box_number is not None and bag_number is not None:
-                    # Use stored receive_name (e.g., "PO-00164-1") and append box-bag
-                    receive_name = f"{stored_receive_name}-{box_number}-{bag_number}"
-                elif sub_dict.get('receive_id') and sub_dict.get('po_number'):
-                    # Fallback for legacy records: calculate receive_number dynamically
-                    # This should only happen if receive_name wasn't backfilled
-                    receive_number_result = conn.execute('''
-                        SELECT COUNT(*) + 1 as receive_number
-                        FROM receiving r2
-                        WHERE r2.po_id = ?
-                        AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
-                             OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
-                                 AND r2.id < ?))
-                    ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
-                          sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
-                    receive_number = receive_number_result['receive_number'] if receive_number_result else 1
-                    if box_number is not None and bag_number is not None:
-                        receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
+                # Only build receive_name if bag_id exists (submission is assigned to a bag)
+                if bag_id:
+                    if stored_receive_name:
+                        # Use stored receive_name and append box-bag if available
+                        if box_number is not None and bag_number is not None:
+                            receive_name = f"{stored_receive_name}-{box_number}-{bag_number}"
+                        elif bag_number is not None:
+                            # Flavor-based: no box number, just append bag
+                            receive_name = f"{stored_receive_name}-{bag_number}"
+                        else:
+                            # Just use stored receive_name
+                            receive_name = stored_receive_name
+                    elif sub_dict.get('receive_id') and sub_dict.get('po_number'):
+                        # Fallback for legacy records: calculate receive_number dynamically
+                        # This should only happen if receive_name wasn't backfilled
+                        receive_number_result = conn.execute('''
+                            SELECT COUNT(*) + 1 as receive_number
+                            FROM receiving r2
+                            WHERE r2.po_id = ?
+                            AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                                 OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
+                                     AND r2.id < ?))
+                        ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
+                              sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
+                        receive_number = receive_number_result['receive_number'] if receive_number_result else 1
+                        if box_number is not None and bag_number is not None:
+                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
+                        elif bag_number is not None:
+                            # Flavor-based: no box number
+                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{bag_number}"
+                        else:
+                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}"
                 
                 sub_dict['receive_name'] = receive_name
                 
