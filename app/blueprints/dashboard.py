@@ -148,6 +148,7 @@ def dashboard_view():
             LIMIT 10
         '''
             submissions_raw = conn.execute(submissions_query).fetchall()
+            current_app.logger.info(f"📊 Dashboard: Found {len(submissions_raw)} recent submissions (query returned {len(submissions_raw)} rows)")
             
             # Calculate running totals by bag PER PO (each PO has its own physical bags)
             # Separate running totals for each submission type
