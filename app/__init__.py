@@ -80,18 +80,6 @@ def create_app(config_class=Config):
     csrf = CSRFProtect()
     csrf.init_app(app)
     
-    # CSRF error handler - return JSON for API routes
-    @csrf.error_handler
-    def csrf_error(reason):
-        # Return JSON for API routes and AJAX requests
-        if request.path.startswith('/api/') or request.path.startswith('/submit_') or request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'success': False,
-                'error': f'CSRF validation failed: {reason}'
-            }), 400
-        # Return HTML error page for regular form submissions
-        return render_template('error.html', error=f'CSRF validation failed: {reason}'), 400
-    
     # Initialize Rate Limiting (disabled for login routes - using failed attempt tracking instead)
     limiter = Limiter(
         app=app,
