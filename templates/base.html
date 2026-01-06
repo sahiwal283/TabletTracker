@@ -1093,52 +1093,6 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
 <script>
 // showAdminNotes, closeAdminNotesModal, openEditSubmissionModal, closeEditSubmissionModal, and saveSubmissionEdit moved to early script section at top of body
 // Note: openEditSubmissionModal is now in early script block above
-        } catch (error) {
-            console.error('Failed to load products:', error);
-        }
-        
-        // Populate admin notes textarea
-        const adminNotesTextarea = document.getElementById('edit-admin-notes');
-        if (adminNotesTextarea) {
-            adminNotesTextarea.value = sub.admin_notes || '';
-        }
-        
-        // Show admin change PO section for all submissions (verification workflow removed)
-        // Note: This modal is only accessible to admins/managers (API enforces this)
-        const adminChangePoSection = document.getElementById('admin-change-po-section');
-        
-        if (adminChangePoSection) {
-            adminChangePoSection.classList.remove('hidden');
-            const currentPoDisplay = document.getElementById('edit-current-po-display');
-            if (currentPoDisplay) {
-                currentPoDisplay.textContent = sub.po_number || 'Unassigned';
-            }
-            
-            // Setup checkbox handler
-            const confirmCheckbox = document.getElementById('edit-admin-confirm-checkbox');
-            const posSection = document.getElementById('edit-admin-pos-section');
-            if (confirmCheckbox && posSection) {
-                confirmCheckbox.checked = false;
-                posSection.classList.add('hidden');
-                confirmCheckbox.onchange = function() {
-                    if (this.checked) {
-                        loadEditAdminPOs(submissionId, sub.product_name);
-                    } else {
-                        posSection.classList.add('hidden');
-                    }
-                };
-            }
-        } else if (adminChangePoSection) {
-            adminChangePoSection.classList.add('hidden');
-        }
-        
-        // Show modal
-        document.getElementById('edit-submission-modal').classList.remove('hidden');
-    } catch (error) {
-        console.error('Error loading submission:', error);
-        alert('Failed to load submission: ' + error.message);
-    }
-}
 
 // Admin Change PO functions for edit modal
 async function loadEditAdminPOs(submissionId, productName) {
