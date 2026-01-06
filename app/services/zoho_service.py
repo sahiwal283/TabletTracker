@@ -137,7 +137,7 @@ class ZohoInventoryAPI:
         
         Args:
             purchaseorder_id: The Zoho purchase order ID
-            line_items: List of dicts with 'item_id' and 'quantity'
+            line_items: List of dicts with 'item_id' and 'quantity_received'
             date: Date string in ISO format (YYYY-MM-DD)
             notes: Optional notes string
             image_bytes: Optional bytes of image to attach
@@ -148,11 +148,21 @@ class ZohoInventoryAPI:
         """
         endpoint = 'purchasereceives'
         
+        # Format line items for Zoho API
+        # Zoho expects 'quantity_received' not 'quantity' for receives
+        formatted_line_items = []
+        for item in line_items:
+            formatted_item = {
+                'line_item_id': item.get('item_id'),  # Zoho might call this line_item_id
+                'quantity_received': item.get('quantity', 0)  # Use quantity_received for receives
+            }
+            formatted_line_items.append(formatted_item)
+        
         # Build the receive data payload
         receive_data = {
             'purchaseorder_id': purchaseorder_id,
             'date': date,
-            'line_items': line_items
+            'line_items': formatted_line_items
         }
         
         if notes:
@@ -161,7 +171,7 @@ class ZohoInventoryAPI:
         # Log the request for debugging
         logger.info(f"Creating purchase receive in Zoho:")
         logger.info(f"  PO ID: {purchaseorder_id}")
-        logger.info(f"  Line items: {line_items}")
+        logger.info(f"  Formatted line items: {formatted_line_items}")
         logger.info(f"  Date: {date}")
         logger.info(f"  Notes length: {len(notes) if notes else 0}")
         
