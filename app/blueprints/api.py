@@ -1741,16 +1741,30 @@ def edit_submission(submission_id):
             # If product is being changed, update inventory_item_id
             if new_product_name and new_product_name != submission['product_name']:
                 # Get the new inventory_item_id for the new product
+                # Try product_name first (from product_details)
                 new_product_info = conn.execute('''
-                    SELECT tt.inventory_item_id
+                    SELECT tt.inventory_item_id, pd.product_name
                     FROM tablet_types tt
                     JOIN product_details pd ON tt.id = pd.tablet_type_id
                     WHERE pd.product_name = ?
                     LIMIT 1
                 ''', (new_product_name,)).fetchone()
                 
+                # If not found by product_name, try tablet_type_name
+                if not new_product_info:
+                    new_product_info = conn.execute('''
+                        SELECT tt.inventory_item_id, pd.product_name
+                        FROM tablet_types tt
+                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE tt.tablet_type_name = ?
+                        LIMIT 1
+                    ''', (new_product_name,)).fetchone()
+                
                 if new_product_info:
                     inventory_item_id = new_product_info['inventory_item_id']
+                    # Use the actual product_name from product_details if available
+                    if new_product_info.get('product_name'):
+                        new_product_name = new_product_info['product_name']
             
             # Get product details for calculations
             # Make this more resilient - try multiple approaches

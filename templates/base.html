@@ -524,30 +524,76 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             currentProductEl.textContent = sub.product_name || 'Unknown';
         }
         
-        // Load all products for dropdown
-        try {
-            const productsResponse = await fetch('/api/tablet_types');
-            const productsData = await productsResponse.json();
-            const productSelect = document.getElementById('edit-product-name');
+        // Load all products from product_details for dropdown
+        // We need product_name, not tablet_type_name
+        const productSelect = document.getElementById('edit-product-name');
+        if (productSelect) {
+            // First, clear and show loading
+            productSelect.innerHTML = '<option value="">Loading products...</option>';
             
-            if (productSelect && productsData && productsData.tablet_types) {
-                // Clear existing options
-                productSelect.innerHTML = '';
-                
-                // Add all products (including current one)
-                productsData.tablet_types.forEach(product => {
-                    const option = document.createElement('option');
-                    option.value = product.tablet_type_name;
-                    option.textContent = product.tablet_type_name;
-                    if (product.tablet_type_name === sub.product_name) {
-                        option.textContent = `${product.tablet_type_name} (Current)`;
-                        option.selected = true;
+            // Fetch products - we'll need to get product_names from product_details
+            // Since there's no API endpoint for products, we'll fetch tablet_types and map them
+            // But actually, we can use the production page's data structure
+            fetch('/api/tablet_types')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success || !data.tablet_types) {
+                        throw new Error('Failed to load products');
                     }
-                    productSelect.appendChild(option);
+                    
+                    // Clear and populate with tablet types (which will be converted to 2-tier)
+                    productSelect.innerHTML = '<option value="">Select product...</option>';
+                    
+                    // Add all tablet types as options
+                    // Note: The backend edit endpoint accepts product_name, so we need to map
+                    // tablet_type_name to product_name. For now, we'll use tablet_type_name
+                    // and the backend will handle the lookup
+                    data.tablet_types.forEach(tabletType => {
+                        const option = document.createElement('option');
+                        option.value = tabletType.tablet_type_name;
+                        option.textContent = tabletType.tablet_type_name;
+                        productSelect.appendChild(option);
+                    });
+                    
+                    // Convert to two-level dropdown
+                    return convertToTwoLevelDropdown(productSelect);
+                })
+                .then(() => {
+                    // After conversion, try to set the current product
+                    // IMPORTANT: Don't auto-select if there's no exact match to prevent auto-changing the product
+                    if (sub.product_name) {
+                        const itemSelect = document.getElementById('edit-product-name_item');
+                        const originalSelect = document.getElementById('edit-product-name');
+                        const groupSelect = document.getElementById('edit-product-name_group');
+                        
+                        if (itemSelect && originalSelect) {
+                            // Find option that exactly matches product_name
+                            const matchingOption = Array.from(itemSelect.options).find(
+                                opt => opt.value === sub.product_name || opt.textContent.trim() === sub.product_name.trim()
+                            );
+                            
+                            if (matchingOption) {
+                                // Only set if we have an exact match
+                                itemSelect.value = matchingOption.value;
+                                originalSelect.value = matchingOption.value;
+                                // Trigger change to update the hidden original select
+                                itemSelect.dispatchEvent(new Event('change'));
+                            } else {
+                                // No match found - don't auto-select anything
+                                // This prevents the product from changing automatically
+                                console.log('No exact match found for product:', sub.product_name, '- dropdown will remain unselected');
+                                // Keep the dropdown showing "Select product..." to indicate no selection
+                                // The user can manually select the correct product if needed
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading products:', error);
+                    if (productSelect) {
+                        productSelect.innerHTML = '<option value="">Error loading products</option>';
+                    }
                 });
-            }
-        } catch (error) {
-            console.error('Error loading products:', error);
         }
         
         // Show modal
