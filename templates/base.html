@@ -465,53 +465,89 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
         
         // Populate fields based on submission type
         if (submissionType === 'machine') {
-            const editEmployee = document.getElementById('edit-employee');
-            const editProduct = document.getElementById('edit-product');
-            const editTurns = document.getElementById('edit-turns');
-            const editCards = document.getElementById('edit-cards');
+            // Machine submission fields - use correct field IDs
+            const editMachineCount = document.getElementById('edit-machine-count');
             const editTablets = document.getElementById('edit-tablets-pressed');
-            const editDate = document.getElementById('edit-date');
-            const editBox = document.getElementById('edit-box');
-            const editBag = document.getElementById('edit-bag');
-            const editReceipt = document.getElementById('edit-receipt');
+            const editBox = document.getElementById('edit-box-number');
+            const editBag = document.getElementById('edit-bag-number');
+            const editBagLabel = document.getElementById('edit-bag-label-count');
+            const editReceipt = document.getElementById('edit-receipt-number');
+            const editDate = document.getElementById('edit-submission-date');
             
-            if (editEmployee) editEmployee.value = sub.employee_name || '';
-            if (editProduct) editProduct.value = sub.product_name || '';
-            if (editTurns) editTurns.value = sub.displays_made || 0;
-            if (editCards) editCards.value = sub.packs_remaining || 0;
+            if (editMachineCount) editMachineCount.value = sub.displays_made || 0;
             if (editTablets) editTablets.value = sub.tablets_pressed_into_cards || 0;
-            if (editDate) editDate.value = sub.submission_date || '';
             if (editBox) editBox.value = sub.box_number || '';
             if (editBag) editBag.value = sub.bag_number || '';
+            if (editBagLabel) editBagLabel.value = sub.bag_label_count || '';
             if (editReceipt) editReceipt.value = sub.receipt_number || '';
+            if (editDate) {
+                // Format date properly for date input
+                const submissionDate = sub.submission_date || (sub.created_at ? sub.created_at.split(' ')[0] : '');
+                editDate.value = submissionDate;
+            }
         } else {
-            const editEmployee = document.getElementById('edit-employee');
-            const editProduct = document.getElementById('edit-product');
+            // Packaging fields - use correct field IDs
             const editDisplays = document.getElementById('edit-displays');
             const editPacks = document.getElementById('edit-packs');
             const editLoose = document.getElementById('edit-loose');
             const editDamaged = document.getElementById('edit-damaged');
-            const editDate = document.getElementById('edit-date');
-            const editBox = document.getElementById('edit-box');
-            const editBag = document.getElementById('edit-bag');
-            const editReceipt = document.getElementById('edit-receipt');
+            const editBox = document.getElementById('edit-box-number');
+            const editBag = document.getElementById('edit-bag-number');
+            const editBagLabel = document.getElementById('edit-bag-label-count');
+            const editReceipt = document.getElementById('edit-receipt-number');
+            const editDate = document.getElementById('edit-submission-date');
             
-            if (editEmployee) editEmployee.value = sub.employee_name || '';
-            if (editProduct) editProduct.value = sub.product_name || '';
             if (editDisplays) editDisplays.value = sub.displays_made || 0;
             if (editPacks) editPacks.value = sub.packs_remaining || 0;
             if (editLoose) editLoose.value = sub.loose_tablets || 0;
             if (editDamaged) editDamaged.value = sub.damaged_tablets || 0;
-            if (editDate) editDate.value = sub.submission_date || '';
             if (editBox) editBox.value = sub.box_number || '';
             if (editBag) editBag.value = sub.bag_number || '';
+            if (editBagLabel) editBagLabel.value = sub.bag_label_count || '';
             if (editReceipt) editReceipt.value = sub.receipt_number || '';
+            if (editDate) {
+                // Format date properly for date input
+                const submissionDate = sub.submission_date || (sub.created_at ? sub.created_at.split(' ')[0] : '');
+                editDate.value = submissionDate;
+            }
         }
         
         // Populate admin notes if exists
         const adminNotesTextarea = document.getElementById('edit-admin-notes');
         if (adminNotesTextarea) {
             adminNotesTextarea.value = sub.admin_notes || '';
+        }
+        
+        // Show current product and load product list
+        const currentProductEl = document.getElementById('edit-current-product');
+        if (currentProductEl) {
+            currentProductEl.textContent = sub.product_name || 'Unknown';
+        }
+        
+        // Load all products for dropdown
+        try {
+            const productsResponse = await fetch('/api/tablet_types');
+            const productsData = await productsResponse.json();
+            const productSelect = document.getElementById('edit-product-name');
+            
+            if (productSelect && productsData && productsData.tablet_types) {
+                // Clear existing options
+                productSelect.innerHTML = '';
+                
+                // Add all products (including current one)
+                productsData.tablet_types.forEach(product => {
+                    const option = document.createElement('option');
+                    option.value = product.tablet_type_name;
+                    option.textContent = product.tablet_type_name;
+                    if (product.tablet_type_name === sub.product_name) {
+                        option.textContent = `${product.tablet_type_name} (Current)`;
+                        option.selected = true;
+                    }
+                    productSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading products:', error);
         }
         
         // Show modal
@@ -1056,98 +1092,7 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
 <!-- Shared Edit Submission Modal JavaScript (Available on all pages) -->
 <script>
 // showAdminNotes, closeAdminNotesModal, openEditSubmissionModal, closeEditSubmissionModal, and saveSubmissionEdit moved to early script section at top of body
-
 // Note: openEditSubmissionModal is now in early script block above
-    try {
-        const response = await fetch(`/api/submission/${submissionId}/details`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            alert(data.error || 'Failed to load submission');
-            return;
-        }
-        
-        const sub = data.submission;
-        const submissionType = sub.submission_type || 'packaged';
-        
-        // Show/hide appropriate fields based on submission type
-        const machineFields = document.getElementById('machine-fields');
-        const packagingFields = document.getElementById('packaging-fields');
-        
-        if (submissionType === 'machine') {
-            machineFields.classList.remove('hidden');
-            packagingFields.classList.add('hidden');
-        } else {
-            machineFields.classList.add('hidden');
-            packagingFields.classList.remove('hidden');
-        }
-        
-        // Populate the form
-        document.getElementById('edit-submission-id').value = sub.id;
-        const poContextInput = document.getElementById('edit-po-context-po-id');
-        const itemContextInput = document.getElementById('edit-po-context-item-id');
-        if (poContextInput && poId !== null) poContextInput.value = poId || '';
-        if (itemContextInput && inventoryItemId !== null) itemContextInput.value = inventoryItemId || '';
-        
-        // Populate fields based on submission type
-        if (submissionType === 'machine') {
-            // Machine count fields
-            document.getElementById('edit-machine-count').value = sub.displays_made || 0;  // displays_made stores machine_count
-            document.getElementById('edit-tablets-pressed').value = sub.tablets_pressed_into_cards || 0;
-        } else {
-            // Packaging fields
-        document.getElementById('edit-displays').value = sub.displays_made || 0;
-        document.getElementById('edit-packs').value = sub.packs_remaining || 0;
-        document.getElementById('edit-loose').value = sub.loose_tablets || 0;
-        document.getElementById('edit-damaged').value = sub.damaged_tablets || 0;
-        }
-        
-        // Common fields
-        document.getElementById('edit-box-number').value = sub.box_number || '';
-        document.getElementById('edit-bag-number').value = sub.bag_number || '';
-        document.getElementById('edit-bag-label-count').value = sub.bag_label_count || '';
-        document.getElementById('edit-receipt-number').value = sub.receipt_number || '';
-        
-        // Populate submission date
-        const submissionDateInput = document.getElementById('edit-submission-date');
-        if (submissionDateInput) {
-            // Use submission_date if available, otherwise use date from created_at
-            const submissionDate = sub.submission_date || (sub.created_at ? sub.created_at.split(' ')[0] : '');
-            submissionDateInput.value = submissionDate;
-        }
-        
-        // Show current product and load product list
-        const currentProductEl = document.getElementById('edit-current-product');
-        if (currentProductEl) {
-            currentProductEl.textContent = sub.product_name || 'Unknown';
-        }
-        
-        // Load all products for dropdown and convert to two-level category/product system
-        try {
-            const productsResponse = await fetch('/api/tablet_types');
-            const productsData = await productsResponse.json();
-            const productSelect = document.getElementById('edit-product-name');
-            
-            if (productSelect && productsData && productsData.tablet_types) {
-                // Clear existing options
-                productSelect.innerHTML = '';
-                
-                // Add all products (including current one)
-                productsData.tablet_types.forEach(product => {
-                    const option = document.createElement('option');
-                    option.value = product.tablet_type_name;
-                    option.textContent = product.tablet_type_name;
-                    if (product.tablet_type_name === sub.product_name) {
-                        option.textContent = `${product.tablet_type_name} (Current)`;
-                        option.selected = true;
-                    }
-                    productSelect.appendChild(option);
-                });
-                
-                // Convert to two-level dropdown (category then product)
-                // This will organize products by category like other dropdowns in the app
-                convertToTwoLevelDropdown(productSelect);
-            }
         } catch (error) {
             console.error('Failed to load products:', error);
         }
