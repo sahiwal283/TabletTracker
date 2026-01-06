@@ -107,15 +107,39 @@ def submit_warehouse():
                 employee_name = employee['full_name']
             
             # Get product details
+            product_name = data.get('product_name', '').strip()
+            current_app.logger.info(f"Looking up product: '{product_name}'")
+            
             product = conn.execute('''
-            SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name
+            SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name, tt.id as tablet_type_id
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.product_name = ?
-            ''', (data.get('product_name'),)).fetchone()
+            ''', (product_name,)).fetchone()
             
             if not product:
-                return jsonify({'error': 'Product not found'}), 400
+                # Try to find similar products for better error message
+                similar = conn.execute('''
+                    SELECT pd.product_name, tt.tablet_type_name
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name LIKE ? OR tt.tablet_type_name LIKE ?
+                    LIMIT 5
+                ''', (f'%{product_name}%', f'%{product_name}%')).fetchall()
+                
+                error_msg = f"Product '{product_name}' not found in product_details table."
+                if similar:
+                    error_msg += f" Did you mean: {', '.join([s['product_name'] for s in similar])}?"
+                else:
+                    # List all products
+                    all_products = conn.execute('''
+                        SELECT pd.product_name FROM product_details pd ORDER BY pd.product_name LIMIT 10
+                    ''').fetchall()
+                    if all_products:
+                        error_msg += f" Available products: {', '.join([p['product_name'] for p in all_products])}"
+                
+                current_app.logger.error(error_msg)
+                return jsonify({'error': error_msg}), 400
         
             # Convert Row to dict for safe access
             product = dict(product)
