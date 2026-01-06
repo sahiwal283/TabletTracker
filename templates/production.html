@@ -948,7 +948,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await csrfFetch('/submit_warehouse', {
+            const response = await csrfFetch('/api/submissions/packaged', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data)
