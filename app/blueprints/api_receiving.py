@@ -713,6 +713,14 @@ def push_bag_to_zoho(bag_id):
         
         # Create purchase receive in Zoho
         today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Log the request details for debugging
+        current_app.logger.info(f"Pushing bag {bag_id} to Zoho:")
+        current_app.logger.info(f"  - PO ID: {zoho_po_id}")
+        current_app.logger.info(f"  - Line items: {line_items}")
+        current_app.logger.info(f"  - Date: {today}")
+        current_app.logger.info(f"  - Has chart image: {bool(chart_image)}")
+        
         result = zoho_api.create_purchase_receive(
             purchaseorder_id=zoho_po_id,
             line_items=line_items,
@@ -723,9 +731,10 @@ def push_bag_to_zoho(bag_id):
         )
         
         if not result:
+            current_app.logger.error("Zoho API returned None - likely authentication or network error")
             return jsonify({
                 'success': False,
-                'error': 'Failed to create purchase receive in Zoho. Please check API credentials and try again.'
+                'error': 'Failed to create purchase receive in Zoho. Please check API credentials and try again. Check Flask logs for details.'
             }), 500
         
         # Check for errors in Zoho response

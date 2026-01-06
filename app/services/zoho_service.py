@@ -86,7 +86,8 @@ class ZohoInventoryAPI:
             logger.debug(f"Request URL: {response.url}")
             logger.debug(f"Response Status: {response.status_code}")
             
-            if response.status_code != 200:
+            if response.status_code not in [200, 201]:
+                logger.error(f"Error Response Status: {response.status_code}")
                 logger.error(f"Error Response Body: {response.text}")
             
             response.raise_for_status()
@@ -94,9 +95,14 @@ class ZohoInventoryAPI:
             
         except requests.exceptions.Timeout as e:
             logger.error(f"Zoho API request timed out after {timeout} seconds: {e}")
+            logger.error(f"Endpoint: {endpoint}, Method: {method}")
             return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Error making Zoho API request: {e}")
+            logger.error(f"Endpoint: {endpoint}, Method: {method}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             return None
     
     def get_purchase_orders(self, status='all', per_page=200):
@@ -152,11 +158,18 @@ class ZohoInventoryAPI:
         if notes:
             receive_data['notes'] = notes
         
+        # Log the request for debugging
+        logger.info(f"Creating purchase receive in Zoho:")
+        logger.info(f"  PO ID: {purchaseorder_id}")
+        logger.info(f"  Line items: {line_items}")
+        logger.info(f"  Date: {date}")
+        logger.info(f"  Notes length: {len(notes) if notes else 0}")
+        
         # Create the purchase receive first
         result = self.make_request(endpoint, method='POST', data=receive_data)
         
         if not result:
-            logger.error("Failed to create purchase receive - no response from API")
+            logger.error("Failed to create purchase receive - no response from API (check credentials, network, or API endpoint)")
             return None
         
         # Check for errors in response
