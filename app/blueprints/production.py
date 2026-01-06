@@ -214,10 +214,10 @@ def submit_warehouse():
             # This is much more reliable than looking up box/bag and re-matching
             if not (box_number and bag_number):
                 machine_count = conn.execute('''
-                       inventory_item_id, product_name
-                FROM warehouse_submissions
-                WHERE receipt_number = ? AND submission_type = 'machine'
-                ORDER BY created_at DESC LIMIT 1
+                    SELECT inventory_item_id, product_name
+                    FROM warehouse_submissions
+                    WHERE receipt_number = ? AND submission_type = 'machine'
+                    ORDER BY created_at DESC LIMIT 1
                 ''', (receipt_number,)).fetchone()
                 
                 if machine_count:
