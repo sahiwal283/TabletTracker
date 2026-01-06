@@ -1472,6 +1472,7 @@ def get_submission_details(submission_id):
             
             if submission_type == 'machine':
                 # If not found from JOIN, try to get from machine_id in submission
+                machine_row = None
                 if not cards_per_turn and submission_dict.get('machine_id'):
                     machine_row = conn.execute('''
                         SELECT machine_name, cards_per_turn
