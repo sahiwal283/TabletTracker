@@ -329,6 +329,105 @@ function closeAdminNotesModal(event) {
     }
 }
 
+// Close edit submission modal - defined early
+function closeEditSubmissionModal(event) {
+    // Always close the modal when called (whether from button click or backdrop click)
+    const modal = document.getElementById('edit-submission-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    // Prevent event propagation if event exists
+    if (event) {
+        event.stopPropagation();
+    }
+}
+
+// Save submission edit - defined early
+async function saveSubmissionEdit() {
+    const submissionId = document.getElementById('edit-submission-id').value;
+    const poId = document.getElementById('edit-po-context-po-id')?.value || '';
+    const inventoryItemId = document.getElementById('edit-po-context-item-id')?.value || '';
+    
+    // Check if machine fields are visible (machine submission)
+    const machineFields = document.getElementById('machine-fields');
+    const isMachineSubmission = machineFields && !machineFields.classList.contains('hidden');
+    
+    const formData = {
+        box_number: parseInt(document.getElementById('edit-box-number').value) || null,
+        bag_number: parseInt(document.getElementById('edit-bag-number').value) || null,
+        bag_label_count: parseInt(document.getElementById('edit-bag-label-count').value) || null,
+        receipt_number: document.getElementById('edit-receipt-number')?.value?.trim() || null,
+        submission_date: document.getElementById('edit-submission-date')?.value || null,
+        admin_notes: document.getElementById('edit-admin-notes')?.value?.trim() || null,
+        product_name: (document.getElementById('edit-product-name')?.value || document.getElementById('edit-product-name_item')?.value) || null
+    };
+    
+    // Add type-specific fields
+    if (isMachineSubmission) {
+        // Machine count: displays_made stores machine_count, tablets_pressed_into_cards stores calculated total
+        formData.displays_made = parseInt(document.getElementById('edit-machine-count').value) || 0;
+        formData.tablets_pressed_into_cards = parseInt(document.getElementById('edit-tablets-pressed').value) || 0;
+        formData.packs_remaining = 0;  // Not used for machine
+        formData.loose_tablets = 0;    // Not used for machine
+        formData.damaged_tablets = 0;  // Not used for machine
+    } else {
+        // Packaging/bag count fields
+        formData.displays_made = parseInt(document.getElementById('edit-displays').value) || 0;
+        formData.packs_remaining = parseInt(document.getElementById('edit-packs').value) || 0;
+        formData.loose_tablets = parseInt(document.getElementById('edit-loose').value) || 0;
+        formData.damaged_tablets = parseInt(document.getElementById('edit-damaged').value) || 0;
+        formData.tablets_pressed_into_cards = 0;  // Not used for packaging
+    }
+    
+    try {
+        const response = await csrfFetch(`/api/submission/${submissionId}/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Use showSuccess if available, otherwise alert
+            if (typeof showSuccess === 'function') {
+                showSuccess('Submission updated successfully!');
+            } else {
+                alert('Submission updated successfully!');
+            }
+            closeEditSubmissionModal();
+            
+            // If we're in a PO modal context, refresh it instead of reloading the page
+            if (poId && poId !== '') {
+                // Refresh the PO submissions modal
+                const poNumber = document.querySelector('#submissions-modal h3')?.textContent.match(/PO-[^\s]+/)?.[0] || '';
+                if (poNumber && typeof viewPOSubmissions === 'function') {
+                    viewPOSubmissions(parseInt(poId), poNumber, inventoryItemId || null);
+                } else {
+                    location.reload();
+                }
+            } else {
+                location.reload();
+            }
+        } else {
+            const errorMsg = result.error || 'Failed to update submission';
+            if (typeof showError === 'function') {
+                showError(errorMsg);
+            } else {
+                alert('Error: ' + errorMsg);
+            }
+        }
+    } catch (error) {
+        console.error('Error saving submission:', error);
+        const errorMsg = 'Failed to save submission: ' + error.message;
+        if (typeof showError === 'function') {
+            showError(errorMsg);
+        } else {
+            alert('Error: ' + errorMsg);
+        }
+    }
+}
+
 // Edit submission modal - defined early
 async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
     try {
@@ -956,7 +1055,7 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
 
 <!-- Shared Edit Submission Modal JavaScript (Available on all pages) -->
 <script>
-// showAdminNotes, closeAdminNotesModal, and openEditSubmissionModal moved to early script section at top of body
+// showAdminNotes, closeAdminNotesModal, openEditSubmissionModal, closeEditSubmissionModal, and saveSubmissionEdit moved to early script section at top of body
 
 // Note: openEditSubmissionModal is now in early script block above
     try {
@@ -1227,17 +1326,7 @@ async function adminReassignFromEditModal(submissionId, newPoId, newPoNumber) {
     }
 }
 
-function closeEditSubmissionModal(event) {
-    // Always close the modal when called (whether from button click or backdrop click)
-    const modal = document.getElementById('edit-submission-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-    // Prevent event propagation if event exists
-    if (event) {
-        event.stopPropagation();
-    }
-}
+// closeEditSubmissionModal and saveSubmissionEdit moved to early script section at top of body
 
 // Open reassign modal from details modal (to fix incorrect assignments)
 function openReassignFromDetails(submissionId, poNumber, productName) {
@@ -1252,90 +1341,7 @@ function openReassignFromDetails(submissionId, poNumber, productName) {
     }
 }
 
-async function saveSubmissionEdit() {
-    const submissionId = document.getElementById('edit-submission-id').value;
-    const poId = document.getElementById('edit-po-context-po-id')?.value || '';
-    const inventoryItemId = document.getElementById('edit-po-context-item-id')?.value || '';
-    
-    // Check if machine fields are visible (machine submission)
-    const machineFields = document.getElementById('machine-fields');
-    const isMachineSubmission = machineFields && !machineFields.classList.contains('hidden');
-    
-    const formData = {
-        box_number: parseInt(document.getElementById('edit-box-number').value) || null,
-        bag_number: parseInt(document.getElementById('edit-bag-number').value) || null,
-        bag_label_count: parseInt(document.getElementById('edit-bag-label-count').value) || null,
-        receipt_number: document.getElementById('edit-receipt-number')?.value?.trim() || null,
-        submission_date: document.getElementById('edit-submission-date')?.value || null,
-        admin_notes: document.getElementById('edit-admin-notes')?.value?.trim() || null,
-        product_name: (document.getElementById('edit-product-name')?.value || document.getElementById('edit-product-name_item')?.value) || null
-    };
-    
-    // Add type-specific fields
-    if (isMachineSubmission) {
-        // Machine count: displays_made stores machine_count, tablets_pressed_into_cards stores calculated total
-        formData.displays_made = parseInt(document.getElementById('edit-machine-count').value) || 0;
-        formData.tablets_pressed_into_cards = parseInt(document.getElementById('edit-tablets-pressed').value) || 0;
-        formData.packs_remaining = 0;  // Not used for machine
-        formData.loose_tablets = 0;    // Not used for machine
-        formData.damaged_tablets = 0;  // Not used for machine
-    } else {
-        // Packaging/bag count fields
-        formData.displays_made = parseInt(document.getElementById('edit-displays').value) || 0;
-        formData.packs_remaining = parseInt(document.getElementById('edit-packs').value) || 0;
-        formData.loose_tablets = parseInt(document.getElementById('edit-loose').value) || 0;
-        formData.damaged_tablets = parseInt(document.getElementById('edit-damaged').value) || 0;
-        formData.tablets_pressed_into_cards = 0;  // Not used for packaging
-    }
-    
-    try {
-        const response = await csrfFetch(`/api/submission/${submissionId}/edit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // Use showSuccess if available, otherwise alert
-            if (typeof showSuccess === 'function') {
-                showSuccess('Submission updated successfully!');
-            } else {
-                alert('Submission updated successfully!');
-            }
-            closeEditSubmissionModal();
-            
-            // If we're in a PO modal context, refresh it instead of reloading the page
-            if (poId && poId !== '') {
-                // Refresh the PO submissions modal
-                const poNumber = document.querySelector('#submissions-modal h3')?.textContent.match(/PO-[^\s]+/)?.[0] || '';
-                if (poNumber && typeof viewPOSubmissions === 'function') {
-                    viewPOSubmissions(parseInt(poId), poNumber, inventoryItemId || null);
-                } else {
-                    location.reload();
-                }
-            } else {
-                location.reload();
-            }
-        } else {
-            const errorMsg = result.error || 'Failed to update submission';
-            if (typeof showError === 'function') {
-                showError(errorMsg);
-            } else {
-                alert('Error: ' + errorMsg);
-            }
-        }
-    } catch (error) {
-        console.error('Error updating submission:', error);
-        const errorMsg = 'Failed to update submission: ' + error.message;
-        if (typeof showError === 'function') {
-            showError(errorMsg);
-        } else {
-            alert(errorMsg);
-        }
-    }
-}
+// Note: saveSubmissionEdit moved to early script section
 
 // Convert tablet type dropdown to two-level dropdown system
 async function convertToTwoLevelDropdown(selectElement) {
