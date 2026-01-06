@@ -251,6 +251,57 @@ async function csrfFetch(url, options = {}) {
     
     return fetch(url, options);
 }
+
+// Toggle bag closed status - defined early so it's available in modals
+async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber, receiveId, receiveName) {
+    const action = currentlyClosed ? 'reopen' : 'close';
+    const confirmMsg = currentlyClosed 
+        ? `Are you sure you want to REOPEN ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will become available for new submissions again.` 
+        : `Are you sure you want to CLOSE ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will no longer accept new submissions.`;
+    
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    try {
+        const response = await csrfFetch(`/api/bag/${bagId}/close`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Close the modal
+            if (typeof closeReceiveDetailsModal === 'function') {
+                closeReceiveDetailsModal();
+            }
+            
+            // Show success message briefly
+            const successMsg = document.createElement('div');
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.textContent = data.message;
+            document.body.appendChild(successMsg);
+            
+            // Remove success message after 2 seconds
+            setTimeout(() => successMsg.remove(), 2000);
+            
+            // Reopen the modal with updated data after a brief delay
+            setTimeout(() => {
+                if (typeof viewReceiveDetails === 'function') {
+                    viewReceiveDetails(receiveId, receiveName);
+                }
+            }, 300);
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update bag status'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to update bag status');
+    }
+}
 </script>    
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -2548,51 +2599,7 @@ function closeReceivesModal(event) {
     }
 }
 
-async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber, receiveId, receiveName) {
-    const action = currentlyClosed ? 'reopen' : 'close';
-    const confirmMsg = currentlyClosed 
-        ? `Are you sure you want to REOPEN ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will become available for new submissions again.` 
-        : `Are you sure you want to CLOSE ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will no longer accept new submissions.`;
-    
-    if (!confirm(confirmMsg)) {
-        return;
-    }
-    
-    try {
-        const response = await csrfFetch(`/api/bag/${bagId}/close`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Close the modal
-            closeReceiveDetailsModal();
-            
-            // Show success message briefly
-            const successMsg = document.createElement('div');
-            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-            successMsg.textContent = data.message;
-            document.body.appendChild(successMsg);
-            
-            // Remove success message after 2 seconds
-            setTimeout(() => successMsg.remove(), 2000);
-            
-            // Reopen the modal with updated data after a brief delay
-            setTimeout(() => {
-                viewReceiveDetails(receiveId, receiveName);
-            }, 300);
-        } else {
-            alert('Error: ' + (data.error || 'Failed to update bag status'));
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to update bag status');
-    }
-}
+// toggleBagClosed moved to early script section at top of body
 
 // CSRF Token Helper Functions (duplicate removed - now defined at top of body)
 </script>
