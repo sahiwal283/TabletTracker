@@ -144,7 +144,8 @@ def dashboard_view():
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
-            ORDER BY ws.created_at DESC
+            WHERE ws.created_at IS NOT NULL
+            ORDER BY ws.created_at DESC, ws.id DESC
             LIMIT 10
         '''
             submissions_raw = conn.execute(submissions_query).fetchall()
