@@ -676,11 +676,13 @@ def push_bag_to_zoho(bag_id):
                 'error': 'Cannot push to Zoho: PO does not have a Zoho PO ID. Please sync POs from Zoho first.'
             }), 400
         
-        inventory_item_id = bag.get('inventory_item_id')
-        if not inventory_item_id:
+        # Get zoho_line_item_id for this bag's tablet type in this PO
+        # This is the unique ID for the line item in the purchase order
+        zoho_line_item_id = bag.get('zoho_line_item_id')
+        if not zoho_line_item_id:
             return jsonify({
                 'success': False, 
-                'error': 'Cannot push to Zoho: Bag tablet type does not have an inventory_item_id configured.'
+                'error': 'Cannot push to Zoho: PO line item does not have a Zoho line item ID. Please sync POs from Zoho first (click Sync POs button on Dashboard).'
             }), 400
         
         # Get values for notes
@@ -706,8 +708,9 @@ def push_bag_to_zoho(bag_id):
         chart_filename = f"bag_{bag_id}_stats.png" if chart_image else None
         
         # Build line items for Zoho receive
+        # Use line_item_id from the PO (this is required by Zoho API for purchase receives)
         line_items = [{
-            'item_id': inventory_item_id,
+            'line_item_id': zoho_line_item_id,
             'quantity': packaged_count
         }]
         
@@ -716,7 +719,8 @@ def push_bag_to_zoho(bag_id):
         
         # Log the request details for debugging
         current_app.logger.info(f"Pushing bag {bag_id} to Zoho:")
-        current_app.logger.info(f"  - PO ID: {zoho_po_id}")
+        current_app.logger.info(f"  - Zoho PO ID: {zoho_po_id}")
+        current_app.logger.info(f"  - Zoho Line Item ID: {zoho_line_item_id}")
         current_app.logger.info(f"  - Line items: {line_items}")
         current_app.logger.info(f"  - Date: {today}")
         current_app.logger.info(f"  - Has chart image: {bool(chart_image)}")

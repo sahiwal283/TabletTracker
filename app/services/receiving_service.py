@@ -171,7 +171,7 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
         Dictionary with bag details including packaged_count, or None if not found
     """
     with db_read_only() as conn:
-        # Get bag with related info
+        # Get bag with related info, including zoho_line_item_id from po_lines
         bag_row = conn.execute('''
             SELECT b.*, 
                    sb.box_number, 
@@ -181,12 +181,14 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
                    po.po_number,
                    po.zoho_po_id,
                    tt.tablet_type_name,
-                   tt.inventory_item_id
+                   tt.inventory_item_id,
+                   pl.zoho_line_item_id
             FROM bags b
             JOIN small_boxes sb ON b.small_box_id = sb.id
             JOIN receiving r ON sb.receiving_id = r.id
             JOIN purchase_orders po ON r.po_id = po.id
             LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            LEFT JOIN po_lines pl ON pl.po_id = po.id AND pl.inventory_item_id = tt.inventory_item_id
             WHERE b.id = ?
         ''', (bag_id,)).fetchone()
         

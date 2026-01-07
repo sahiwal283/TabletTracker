@@ -46,6 +46,9 @@ class MigrationRunner:
         # Add machine count columns
         self._add_column_if_not_exists('po_lines', 'machine_good_count', 'INTEGER DEFAULT 0')
         self._add_column_if_not_exists('po_lines', 'machine_damaged_count', 'INTEGER DEFAULT 0')
+        
+        # Add Zoho line_item_id column (v2.23.4+dev) - required for creating purchase receives
+        self._add_column_if_not_exists('po_lines', 'zoho_line_item_id', 'TEXT')
     
     def _migrate_tablet_types(self):
         """Migrate tablet_types table"""
