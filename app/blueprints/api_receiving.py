@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from datetime import datetime
 import traceback
 import os
+import json
 from werkzeug.utils import secure_filename
 from app.utils.db_utils import db_read_only, db_transaction, ReceivingRepository, BagRepository
 from app.utils.auth_utils import admin_required, role_required, employee_required
@@ -752,10 +753,29 @@ def push_bag_to_zoho(bag_id):
                 'error': f'Zoho API error: {error_msg}'
             }), 500
         
-        # Get the created receive ID
+        # Get the created receive ID - try multiple possible field names
         zoho_receive_id = None
         if result.get('purchasereceive'):
-            zoho_receive_id = result['purchasereceive'].get('purchasereceive_id')
+            zoho_receive_id = (
+                result['purchasereceive'].get('purchasereceive_id') or
+                result['purchasereceive'].get('purchase_receive_id') or
+                result['purchasereceive'].get('id') or
+                result['purchasereceive'].get('receive_id')
+            )
+            current_app.logger.info(f"Extracted zoho_receive_id from purchasereceive: {zoho_receive_id}")
+        else:
+            # Try direct fields in case response structure is different
+            zoho_receive_id = (
+                result.get('purchasereceive_id') or
+                result.get('purchase_receive_id') or
+                result.get('id') or
+                result.get('receive_id')
+            )
+            current_app.logger.info(f"Extracted zoho_receive_id from root: {zoho_receive_id}")
+        
+        # Log the full response if receive ID is still None (for debugging)
+        if not zoho_receive_id:
+            current_app.logger.warning(f"⚠️ Could not extract zoho_receive_id. Full response: {json.dumps(result, indent=2, default=str)[:1000]}")
         
         # Update bag to mark as pushed
         with db_transaction() as conn:

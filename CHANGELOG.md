@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.10] - 2025-01-XX
+
+### 🐛 Bug Fix
+
+#### Fixed Image Attachments Not Being Uploaded to Zoho Purchase Receives
+- **Issue**: Images/charts were not being attached to purchase receives when pushing bags to Zoho, even though the receive was created successfully
+- **Root Cause**: The receive ID extraction from Zoho API response was failing because the code only checked for `purchasereceive_id` field, but Zoho API might return the ID in different field names (`purchase_receive_id`, `id`, `receive_id`)
+- **Impact**: Chart images showing received vs packaged counts were not being attached to Zoho receives, making it harder to track bag statistics in Zoho
+- **Fix**: 
+  - Enhanced receive ID extraction to try multiple possible field names from Zoho API response
+  - Added comprehensive logging to debug response structure when receive ID extraction fails
+  - Improved error handling to log full response structure when receive ID cannot be found
+  - Both `zoho_service.py` and `api_receiving.py` now use the same robust extraction logic
+- **Files Updated**:
+  - `app/services/zoho_service.py` (enhanced receive ID extraction and logging in `create_purchase_receive`)
+  - `app/blueprints/api_receiving.py` (enhanced receive ID extraction and logging in `push_bag_to_zoho`)
+
+---
+
 ## [2.23.9] - 2025-01-XX
 
 ### 🐛 Bug Fix

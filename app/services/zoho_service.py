@@ -193,21 +193,46 @@ class ZohoInventoryAPI:
             logger.error("Failed to create purchase receive - no response from API (check credentials, network, or API endpoint)")
             return None
         
+        # Log the full response structure for debugging
+        logger.info(f"📦 Zoho API response structure: {json.dumps(result, indent=2, default=str)[:1000]}")
+        
         # Check for errors in response
         if result.get('code') and result.get('code') != 0:
             error_msg = result.get('message', 'Unknown error')
             logger.error(f"Failed to create purchase receive: {error_msg}")
             return result
         
+        # Extract receive ID from response - try multiple possible field names
+        receive_id = None
+        if result.get('purchasereceive'):
+            receive_id = (
+                result['purchasereceive'].get('purchasereceive_id') or
+                result['purchasereceive'].get('purchase_receive_id') or
+                result['purchasereceive'].get('id') or
+                result['purchasereceive'].get('receive_id')
+            )
+            logger.info(f"📦 Extracted receive_id from purchasereceive: {receive_id}")
+        else:
+            # Try direct fields in case response structure is different
+            receive_id = (
+                result.get('purchasereceive_id') or
+                result.get('purchase_receive_id') or
+                result.get('id') or
+                result.get('receive_id')
+            )
+            logger.info(f"📦 Extracted receive_id from root: {receive_id}")
+        
         # If we have an image to attach, upload it
-        if image_bytes and image_filename and result.get('purchasereceive'):
-            receive_id = result['purchasereceive'].get('purchasereceive_id')
+        if image_bytes and image_filename:
             if receive_id:
+                logger.info(f"📎 Attempting to attach image to receive {receive_id}")
                 attach_result = self.attach_file_to_receive(receive_id, image_bytes, image_filename)
                 if attach_result:
-                    logger.info(f"Successfully attached image to purchase receive {receive_id}")
+                    logger.info(f"✅ Successfully attached image to purchase receive {receive_id}")
                 else:
-                    logger.warning(f"Failed to attach image to purchase receive {receive_id}")
+                    logger.warning(f"⚠️ Failed to attach image to purchase receive {receive_id}")
+            else:
+                logger.error(f"❌ Cannot attach image: receive_id is None. Response structure: {json.dumps(result, indent=2, default=str)[:500]}")
         
         return result
     
