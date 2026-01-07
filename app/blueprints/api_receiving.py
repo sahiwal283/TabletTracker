@@ -706,8 +706,15 @@ def push_bag_to_zoho(bag_id):
             custom_notes=custom_notes
         )
         
-        # Generate chart image
-        chart_image = generate_bag_chart_image(bag_label_count, packaged_count)
+        # Generate chart image with context information
+        chart_image = generate_bag_chart_image(
+            bag_label_count=bag_label_count,
+            packaged_count=packaged_count,
+            tablet_type_name=bag.get('tablet_type_name'),
+            box_number=bag.get('box_number'),
+            bag_number=bag.get('bag_number'),
+            receive_name=receive_name
+        )
         chart_filename = f"bag_{bag_id}_stats.png" if chart_image else None
         
         # Build line items for Zoho receive

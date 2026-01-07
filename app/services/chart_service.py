@@ -28,17 +28,28 @@ def format_number(num: int) -> str:
     return f"{num:,}"
 
 
-def generate_bag_chart_image(bag_label_count: int, packaged_count: int) -> bytes:
+def generate_bag_chart_image(
+    bag_label_count: int,
+    packaged_count: int,
+    tablet_type_name: str = None,
+    box_number: int = None,
+    bag_number: int = None,
+    receive_name: str = None
+) -> bytes:
     """
-    Generate a PNG image showing bag statistics (received vs packaged counts).
+    Generate a PNG image showing bag statistics with context information.
     
-    Creates a visual representation with two stat boxes:
-    - Received (indigo): shows bag_label_count
-    - Packaged (purple): shows packaged_count
+    Creates a visual representation with:
+    - Header showing tablet type, bag/box info, and shipment info
+    - Two stat boxes: Received (indigo) and Packaged (purple)
     
     Args:
         bag_label_count: The count from the bag label (received tablets)
         packaged_count: The calculated packaged tablet count from submissions
+        tablet_type_name: Name of the tablet type/flavor (e.g., "Hyroxi Mit A - Spearmint")
+        box_number: Box number (e.g., 1)
+        bag_number: Bag number (e.g., 2)
+        receive_name: Receive/shipment name (e.g., "PO-00162-3")
         
     Returns:
         PNG image as bytes, or empty bytes if generation fails
@@ -48,44 +59,88 @@ def generate_bag_chart_image(bag_label_count: int, packaged_count: int) -> bytes
         return b''
     
     try:
-        # Image dimensions
-        width = 400
-        height = 180
-        padding = 20
+        # Image dimensions - increased height for header
+        width = 500
+        height = 280
+        padding = 24
         box_gap = 20
         box_width = (width - 2 * padding - box_gap) // 2
         box_height = 120
         
-        # Create image with light gray background
-        image = Image.new('RGB', (width, height), GRAY_100)
+        # Create image with white background (card-like)
+        image = Image.new('RGB', (width, height), WHITE)
         draw = ImageDraw.Draw(image)
         
-        # Try to load a font, fall back to default if not available
+        # Try to load fonts, fall back to default if not available
         try:
             # Try to use a system font
-            title_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 14)
-            number_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 32)
-            label_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 12)
+            header_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 18)
+            subtitle_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 13)
+            number_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
+            label_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 13)
         except (OSError, IOError):
             try:
                 # Try alternative system fonts
-                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-                number_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-                label_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+                header_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+                subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
+                number_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
+                label_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
             except (OSError, IOError):
                 # Fall back to default font
-                title_font = ImageFont.load_default()
+                header_font = ImageFont.load_default()
+                subtitle_font = ImageFont.load_default()
                 number_font = ImageFont.load_default()
                 label_font = ImageFont.load_default()
         
-        # Draw title
-        title = "Bag Statistics"
-        title_bbox = draw.textbbox((0, 0), title, font=title_font)
-        title_width = title_bbox[2] - title_bbox[0]
-        draw.text(((width - title_width) // 2, 10), title, fill=GRAY_800, font=title_font)
+        # Draw header section
+        header_y = padding
+        current_y = header_y
         
-        # Box positions
-        box_y = 40
+        # Draw tablet type/flavor name (main header)
+        if tablet_type_name:
+            header_text = tablet_type_name
+            header_bbox = draw.textbbox((0, 0), header_text, font=header_font)
+            header_width = header_bbox[2] - header_bbox[0]
+            # Truncate if too long
+            if header_width > width - 2 * padding:
+                # Try to fit it by reducing font size or truncating
+                max_chars = int(len(header_text) * (width - 2 * padding) / header_width)
+                header_text = header_text[:max_chars - 3] + "..."
+                header_bbox = draw.textbbox((0, 0), header_text, font=header_font)
+                header_width = header_bbox[2] - header_bbox[0]
+            draw.text((padding, current_y), header_text, fill=GRAY_800, font=header_font)
+            current_y += header_bbox[3] - header_bbox[1] + 8
+        
+        # Draw bag/box info and shipment info
+        info_parts = []
+        if box_number is not None and bag_number is not None:
+            info_parts.append(f"Bag {bag_number} (Box {box_number})")
+        elif bag_number is not None:
+            info_parts.append(f"Bag {bag_number}")
+        elif box_number is not None:
+            info_parts.append(f"Box {box_number}")
+        
+        if receive_name:
+            info_parts.append(f"Shipment: {receive_name}")
+        
+        if info_parts:
+            info_text = " • ".join(info_parts)
+            info_bbox = draw.textbbox((0, 0), info_text, font=subtitle_font)
+            info_width = info_bbox[2] - info_bbox[0]
+            # Truncate if too long
+            if info_width > width - 2 * padding:
+                max_chars = int(len(info_text) * (width - 2 * padding) / info_width)
+                info_text = info_text[:max_chars - 3] + "..."
+            draw.text((padding, current_y), info_text, fill=GRAY_600, font=subtitle_font)
+            current_y += info_bbox[3] - info_bbox[1] + 16
+        
+        # Draw a subtle divider line
+        line_y = current_y
+        draw.line([(padding, line_y), (width - padding, line_y)], fill=(229, 231, 235), width=1)
+        current_y = line_y + 20
+        
+        # Box positions (below header)
+        box_y = current_y
         received_box_x = padding
         packaged_box_x = padding + box_width + box_gap
         

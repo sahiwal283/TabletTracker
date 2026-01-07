@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.11] - 2025-01-XX
+
+### ✨ Enhancement
+
+#### Enhanced Bag Statistics Chart Images for Zoho Receives
+- **Issue**: Chart images attached to Zoho purchase receives were too generic and didn't show context about which bag/flavor the statistics were for
+- **Enhancement**: Redesigned chart images to include comprehensive context information:
+  - Tablet type/flavor name displayed prominently at the top (e.g., "Hyroxi Mit A - Spearmint")
+  - Bag and box information (e.g., "Bag 2 (Box 1)")
+  - Shipment/receive name when available (e.g., "Shipment: PO-00162-3")
+  - Improved card-like layout with better visual hierarchy
+  - Larger image size (500x280) to accommodate header information
+- **Impact**: Users can now immediately identify which bag and flavor the statistics belong to when viewing images in Zoho, making it much easier to track and reference specific bags
+- **Files Updated**:
+  - `app/services/chart_service.py` (redesigned `generate_bag_chart_image` with context parameters)
+  - `app/blueprints/api_receiving.py` (updated to pass tablet type, box/bag numbers, and receive name to chart generator)
+
+---
+
 ## [2.23.10] - 2025-01-XX
 
 ### 🐛 Bug Fix
