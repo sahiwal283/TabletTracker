@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.8] - 2025-01-XX
+
+### 🐛 Bug Fix
+
+#### Fixed API Endpoints Returning HTML Instead of JSON on Authentication Errors
+- **Issue**: API endpoints decorated with `@role_required` or `@employee_required` were returning HTML error pages (redirects) instead of JSON responses when authentication failed
+- **Root Cause**: Decorators were redirecting to login pages for all requests, including API requests that expect JSON responses
+- **Impact**: Frontend JavaScript received HTML (`<!doctype...`) instead of JSON, causing "Unexpected token '<'" parsing errors
+- **Fix**: 
+  - Updated `role_required()` decorator to detect API requests (`/api/` paths) and return JSON error responses instead of HTML redirects
+  - Updated `employee_required()` decorator with same API detection logic
+  - API requests now return proper JSON: `{"success": false, "error": "..."}` with appropriate HTTP status codes (401/403)
+  - Non-API requests still redirect to login pages as before (preserves existing behavior for web pages)
+- **Files Updated**:
+  - `app/utils/auth_utils.py` (role_required, employee_required decorators)
+
+---
+
 ## [2.21.10+dev] - 2025-01-05
 
 ### 🐛 Database Migration Fix

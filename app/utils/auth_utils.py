@@ -39,13 +39,20 @@ def role_required(required_permission: str) -> Callable:
             # Allow admin users to access any role-based route
             if session.get('admin_authenticated'):
                 return f(*args, **kwargs)
+            
+            # Check if this is an API request (starts with /api/)
+            is_api_request = request.path.startswith('/api/')
                 
             # Check employee authentication and permissions
             if not session.get('employee_authenticated') or not session.get('employee_id'):
+                if is_api_request:
+                    return jsonify({'success': False, 'error': 'Access denied. Authentication required.'}), 401
                 return redirect(url_for('auth.index'))  # Redirect to unified login
             
             username = session.get('employee_username')
             if not username or not has_permission(username, required_permission):
+                if is_api_request:
+                    return jsonify({'success': False, 'error': f'Access denied. You need {required_permission} permission to access this endpoint.'}), 403
                 from flask import flash
                 flash(f'Access denied. You need {required_permission} permission to access this page.', 'error')
                 return redirect(url_for('production.warehouse_form'))
@@ -61,6 +68,9 @@ def employee_required(f: Callable) -> Callable:
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
         # Allow if employee authenticated OR if admin authenticated
         if not (session.get('employee_authenticated') or session.get('admin_authenticated')):
+            # Check if this is an API request (starts with /api/)
+            if request.path.startswith('/api/'):
+                return jsonify({'success': False, 'error': 'Access denied. Authentication required.'}), 401
             return redirect(url_for('auth.index'))  # Redirect to unified login
         return f(*args, **kwargs)
     return decorated_function
