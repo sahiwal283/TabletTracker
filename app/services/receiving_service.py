@@ -197,6 +197,19 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
         
         bag = dict(bag_row)
         
+        # If receive_name is missing, compute it from PO number and receive sequence
+        if not bag.get('receive_name') and bag.get('po_number') and bag.get('receiving_id'):
+            # Count how many receives exist for this PO before this one (inclusive)
+            receive_number_row = conn.execute('''
+                SELECT COUNT(*) as receive_number
+                FROM receiving r2
+                WHERE r2.po_id = ?
+                AND r2.id <= ?
+            ''', (bag['po_id'], bag['receiving_id'])).fetchone()
+            
+            receive_number = receive_number_row['receive_number'] if receive_number_row else 1
+            bag['receive_name'] = f"{bag['po_number']}-{receive_number}"
+        
         # Calculate packaged_count from submissions
         packaged_count_row = conn.execute('''
             SELECT COALESCE(SUM(

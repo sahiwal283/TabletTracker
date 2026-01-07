@@ -687,7 +687,9 @@ def push_bag_to_zoho(bag_id):
         
         # Get values for notes
         receive_name = bag.get('receive_name', '')
+        current_app.logger.info(f"📝 Building notes - receive_name from DB: '{receive_name}'")
         shipment_number = extract_shipment_number(receive_name)
+        current_app.logger.info(f"📝 Extracted shipment_number: '{shipment_number}'")
         box_number = bag.get('box_number', 1)
         bag_number = bag.get('bag_number', 1)
         bag_label_count = bag.get('bag_label_count', 0) or 0
