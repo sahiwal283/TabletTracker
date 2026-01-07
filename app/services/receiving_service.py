@@ -296,8 +296,10 @@ def build_zoho_receive_notes(
     Returns:
         Formatted notes string
     """
-    notes = f"Shipment {shipment_number} - Box {box_number}, Bag {bag_number}:\n"
-    notes += f"bag label: {bag_label_count:,} || packaged: {packaged_count:,}"
+    # Build notes with proper line breaks
+    # Note: Using double newlines for better visibility in Zoho
+    notes = f"Shipment {shipment_number} - Box {box_number}, Bag {bag_number}:"
+    notes += f"\n\nbag label: {bag_label_count:,} || packaged: {packaged_count:,}"
     
     if custom_notes and custom_notes.strip():
         notes += f"\n\n{custom_notes.strip()}"

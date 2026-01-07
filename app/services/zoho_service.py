@@ -223,8 +223,12 @@ class ZohoInventoryAPI:
         Returns:
             True if successful, False otherwise
         """
+        logger.info(f"📎 Attempting to attach file '{filename}' to receive {receive_id}")
+        logger.info(f"📎 File size: {len(file_bytes)} bytes")
+        
         token = self.get_access_token()
         if not token:
+            logger.error("📎 Failed to get access token for attachment upload")
             return False
         
         url = f"{self.base_url}/purchasereceives/{receive_id}/attachment"
@@ -234,6 +238,8 @@ class ZohoInventoryAPI:
         }
         
         params = {'organization_id': self.organization_id}
+        
+        logger.info(f"📎 Attachment URL: {url}")
         
         try:
             # Prepare the file for upload
@@ -249,12 +255,14 @@ class ZohoInventoryAPI:
                 timeout=30
             )
             
-            logger.debug(f"Attachment upload response status: {response.status_code}")
+            logger.info(f"📎 Attachment upload response status: {response.status_code}")
+            logger.info(f"📎 Attachment upload response body: {response.text[:500]}")
             
             if response.status_code in [200, 201]:
+                logger.info(f"📎 Successfully attached file to receive {receive_id}")
                 return True
             else:
-                logger.error(f"Failed to attach file: {response.status_code} - {response.text}")
+                logger.error(f"📎 Failed to attach file: {response.status_code} - {response.text}")
                 return False
                 
         except requests.exceptions.Timeout as e:
