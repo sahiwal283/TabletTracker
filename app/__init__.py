@@ -4,7 +4,7 @@ TabletTracker application factory
 from flask import Flask, render_template, request, session, jsonify
 from datetime import timedelta
 from flask_babel import Babel
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
@@ -79,6 +79,15 @@ def create_app(config_class=Config):
     # Initialize CSRF Protection
     csrf = CSRFProtect()
     csrf.init_app(app)
+    
+    # Custom CSRF error handler to return JSON for API requests
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        # Return JSON for API routes
+        if request.path.startswith('/api/'):
+            return jsonify({'success': False, 'error': f'CSRF validation failed: {e.description}'}), 400
+        # For non-API routes, re-raise to use Flask-WTF's default HTML error page
+        raise e
     
     # Initialize Rate Limiting (disabled for login routes - using failed attempt tracking instead)
     limiter = Limiter(

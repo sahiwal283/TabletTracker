@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.9] - 2025-01-XX
+
+### 🐛 Bug Fix
+
+#### Fixed CSRF Errors Returning HTML Instead of JSON for API Requests
+- **Issue**: CSRF validation failures on API endpoints returned HTML error pages instead of JSON responses
+- **Root Cause**: Flask-WTF's default CSRF error handler returns HTML for all requests, including API requests
+- **Impact**: Frontend JavaScript received HTML (`<!doctype...`) instead of JSON when CSRF tokens were invalid or missing, causing "Unexpected token '<'" parsing errors
+- **Fix**: 
+  - Added custom CSRF error handler that detects API requests (`/api/` paths) and returns JSON error responses
+  - API requests now return proper JSON: `{"success": false, "error": "CSRF validation failed: ..."}` with 400 status code
+  - Non-API requests still get HTML error pages (preserves existing behavior for web forms)
+  - Improved frontend error handling in `executePushToZoho()` to check content-type before parsing JSON
+- **Files Updated**:
+  - `app/__init__.py` (added CSRF error handler)
+  - `templates/base.html` (improved error handling in push to Zoho function)
+
+---
+
 ## [2.23.8] - 2025-01-XX
 
 ### 🐛 Bug Fix
