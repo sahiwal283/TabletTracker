@@ -4,6 +4,9 @@ Consolidates all table creation from app.py init_db()
 """
 import sqlite3
 import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaManager:

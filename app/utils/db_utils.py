@@ -307,7 +307,7 @@ class BagRepository:
     
     @staticmethod
     def get_by_receiving_id(conn: sqlite3.Connection, receiving_id: int) -> List[Dict[str, Any]]:
-        """Get all bags for a receiving."""
+        """Get all bags for a receiving with tablet type details."""
         rows = conn.execute('''
             SELECT b.*, sb.box_number, tt.tablet_type_name, tt.inventory_item_id
             FROM bags b

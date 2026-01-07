@@ -86,7 +86,8 @@ class ZohoInventoryAPI:
             logger.debug(f"Request URL: {response.url}")
             logger.debug(f"Response Status: {response.status_code}")
             
-            if response.status_code != 200:
+            if response.status_code not in [200, 201]:
+                logger.error(f"Error Response Status: {response.status_code}")
                 logger.error(f"Error Response Body: {response.text}")
             
             response.raise_for_status()
@@ -94,9 +95,14 @@ class ZohoInventoryAPI:
             
         except requests.exceptions.Timeout as e:
             logger.error(f"Zoho API request timed out after {timeout} seconds: {e}")
+            logger.error(f"Endpoint: {endpoint}, Method: {method}")
             return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Error making Zoho API request: {e}")
+            logger.error(f"Endpoint: {endpoint}, Method: {method}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             return None
     
     def get_purchase_orders(self, status='all', per_page=200):
@@ -124,6 +130,147 @@ class ZohoInventoryAPI:
         """Create a purchase order in Zoho Inventory"""
         endpoint = 'purchaseorders'
         return self.make_request(endpoint, method='POST', data=po_data)
+    
+    def create_purchase_receive(self, purchaseorder_id, line_items, date, receive_number=None, notes=None, image_bytes=None, image_filename=None):
+        """
+        Create a purchase receive in Zoho Inventory.
+        
+        Args:
+            purchaseorder_id: The Zoho purchase order ID
+            line_items: List of dicts with 'item_id' and 'quantity'
+            date: Date string in ISO format (YYYY-MM-DD)
+            receive_number: The receive number (will be auto-generated if not provided)
+            notes: Optional notes string
+            image_bytes: Optional bytes of image to attach
+            image_filename: Optional filename for the image
+            
+        Returns:
+            Dict with receive data including 'purchasereceive_id', or None on error
+        """
+        endpoint = 'purchasereceives'
+        
+        # purchaseorder_id must be passed as a URL parameter per Zoho API docs
+        extra_params = {
+            'purchaseorder_id': str(purchaseorder_id)
+        }
+        
+        # Format line items for Zoho API
+        # Zoho expects 'line_item_id' for existing PO line items, or 'item_id' for new items
+        formatted_line_items = []
+        for item in line_items:
+            formatted_item = {
+                'line_item_id': item.get('line_item_id'),  # Use line_item_id from PO
+                'quantity': item.get('quantity', 0)
+            }
+            formatted_line_items.append(formatted_item)
+        
+        # Build the receive data payload (purchaseorder_id goes in URL params, not body)
+        receive_data = {
+            'date': date,
+            'line_items': formatted_line_items
+        }
+        
+        # Add receive_number if provided (auto-generate if not)
+        if receive_number:
+            receive_data['receive_number'] = receive_number
+        
+        if notes:
+            receive_data['notes'] = notes
+        
+        # Log the request for debugging
+        logger.info(f"Creating purchase receive in Zoho:")
+        logger.info(f"  PO ID (URL param): {purchaseorder_id}")
+        logger.info(f"  Line items: {formatted_line_items}")
+        logger.info(f"  Date: {date}")
+        logger.info(f"  Receive number: {receive_number or 'auto-generated'}")
+        logger.info(f"  Notes length: {len(notes) if notes else 0}")
+        logger.info(f"  Full request data: {receive_data}")
+        
+        # Create the purchase receive - purchaseorder_id is passed as URL parameter
+        result = self.make_request(endpoint, method='POST', data=receive_data, extra_params=extra_params)
+        
+        if not result:
+            logger.error("Failed to create purchase receive - no response from API (check credentials, network, or API endpoint)")
+            return None
+        
+        # Check for errors in response
+        if result.get('code') and result.get('code') != 0:
+            error_msg = result.get('message', 'Unknown error')
+            logger.error(f"Failed to create purchase receive: {error_msg}")
+            return result
+        
+        # If we have an image to attach, upload it
+        if image_bytes and image_filename and result.get('purchasereceive'):
+            receive_id = result['purchasereceive'].get('purchasereceive_id')
+            if receive_id:
+                attach_result = self.attach_file_to_receive(receive_id, image_bytes, image_filename)
+                if attach_result:
+                    logger.info(f"Successfully attached image to purchase receive {receive_id}")
+                else:
+                    logger.warning(f"Failed to attach image to purchase receive {receive_id}")
+        
+        return result
+    
+    def attach_file_to_receive(self, receive_id, file_bytes, filename):
+        """
+        Attach a file to a purchase receive.
+        
+        Args:
+            receive_id: The Zoho purchase receive ID
+            file_bytes: Bytes of the file to attach
+            filename: Filename for the attachment
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"📎 Attempting to attach file '{filename}' to receive {receive_id}")
+        logger.info(f"📎 File size: {len(file_bytes)} bytes")
+        
+        token = self.get_access_token()
+        if not token:
+            logger.error("📎 Failed to get access token for attachment upload")
+            return False
+        
+        url = f"{self.base_url}/purchasereceives/{receive_id}/attachment"
+        headers = {
+            'Authorization': f'Zoho-oauthtoken {token}'
+            # Note: Don't set Content-Type for multipart/form-data, requests handles it
+        }
+        
+        params = {'organization_id': self.organization_id}
+        
+        logger.info(f"📎 Attachment URL: {url}")
+        
+        try:
+            # Prepare the file for upload
+            files = {
+                'attachment': (filename, file_bytes, 'image/png')
+            }
+            
+            response = requests.post(
+                url,
+                headers=headers,
+                params=params,
+                files=files,
+                timeout=30
+            )
+            
+            logger.info(f"📎 Attachment upload response status: {response.status_code}")
+            logger.info(f"📎 Attachment upload response body: {response.text[:500]}")
+            
+            if response.status_code in [200, 201]:
+                logger.info(f"📎 Successfully attached file to receive {receive_id}")
+                return True
+            else:
+                logger.error(f"📎 Failed to attach file: {response.status_code} - {response.text}")
+                return False
+                
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Attachment upload timed out: {e}")
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error uploading attachment: {e}")
+            return False
     
     def sync_tablet_pos_to_db(self, db_conn):
         """Sync ONLY tablet POs from Zoho to local database"""
@@ -368,6 +515,7 @@ class ZohoInventoryAPI:
                 
                 for line in po_details['purchaseorder'].get('line_items', []):
                     item_id = line.get('item_id', '')
+                    line_item_id = line.get('line_item_id', '')  # Zoho's unique ID for this line item
                     
                     # Only sync line items that match configured tablet types
                     if item_id and item_id not in tablet_item_ids_set:
@@ -384,21 +532,21 @@ class ZohoInventoryAPI:
                         # Convert Row to dict
                         existing_line = dict(existing_line)
                         
-                        # Update existing line
+                        # Update existing line (including zoho_line_item_id)
                         db_conn.execute('''
                             UPDATE po_lines 
-                            SET line_item_name = ?, quantity_ordered = ?
+                            SET line_item_name = ?, quantity_ordered = ?, zoho_line_item_id = ?
                             WHERE id = ?
-                        ''', (line['name'], line['quantity'], existing_line['id']))
+                        ''', (line['name'], line['quantity'], line_item_id, existing_line['id']))
                     else:
                         # Insert new line (only tablet items reach here)
                         db_conn.execute('''
                             INSERT INTO po_lines 
-                            (po_id, po_number, inventory_item_id, line_item_name, quantity_ordered)
-                            VALUES (?, ?, ?, ?, ?)
+                            (po_id, po_number, inventory_item_id, line_item_name, quantity_ordered, zoho_line_item_id)
+                            VALUES (?, ?, ?, ?, ?, ?)
                         ''', (po_id, po['purchaseorder_number'], item_id, 
-                              line['name'], line['quantity']))
-                        logger.debug(f"✅ Synced tablet line item '{line['name']}' (ID: {item_id})")
+                              line['name'], line['quantity'], line_item_id))
+                        logger.debug(f"✅ Synced tablet line item '{line['name']}' (ID: {item_id}, LineID: {line_item_id})")
                     
                     # Extract tablet type using inventory_item_id from configured tablet types
                     # (Only tablet items reach this point due to filtering above)

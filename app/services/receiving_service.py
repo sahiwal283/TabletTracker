@@ -159,3 +159,150 @@ def close_receiving(receiving_id: int) -> bool:
     except Exception:
         return False
 
+
+def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Get bag details including calculated packaged_count from submissions.
+    
+    Args:
+        bag_id: Bag ID
+        
+    Returns:
+        Dictionary with bag details including packaged_count, or None if not found
+    """
+    with db_read_only() as conn:
+        # Get bag with related info, including zoho_line_item_id from po_lines
+        bag_row = conn.execute('''
+            SELECT b.*, 
+                   sb.box_number, 
+                   sb.receiving_id,
+                   r.po_id,
+                   r.receive_name,
+                   po.po_number,
+                   po.zoho_po_id,
+                   tt.tablet_type_name,
+                   tt.inventory_item_id,
+                   pl.zoho_line_item_id
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            JOIN purchase_orders po ON r.po_id = po.id
+            LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            LEFT JOIN po_lines pl ON pl.po_id = po.id AND pl.inventory_item_id = tt.inventory_item_id
+            WHERE b.id = ?
+        ''', (bag_id,)).fetchone()
+        
+        if not bag_row:
+            return None
+        
+        bag = dict(bag_row)
+        
+        # If receive_name is missing, compute it from PO number and receive sequence
+        if not bag.get('receive_name') and bag.get('po_number') and bag.get('receiving_id'):
+            # Count how many receives exist for this PO before this one (inclusive)
+            receive_number_row = conn.execute('''
+                SELECT COUNT(*) as receive_number
+                FROM receiving r2
+                WHERE r2.po_id = ?
+                AND r2.id <= ?
+            ''', (bag['po_id'], bag['receiving_id'])).fetchone()
+            
+            receive_number = receive_number_row['receive_number'] if receive_number_row else 1
+            bag['receive_name'] = f"{bag['po_number']}-{receive_number}"
+        
+        # Calculate packaged_count from submissions
+        packaged_count_row = conn.execute('''
+            SELECT COALESCE(SUM(
+                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                COALESCE(ws.loose_tablets, 0)
+            ), 0) as total_packaged
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.bag_id = ?
+            AND ws.submission_type = 'packaged'
+        ''', (bag_id,)).fetchone()
+        
+        bag['packaged_count'] = packaged_count_row['total_packaged'] if packaged_count_row else 0
+        
+        return bag
+
+
+def extract_shipment_number(receive_name: Optional[str]) -> str:
+    """
+    Extract the shipment number from a receive_name.
+    
+    Receive name formats:
+    - "PO-00162-3" -> shipment number is "3"
+    - "PO-00162-3-1-1" -> shipment number is "3" (the first number after PO number)
+    
+    Args:
+        receive_name: The receive_name string (e.g., "PO-00162-3")
+        
+    Returns:
+        The shipment number as a string, or "1" if cannot be parsed
+    """
+    if not receive_name:
+        return "1"
+    
+    # Split by hyphen
+    parts = receive_name.split('-')
+    
+    # Format is typically: PO-XXXXX-N or PO-XXXXX-N-box-bag
+    # We need to find the shipment number which comes after the PO number
+    
+    if len(parts) >= 3:
+        # Try to find the shipment number
+        # PO-00162-3 -> parts = ['PO', '00162', '3']
+        # PO-00162-3-1-1 -> parts = ['PO', '00162', '3', '1', '1']
+        
+        # The shipment number is typically the 3rd part (index 2)
+        try:
+            shipment_num = int(parts[2])
+            return str(shipment_num)
+        except (ValueError, IndexError):
+            pass
+    
+    # Fallback: try to get the last numeric part before any box/bag numbers
+    # This handles edge cases
+    return "1"
+
+
+def build_zoho_receive_notes(
+    shipment_number: str,
+    box_number: int,
+    bag_number: int,
+    bag_label_count: int,
+    packaged_count: int,
+    custom_notes: Optional[str] = None
+) -> str:
+    """
+    Build the notes string for a Zoho purchase receive.
+    
+    Format:
+    Shipment 3 - Box 1, Bag 1:
+    bag label: 20000 || packaged: 19760
+    
+    [custom notes if provided]
+    
+    Args:
+        shipment_number: The shipment number
+        box_number: The box number
+        bag_number: The bag number
+        bag_label_count: Count from bag label
+        packaged_count: Calculated packaged count
+        custom_notes: Optional additional notes
+        
+    Returns:
+        Formatted notes string
+    """
+    # Build notes with proper line breaks
+    # Note: Using double newlines for better visibility in Zoho
+    notes = f"Shipment {shipment_number} - Box {box_number}, Bag {bag_number}:"
+    notes += f"\n\nbag label: {bag_label_count:,} || packaged: {packaged_count:,}"
+    
+    if custom_notes and custom_notes.strip():
+        notes += f"\n\n{custom_notes.strip()}"
+    
+    return notes
+

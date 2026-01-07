@@ -3,6 +3,9 @@ Database migration utilities
 Handles schema changes and column additions
 """
 import sqlite3
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class MigrationRunner:
@@ -43,6 +46,9 @@ class MigrationRunner:
         # Add machine count columns
         self._add_column_if_not_exists('po_lines', 'machine_good_count', 'INTEGER DEFAULT 0')
         self._add_column_if_not_exists('po_lines', 'machine_damaged_count', 'INTEGER DEFAULT 0')
+        
+        # Add Zoho line_item_id column (v2.23.4+dev) - required for creating purchase receives
+        self._add_column_if_not_exists('po_lines', 'zoho_line_item_id', 'TEXT')
     
     def _migrate_tablet_types(self):
         """Migrate tablet_types table"""
@@ -145,6 +151,10 @@ class MigrationRunner:
         """Migrate bags table"""
         self._add_column_if_not_exists('bags', 'pill_count', 'INTEGER')
         self._add_column_if_not_exists('bags', 'tablet_type_id', 'INTEGER')
+        
+        # Add Zoho receive push tracking columns (v2.23.0+dev)
+        self._add_column_if_not_exists('bags', 'zoho_receive_pushed', 'BOOLEAN DEFAULT 0')
+        self._add_column_if_not_exists('bags', 'zoho_receive_id', 'TEXT')
     
     def _migrate_tablet_type_categories(self):
         """Migrate tablet_type_categories table - ensure it exists"""

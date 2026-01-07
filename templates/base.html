@@ -199,6 +199,7 @@
     <script src="{{ url_for('static', filename='js/api-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal-manager.js') }}"></script>
 </head>
+<<<<<<< HEAD
 <body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
 <script>
 // CSRF Token Helper Functions - Defined early so they're available in all child templates
@@ -880,7 +881,8 @@ async function convertToTwoLevelDropdown(selectElement) {
     wrapper.appendChild(itemSelect);
     wrapper.appendChild(selectElement); // Keep original for form submission
 }
-</script>    
+</script>
+<body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
         <symbol id="icon-chart" viewBox="0 0 24 24" fill="currentColor">
@@ -2332,8 +2334,9 @@ function closeSubmissionDetailsModal(event) {
 async function viewReceiveDetails(receiveId, receiveName) {
     try {
         // Check user role for showing close buttons
-        const isAdmin = {% if session.get('admin_authenticated') or session.get('employee_role') == 'admin' %}true{% else %}false{% endif %};
-        const isManager = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+        const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
+        const isAdmin = userRole === 'admin';
+        const isManager = userRole === 'manager' || isAdmin;
         
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();
@@ -2440,7 +2443,9 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         }
                         
                         const isClosed = bag.status === 'Closed';
+                        const zohoReceivePushed = bag.zoho_receive_pushed || false;
                         const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
+                        const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">✓ Zoho</span>' : '';
                         
                         modalContent += `
                             <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
@@ -2451,10 +2456,17 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                         <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name} Bag ${bag.bag_number}</span>
                                         <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
                                         ${closedBadge}
+                                        ${zohoPushedBadge}
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                        ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
+                                            <button onclick="event.stopPropagation(); openPushToZohoModal(${bag.bag_id}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${bag.received_count || 0}, ${bag.packaged_count || 0}, ${receiveId}, '${receiveName}');" 
+                                                    class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">
+                                                📤 Push to Zoho
+                                            </button>
+                                        ` : ''}
                                         ${isAdmin || isManager ? `
                                             <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
                                                     class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
@@ -2524,205 +2536,6 @@ async function viewReceiveDetails(receiveId, receiveName) {
         modalDiv.id = 'receive-details-modal';
         modalDiv.innerHTML = modalContent;
         document.body.appendChild(modalDiv);
-    } catch (error) {
-        console.error('Error loading receive details:', error);
-        alert('Failed to load receive details: ' + error.message);
-    }
-}
-
-function closeReceiveDetailsModal(event) {
-    if (!event || event.target === event.currentTarget) {
-        const modal = document.getElementById('receive-details-modal');
-        if (modal) {
-            modal.remove();
-        }
-    }
-}
-
-// Global function to view receives for a PO (available on all pages)
-async function viewPOReceives(poId, poNumber) {
-    try {
-        // Close receive details modal if open
-        closeReceiveDetailsModal();
-        
-        const response = await fetch(`/api/po/${poId}/receives`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            alert('Error: ' + (data.error || 'Failed to load receives'));
-            return;
-        }
-        
-        const receives = data.receives || [];
-        
-        // Calculate totals
-        let totalReceived = 0;
-        const totalsByTablet = {};
-        
-        receives.forEach(receiveData => {
-            receiveData.boxes.forEach(boxData => {
-                boxData.bags.forEach(bag => {
-                    const count = parseInt(bag.bag_label_count || 0);
-                    totalReceived += count;
-                    
-                    const tabletName = bag.tablet_type_name || 'Unknown Type';
-                    if (!totalsByTablet[tabletName]) {
-                        totalsByTablet[tabletName] = 0;
-                    }
-                    totalsByTablet[tabletName] += count;
-                });
-            });
-        });
-        
-        // Build modal content
-        let modalContent = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceivesModal(event)">
-                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
-                    <!-- Header -->
-                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-4">
-                        <div class="flex justify-between items-center">
-                            <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📦 Receives for ${poNumber}</h3>
-                                <p class="text-sm text-green-100 mt-1">
-                                    ${receives.length} shipment${receives.length !== 1 ? 's' : ''} received
-                                </p>
-                            </div>
-                            <button onclick="closeReceivesModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
-                                ✕
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-        `;
-        
-        // Add totals section if there are receives
-        if (receives.length > 0) {
-            modalContent += `
-                <!-- Totals Section -->
-                <div class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
-                    <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <span class="mr-2">📊</span>
-                        Total Received Counts
-                    </h4>
-                    
-                    <!-- Overall Total -->
-                    <div class="mb-4">
-                        <div class="flex items-center justify-between bg-white rounded-lg p-3 border border-blue-200">
-                            <span class="font-medium text-gray-700">Total Received:</span>
-                            <span class="text-2xl font-bold text-blue-600">${totalReceived.toLocaleString()}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Totals by Tablet Type -->
-                    <div>
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">By Tablet Type:</h5>
-                        <div class="space-y-2">
-            `;
-            
-            // Sort tablet types by count (descending)
-            const sortedTablets = Object.entries(totalsByTablet).sort((a, b) => b[1] - a[1]);
-            
-            sortedTablets.forEach(([tabletName, count]) => {
-                modalContent += `
-                    <div class="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
-                        <span class="text-sm text-gray-600">${tabletName}:</span>
-                        <span class="font-semibold text-gray-900">${count.toLocaleString()}</span>
-                    </div>
-                `;
-            });
-            
-            modalContent += `
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (receives.length === 0) {
-            modalContent += `
-                <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
-                    <p class="text-lg">No receives found for this PO</p>
-                </div>
-            `;
-        } else {
-            modalContent += '<div class="space-y-4">';
-            
-            receives.forEach((receiveData, idx) => {
-                const rec = receiveData.receiving;
-                const receivedDate = rec.received_date ? new Date(rec.received_date).toLocaleString('en-US', { 
-                    timeZone: 'America/New_York', 
-                    month: '2-digit', 
-                    day: '2-digit', 
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                }) + ' EST' : 'Unknown';
-                
-                modalContent += `
-                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                         onclick="viewReceiveDetails(${rec.id}, '${poNumber}-${rec.shipment_number || (idx + 1)}')">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h4 class="text-lg font-semibold text-gray-900 mb-1">
-                                    Shipment ${rec.shipment_number || (idx + 1)}
-                                </h4>
-                                <p class="text-sm text-gray-600">
-                                    Received on ${receivedDate}
-                                    ${rec.received_by ? ` by ${rec.received_by}` : ''}
-                                </p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-sm text-gray-600">
-                                    ${rec.box_count || 0} Box${(rec.box_count || 0) !== 1 ? 'es' : ''}
-                                </div>
-                                <div class="text-sm text-gray-600">
-                                    ${rec.total_bags || 0} Bag${(rec.total_bags || 0) !== 1 ? 's' : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            modalContent += '</div>';
-        }
-        
-        modalContent += `
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Remove existing modal if present
-        const existingModal = document.getElementById('receives-modal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-        
-        // Add modal to page
-        const modalDiv = document.createElement('div');
-        modalDiv.id = 'receives-modal';
-        modalDiv.innerHTML = modalContent;
-        document.body.appendChild(modalDiv);
-        
-    } catch (error) {
-        console.error('Error loading receives:', error);
-        alert('Failed to load receives: ' + error.message);
-    }
-}
-
-function closeReceivesModal(event) {
-    if (!event || event.target === event.currentTarget) {
-        const modal = document.getElementById('receives-modal');
-        if (modal) {
-            modal.remove();
-        }
-    }
-}
         
     } catch (error) {
         console.error('Error loading receive details:', error);
@@ -2739,194 +2552,244 @@ function closeReceiveDetailsModal(event) {
     }
 }
 
-// Global function to view receives for a PO (available on all pages)
-async function viewPOReceives(poId, poNumber) {
+async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber, receiveId, receiveName) {
+    const action = currentlyClosed ? 'reopen' : 'close';
+    const confirmMsg = currentlyClosed 
+        ? `Are you sure you want to REOPEN ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will become available for new submissions again.` 
+        : `Are you sure you want to CLOSE ${productName} Bag ${bagNumber} (Box ${boxNumber})? It will no longer accept new submissions.`;
+    
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
     try {
-        // Close receive details modal if open
-        closeReceiveDetailsModal();
-        
-        const response = await fetch(`/api/po/${poId}/receives`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            alert('Error: ' + (data.error || 'Failed to load receives'));
-            return;
-        }
-        
-        const receives = data.receives || [];
-        
-        // Calculate totals
-        let totalReceived = 0;
-        const totalsByTablet = {};
-        
-        receives.forEach(receiveData => {
-            receiveData.boxes.forEach(boxData => {
-                boxData.bags.forEach(bag => {
-                    const count = parseInt(bag.bag_label_count || 0);
-                    totalReceived += count;
-                    
-                    const tabletName = bag.tablet_type_name || 'Unknown Type';
-                    if (!totalsByTablet[tabletName]) {
-                        totalsByTablet[tabletName] = 0;
-                    }
-                    totalsByTablet[tabletName] += count;
-                });
-            });
+        const response = await csrfFetch(`/api/bag/${bagId}/close`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
         
-        // Build modal content
-        let modalContent = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceivesModal(event)">
-                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
-                    <!-- Header -->
-                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-4">
-                        <div class="flex justify-between items-center">
-                            <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📦 Receives for ${poNumber}</h3>
-                                <p class="text-sm text-green-100 mt-1">
-                                    ${receives.length} shipment${receives.length !== 1 ? 's' : ''} received
-                                </p>
-                            </div>
-                            <button onclick="closeReceivesModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
-                                ✕
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-        `;
+        const data = await response.json();
         
-        // Add totals section if there are receives
-        if (receives.length > 0) {
-            modalContent += `
-                <!-- Totals Section -->
-                <div class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
-                    <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <span class="mr-2">📊</span>
-                        Total Received Counts
-                    </h4>
-                    
-                    <!-- Overall Total -->
-                    <div class="mb-4">
-                        <div class="flex items-center justify-between bg-white rounded-lg p-3 border border-blue-200">
-                            <span class="font-medium text-gray-700">Total Received:</span>
-                            <span class="text-2xl font-bold text-blue-600">${totalReceived.toLocaleString()}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Totals by Tablet Type -->
-                    <div>
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2">By Tablet Type:</h5>
-                        <div class="space-y-2">
-            `;
+        if (data.success) {
+            // Close the modal
+            closeReceiveDetailsModal();
             
-            // Sort tablet types by count (descending)
-            const sortedTablets = Object.entries(totalsByTablet).sort((a, b) => b[1] - a[1]);
+            // Show success message briefly
+            const successMsg = document.createElement('div');
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.textContent = data.message;
+            document.body.appendChild(successMsg);
             
-            sortedTablets.forEach(([tabletName, count]) => {
-                modalContent += `
-                    <div class="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
-                        <span class="text-sm text-gray-600">${tabletName}:</span>
-                        <span class="font-semibold text-gray-900">${count.toLocaleString()}</span>
-                    </div>
-                `;
-            });
+            // Remove success message after 2 seconds
+            setTimeout(() => successMsg.remove(), 2000);
             
-            modalContent += `
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (receives.length === 0) {
-            modalContent += `
-                <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
-                    <p class="text-lg">No receives found for this PO</p>
-                </div>
-            `;
+            // Reopen the modal with updated data after a brief delay
+            setTimeout(() => {
+                viewReceiveDetails(receiveId, receiveName);
+            }, 300);
         } else {
-            modalContent += '<div class="space-y-4">';
-            
-            receives.forEach((receiveData, idx) => {
-                const rec = receiveData.receiving;
-                const receivedDate = rec.received_date ? new Date(rec.received_date).toLocaleString('en-US', { 
-                    timeZone: 'America/New_York', 
-                    month: '2-digit', 
-                    day: '2-digit', 
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                }) + ' EST' : 'Unknown';
-                
-                modalContent += `
-                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                         onclick="viewReceiveDetails(${rec.id}, '${poNumber}-${rec.shipment_number || (idx + 1)}')">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h4 class="text-lg font-semibold text-gray-900 mb-1">
-                                    Shipment ${rec.shipment_number || (idx + 1)}
-                                </h4>
-                                <p class="text-sm text-gray-600">
-                                    Received on ${receivedDate}
-                                    ${rec.received_by ? ` by ${rec.received_by}` : ''}
-                                </p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-sm text-gray-600">
-                                    ${rec.box_count || 0} Box${(rec.box_count || 0) !== 1 ? 'es' : ''}
-                                </div>
-                                <div class="text-sm text-gray-600">
-                                    ${rec.total_bags || 0} Bag${(rec.total_bags || 0) !== 1 ? 's' : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            modalContent += '</div>';
+            alert('Error: ' + (data.error || 'Failed to update bag status'));
         }
-        
-        modalContent += `
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Remove existing modal if present
-        const existingModal = document.getElementById('receives-modal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-        
-        // Add modal to page
-        const modalDiv = document.createElement('div');
-        modalDiv.id = 'receives-modal';
-        modalDiv.innerHTML = modalContent;
-        document.body.appendChild(modalDiv);
-        
     } catch (error) {
-        console.error('Error loading receives:', error);
-        alert('Failed to load receives: ' + error.message);
+        console.error('Error:', error);
+        alert('Failed to update bag status');
     }
 }
 
-function closeReceivesModal(event) {
+// Push to Zoho Modal and Functions
+function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedCount, packagedCount, receiveId, receiveName) {
+    // Remove existing modal if present
+    const existingModal = document.getElementById('push-to-zoho-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const modalHtml = `
+        <div id="push-to-zoho-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closePushToZohoModal(event)">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">📤 Push to Zoho Receives</h3>
+                        <button onclick="closePushToZohoModal()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Bag Info -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <div class="text-sm text-gray-600 mb-2">
+                            <strong>${productName}</strong> - Box ${boxNumber}, Bag ${bagNumber}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-center">
+                            <div class="bg-indigo-100 rounded p-2">
+                                <div class="text-indigo-700 font-semibold">${receivedCount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Bag Label</div>
+                            </div>
+                            <div class="bg-purple-100 rounded p-2">
+                                <div class="text-purple-700 font-semibold">${packagedCount.toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">Packaged</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Custom Notes -->
+                    <div class="mb-4">
+                        <label for="zoho-custom-notes" class="block text-sm font-medium text-gray-700 mb-1">
+                            Additional Notes (optional)
+                        </label>
+                        <textarea id="zoho-custom-notes" rows="3" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="Enter any additional notes for this receive..."></textarea>
+                    </div>
+                    
+                    <!-- Info -->
+                    <div class="text-xs text-gray-500 mb-4">
+                        This will create a purchase receive in Zoho with the packaged count (${packagedCount.toLocaleString()}) and attach a chart image.
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex gap-3">
+                        <button onclick="closePushToZohoModal()" 
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button id="push-to-zoho-btn" onclick="executePushToZoho(${bagId}, ${receiveId}, '${receiveName}')" 
+                                class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2">
+                            <span>📤</span>
+                            <span>Push to Zoho</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closePushToZohoModal(event) {
     if (!event || event.target === event.currentTarget) {
-        const modal = document.getElementById('receives-modal');
+        const modal = document.getElementById('push-to-zoho-modal');
         if (modal) {
             modal.remove();
         }
     }
 }
 
-// toggleBagClosed moved to early script section at top of body
+async function executePushToZoho(bagId, receiveId, receiveName) {
+    const btn = document.getElementById('push-to-zoho-btn');
+    const customNotes = document.getElementById('zoho-custom-notes')?.value || '';
+    
+    // Disable button and show loading
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin">⏳</span> <span>Pushing...</span>';
+    
+    try {
+        const response = await csrfFetch(`/api/bag/${bagId}/push_to_zoho`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ custom_notes: customNotes })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Close the push modal
+            closePushToZohoModal();
+            
+            // Close the receive details modal
+            closeReceiveDetailsModal();
+            
+            // Show success message
+            const successMsg = document.createElement('div');
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.innerHTML = `<div class="font-semibold">✓ ${data.message}</div>`;
+            if (data.zoho_receive_id) {
+                successMsg.innerHTML += `<div class="text-sm opacity-90">Zoho Receive ID: ${data.zoho_receive_id}</div>`;
+            }
+            document.body.appendChild(successMsg);
+            
+            // Remove success message after 3 seconds
+            setTimeout(() => successMsg.remove(), 3000);
+            
+            // Reopen the receive modal with updated data
+            setTimeout(() => {
+                viewReceiveDetails(receiveId, receiveName);
+            }, 300);
+        } else {
+            // Show error message
+            alert('Error: ' + (data.error || 'Failed to push to Zoho'));
+            
+            // Re-enable button
+            btn.disabled = false;
+            btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
+        }
+    } catch (error) {
+        console.error('Error pushing to Zoho:', error);
+        alert('Failed to push to Zoho: ' + error.message);
+        
+        // Re-enable button
+        btn.disabled = false;
+        btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
+    }
+}
 
-// CSRF Token Helper Functions (duplicate removed - now defined at top of body)
+// CSRF Token Helper Functions
+function getCSRFToken() {
+    // Try to get CSRF token from meta tag first
+    let token = document.querySelector('meta[name="csrf-token"]');
+    if (token) {
+        return token.getAttribute('content');
+    }
+    
+    // Try to get from hidden input in any form
+    token = document.querySelector('input[name="csrf_token"]');
+    if (token) {
+        return token.value;
+    }
+    
+    // Try to get from cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrf_token') {
+            return value;
+        }
+    }
+    
+    return null;
+}
+
+// Helper to add CSRF token to fetch headers
+function getCSRFHeaders(additionalHeaders = {}) {
+    const token = getCSRFToken();
+    if (token) {
+        return {
+            'X-CSRFToken': token,
+            'X-CSRF-Token': token, // Alternative header name
+            ...additionalHeaders
+        };
+    }
+    return additionalHeaders;
+}
+
+// Wrapper for fetch with CSRF token
+async function csrfFetch(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    
+    // Add CSRF token for state-changing methods
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        options.headers = getCSRFHeaders(options.headers || {});
+    }
+    
+    return fetch(url, options);
+}
 </script>
 </body>
 </html>

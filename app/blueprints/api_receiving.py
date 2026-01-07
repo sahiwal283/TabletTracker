@@ -12,7 +12,15 @@ from app.utils.db_utils import db_read_only, db_transaction, ReceivingRepository
 from app.utils.auth_utils import admin_required, role_required, employee_required
 from app.services.tracking_service import refresh_shipment_row
 from app.services.bag_matching_service import find_matching_bags_with_receive_names
-from app.services.receiving_service import get_receiving_with_details, close_receiving
+from app.services.receiving_service import (
+    get_receiving_with_details, 
+    close_receiving,
+    get_bag_with_packaged_count,
+    extract_shipment_number,
+    build_zoho_receive_notes
+)
+from app.services.zoho_service import zoho_api
+from app.services.chart_service import generate_bag_chart_image
 from config import Config
 
 bp = Blueprint('api_receiving', __name__)
@@ -145,7 +153,9 @@ def get_receiving_details(receive_id):
                     'received_count': bag_label_count,
                     'machine_count': machine_total,
                     'packaged_count': dict(packaged_count)['total_packaged'] if packaged_count else 0,
-                    'bag_count': dict(bag_count)['total_bag'] if bag_count else 0
+                    'bag_count': dict(bag_count)['total_bag'] if bag_count else 0,
+                    'zoho_receive_pushed': bool(bag.get('zoho_receive_pushed', False)),
+                    'zoho_receive_id': bag.get('zoho_receive_id')
                 }
             
             # Convert nested dict to list format
@@ -612,6 +622,162 @@ def close_bag(bag_id):
         current_app.logger.error(f"Error closing bag {bag_id}: {str(e)}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Failed to close bag: {str(e)}'}), 500
+
+
+@bp.route('/api/bag/<int:bag_id>/push_to_zoho', methods=['POST'])
+@role_required('dashboard')
+def push_bag_to_zoho(bag_id):
+    """
+    Push a closed bag to Zoho as a purchase receive.
+    
+    Creates a purchase receive in Zoho Inventory with:
+    - Line item quantity = packaged_count
+    - Notes with shipment/box/bag info and counts
+    - Chart image attachment showing received vs packaged
+    
+    Request JSON (optional):
+        custom_notes: Additional notes to append
+    """
+    try:
+        user_role = session.get('employee_role')
+        is_admin = session.get('admin_authenticated')
+        if user_role not in ['manager', 'admin'] and not is_admin:
+            return jsonify({'success': False, 'error': 'Only managers and admins can push to Zoho'}), 403
+        
+        # Get optional custom notes from request
+        data = request.get_json() or {}
+        custom_notes = data.get('custom_notes', '').strip() if data.get('custom_notes') else None
+        
+        # Get bag with all required details
+        bag = get_bag_with_packaged_count(bag_id)
+        if not bag:
+            return jsonify({'success': False, 'error': 'Bag not found'}), 404
+        
+        # Verify bag is closed
+        if bag.get('status') != 'Closed':
+            return jsonify({
+                'success': False, 
+                'error': 'Bag must be closed before pushing to Zoho. Please close the bag first.'
+            }), 400
+        
+        # Check if already pushed
+        if bag.get('zoho_receive_pushed'):
+            return jsonify({
+                'success': False, 
+                'error': 'This bag has already been pushed to Zoho.',
+                'zoho_receive_id': bag.get('zoho_receive_id')
+            }), 400
+        
+        # Validate required fields
+        zoho_po_id = bag.get('zoho_po_id')
+        if not zoho_po_id:
+            return jsonify({
+                'success': False, 
+                'error': 'Cannot push to Zoho: PO does not have a Zoho PO ID. Please sync POs from Zoho first.'
+            }), 400
+        
+        # Get zoho_line_item_id for this bag's tablet type in this PO
+        # This is the unique ID for the line item in the purchase order
+        zoho_line_item_id = bag.get('zoho_line_item_id')
+        if not zoho_line_item_id:
+            return jsonify({
+                'success': False, 
+                'error': 'Cannot push to Zoho: PO line item does not have a Zoho line item ID. Please sync POs from Zoho first (click Sync POs button on Dashboard).'
+            }), 400
+        
+        # Get values for notes
+        receive_name = bag.get('receive_name', '')
+        current_app.logger.info(f"📝 Building notes - receive_name from DB: '{receive_name}'")
+        shipment_number = extract_shipment_number(receive_name)
+        current_app.logger.info(f"📝 Extracted shipment_number: '{shipment_number}'")
+        box_number = bag.get('box_number', 1)
+        bag_number = bag.get('bag_number', 1)
+        bag_label_count = bag.get('bag_label_count', 0) or 0
+        packaged_count = bag.get('packaged_count', 0) or 0
+        
+        # Build notes
+        notes = build_zoho_receive_notes(
+            shipment_number=shipment_number,
+            box_number=box_number,
+            bag_number=bag_number,
+            bag_label_count=bag_label_count,
+            packaged_count=packaged_count,
+            custom_notes=custom_notes
+        )
+        
+        # Generate chart image
+        chart_image = generate_bag_chart_image(bag_label_count, packaged_count)
+        chart_filename = f"bag_{bag_id}_stats.png" if chart_image else None
+        
+        # Build line items for Zoho receive
+        # Use line_item_id from the PO (this is required by Zoho API for purchase receives)
+        line_items = [{
+            'line_item_id': zoho_line_item_id,
+            'quantity': packaged_count
+        }]
+        
+        # Create purchase receive in Zoho
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Log the request details for debugging
+        current_app.logger.info(f"Pushing bag {bag_id} to Zoho:")
+        current_app.logger.info(f"  - Zoho PO ID: {zoho_po_id}")
+        current_app.logger.info(f"  - Zoho Line Item ID: {zoho_line_item_id}")
+        current_app.logger.info(f"  - Line items: {line_items}")
+        current_app.logger.info(f"  - Date: {today}")
+        current_app.logger.info(f"  - Has chart image: {bool(chart_image)}")
+        
+        result = zoho_api.create_purchase_receive(
+            purchaseorder_id=zoho_po_id,
+            line_items=line_items,
+            date=today,
+            notes=notes,
+            image_bytes=chart_image if chart_image else None,
+            image_filename=chart_filename
+        )
+        
+        if not result:
+            current_app.logger.error("Zoho API returned None - likely authentication or network error")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to create purchase receive in Zoho. Please check API credentials and try again. Check Flask logs for details.'
+            }), 500
+        
+        # Check for errors in Zoho response
+        if result.get('code') and result.get('code') != 0:
+            error_msg = result.get('message', 'Unknown Zoho API error')
+            current_app.logger.error(f"Zoho API error: {error_msg}")
+            return jsonify({
+                'success': False,
+                'error': f'Zoho API error: {error_msg}'
+            }), 500
+        
+        # Get the created receive ID
+        zoho_receive_id = None
+        if result.get('purchasereceive'):
+            zoho_receive_id = result['purchasereceive'].get('purchasereceive_id')
+        
+        # Update bag to mark as pushed
+        with db_transaction() as conn:
+            conn.execute('''
+                UPDATE bags 
+                SET zoho_receive_pushed = 1, zoho_receive_id = ?
+                WHERE id = ?
+            ''', (zoho_receive_id, bag_id))
+        
+        bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {box_number}, Bag {bag_number}"
+        current_app.logger.info(f"Successfully pushed bag {bag_id} to Zoho receive {zoho_receive_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully pushed {bag_info} to Zoho',
+            'zoho_receive_id': zoho_receive_id
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error pushing bag {bag_id} to Zoho: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to push to Zoho: {str(e)}'}), 500
 
 
 @bp.route('/api/process_receiving', methods=['POST'])
