@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.13] - 2025-01-XX
+
+### 🐛 Bug Fix
+
+#### Fixed "HEAD" Text Displaying at Top of Page
+- **Issue**: Git merge conflict marker (`<<<<<<< HEAD`) was displaying as text at the top of all pages
+- **Root Cause**: Unresolved merge conflict marker left in `templates/base.html` after a merge
+- **Impact**: Users saw "HEAD" text displayed at the top of every page, making the UI look unprofessional
+- **Fix**: Removed the leftover merge conflict marker from the base template
+- **Files Updated**:
+  - `templates/base.html` (removed merge conflict marker on line 202)
+
+---
+
 ## [2.23.12] - 2025-01-XX
 
 ### 🐛 Bug Fix
