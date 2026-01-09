@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.12] - 2025-01-XX
+
+### 🐛 Bug Fix
+
+#### Fixed Export Submissions CSV Function Failing Due to Indentation Errors
+- **Issue**: Export submissions CSV function was throwing errors due to incorrect indentation throughout the function
+- **Root Cause**: Code inside the `with db_read_only() as conn:` block had inconsistent indentation, causing Python syntax errors and preventing the export from working
+- **Impact**: Users could not export submissions to CSV, receiving an error message instead
+- **Fix**: 
+  - Fixed indentation for all code inside the `with` block
+  - Corrected indentation for filter parameter assignments
+  - Fixed indentation for query building and parameter appending
+  - Fixed indentation for loop bodies (for sub in submissions_raw, for sub in submissions_processed)
+  - Ensured all code is properly nested inside the database connection context manager
+- **Files Updated**:
+  - `app/blueprints/submissions.py` (fixed indentation in `export_submissions_csv` function)
+
+---
+
 ## [2.23.11] - 2025-01-XX
 
 ### ✨ Enhancement

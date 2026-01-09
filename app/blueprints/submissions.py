@@ -473,8 +473,7 @@ def export_submissions_csv():
     """Export submissions to CSV with all active filters applied"""
     try:
         with db_read_only() as conn:
-        
-        # Get filter parameters from query string (same as all_submissions)
+            # Get filter parameters from query string (same as all_submissions)
             filter_po_id = request.args.get('po_id', type=int)
             filter_item_id = request.args.get('item_id', type=str)
             filter_date_from = request.args.get('date_from', type=str)
@@ -482,12 +481,12 @@ def export_submissions_csv():
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
             filter_receipt_number = request.args.get('receipt_number', type=str)
-        
-        # Get sort parameters
+            
+            # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')
             sort_order = request.args.get('sort_order', 'asc')  # Default ASC for CSV export
-        
-        # Build query with optional filters (same logic as all_submissions)
+            
+            # Build query with optional filters (same logic as all_submissions)
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    pd.packages_per_display, pd.tablets_per_package,
@@ -517,44 +516,44 @@ def export_submissions_csv():
             LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             WHERE 1=1
             '''
-        
+            
             params = []
-        
-        # Apply PO filter if provided
+            
+            # Apply PO filter if provided
             if filter_po_id:
                 query += ' AND ws.assigned_po_id = ?'
-            params.append(filter_po_id)
-        
-        # Apply item filter if provided
+                params.append(filter_po_id)
+            
+            # Apply item filter if provided
             if filter_item_id:
                 query += ' AND tt.inventory_item_id = ?'
-            params.append(filter_item_id)
-        
-        # Apply date range filters
+                params.append(filter_item_id)
+            
+            # Apply date range filters
             if filter_date_from:
                 query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
-            params.append(filter_date_from)
-        
+                params.append(filter_date_from)
+            
             if filter_date_to:
                 query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
-            params.append(filter_date_to)
-        
-        # Apply tablet type filter if provided
+                params.append(filter_date_to)
+            
+            # Apply tablet type filter if provided
             if filter_tablet_type_id:
                 query += ' AND tt.id = ?'
-            params.append(filter_tablet_type_id)
-        
-        # Apply submission type filter if provided
+                params.append(filter_tablet_type_id)
+            
+            # Apply submission type filter if provided
             if filter_submission_type:
                 query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
-            params.append(filter_submission_type)
-        
-        # Apply receipt number filter if provided (partial match)
+                params.append(filter_submission_type)
+            
+            # Apply receipt number filter if provided (partial match)
             if filter_receipt_number:
                 query += ' AND ws.receipt_number LIKE ?'
-            params.append(f'%{filter_receipt_number}%')
-        
-        # Apply sorting
+                params.append(f'%{filter_receipt_number}%')
+            
+            # Apply sorting
             allowed_sort_columns = {
                 'created_at': 'ws.created_at',
                 'receipt_number': 'ws.receipt_number',
@@ -577,54 +576,54 @@ def export_submissions_csv():
                 '''
             else:
                 query += f' ORDER BY {sort_column} {sort_direction}'
-        
+            
             submissions_raw = conn.execute(query, params).fetchall()
-        
-        # Calculate running totals by bag PER PO (same logic as all_submissions)
+            
+            # Calculate running totals by bag PER PO (same logic as all_submissions)
             bag_running_totals = {}
             submissions_processed = []
-        
+            
             for sub in submissions_raw:
                 sub_dict = dict(sub)
-            bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-            bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
+                bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
+                
+                individual_calc = sub_dict.get('calculated_total', 0) or 0
+                submission_type = sub_dict.get('submission_type', 'packaged')
+                
+                # Update total running total (only packaged counts - machine counts are consumed, not in bag)
+                # Bag counts are also separate inventory counts, not added to total
+                if bag_key not in bag_running_totals:
+                    bag_running_totals[bag_key] = 0
+                if submission_type == 'packaged':
+                    bag_running_totals[bag_key] += individual_calc
+                
+                sub_dict['individual_calc'] = individual_calc
+                sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
+                sub_dict['running_total'] = bag_running_totals[bag_key]
+                
+                bag_count = sub_dict.get('bag_label_count', 0) or 0
+                running_total = bag_running_totals[bag_key]
+                
+                if bag_count == 0:
+                    sub_dict['count_status'] = 'No Bag Label'
+                elif abs(running_total - bag_count) <= 5:
+                    sub_dict['count_status'] = 'Match'
+                elif running_total < bag_count:
+                    sub_dict['count_status'] = 'Under'
+                else:
+                    sub_dict['count_status'] = 'Over'
+                
+                submissions_processed.append(sub_dict)
             
-            individual_calc = sub_dict.get('calculated_total', 0) or 0
-            submission_type = sub_dict.get('submission_type', 'packaged')
-            
-            # Update total running total (only packaged counts - machine counts are consumed, not in bag)
-            # Bag counts are also separate inventory counts, not added to total
-            if bag_key not in bag_running_totals:
-                bag_running_totals[bag_key] = 0
-            if submission_type == 'packaged':
-                bag_running_totals[bag_key] += individual_calc
-            
-            sub_dict['individual_calc'] = individual_calc
-            sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
-            sub_dict['running_total'] = bag_running_totals[bag_key]
-            
-            bag_count = sub_dict.get('bag_label_count', 0) or 0
-            running_total = bag_running_totals[bag_key]
-            
-            if bag_count == 0:
-                sub_dict['count_status'] = 'No Bag Label'
-            elif abs(running_total - bag_count) <= 5:
-                sub_dict['count_status'] = 'Match'
-            elif running_total < bag_count:
-                sub_dict['count_status'] = 'Under'
-            else:
-                sub_dict['count_status'] = 'Over'
-            
-            submissions_processed.append(sub_dict)
-        
-        # Group submissions by receipt_number while maintaining sort order within groups
+            # Group submissions by receipt_number while maintaining sort order within groups
             submissions_processed = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
-        
-        # Create CSV in memory
+            
+            # Create CSV in memory
             output = io.StringIO()
             writer = csv.writer(output)
-        
-        # Write header row
+            
+            # Write header row
             writer.writerow([
             'Submission Date',
             'Created At',
@@ -642,65 +641,65 @@ def export_submissions_csv():
             'Running Total (Bag)',
             'Bag Label Count',
             'Count Status',
-            'PO Assignment Verified',
-            'Admin Notes'
+                'PO Assignment Verified',
+                'Admin Notes'
             ])
-        
-        # Write data rows (respecting sort order)
+            
+            # Write data rows (respecting sort order)
             for sub in submissions_processed:
                 submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
-            created_at = sub.get('created_at', '')
-            if created_at:
-                try:
-                    # Format datetime for CSV
-                    if isinstance(created_at, str):
-                        created_at = created_at[:19]  # Truncate to seconds
-                except:
-                    pass
+                created_at = sub.get('created_at', '')
+                if created_at:
+                    try:
+                        # Format datetime for CSV
+                        if isinstance(created_at, str):
+                            created_at = created_at[:19]  # Truncate to seconds
+                    except:
+                        pass
+                
+                writer.writerow([
+                    submission_date,
+                    created_at,
+                    sub.get('employee_name', ''),
+                    sub.get('product_name', ''),
+                    sub.get('tablet_type_name', ''),
+                    sub.get('po_number', ''),
+                    sub.get('box_number', ''),
+                    sub.get('bag_number', ''),
+                    sub.get('displays_made', 0),
+                    sub.get('packs_remaining', 0),
+                    sub.get('loose_tablets', 0),
+                    sub.get('damaged_tablets', 0),
+                    sub.get('individual_calc', 0),
+                    sub.get('running_total', 0),
+                    sub.get('bag_label_count', 0),
+                    sub.get('count_status', ''),
+                    'Yes' if sub.get('po_verified', 0) else 'No',
+                    sub.get('admin_notes', '')
+                ])
             
-            writer.writerow([
-                submission_date,
-                created_at,
-                sub.get('employee_name', ''),
-                sub.get('product_name', ''),
-                sub.get('tablet_type_name', ''),
-                sub.get('po_number', ''),
-                sub.get('box_number', ''),
-                sub.get('bag_number', ''),
-                sub.get('displays_made', 0),
-                sub.get('packs_remaining', 0),
-                sub.get('loose_tablets', 0),
-                sub.get('damaged_tablets', 0),
-                sub.get('individual_calc', 0),
-                sub.get('running_total', 0),
-                sub.get('bag_label_count', 0),
-                sub.get('count_status', ''),
-                'Yes' if sub.get('po_verified', 0) else 'No',
-                sub.get('admin_notes', '')
-            ])
-        
-        # Generate filename with date range if applicable
-        filename_parts = ['submissions']
-        if filter_date_from:
-            filename_parts.append(f'from_{filter_date_from}')
-        if filter_date_to:
-            filename_parts.append(f'to_{filter_date_to}')
-        if filter_tablet_type_id:
-            filename_parts.append(f'type_{submissions_processed[0].get("tablet_type_name", "unknown") if submissions_processed else "unknown"}')
-        if filter_po_id:
-            po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
-            if po_info:
-                filename_parts.append(f'po_{po_info["po_number"]}')
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{'_'.join(filename_parts)}_{timestamp}.csv"
-        
-        # Create response
-        response = make_response(output.getvalue())
-        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
-        return response
+            # Generate filename with date range if applicable
+            filename_parts = ['submissions']
+            if filter_date_from:
+                filename_parts.append(f'from_{filter_date_from}')
+            if filter_date_to:
+                filename_parts.append(f'to_{filter_date_to}')
+            if filter_tablet_type_id:
+                filename_parts.append(f'type_{submissions_processed[0].get("tablet_type_name", "unknown") if submissions_processed else "unknown"}')
+            if filter_po_id:
+                po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
+                if po_info:
+                    filename_parts.append(f'po_{po_info["po_number"]}')
+            
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{'_'.join(filename_parts)}_{timestamp}.csv"
+            
+            # Create response
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            return response
     except Exception as e:
         current_app.logger.error(f"Error exporting submissions CSV: {e}")
         traceback.print_exc()
