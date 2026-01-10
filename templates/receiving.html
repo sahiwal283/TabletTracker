@@ -63,22 +63,29 @@
         <!-- Receives for this PO (oldest at bottom) -->
         <div id="po-{{ po_group.po_number }}" class="space-y-4 ml-4 hidden">
         {% for shipment in po_group.receives %}
-        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+        <div class="card hover:shadow-lg transition-shadow">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <div class="flex items-center gap-2">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
-                            {% if shipment.receiving.po_number %}
-                                {% if shipment.receiving.shipment_number %}
-                                    {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <button onclick="event.stopPropagation(); toggleShipmentCollapse('shipment-{{ shipment.receiving.id }}')" 
+                                    class="text-gray-600 hover:text-gray-900 transition-colors mr-2"
+                                    aria-label="Toggle shipment collapse">
+                                <svg id="icon-shipment-{{ shipment.receiving.id }}" class="w-5 h-5 transform transition-transform {% if shipment.receiving.closed %}rotate-0{% else %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <h3 class="text-lg font-semibold text-gray-900 cursor-pointer" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+                                {% if shipment.receiving.po_number %}
+                                    {% if shipment.receiving.shipment_number %}
+                                        {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                                    {% else %}
+                                        {{ shipment.receiving.po_number }}
+                                    {% endif %}
                                 {% else %}
-                                    {{ shipment.receiving.po_number }}
+                                    Shipment Received
                                 {% endif %}
-                            {% else %}
-                                Shipment Received
-                            {% endif %}
-                        </h3>
+                            </h3>
                             {% if shipment.receiving.closed %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
                                 🔒 CLOSED
@@ -121,8 +128,8 @@
                     </div>
                 </div>
                 
-                <!-- Boxes -->
-                <div class="space-y-3 mt-4">
+                <!-- Boxes (collapsible) -->
+                <div id="shipment-{{ shipment.receiving.id }}" class="space-y-3 mt-4 {% if shipment.receiving.closed %}hidden{% endif %}">
                     {% for box_data in shipment.boxes %}
                     <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                         <div class="flex justify-between items-center mb-2">
@@ -173,14 +180,21 @@
         </div>
         <div id="unassigned-receives" class="space-y-4 ml-4 hidden">
         {% for shipment in shipments_without_po %}
-        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}')">
+        <div class="card hover:shadow-lg transition-shadow">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <div class="flex items-center gap-2">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
-                            Shipment Received
-                        </h3>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <button onclick="event.stopPropagation(); toggleShipmentCollapse('shipment-{{ shipment.receiving.id }}')" 
+                                    class="text-gray-600 hover:text-gray-900 transition-colors mr-2"
+                                    aria-label="Toggle shipment collapse">
+                                <svg id="icon-shipment-{{ shipment.receiving.id }}" class="w-5 h-5 transform transition-transform {% if shipment.receiving.closed %}rotate-0{% else %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <h3 class="text-lg font-semibold text-gray-900 cursor-pointer" onclick="viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}')">
+                                Shipment Received
+                            </h3>
                             {% if shipment.receiving.closed %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
                                 🔒 CLOSED
@@ -221,8 +235,8 @@
                     </div>
                 </div>
                 
-                <!-- Boxes -->
-                <div class="space-y-3 mt-4">
+                <!-- Boxes (collapsible) -->
+                <div id="shipment-{{ shipment.receiving.id }}" class="space-y-3 mt-4 {% if shipment.receiving.closed %}hidden{% endif %}">
                     {% for box_data in shipment.boxes %}
                     <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                         <div class="flex justify-between items-center mb-2">
@@ -279,22 +293,31 @@
         <!-- Receives for this PO (oldest at bottom) -->
         <div id="po-closed-{{ po_group.po_number }}" class="space-y-4 ml-4 hidden">
         {% for shipment in po_group.receives %}
-        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+        <div class="card hover:shadow-lg transition-shadow">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900 mb-1">
-                            {% if shipment.receiving.po_number %}
-                                {% if shipment.receiving.shipment_number %}
-                                    {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <button onclick="event.stopPropagation(); toggleShipmentCollapse('shipment-{{ shipment.receiving.id }}')" 
+                                    class="text-gray-600 hover:text-gray-900 transition-colors mr-2"
+                                    aria-label="Toggle shipment collapse">
+                                <svg id="icon-shipment-{{ shipment.receiving.id }}" class="w-5 h-5 transform transition-transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <h3 class="text-lg font-semibold text-gray-900 cursor-pointer" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+                                {% if shipment.receiving.po_number %}
+                                    {% if shipment.receiving.shipment_number %}
+                                        {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
+                                    {% else %}
+                                        {{ shipment.receiving.po_number }}
+                                    {% endif %}
+                                    <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed PO</span>
                                 {% else %}
-                                    {{ shipment.receiving.po_number }}
+                                    Shipment Received
                                 {% endif %}
-                                <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed PO</span>
-                            {% else %}
-                                Shipment Received
-                            {% endif %}
-                        </h3>
+                            </h3>
+                        </div>
                         <p class="text-sm text-gray-600">
                             Received on {{ (shipment.receiving.received_date|to_est)[:10] if shipment.receiving.received_date else 'Unknown' }} at {{ (shipment.receiving.received_date|to_est)[11:19] if shipment.receiving.received_date else '' }} EST
                             {% if shipment.receiving.received_by %}
@@ -323,8 +346,8 @@
                     </div>
                 </div>
                 
-                <!-- Boxes -->
-                <div class="space-y-3 mt-4">
+                <!-- Boxes (collapsible) -->
+                <div id="shipment-{{ shipment.receiving.id }}" class="space-y-3 mt-4 hidden">
                     {% for box_data in shipment.boxes %}
                     <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                         <div class="flex justify-between items-center mb-2">
@@ -1938,6 +1961,50 @@ function switchReceivingTab(tabName) {
 function togglePOCollapse(poId) {
     const contentDiv = document.getElementById(poId);
     const iconSvg = document.getElementById(`icon-${poId}`);
+    
+    if (!contentDiv || !iconSvg) return;
+    
+    if (contentDiv.classList.contains('hidden')) {
+        // Expand
+        contentDiv.classList.remove('hidden');
+        iconSvg.classList.remove('rotate-0');
+        iconSvg.classList.add('rotate-180');
+        
+        // When expanding PO, keep closed shipments collapsed
+        // Find all shipments within this PO that are closed
+        const shipmentDivs = contentDiv.querySelectorAll('[id^="shipment-"]');
+        shipmentDivs.forEach(shipmentDiv => {
+            const shipmentId = shipmentDiv.id;
+            const shipmentCard = shipmentDiv.closest('.card');
+            if (shipmentCard) {
+                // Check if shipment has CLOSED badge by looking for span with CLOSED text
+                const hasClosedBadge = Array.from(shipmentCard.querySelectorAll('span')).some(span => 
+                    span.textContent.includes('🔒 CLOSED') || span.textContent.includes('CLOSED')
+                );
+                
+                // If shipment is closed, ensure it stays collapsed
+                if (hasClosedBadge) {
+                    shipmentDiv.classList.add('hidden');
+                    const shipmentIcon = document.getElementById(`icon-${shipmentId}`);
+                    if (shipmentIcon) {
+                        shipmentIcon.classList.remove('rotate-180');
+                        shipmentIcon.classList.add('rotate-0');
+                    }
+                }
+            }
+        });
+    } else {
+        // Collapse
+        contentDiv.classList.add('hidden');
+        iconSvg.classList.remove('rotate-180');
+        iconSvg.classList.add('rotate-0');
+    }
+}
+
+// Toggle shipment collapse/expand
+function toggleShipmentCollapse(shipmentId) {
+    const contentDiv = document.getElementById(shipmentId);
+    const iconSvg = document.getElementById(`icon-${shipmentId}`);
     
     if (!contentDiv || !iconSvg) return;
     

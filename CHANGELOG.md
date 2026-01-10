@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.14] - 2025-01-XX
+
+### ✨ Enhancement
+
+#### Made Shipments Collapsible in Shipments Received Page
+- **Enhancement**: Added collapsible functionality to individual shipments, similar to how POs are collapsible
+- **Features**:
+  - Each shipment now has a collapse/expand button in its header
+  - Closed shipments remain collapsed by default when their parent PO is expanded
+  - Users can manually expand/collapse any shipment to reduce scrolling through long lists
+  - Shipment details (boxes and bags) are hidden when collapsed, showing only the header information
+- **Impact**: Users can now better manage long lists of shipments by collapsing ones they don't need to see, improving navigation and reducing visual clutter
+- **Files Updated**:
+  - `templates/receiving.html` (added collapse buttons, collapsible content divs, and JavaScript toggle functions)
+
+---
+
 ## [2.23.13] - 2025-01-XX
 
 ### 🐛 Bug Fix
