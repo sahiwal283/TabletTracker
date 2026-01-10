@@ -63,7 +63,7 @@
         <!-- Receives for this PO (oldest at bottom) -->
         <div id="po-{{ po_group.po_number }}" class="space-y-4 ml-4 hidden">
         {% for shipment in po_group.receives %}
-        <div class="card hover:shadow-lg transition-shadow">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
@@ -75,7 +75,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </button>
-                            <h3 class="text-lg font-semibold text-gray-900 cursor-pointer" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+                            <h3 class="text-lg font-semibold text-gray-900">
                                 {% if shipment.receiving.po_number %}
                                     {% if shipment.receiving.shipment_number %}
                                         {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}
@@ -180,7 +180,7 @@
         </div>
         <div id="unassigned-receives" class="space-y-4 ml-4 hidden">
         {% for shipment in shipments_without_po %}
-        <div class="card hover:shadow-lg transition-shadow">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}')">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
@@ -192,7 +192,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </button>
-                            <h3 class="text-lg font-semibold text-gray-900 cursor-pointer" onclick="viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}')">
+                            <h3 class="text-lg font-semibold text-gray-900">
                                 Shipment Received
                             </h3>
                             {% if shipment.receiving.closed %}
@@ -293,7 +293,7 @@
         <!-- Receives for this PO (oldest at bottom) -->
         <div id="po-closed-{{ po_group.po_number }}" class="space-y-4 ml-4 hidden">
         {% for shipment in po_group.receives %}
-        <div class="card hover:shadow-lg transition-shadow">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
@@ -305,7 +305,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </button>
-                            <h3 class="text-lg font-semibold text-gray-900 cursor-pointer" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+                            <h3 class="text-lg font-semibold text-gray-900">
                                 {% if shipment.receiving.po_number %}
                                     {% if shipment.receiving.shipment_number %}
                                         {{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number }}

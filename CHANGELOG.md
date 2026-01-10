@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.23.15] - 2025-01-XX
+
+### 🐛 Bug Fix
+
+#### Fixed Shipment Cards Not Clickable After Adding Collapse Feature
+- **Issue**: After adding collapsible shipments feature, clicking on shipment cards no longer opened the receive details modal
+- **Root Cause**: The `onclick` handler was removed from the card div when adding the collapse button, leaving only the h3 title clickable
+- **Impact**: Users could not click anywhere on the shipment card to view details, only the title text was clickable
+- **Fix**: Restored `onclick` handler to the card div element, ensuring the entire card is clickable while collapse button and action buttons use `event.stopPropagation()` to prevent conflicts
+- **Files Updated**:
+  - `templates/receiving.html` (restored onclick handlers to card divs for active POs, closed POs, and unassigned receives)
+
+---
+
 ## [2.23.14] - 2025-01-XX
 
 ### ✨ Enhancement
