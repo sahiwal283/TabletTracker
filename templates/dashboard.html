@@ -3047,21 +3047,32 @@ async function viewReceiveDetailsModal(receiveId, receiveName) {
                         }
                         
                         const isClosed = bag.status === 'Closed';
+                        const isReserved = bag.reserved_for_bottles === 1 || bag.reserved_for_bottles === true;
                         const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
+                        const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2">🍾 Reserved</span>' : '';
                         
                         modalContent += `
                             <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
-                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for Box ' + box.box_number + ', Bag ' + bag.bag_number}">
+                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for Box ' + box.box_number + ', Bag ' + bag.bag_number}"
+                                 id="bag-card-${bag.bag_id}">
                                 <div class="flex justify-between items-center mb-2">
                                     <div class="flex items-center gap-2 flex-1 cursor-pointer"
                                          onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});">
                                         <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name || 'Bag'} ${bag.bag_number}</span>
                                         <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
                                         ${closedBadge}
+                                        ${reservedBadge}
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                        ${!isClosed && remaining > 0 && (isAdmin || isManager) ? `
+                                            <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${product.tablet_type_name || 'Product'}', ${bag.bag_number}, ${box.box_number});" 
+                                                    id="reserve-btn-${bag.bag_id}"
+                                                    class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
+                                                ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
+                                            </button>
+                                        ` : ''}
                                         ${isAdmin || isManager ? `
                                             <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name || 'Product'}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
                                                     class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">

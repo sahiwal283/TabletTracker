@@ -252,6 +252,50 @@ async function csrfFetch(url, options = {}) {
     return fetch(url, options);
 }
 
+// Toggle bag reservation for bottles - defined early so it's available in modals
+async function toggleBagReservation(bagId, currentlyReserved, productName, bagNumber, boxNumber) {
+    const action = currentlyReserved ? 'unreserve' : 'reserve for bottles';
+    
+    try {
+        const response = await csrfFetch(`/api/bag/${bagId}/toggle-reservation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update button in modal
+            const btn = document.getElementById(`reserve-btn-${bagId}`);
+            if (btn) {
+                if (data.reserved_for_bottles) {
+                    btn.textContent = '🍾 Unreserve';
+                    btn.classList.remove('text-gray-600', 'hover:text-gray-800');
+                    btn.classList.add('text-purple-600', 'hover:text-purple-800');
+                } else {
+                    btn.textContent = '📦 Reserve';
+                    btn.classList.remove('text-purple-600', 'hover:text-purple-800');
+                    btn.classList.add('text-gray-600', 'hover:text-gray-800');
+                }
+            }
+            
+            // Show success message briefly
+            const successMsg = document.createElement('div');
+            successMsg.className = 'fixed top-4 right-4 bg-purple-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.textContent = data.message;
+            document.body.appendChild(successMsg);
+            setTimeout(() => successMsg.remove(), 2000);
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update reservation'));
+        }
+    } catch (error) {
+        console.error('Error toggling reservation:', error);
+        alert('Failed to update reservation');
+    }
+}
+
 // Toggle bag closed status - defined early so it's available in modals
 async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, boxNumber, receiveId, receiveName) {
     const action = currentlyClosed ? 'reopen' : 'close';
@@ -2446,12 +2490,15 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         
                         const isClosed = bag.status === 'Closed';
                         const zohoReceivePushed = bag.zoho_receive_pushed || false;
+                        const isReserved = bag.reserved_for_bottles === 1 || bag.reserved_for_bottles === true;
                         const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
                         const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">✓ Zoho</span>' : '';
+                        const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2">🍾 Reserved</span>' : '';
                         
                         modalContent += `
                             <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
-                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for ' + product.tablet_type_name + ' Bag ' + bag.bag_number}">
+                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for ' + product.tablet_type_name + ' Bag ' + bag.bag_number}"
+                                 id="bag-card-${bag.bag_id}">
                                 <div class="flex justify-between items-center mb-2">
                                     <div class="flex items-center gap-2 flex-1 cursor-pointer"
                                          onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});">
@@ -2459,10 +2506,18 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                         <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
                                         ${closedBadge}
                                         ${zohoPushedBadge}
+                                        ${reservedBadge}
                                         <span class="text-xs text-gray-500">💡 Click for submissions</span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                                        ${!isClosed && remaining > 0 && (isAdmin || isManager) ? `
+                                            <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number});" 
+                                                    id="reserve-btn-${bag.bag_id}"
+                                                    class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
+                                                ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
+                                            </button>
+                                        ` : ''}
                                         ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
                                             <button onclick="event.stopPropagation(); openPushToZohoModal(${bag.bag_id}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${bag.received_count || 0}, ${bag.packaged_count || 0}, ${receiveId}, '${receiveName}');" 
                                                     class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">
