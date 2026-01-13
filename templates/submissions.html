@@ -89,6 +89,7 @@
                     <option value="machine" {% if filter_submission_type == 'machine' %}selected{% endif %}>Machine Count</option>
                     <option value="packaged" {% if filter_submission_type == 'packaged' %}selected{% endif %}>Packaged</option>
                     <option value="bag" {% if filter_submission_type == 'bag' %}selected{% endif %}>Bag Count</option>
+                    <option value="bottle" {% if filter_submission_type == 'bottle' %}selected{% endif %}>Bottles</option>
                 </select>
             </div>
             
@@ -284,6 +285,10 @@
                         {% elif sub.submission_type == 'bag' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 📋 Bag Count
+                            </span>
+                        {% elif sub.submission_type == 'bottle' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                                🍶 Bottles
                             </span>
                         {% else %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">

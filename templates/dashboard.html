@@ -1728,6 +1728,8 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
                 } else if (submissionType === 'bag') {
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+                } else if (submissionType === 'bottle') {
+                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">🍶 Bottles</span>';
                 } else {
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
                 }
@@ -1921,11 +1923,16 @@ function filterSubmissionsInModal(filterType) {
     
     filtered.forEach(sub => {
         const submissionType = sub.submission_type || 'packaged';
-        let typeBadge = submissionType === 'machine' ? 
-            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>' :
-            submissionType === 'bag' ?
-            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>' :
-            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+        let typeBadge = '';
+        if (submissionType === 'machine') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+        } else if (submissionType === 'bag') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+        } else if (submissionType === 'bottle') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">🍶 Bottles</span>';
+        } else {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+        }
         
         submissionsHTML += `
             <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors" onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})">
@@ -3188,11 +3195,16 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
         
         submissions.forEach((sub, index) => {
             const subType = sub.submission_type || 'packaged';
-            const typeBadge = subType === 'machine' ? 
-                '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>' :
-                subType === 'bag' ?
-                '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>' :
-                '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+            let typeBadge = '';
+            if (subType === 'machine') {
+                typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+            } else if (subType === 'bag') {
+                typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+            } else if (subType === 'bottle') {
+                typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">🍶 Bottles</span>';
+            } else {
+                typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+            }
             
             modalHTML += `
                 <div class="border-2 ${index === 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200'} rounded-lg p-4">
@@ -3291,11 +3303,16 @@ async function viewAmbiguousSubmission(submissionId) {
         }
         
         const subType = submission.submission_type || 'packaged';
-        const typeBadge = subType === 'machine' ? 
-            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>' :
-            subType === 'bag' ?
-            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>' :
-            '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+        let typeBadge = '';
+        if (subType === 'machine') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+        } else if (subType === 'bag') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+        } else if (subType === 'bottle') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">🍶 Bottles</span>';
+        } else {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+        }
         
         // Build modal
         let modalHTML = `
