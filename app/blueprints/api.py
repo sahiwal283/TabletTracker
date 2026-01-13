@@ -1692,9 +1692,48 @@ def get_submission_details(submission_id):
                 submission_dict['count_status'] = 'no_bag'
                 submission_dict['tablet_difference'] = None
             
+            # For bottle submissions, get bag deductions from junction table
+            bag_deductions = []
+            if submission_type == 'bottle':
+                deductions = conn.execute('''
+                    SELECT sbd.id, sbd.bag_id, sbd.tablets_deducted, sbd.created_at,
+                           b.bag_number, b.bag_label_count,
+                           sb.box_number,
+                           tt.tablet_type_name,
+                           r.receive_name, po.po_number
+                    FROM submission_bag_deductions sbd
+                    JOIN bags b ON sbd.bag_id = b.id
+                    LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+                    LEFT JOIN receiving r ON sb.receiving_id = r.id
+                    LEFT JOIN purchase_orders po ON r.po_id = po.id
+                    LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                    WHERE sbd.submission_id = ?
+                    ORDER BY tt.tablet_type_name, sbd.created_at
+                ''', (submission_id,)).fetchall()
+                
+                bag_deductions = [dict(d) for d in deductions]
+                
+                # Calculate total tablets from bag deductions (for variety packs)
+                total_from_deductions = sum(d.get('tablets_deducted', 0) for d in bag_deductions)
+                if total_from_deductions > 0:
+                    submission_dict['individual_calc'] = total_from_deductions
+                    submission_dict['total_tablets'] = total_from_deductions
+                elif submission_dict.get('bottles_made'):
+                    # For bottle-only products without junction table entries
+                    bottles_made = submission_dict.get('bottles_made', 0) or 0
+                    # Get tablets_per_bottle from product_details
+                    product_row = conn.execute('''
+                        SELECT tablets_per_bottle FROM product_details WHERE product_name = ?
+                    ''', (submission_dict.get('product_name'),)).fetchone()
+                    if product_row:
+                        tablets_per_bottle = dict(product_row).get('tablets_per_bottle', 0) or 0
+                        submission_dict['individual_calc'] = bottles_made * tablets_per_bottle
+                        submission_dict['total_tablets'] = bottles_made * tablets_per_bottle
+            
             return jsonify({
                 'success': True,
-                'submission': submission_dict
+                'submission': submission_dict,
+                'bag_deductions': bag_deductions
             })
     except Exception as e:
         import traceback
