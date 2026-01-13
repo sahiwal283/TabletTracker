@@ -81,7 +81,7 @@
     {% endif %}
 
     <!-- Box and Bag Details -->
-    <div class="card">
+    <div class="card mb-8">
         <h3 class="text-xl font-semibold mb-4 flex items-center">
             <svg class="w-6 h-6 mr-3 text-orange-500" aria-hidden="true"><use href="#icon-box" /></svg>
             {{ gettext('Box and Bag Breakdown') }}
@@ -120,6 +120,98 @@
                 {% endif %}
             </div>
             {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Individual Bags with Reservation -->
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4 flex items-center">
+            <svg class="w-6 h-6 mr-3 text-purple-500" aria-hidden="true"><use href="#icon-lab" /></svg>
+            {{ gettext('Individual Bags') }}
+            <span class="ml-3 text-sm font-normal text-gray-500">{{ gettext('Reserve bags for variety pack / bottle production') }}</span>
+        </h3>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Box/Bag') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Tablet Type') }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{{ gettext('Original') }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{{ gettext('Packaged') }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{{ gettext('Remaining') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ gettext('Status') }}</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{{ gettext('Reserve') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for bag in bags %}
+                    <tr class="hover:bg-gray-50" id="bag-row-{{ bag.id }}">
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span class="font-medium text-gray-900">Box {{ bag.box_number }}</span>
+                            <span class="text-gray-500">/</span>
+                            <span class="font-medium text-gray-900">Bag {{ bag.bag_number }}</span>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                            {{ bag.tablet_type_name or 'Unknown' }}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-mono text-gray-900">
+                            {{ bag.original_count }}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-mono text-gray-600">
+                            {{ bag.packaged_count }}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-mono font-bold 
+                            {% if bag.remaining_count > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
+                            {{ bag.remaining_count }}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if bag.status == 'Closed' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                    🔒 {{ gettext('Closed') }}
+                                </span>
+                            {% elif bag.reserved_for_bottles %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" id="status-{{ bag.id }}">
+                                    🍾 {{ gettext('Reserved for Bottles') }}
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" id="status-{{ bag.id }}">
+                                    {{ gettext('Available') }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                            {% if bag.status != 'Closed' and bag.remaining_count > 0 %}
+                            <button onclick="toggleReservation({{ bag.id }})" 
+                                    id="reserve-btn-{{ bag.id }}"
+                                    class="text-sm px-3 py-1 rounded transition-colors
+                                    {% if bag.reserved_for_bottles %}
+                                        bg-purple-100 text-purple-700 hover:bg-purple-200
+                                    {% else %}
+                                        bg-gray-100 text-gray-700 hover:bg-gray-200
+                                    {% endif %}">
+                                {% if bag.reserved_for_bottles %}
+                                    {{ gettext('Unreserve') }}
+                                {% else %}
+                                    {{ gettext('Reserve') }}
+                                {% endif %}
+                            </button>
+                            {% elif bag.status == 'Closed' %}
+                                <span class="text-xs text-gray-400">{{ gettext('Closed') }}</span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">{{ gettext('Empty') }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                            {{ gettext('No bags found for this receiving record') }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -215,5 +307,71 @@ document.addEventListener('keydown', function(e) {
         closeDeleteModal();
     }
 });
+
+// Toggle bag reservation for bottles
+async function toggleReservation(bagId) {
+    const btn = document.getElementById(`reserve-btn-${bagId}`);
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '...';
+    
+    try {
+        const response = await csrfFetch(`/api/bag/${bagId}/reserve-bottles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update button
+            if (result.reserved_for_bottles) {
+                btn.textContent = '{{ gettext("Unreserve") }}';
+                btn.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+                btn.classList.add('bg-purple-100', 'text-purple-700', 'hover:bg-purple-200');
+            } else {
+                btn.textContent = '{{ gettext("Reserve") }}';
+                btn.classList.remove('bg-purple-100', 'text-purple-700', 'hover:bg-purple-200');
+                btn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+            }
+            
+            // Update status badge
+            const statusEl = document.getElementById(`status-${bagId}`);
+            if (statusEl) {
+                if (result.reserved_for_bottles) {
+                    statusEl.outerHTML = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" id="status-${bagId}">🍾 {{ gettext('Reserved for Bottles') }}</span>`;
+                } else {
+                    statusEl.outerHTML = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" id="status-${bagId}">{{ gettext('Available') }}</span>`;
+                }
+            }
+            
+            // Show success message
+            showToast(result.message, 'success');
+        } else {
+            showToast(result.error || '{{ gettext("Failed to update reservation") }}', 'error');
+            btn.textContent = originalText;
+        }
+    } catch (error) {
+        showToast('{{ gettext("Error:") }} ' + error.message, 'error');
+        btn.textContent = originalText;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// Toast notification
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg max-w-sm transition-opacity duration-300 ${type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 </script>
 {% endblock %}

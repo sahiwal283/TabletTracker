@@ -286,35 +286,72 @@ def receiving_details(receiving_id):
     try:
         with db_read_only() as conn:
         
-        # Get receiving record with PO and shipment info
+            # Get receiving record with PO and shipment info
             receiving = conn.execute('''
-            SELECT r.*, po.po_number, s.tracking_number, s.carrier
-            FROM receiving r
-            JOIN purchase_orders po ON r.po_id = po.id
-            LEFT JOIN shipments s ON r.shipment_id = s.id
-            WHERE r.id = ?
+                SELECT r.*, po.po_number, s.tracking_number, s.carrier
+                FROM receiving r
+                JOIN purchase_orders po ON r.po_id = po.id
+                LEFT JOIN shipments s ON r.shipment_id = s.id
+                WHERE r.id = ?
             ''', (receiving_id,)).fetchone()
         
             if not receiving:
                 flash('Receiving record not found', 'error')
-            return redirect(url_for('shipping.receiving_management_v2'))
+                return redirect(url_for('shipping.receiving_management_v2'))
         
-        # Get box and bag details
-            boxes = conn.execute('''
-            SELECT sb.*, 
-                   GROUP_CONCAT(b.bag_number) as bag_numbers, 
-                   COUNT(b.id) as bag_count,
-                   GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
-            FROM small_boxes sb
-            LEFT JOIN bags b ON sb.id = b.small_box_id
-            WHERE sb.receiving_id = ?
-            GROUP BY sb.id
-            ORDER BY sb.box_number
+            # Get box summary
+            boxes_summary = conn.execute('''
+                SELECT sb.*, 
+                       GROUP_CONCAT(b.bag_number) as bag_numbers, 
+                       COUNT(b.id) as bag_count,
+                       GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
+                FROM small_boxes sb
+                LEFT JOIN bags b ON sb.id = b.small_box_id
+                WHERE sb.receiving_id = ?
+                GROUP BY sb.id
+                ORDER BY sb.box_number
             ''', (receiving_id,)).fetchall()
+            
+            # Get individual bags with details for reservation UI
+            bags = conn.execute('''
+                SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count,
+                       COALESCE(b.reserved_for_bottles, 0) as reserved_for_bottles,
+                       COALESCE(b.status, 'Available') as status,
+                       sb.box_number,
+                       tt.tablet_type_name, tt.id as tablet_type_id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE sb.receiving_id = ?
+                ORDER BY sb.box_number, b.bag_number
+            ''', (receiving_id,)).fetchall()
+            
+            # Calculate remaining counts for each bag (original - packaged)
+            bags_with_counts = []
+            for bag_row in bags:
+                bag = dict(bag_row)
+                original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
+                
+                packaged_total = conn.execute('''
+                    SELECT COALESCE(SUM(
+                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                    ), 0) as total
+                    FROM warehouse_submissions ws
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                ''', (bag['id'],)).fetchone()
+                
+                packaged_count = packaged_total['total'] if packaged_total else 0
+                bag['original_count'] = original_count
+                bag['packaged_count'] = packaged_count
+                bag['remaining_count'] = max(0, original_count - packaged_count)
+                bags_with_counts.append(bag)
         
             return render_template('receiving_details.html', 
                                  receiving=dict(receiving),
-                                 boxes=[dict(box) for box in boxes])
+                                 boxes=[dict(box) for box in boxes_summary],
+                                 bags=bags_with_counts)
     except Exception as e:
         flash(f'Error loading receiving details: {str(e)}', 'error')
         return redirect(url_for('receiving.receiving_management_v2'))
