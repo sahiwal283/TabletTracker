@@ -459,23 +459,23 @@
             <!-- Production Counts -->
             <div class="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-blue-100 space-y-4">
                 <div class="flex items-center mb-4">
-                    <span class="text-2xl mr-3">🍾</span>
+                    <svg class="w-6 h-6 mr-3 text-purple-600" aria-hidden="true"><use href="#icon-bottle" /></svg>
                     <h3 class="text-lg font-semibold bg-gradient-to-r from-blue-700 to-purple-700 bg-clip-text text-transparent">Bottle Counts</h3>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="bottles_made" class="block text-sm font-medium text-gray-700 mb-1">
-                            Bottles Made *
+                        <label for="bottles_displays_made" class="block text-sm font-medium text-gray-700 mb-1">
+                            Displays Made *
                         </label>
-                        <input type="number" id="bottles_made" name="bottles_made" required
+                        <input type="number" id="bottles_displays_made" name="displays_made" required
                                class="form-input" min="0" value="0">
                     </div>
                     <div>
-                        <label for="bottles_displays_made" class="block text-sm font-medium text-gray-700 mb-1">
-                            Displays Made
+                        <label for="bottles_remaining" class="block text-sm font-medium text-gray-700 mb-1">
+                            Bottles Remaining *
                         </label>
-                        <input type="number" id="bottles_displays_made" name="displays_made"
+                        <input type="number" id="bottles_remaining" name="bottles_remaining" required
                                class="form-input" min="0" value="0">
                     </div>
                 </div>
@@ -1408,23 +1408,31 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
     
-    // Update bottles calculation
+    // Update bottles calculation - calculates total bottles from displays + remaining
     function updateBottlesCalculation() {
-        const bottlesMade = parseInt(document.getElementById('bottles_made')?.value || 0);
+        const displaysMade = parseInt(document.getElementById('bottles_displays_made')?.value || 0);
+        const bottlesRemaining = parseInt(document.getElementById('bottles_remaining')?.value || 0);
         const selectedOption = document.getElementById('bottles_product')?.options[document.getElementById('bottles_product')?.selectedIndex];
         const tabletsPerBottle = parseInt(selectedOption?.dataset?.tabletsPerBottle || 0);
+        const bottlesPerDisplay = parseInt(selectedOption?.dataset?.bottlesPerDisplay || 0);
         
-        const totalTablets = bottlesMade * tabletsPerBottle;
+        // Total bottles = (displays × bottles per display) + remaining bottles
+        const totalBottles = (displaysMade * bottlesPerDisplay) + bottlesRemaining;
+        const totalTablets = totalBottles * tabletsPerBottle;
         const totalTabletsEl = document.getElementById('bottles-total-tablets');
         if (totalTabletsEl) {
-            totalTabletsEl.textContent = totalTablets;
+            totalTabletsEl.textContent = totalTablets.toLocaleString();
         }
     }
     
     // Update calculation on input change
-    const bottlesMadeInput = document.getElementById('bottles_made');
-    if (bottlesMadeInput) {
-        bottlesMadeInput.addEventListener('input', updateBottlesCalculation);
+    const displaysInput = document.getElementById('bottles_displays_made');
+    const remainingInput = document.getElementById('bottles_remaining');
+    if (displaysInput) {
+        displaysInput.addEventListener('input', updateBottlesCalculation);
+    }
+    if (remainingInput) {
+        remainingInput.addEventListener('input', updateBottlesCalculation);
     }
     
     // Bottles Form submission
@@ -1438,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // Convert to proper types
             data.tablet_type_id = parseInt(data.tablet_type_id);
-            data.bottles_made = parseInt(data.bottles_made || 0);
+            data.bottles_remaining = parseInt(data.bottles_remaining || 0);
             data.displays_made = parseInt(data.displays_made || 0);
             data.bag_number = data.bag_number ? parseInt(data.bag_number) : null;
             data.box_number = data.box_number ? parseInt(data.box_number) : null;
