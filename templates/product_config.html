@@ -352,15 +352,22 @@
                 <div id="section-prod-variety-packs" class="section-content hidden">
                     <div class="divide-y divide-gray-200">
                         {% for product in variety_packs %}
-                        <div class="p-4 hover:bg-gray-50">
+                        <div class="p-4 hover:bg-gray-50" id="product-row-{{ product.id }}">
                             <div class="flex items-center justify-between">
                                 <div>
                                     <div class="font-medium text-gray-900">{{ product.product_name }}</div>
                                     <div class="text-xs text-gray-500">
                                         {{ product.tablets_per_bottle }} tablets/bottle, {{ product.bottles_per_display }} bottles/display
                                     </div>
+                                    {% if product.variety_pack_contents %}
+                                    <div class="text-xs text-purple-600 mt-1">Contents configured</div>
+                                    {% endif %}
                                 </div>
-                                <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                <div class="flex gap-3">
+                                    <button onclick="openEditVarietyPackModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }}, '{{ product.variety_pack_contents | default('[]', true) | e }}')" 
+                                            class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
+                                    <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                </div>
                             </div>
                         </div>
                         {% endfor %}
@@ -757,6 +764,149 @@ function showToast(msg, color) {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 5000);
 }
+
+// Edit Variety Pack Modal
+let editingProductId = null;
+let editFlavorCounter = 0;
+
+function openEditVarietyPackModal(id, name, tabletsPerBottle, bottlesPerDisplay, contentsJson) {
+    editingProductId = id;
+    document.getElementById('edit-vp-name').value = name;
+    document.getElementById('edit-vp-tpb').value = tabletsPerBottle || '';
+    document.getElementById('edit-vp-bpd').value = bottlesPerDisplay || '';
+    
+    // Clear and populate contents
+    const container = document.getElementById('edit-variety-pack-contents');
+    container.innerHTML = '';
+    
+    try {
+        const contents = JSON.parse(contentsJson || '[]');
+        contents.forEach(item => addEditVarietyPackFlavor(item.tablet_type_id, item.tablets_per_bottle));
+    } catch (e) {
+        console.error('Error parsing variety pack contents:', e);
+    }
+    
+    document.getElementById('edit-variety-pack-modal').classList.remove('hidden');
+}
+
+function closeEditVarietyPackModal() {
+    document.getElementById('edit-variety-pack-modal').classList.add('hidden');
+    editingProductId = null;
+}
+
+function addEditVarietyPackFlavor(selectedId = '', qty = '') {
+    const container = document.getElementById('edit-variety-pack-contents');
+    const flavorDiv = document.createElement('div');
+    flavorDiv.className = 'flex gap-2 items-center p-2 bg-gray-50 rounded';
+    flavorDiv.id = `edit-flavor-${++editFlavorCounter}`;
+    
+    let optionsHtml = '<option value="">Select flavor...</option>';
+    {% for category in categories %}
+    {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
+    {% if category_tablets %}
+    optionsHtml += '<optgroup label="{{ category }}">';
+    {% for tt in category_tablets %}
+    optionsHtml += `<option value="{{ tt.id }}" ${selectedId == {{ tt.id }} ? 'selected' : ''}>{{ tt.tablet_type_name }}</option>`;
+    {% endfor %}
+    optionsHtml += '</optgroup>';
+    {% endif %}
+    {% endfor %}
+    
+    flavorDiv.innerHTML = `
+        <select class="form-input text-sm edit-flavor-select" style="flex: 1; min-width: 180px;" required>${optionsHtml}</select>
+        <input type="number" class="form-input text-sm edit-qty-input" style="width: 70px;" placeholder="Qty" min="1" value="${qty}" required>
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-800 text-lg font-bold px-2">×</button>
+    `;
+    container.appendChild(flavorDiv);
+}
+
+async function saveEditVarietyPack() {
+    const name = document.getElementById('edit-vp-name').value.trim();
+    const tpb = document.getElementById('edit-vp-tpb').value;
+    const bpd = document.getElementById('edit-vp-bpd').value;
+    
+    if (!name || !tpb || !bpd) {
+        showError('All fields are required');
+        return;
+    }
+    
+    const contents = [];
+    document.querySelectorAll('#edit-variety-pack-contents > div').forEach(div => {
+        const select = div.querySelector('.edit-flavor-select');
+        const qtyInput = div.querySelector('.edit-qty-input');
+        if (select?.value && qtyInput?.value) {
+            contents.push({
+                tablet_type_id: parseInt(select.value),
+                tablets_per_bottle: parseInt(qtyInput.value)
+            });
+        }
+    });
+    
+    const data = {
+        id: editingProductId,
+        product_name: name,
+        tablets_per_bottle: parseInt(tpb),
+        bottles_per_display: parseInt(bpd),
+        variety_pack_contents: JSON.stringify(contents),
+        is_bottle_product: true,
+        is_variety_pack: true
+    };
+    
+    try {
+        const response = await csrfFetch('/api/save_product', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) { 
+            showSuccess(result.message); 
+            closeEditVarietyPackModal();
+            setTimeout(() => location.reload(), 1000); 
+        } else { 
+            showError(result.error); 
+        }
+    } catch (e) { showError(e.message); }
+}
 </script>
+
+<!-- Edit Variety Pack Modal -->
+<div id="edit-variety-pack-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeEditVarietyPackModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-lg">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-bold">🌈 Edit Variety Pack</h3>
+                <button onclick="closeEditVarietyPackModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                <input type="text" id="edit-vp-name" class="form-input w-full" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tablets per Bottle</label>
+                    <input type="number" id="edit-vp-tpb" class="form-input w-full" min="1" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bottles per Display</label>
+                    <input type="number" id="edit-vp-bpd" class="form-input w-full" min="1" required>
+                </div>
+            </div>
+            <div class="border-t pt-4">
+                <div class="flex justify-between items-center mb-3">
+                    <label class="block text-sm font-medium text-gray-700">Pack Contents</label>
+                    <button type="button" onclick="addEditVarietyPackFlavor()" class="text-sm text-purple-600 hover:text-purple-800 font-medium">+ Add Flavor</button>
+                </div>
+                <div id="edit-variety-pack-contents" class="space-y-2">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button onclick="closeEditVarietyPackModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button onclick="saveEditVarietyPack()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
