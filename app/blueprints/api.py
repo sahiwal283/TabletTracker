@@ -1461,14 +1461,21 @@ def get_submission_details(submission_id):
             # This handles both new submissions and legacy ones where submission_type might not be set
             if submission_dict.get('product_name'):
                 product_config = conn.execute('''
-                    SELECT is_variety_pack, is_bottle_product FROM product_details WHERE product_name = ?
+                    SELECT is_variety_pack, is_bottle_product, variety_pack_contents, tablets_per_bottle 
+                    FROM product_details WHERE product_name = ?
                 ''', (submission_dict.get('product_name'),)).fetchone()
                 if product_config:
                     product_config_dict = dict(product_config)
-                    if product_config_dict.get('is_variety_pack') or product_config_dict.get('is_bottle_product'):
+                    # Check flags OR if it has variety_pack_contents (fallback for legacy data)
+                    is_variety = product_config_dict.get('is_variety_pack')
+                    is_bottle = product_config_dict.get('is_bottle_product')
+                    has_variety_contents = product_config_dict.get('variety_pack_contents')
+                    has_bottle_config = product_config_dict.get('tablets_per_bottle')
+                    
+                    if is_variety or is_bottle or has_variety_contents or has_bottle_config:
                         submission_type = 'bottle'
                         submission_dict['submission_type'] = 'bottle'
-                        current_app.logger.info(f"Detected bottle/variety pack submission {submission_id} for product {submission_dict.get('product_name')}")
+                        current_app.logger.info(f"Detected bottle/variety pack submission {submission_id} for product {submission_dict.get('product_name')} (is_variety={is_variety}, is_bottle={is_bottle}, has_contents={bool(has_variety_contents)}, has_bottle_config={bool(has_bottle_config)})")
             
             # If bag_label_count is 0 or missing but bag_id exists, try to get it directly from bags table
             if submission_dict.get('bag_id') and (not submission_dict.get('bag_label_count') or submission_dict.get('bag_label_count') == 0):
