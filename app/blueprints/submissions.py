@@ -89,8 +89,17 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
     for receipt, group in sorted_groups:
         result.extend(group)
     
-    # Append NULL receipts at the end
-    result.extend(null_receipts)
+    # Handle NULL receipts - merge them properly based on sort order instead of appending at end
+    # This ensures bottle/variety pack submissions appear in correct chronological position
+    if null_receipts:
+        if sort_by == 'created_at':
+            # Merge null_receipts with result based on created_at
+            all_submissions = result + null_receipts
+            all_submissions.sort(key=lambda x: x.get('created_at', ''), reverse=(sort_order == 'desc'))
+            return all_submissions
+        else:
+            # For other sort types, append null receipts at end (existing behavior)
+            result.extend(null_receipts)
     
     return result
 
