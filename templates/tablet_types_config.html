@@ -27,10 +27,18 @@
             <button type="submit" class="btn-primary">Add Tablet Type</button>
             </div>
             <div class="border-t pt-4">
-                <label class="flex items-center gap-2 mb-3">
-                    <input type="checkbox" id="new-is-variety-pack" class="form-checkbox">
-                    <span class="text-sm font-medium text-gray-700">This is a Variety Pack</span>
-                </label>
+                <div class="flex flex-wrap gap-6 mb-3">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="new-is-bottle-only" class="form-checkbox">
+                        <span class="text-sm font-medium text-gray-700">Bottle Only</span>
+                        <span class="text-xs text-gray-500">(sold only in bottles, not blister cards)</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="new-is-variety-pack" class="form-checkbox">
+                        <span class="text-sm font-medium text-gray-700">Variety Pack</span>
+                        <span class="text-xs text-gray-500">(pulls from multiple flavor bags)</span>
+                    </label>
+                </div>
                 <div id="variety-pack-fields" class="space-y-4 hidden">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -99,6 +107,9 @@
                     <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {{ tt.tablet_type_name }}
+                            {% if tt.is_bottle_only %}
+                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Bottle Only</span>
+                            {% endif %}
                             {% if tt.is_variety_pack %}
                                 <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Variety Pack</span>
                             {% endif %}
@@ -121,11 +132,18 @@
                                         <div><strong>Tablets/Bottle:</strong> {{ tt.tablets_per_bottle or 'N/A' }}</div>
                                         <div><strong>Bottles/Pack:</strong> {{ tt.bottles_per_pack or 'N/A' }}</div>
                                     </div>
+                                {% elif tt.is_bottle_only %}
+                                    <span class="text-blue-600 text-xs">Bottle product</span>
                                 {% else %}
                                     <span class="text-gray-400 italic">Regular</span>
                                 {% endif %}
                             </div>
                             <div class="tablet-edit hidden space-y-2" id="variety-edit-{{ tt.id }}">
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" id="bottle-only-check-{{ tt.id }}" 
+                                           class="form-checkbox" {% if tt.is_bottle_only %}checked{% endif %}>
+                                    <span class="text-xs">Bottle Only</span>
+                                </label>
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" id="variety-check-{{ tt.id }}" 
                                            class="form-checkbox" {% if tt.is_variety_pack %}checked{% endif %}
@@ -201,6 +219,9 @@
                             <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ tt.tablet_type_name }}
+                                    {% if tt.is_bottle_only %}
+                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Bottle Only</span>
+                                    {% endif %}
                                     {% if tt.is_variety_pack %}
                                         <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Variety Pack</span>
                                     {% endif %}
@@ -237,11 +258,18 @@
                                                     </div>
                                                 {% endif %}
                                             </div>
+                                        {% elif tt.is_bottle_only %}
+                                            <span class="text-blue-600 text-xs">Bottle product</span>
                                         {% else %}
                                             <span class="text-gray-400 italic">Regular</span>
                                         {% endif %}
                                     </div>
                                     <div class="tablet-edit hidden space-y-2" id="variety-edit-{{ tt.id }}">
+                                        <label class="flex items-center gap-2">
+                                            <input type="checkbox" id="bottle-only-check-{{ tt.id }}" 
+                                                   class="form-checkbox" {% if tt.is_bottle_only %}checked{% endif %}>
+                                            <span class="text-xs">Bottle Only</span>
+                                        </label>
                                         <label class="flex items-center gap-2">
                                             <input type="checkbox" id="variety-check-{{ tt.id }}" 
                                                    class="form-checkbox" {% if tt.is_variety_pack %}checked{% endif %}
@@ -479,9 +507,12 @@ document.getElementById('add-tablet-type-form').addEventListener('submit', async
         }
     }
     
+    const isBottleOnly = document.getElementById('new-is-bottle-only').checked;
+    
     const data = {
         tablet_type_name: document.getElementById('new-tablet-name').value.trim(),
         inventory_item_id: document.getElementById('new-inventory-id').value.trim() || null,
+        is_bottle_only: isBottleOnly,
         is_variety_pack: isVarietyPack,
         tablets_per_bottle: isVarietyPack ? parseInt(document.getElementById('new-tablets-per-bottle').value) || null : null,
         bottles_per_pack: isVarietyPack ? parseInt(document.getElementById('new-bottles-per-pack').value) || null : null,
@@ -558,6 +589,7 @@ function cancelTabletEdit(tabletTypeId) {
 
 async function saveTabletType(tabletTypeId) {
     const inventoryItemId = document.getElementById(`id-edit-${tabletTypeId}`).value.trim();
+    const isBottleOnly = document.getElementById(`bottle-only-check-${tabletTypeId}`)?.checked || false;
     const isVarietyPack = document.getElementById(`variety-check-${tabletTypeId}`)?.checked || false;
     const tabletsPerBottle = document.getElementById(`tablets-bottle-${tabletTypeId}`)?.value ? 
         parseInt(document.getElementById(`tablets-bottle-${tabletTypeId}`).value) : null;
@@ -595,6 +627,7 @@ async function saveTabletType(tabletTypeId) {
             body: JSON.stringify({
                 tablet_type_id: tabletTypeId,
                 inventory_item_id: inventoryItemId,
+                is_bottle_only: isBottleOnly,
                 is_variety_pack: isVarietyPack,
                 tablets_per_bottle: tabletsPerBottle,
                 bottles_per_pack: bottlesPerPack,

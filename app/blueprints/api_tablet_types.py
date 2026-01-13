@@ -25,6 +25,7 @@ def update_tablet_type_inventory():
             
         inventory_item_id = (data.get('inventory_item_id') or '').strip()
         
+        is_bottle_only = data.get('is_bottle_only', False)
         is_variety_pack = data.get('is_variety_pack', False)
         tablets_per_bottle = data.get('tablets_per_bottle')
         bottles_per_pack = data.get('bottles_per_pack')
@@ -48,6 +49,10 @@ def update_tablet_type_inventory():
                 params.append(inventory_item_id)
             else:
                 updates.append('inventory_item_id = NULL')
+            
+            if 'is_bottle_only' in data:
+                updates.append('is_bottle_only = ?')
+                params.append(is_bottle_only)
             
             if 'is_variety_pack' in data:
                 updates.append('is_variety_pack = ?')
@@ -301,7 +306,8 @@ def get_tablet_types():
     try:
         with db_read_only() as conn:
             tablet_types = conn.execute('''
-                SELECT id, tablet_type_name, inventory_item_id, category
+                SELECT id, tablet_type_name, inventory_item_id, category,
+                       is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack
                 FROM tablet_types 
                 ORDER BY tablet_type_name
             ''').fetchall()
@@ -564,16 +570,17 @@ def add_tablet_type():
                         'error': f'Inventory ID already used by {existing_id["tablet_type_name"]}'
                     }), 400
         
+            is_bottle_only = data.get('is_bottle_only', False)
             is_variety_pack = data.get('is_variety_pack', False)
             tablets_per_bottle = data.get('tablets_per_bottle')
             bottles_per_pack = data.get('bottles_per_pack')
             variety_pack_contents = data.get('variety_pack_contents')
         
             conn.execute('''
-                INSERT INTO tablet_types (tablet_type_name, inventory_item_id, is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO tablet_types (tablet_type_name, inventory_item_id, is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (tablet_type_name, inventory_item_id if inventory_item_id else None, 
-                  is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents))
+                  is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents))
             
             return jsonify({'success': True, 'message': f'Added tablet type: {tablet_type_name}'})
     except Exception as e:
