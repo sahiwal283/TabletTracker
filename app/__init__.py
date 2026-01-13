@@ -181,4 +181,9 @@ def create_app(config_class=Config):
     app.register_blueprint(api_reports.bp)
     app.register_blueprint(api_submissions.bp)
     
+    # Run database migrations on startup to ensure all columns exist
+    with app.app_context():
+        from app.models.database import init_db
+        init_db()
+    
     return app
