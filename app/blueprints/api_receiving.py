@@ -177,7 +177,8 @@ def get_receiving_details(receive_id):
                     'packaged_count': total_packaged,
                     'bag_count': dict(bag_count)['total_bag'] if bag_count else 0,
                     'zoho_receive_pushed': bool(bag.get('zoho_receive_pushed', False)),
-                    'zoho_receive_id': bag.get('zoho_receive_id')
+                    'zoho_receive_id': bag.get('zoho_receive_id'),
+                    'reserved_for_bottles': bool(bag.get('reserved_for_bottles', False))
                 }
             
             # Convert nested dict to list format
