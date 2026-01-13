@@ -140,7 +140,8 @@ def submissions_list():
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                            0
                        )
-                       WHEN 'bottle' THEN (
+                       WHEN 'bottle' THEN COALESCE(
+                           (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                        )
                        ELSE (
@@ -505,7 +506,8 @@ def export_submissions_csv():
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                            0
                        )
-                       WHEN 'bottle' THEN (
+                       WHEN 'bottle' THEN COALESCE(
+                           (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                        )
                        ELSE (
