@@ -312,24 +312,26 @@
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-3">
                                     <span class="text-lg">
-                                        {% if product.is_variety_pack %}🌈
-                                        {% elif product.is_bottle_product %}🍾
+                                        {% if product.is_variety_pack %}🎨
+                                        {% elif product.is_bottle_product %}🍶
                                         {% else %}📦{% endif %}
                                     </span>
                                     <div>
                                         <div class="font-medium text-gray-900">{{ product.product_name }}</div>
                                         <div class="text-xs text-gray-500">
                                             {% if product.is_variety_pack %}
-                                                Variety Pack: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                                🎨 Variety Pack: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
                                             {% elif product.is_bottle_product %}
-                                                {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                                🍶 Bottle: {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
                                             {% else %}
-                                                {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
+                                                📦 Card: {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
                                             {% endif %}
                                         </div>
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-3">
+                                    <button onclick="openEditProductModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablet_type_id or 'null' }}, {{ product.packages_per_display or 0 }}, {{ product.tablets_per_package or 0 }}, {{ 'true' if product.is_bottle_product else 'false' }}, {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }})" 
+                                            class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
                                     <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
                             </div>
@@ -1055,14 +1057,164 @@ async function deleteMachine(machineId, machineName) {
 
 // Load machines when page loads
 document.addEventListener('DOMContentLoaded', loadMachines);
+
+// ===== EDIT PRODUCT (Card/Bottle) =====
+let editingProductIdGeneral = null;
+
+function openEditProductModal(id, name, tabletTypeId, ppd, tpp, isBottle, tpb, bpd) {
+    editingProductIdGeneral = id;
+    document.getElementById('edit-prod-name').value = name;
+    document.getElementById('edit-prod-tablet-type').value = tabletTypeId || '';
+    
+    // Set product type radio
+    if (isBottle) {
+        document.getElementById('edit-prod-type-bottle').checked = true;
+        document.getElementById('edit-prod-card-fields').classList.add('hidden');
+        document.getElementById('edit-prod-bottle-fields').classList.remove('hidden');
+        document.getElementById('edit-prod-tpb').value = tpb || '';
+        document.getElementById('edit-prod-bpd').value = bpd || '';
+    } else {
+        document.getElementById('edit-prod-type-card').checked = true;
+        document.getElementById('edit-prod-card-fields').classList.remove('hidden');
+        document.getElementById('edit-prod-bottle-fields').classList.add('hidden');
+        document.getElementById('edit-prod-ppd').value = ppd || '';
+        document.getElementById('edit-prod-tpp').value = tpp || '';
+    }
+    
+    document.getElementById('edit-product-modal').classList.remove('hidden');
+}
+
+function closeEditProductModal() {
+    document.getElementById('edit-product-modal').classList.add('hidden');
+    editingProductIdGeneral = null;
+}
+
+function toggleEditProductType() {
+    const isBottle = document.getElementById('edit-prod-type-bottle').checked;
+    document.getElementById('edit-prod-card-fields').classList.toggle('hidden', isBottle);
+    document.getElementById('edit-prod-bottle-fields').classList.toggle('hidden', !isBottle);
+}
+
+async function saveEditProduct() {
+    const name = document.getElementById('edit-prod-name').value.trim();
+    const tabletTypeId = document.getElementById('edit-prod-tablet-type').value;
+    const isBottle = document.getElementById('edit-prod-type-bottle').checked;
+    
+    if (!name) {
+        showError('Product name is required');
+        return;
+    }
+    
+    const data = {
+        id: editingProductIdGeneral,
+        product_name: name,
+        tablet_type_id: tabletTypeId ? parseInt(tabletTypeId) : null
+    };
+    
+    if (isBottle) {
+        data.is_bottle_product = true;
+        data.tablets_per_bottle = parseInt(document.getElementById('edit-prod-tpb').value) || 0;
+        data.bottles_per_display = parseInt(document.getElementById('edit-prod-bpd').value) || 0;
+        data.packages_per_display = 0;
+        data.tablets_per_package = 0;
+    } else {
+        data.is_bottle_product = false;
+        data.packages_per_display = parseInt(document.getElementById('edit-prod-ppd').value) || 0;
+        data.tablets_per_package = parseInt(document.getElementById('edit-prod-tpp').value) || 0;
+        data.tablets_per_bottle = null;
+        data.bottles_per_display = null;
+    }
+    
+    try {
+        const response = await csrfFetch('/api/save_product', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message);
+            closeEditProductModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(result.error);
+        }
+    } catch (e) {
+        showError(e.message);
+    }
+}
 </script>
+
+<!-- Edit Product Modal (Card/Bottle) -->
+<div id="edit-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeEditProductModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+        <div class="bg-gradient-to-r from-blue-600 to-teal-600 text-white px-6 py-4 rounded-t-lg">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-bold">Edit Product</h3>
+                <button onclick="closeEditProductModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                <input type="text" id="edit-prod-name" class="form-input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
+                <select id="edit-prod-tablet-type" class="form-input w-full">
+                    <option value="">Select tablet type...</option>
+                    {% for tt in tablet_types %}
+                    <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Product Type</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center">
+                        <input type="radio" name="edit-prod-type" id="edit-prod-type-card" value="card" onchange="toggleEditProductType()" checked class="mr-2">
+                        📦 Card Product
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="edit-prod-type" id="edit-prod-type-bottle" value="bottle" onchange="toggleEditProductType()" class="mr-2">
+                        🍶 Bottle Product
+                    </label>
+                </div>
+            </div>
+            <div id="edit-prod-card-fields" class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Packages/Display</label>
+                    <input type="number" id="edit-prod-ppd" class="form-input w-full" min="1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tablets/Package</label>
+                    <input type="number" id="edit-prod-tpp" class="form-input w-full" min="1">
+                </div>
+            </div>
+            <div id="edit-prod-bottle-fields" class="grid grid-cols-2 gap-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tablets/Bottle</label>
+                    <input type="number" id="edit-prod-tpb" class="form-input w-full" min="1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bottles/Display</label>
+                    <input type="number" id="edit-prod-bpd" class="form-input w-full" min="1">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button onclick="closeEditProductModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button onclick="saveEditProduct()" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Edit Variety Pack Modal -->
 <div id="edit-variety-pack-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeEditVarietyPackModal()">
     <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
         <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-lg">
             <div class="flex justify-between items-center">
-                <h3 class="text-xl font-bold">🌈 Edit Variety Pack</h3>
+                <h3 class="text-xl font-bold">🎨 Edit Variety Pack</h3>
                 <button onclick="closeEditVarietyPackModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
             </div>
         </div>
