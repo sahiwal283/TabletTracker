@@ -1547,8 +1547,20 @@ async function generateAllPOsReport() {
 // View submissions for a specific PO
 async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, bagId = null, boxNumber = null, bagNumber = null, typeFilter = null) {
     try {
-        const response = await fetch(`/api/po/${poId}/submissions`);
-        const data = await response.json();
+        let data;
+        let varietyPackDeductions = [];
+        
+        // If viewing a specific bag, use the bag-specific endpoint to include variety pack deductions
+        if (bagId !== null) {
+            const response = await fetch(`/api/bag/${bagId}/submissions`);
+            data = await response.json();
+            if (data.variety_pack_deductions) {
+                varietyPackDeductions = data.variety_pack_deductions;
+            }
+        } else {
+            const response = await fetch(`/api/po/${poId}/submissions`);
+            data = await response.json();
+        }
         
         if (!data.success) {
             showError(data.error || 'Failed to load submissions');
@@ -1561,13 +1573,33 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
-        // Filter by bag if bagId, boxNumber, and bagNumber are provided (viewing specific bag in receive)
-        if (bagId !== null && boxNumber !== null && bagNumber !== null) {
+        // For bag-specific view (using /api/bag endpoint), submissions are already filtered
+        // For PO view, apply additional filtering if bag specified
+        if (bagId === null && boxNumber !== null && bagNumber !== null) {
             filteredSubmissions = filteredSubmissions.filter(sub => 
                 sub.bag_id === bagId || 
                 (sub.bag_id === null && sub.box_number === boxNumber && sub.bag_number === bagNumber)
             );
         }
+        
+        // Convert variety pack deductions to submission-like objects for display
+        varietyPackDeductions.forEach(vpd => {
+            filteredSubmissions.push({
+                id: vpd.submission_id,
+                product_name: vpd.product_name,
+                employee_name: vpd.employee_name,
+                submission_type: 'bottle',
+                submission_date: vpd.submission_date || vpd.created_at,
+                created_at: vpd.created_at,
+                bottles_made: vpd.bottles_made,
+                displays_made: vpd.displays_made,
+                total_tablets: vpd.tablets_deducted,
+                is_variety_pack_deduction: true,
+                bag_id: vpd.bag_id,
+                box_number: boxNumber,
+                bag_number: bagNumber
+            });
+        });
         
         // Store original submissions for filtering
         const allSubmissions = [...filteredSubmissions];
@@ -1732,6 +1764,11 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">🍶 Bottles</span>';
                 } else {
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+                }
+                
+                // Add variety pack indicator if applicable
+                if (sub.is_variety_pack_deduction) {
+                    typeBadge += ' <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">🎨 Variety Pack</span>';
                 }
                 
                 modalContent += `

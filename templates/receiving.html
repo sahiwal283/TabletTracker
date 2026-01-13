@@ -1627,8 +1627,20 @@ let typeFilter = null;
 
 async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId = null, receiveName = null, bagId = null, boxNumber = null, bagNumber = null) {
     try {
-        const response = await fetch(`/api/po/${poId}/submissions`);
-        const data = await response.json();
+        let data;
+        let varietyPackDeductions = [];
+        
+        // If viewing a specific bag, use the bag-specific endpoint to include variety pack deductions
+        if (bagId !== null) {
+            const response = await fetch(`/api/bag/${bagId}/submissions`);
+            data = await response.json();
+            if (data.variety_pack_deductions) {
+                varietyPackDeductions = data.variety_pack_deductions;
+            }
+        } else {
+            const response = await fetch(`/api/po/${poId}/submissions`);
+            data = await response.json();
+        }
         
         if (!data.success) {
             alert('Error: ' + (data.error || 'Failed to load submissions'));
@@ -1640,16 +1652,34 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             ? data.submissions.filter(sub => sub.inventory_item_id === inventoryItemId)
             : data.submissions;
         
-        // Further filter by bag_id if specified (unique identifier for specific bag in specific receive)
-        // Also match older submissions without bag_id by box/bag numbers
-        // UPDATED: Handle flavor-based submissions where box_number might be NULL
-        if (bagId !== null && bagNumber !== null) {
+        // For bag-specific view (using /api/bag endpoint), submissions are already filtered
+        // For PO view, apply additional filtering if bag specified
+        if (bagId === null && bagNumber !== null) {
             filteredSubmissions = filteredSubmissions.filter(sub => 
                 sub.bag_id === bagId || 
                 (sub.bag_id === null && sub.bag_number === bagNumber && 
                  (sub.box_number === boxNumber || sub.box_number === null || boxNumber === null))
             );
         }
+        
+        // Convert variety pack deductions to submission-like objects for display
+        varietyPackDeductions.forEach(vpd => {
+            filteredSubmissions.push({
+                id: vpd.submission_id,
+                product_name: vpd.product_name,
+                employee_name: vpd.employee_name,
+                submission_type: 'bottle',
+                submission_date: vpd.submission_date || vpd.created_at,
+                created_at: vpd.created_at,
+                bottles_made: vpd.bottles_made,
+                displays_made: vpd.displays_made,
+                total_tablets: vpd.tablets_deducted,
+                is_variety_pack_deduction: true,
+                bag_id: vpd.bag_id,
+                box_number: boxNumber,
+                bag_number: bagNumber
+            });
+        });
         
         const allSubmissions = [...filteredSubmissions];
         
@@ -1752,7 +1782,14 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>' :
                     submissionType === 'bag' ?
                     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>' :
+                    submissionType === 'bottle' ?
+                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">🍾 Bottle</span>' :
                     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+                
+                // Add variety pack indicator if applicable
+                if (sub.is_variety_pack_deduction) {
+                    typeBadge += ' <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">🎨 Variety Pack</span>';
+                }
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors" onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})">
@@ -1772,6 +1809,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                             ${submissionType === 'machine' ? `
                                 <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                                 <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
+                            ` : submissionType === 'bottle' ? `
+                                <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
+                                <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>
                             ` : `
                                 <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                                 <div><div class="text-xs text-gray-500">Cards Remaining</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
