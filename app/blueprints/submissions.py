@@ -140,6 +140,9 @@ def submissions_list():
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                            0
                        )
+                       WHEN 'bottle' THEN (
+                           COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                       )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
@@ -501,6 +504,9 @@ def export_submissions_csv():
                            ws.loose_tablets,
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
                            0
+                       )
+                       WHEN 'bottle' THEN (
+                           COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                        )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +

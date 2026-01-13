@@ -890,7 +890,7 @@ def submit_bottles():
                             FROM warehouse_submissions ws
                             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                             LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                            WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottles')
+                            WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottle')
                         ''', (bag['id'],)).fetchone()
                         
                         already_used = packaged['total'] if packaged else 0
@@ -962,7 +962,7 @@ def submit_bottles():
                         ), 0) as total
                         FROM warehouse_submissions ws
                         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                        WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottles')
+                        WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottle')
                     ''', (tablets_per_bottle, bag['id'])).fetchone()
                     
                     already_used = packaged['total'] if packaged else 0
