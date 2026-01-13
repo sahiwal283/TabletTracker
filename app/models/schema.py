@@ -36,6 +36,7 @@ class SchemaManager:
             self._create_employees_table(c)
             self._create_app_settings_table(c)
             self._create_tablet_type_categories_table(c)
+            self._create_submission_bag_deductions_table(c)
             
             conn.commit()  # Commit table creation before migrations
             
@@ -270,6 +271,18 @@ class SchemaManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category_name TEXT UNIQUE NOT NULL,
             category_order INTEGER UNIQUE NOT NULL
+        )''')
+    
+    def _create_submission_bag_deductions_table(self, c):
+        """Create submission_bag_deductions junction table for variety pack bag tracking"""
+        c.execute('''CREATE TABLE IF NOT EXISTS submission_bag_deductions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_id INTEGER NOT NULL,
+            bag_id INTEGER NOT NULL,
+            tablets_deducted INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (submission_id) REFERENCES warehouse_submissions (id) ON DELETE CASCADE,
+            FOREIGN KEY (bag_id) REFERENCES bags (id)
         )''')
     
     def _initialize_default_settings(self, c):

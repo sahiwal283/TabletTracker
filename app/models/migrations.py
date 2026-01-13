@@ -26,6 +26,7 @@ class MigrationRunner:
         self._migrate_tablet_type_categories()
         self._migrate_receiving()
         self._migrate_machine_counts()
+        self._migrate_submission_bag_deductions()
     
     def _migrate_purchase_orders(self):
         """Migrate purchase_orders table"""
@@ -201,6 +202,25 @@ class MigrationRunner:
         """Migrate machine_counts table - add machine_id column"""
         # Add machine_id column to link machine counts to specific machines
         self._add_column_if_not_exists('machine_counts', 'machine_id', 'INTEGER REFERENCES machines(id)')
+    
+    def _migrate_submission_bag_deductions(self):
+        """Create submission_bag_deductions junction table if not exists (v2.24.16+dev)
+        
+        This table links variety pack submissions to multiple bags with individual deduction amounts.
+        Replaces the hacky approach of creating multiple submission records with loose_tablets.
+        """
+        try:
+            self.c.execute('''CREATE TABLE IF NOT EXISTS submission_bag_deductions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                submission_id INTEGER NOT NULL,
+                bag_id INTEGER NOT NULL,
+                tablets_deducted INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (submission_id) REFERENCES warehouse_submissions (id) ON DELETE CASCADE,
+                FOREIGN KEY (bag_id) REFERENCES bags (id)
+            )''')
+        except Exception as e:
+            logger.warning(f"Could not create submission_bag_deductions table: {str(e)}")
     
     def _column_exists(self, table_name, column_name):
         """Check if a column exists in a table"""

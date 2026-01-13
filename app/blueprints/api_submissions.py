@@ -74,11 +74,27 @@ def get_bag_submissions(bag_id):
                 ORDER BY ws.created_at DESC
             ''', (bag_id, bag['inventory_item_id'], bag['bag_number'], bag['po_id'], bag['box_number'])).fetchall()
             
-            current_app.logger.info(f"   Matched {len(submissions)} submissions")
+            current_app.logger.info(f"   Matched {len(submissions)} direct submissions")
+            
+            # Also get variety pack deductions via junction table
+            variety_pack_deductions = conn.execute('''
+                SELECT sbd.id, sbd.submission_id, sbd.bag_id, sbd.tablets_deducted, sbd.created_at,
+                       ws.employee_name, ws.product_name, ws.bottles_made, ws.displays_made,
+                       ws.submission_date, ws.submission_type,
+                       pd.tablets_per_bottle, pd.bottles_per_display
+                FROM submission_bag_deductions sbd
+                JOIN warehouse_submissions ws ON sbd.submission_id = ws.id
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                WHERE sbd.bag_id = ?
+                ORDER BY sbd.created_at DESC
+            ''', (bag_id,)).fetchall()
+            
+            current_app.logger.info(f"   Matched {len(variety_pack_deductions)} variety pack deductions")
             
             return jsonify({
                 'success': True,
-                'submissions': [dict(row) for row in submissions]
+                'submissions': [dict(row) for row in submissions],
+                'variety_pack_deductions': [dict(row) for row in variety_pack_deductions]
             })
     except Exception as e:
         traceback.print_exc()

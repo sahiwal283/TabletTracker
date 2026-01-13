@@ -880,26 +880,37 @@ def submit_bottles():
                         bag = dict(bag_row)
                         original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
                         
-                        # Get already packaged/bottled count for this bag
-                        packaged = conn.execute('''
+                        # Get already packaged count for this bag
+                        packaged_total = conn.execute('''
                             SELECT COALESCE(SUM(
-                                CASE 
-                                    WHEN ws.submission_type = 'bottle' THEN
-                                        CASE 
-                                            WHEN COALESCE(ws.loose_tablets, 0) > 0 THEN ws.loose_tablets
-                                            ELSE COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                                        END
-                                    ELSE
-                                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                                END
+                                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
                             ), 0) as total
                             FROM warehouse_submissions ws
                             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                            WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottle')
+                            WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
                         ''', (bag['id'],)).fetchone()
                         
-                        already_used = packaged['total'] if packaged else 0
+                        # Bottle submissions (bottle-only products with bag_id)
+                        bottle_direct = conn.execute('''
+                            SELECT COALESCE(SUM(
+                                COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                            ), 0) as total
+                            FROM warehouse_submissions ws
+                            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                            WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                        ''', (bag['id'],)).fetchone()
+                        
+                        # Variety pack deductions via junction table
+                        bottle_junction = conn.execute('''
+                            SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
+                            FROM submission_bag_deductions sbd
+                            WHERE sbd.bag_id = ?
+                        ''', (bag['id'],)).fetchone()
+                        
+                        already_used = (packaged_total['total'] if packaged_total else 0) + \
+                                       (bottle_direct['total'] if bottle_direct else 0) + \
+                                       (bottle_junction['total'] if bottle_junction else 0)
                         remaining = max(0, original_count - already_used)
                         
                         if remaining <= 0:
@@ -922,27 +933,7 @@ def submit_bottles():
                             'error': f'Not enough tablets in reserved bags for {flavor.get("tablet_type_name", "flavor")}. Need {tablets_needed}, only have {tablets_needed - tablets_still_needed} available.'
                         }), 400
                 
-                # Create submission records for each bag deduction in variety pack
-                # This ensures each bag's remaining count is properly updated
-                for deduction in deduction_details:
-                    # Calculate how many bottles this deduction represents
-                    # (tablets_deducted / tablets_per_bottle for the flavor)
-                    # For variety packs, we track tablets, not bottles per bag
-                    conn.execute('''
-                        INSERT INTO warehouse_submissions 
-                        (employee_name, product_name, inventory_item_id, box_number, bag_number,
-                         bag_id, assigned_po_id, loose_tablets, displays_made,
-                         submission_date, admin_notes, submission_type)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
-                    ''', (employee_name, product.get('product_name'), 
-                          product.get('inventory_item_id'), 
-                          deduction.get('box_number'), deduction.get('bag_number'),
-                          deduction.get('bag_id'), deduction.get('po_id'), 
-                          deduction.get('tablets_deducted'),  # Store tablets deducted in loose_tablets
-                          0,  # displays_made is 0 for individual deductions
-                          submission_date, admin_notes))
-                
-                # Also create a summary submission record for the overall variety pack production
+                # Create ONE submission record for the variety pack
                 conn.execute('''
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
@@ -951,6 +942,17 @@ def submit_bottles():
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), bottles_made, displays_made,
                       submission_date, admin_notes))
+                
+                # Get the submission ID we just created
+                submission_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+                
+                # Create junction table entries for each bag deduction
+                for deduction in deduction_details:
+                    conn.execute('''
+                        INSERT INTO submission_bag_deductions 
+                        (submission_id, bag_id, tablets_deducted)
+                        VALUES (?, ?, ?)
+                    ''', (submission_id, deduction.get('bag_id'), deduction.get('tablets_deducted')))
                 
             else:
                 # Bottle-only product: deduct from user-specified bag
@@ -980,25 +982,37 @@ def submit_bottles():
                 if bag:
                     original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
                     
-                    packaged = conn.execute('''
+                    # Packaged submissions (card products)
+                    packaged_total = conn.execute('''
                         SELECT COALESCE(SUM(
-                            CASE 
-                                WHEN ws.submission_type = 'bottle' THEN
-                                    CASE 
-                                        WHEN COALESCE(ws.loose_tablets, 0) > 0 THEN ws.loose_tablets
-                                        ELSE COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                                    END
-                                ELSE
-                                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                            END
+                            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
                         ), 0) as total
                         FROM warehouse_submissions ws
                         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                        WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottle')
+                        WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
                     ''', (bag['id'],)).fetchone()
                     
-                    already_used = packaged['total'] if packaged else 0
+                    # Bottle submissions (bottle-only products with bag_id)
+                    bottle_direct = conn.execute('''
+                        SELECT COALESCE(SUM(
+                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                        ), 0) as total
+                        FROM warehouse_submissions ws
+                        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                    ''', (bag['id'],)).fetchone()
+                    
+                    # Variety pack deductions via junction table
+                    bottle_junction = conn.execute('''
+                        SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
+                        FROM submission_bag_deductions sbd
+                        WHERE sbd.bag_id = ?
+                    ''', (bag['id'],)).fetchone()
+                    
+                    already_used = (packaged_total['total'] if packaged_total else 0) + \
+                                   (bottle_direct['total'] if bottle_direct else 0) + \
+                                   (bottle_junction['total'] if bottle_junction else 0)
                     remaining = max(0, original_count - already_used)
                     
                     if tablets_used > remaining:
