@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Add variety pack and bottle product columns to product_details table.
-Run this script directly on PythonAnywhere to add missing columns.
+Add variety pack and bottle product columns to database.
+Run this script directly on PythonAnywhere to add missing columns and tables.
 
 Usage: python database/add_product_variety_columns.py
 """
@@ -27,6 +27,10 @@ def column_exists(table, column):
     cursor.execute(f"PRAGMA table_info({table})")
     return column in [row[1] for row in cursor.fetchall()]
 
+def table_exists(table):
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    return cursor.fetchone() is not None
+
 def add_column(table, column, definition):
     if column_exists(table, column):
         print(f"  ✓ {table}.{column} already exists")
@@ -39,7 +43,7 @@ def add_column(table, column, definition):
         print(f"  ✗ Failed to add {table}.{column}: {e}")
         return False
 
-print("\n=== Adding Product Variety Pack Columns (v2.24.3) ===\n")
+print("\n=== Variety Pack & Bottle Migrations (v2.24.18) ===\n")
 
 # product_details columns - for bottle products and variety packs
 print("product_details table:")
@@ -65,6 +69,25 @@ add_column('bags', 'reserved_for_bottles', 'BOOLEAN DEFAULT 0')
 print("\nwarehouse_submissions table:")
 add_column('warehouse_submissions', 'bottles_made', 'INTEGER DEFAULT 0')
 add_column('warehouse_submissions', 'bag_id', 'INTEGER')
+
+# Create submission_bag_deductions junction table (v2.24.17+)
+print("\nsubmission_bag_deductions table (junction table for variety packs):")
+if table_exists('submission_bag_deductions'):
+    print("  ✓ submission_bag_deductions table already exists")
+else:
+    try:
+        cursor.execute('''CREATE TABLE submission_bag_deductions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_id INTEGER NOT NULL,
+            bag_id INTEGER NOT NULL,
+            tablets_deducted INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (submission_id) REFERENCES warehouse_submissions (id) ON DELETE CASCADE,
+            FOREIGN KEY (bag_id) REFERENCES bags (id)
+        )''')
+        print("  ✓ Created submission_bag_deductions table")
+    except Exception as e:
+        print(f"  ✗ Failed to create submission_bag_deductions table: {e}")
 
 conn.commit()
 conn.close()
