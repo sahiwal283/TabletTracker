@@ -74,17 +74,30 @@ def admin_logout():
 @bp.route('/admin/products')
 @admin_required
 def product_mapping():
-    """Show product → tablet mapping and calculation examples"""
+    """Redirect to unified product configuration page"""
+    return redirect(url_for('admin.product_config'))
+
+
+@bp.route('/admin/tablet_types')
+@admin_required
+def tablet_types_config():
+    """Redirect to unified product configuration page"""
+    return redirect(url_for('admin.product_config'))
+
+
+@bp.route('/admin/config')
+@admin_required
+def product_config():
+    """Unified product & tablet type configuration page"""
     try:
         with db_transaction() as conn:
             # Get all products with their tablet type and calculation details
-            # Use LEFT JOIN to include products even if tablet_type_id is NULL or invalid
             products = conn.execute('''
-            SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, tt.category
-            FROM product_details pd
-            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            ORDER BY COALESCE(tt.tablet_type_name, ''), pd.product_name
-        ''').fetchall()
+                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, tt.category
+                FROM product_details pd
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                ORDER BY COALESCE(tt.category, 'ZZZ'), pd.product_name
+            ''').fetchall()
             
             # Check if category column exists and add it if missing
             table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
@@ -98,20 +111,20 @@ def product_mapping():
                 except Exception as e:
                     current_app.logger.warning(f"Warning: Could not add category column: {e}")
             
-            # Get tablet types for dropdown
-            if has_category_column:
-                tablet_types = conn.execute('SELECT * FROM tablet_types ORDER BY tablet_type_name').fetchall()
-                # Get unique categories (including those with tablet types assigned)
-                categories = conn.execute('SELECT DISTINCT category FROM tablet_types WHERE category IS NOT NULL AND category != "" ORDER BY category').fetchall()
-                category_list = [cat['category'] for cat in categories] if categories else []
-            else:
-                # Fallback: get tablet types without category column
-                tablet_types_raw = conn.execute('SELECT id, tablet_type_name, inventory_item_id FROM tablet_types ORDER BY tablet_type_name').fetchall()
-                # Convert to dict format with None category
-                tablet_types = [dict(row) for row in tablet_types_raw]
-                for tt in tablet_types:
-                    tt['category'] = None
-                category_list = []
+            # Get all tablet types
+            tablet_types_rows = conn.execute('''
+                SELECT * FROM tablet_types 
+                ORDER BY COALESCE(category, 'ZZZ'), tablet_type_name
+            ''').fetchall()
+            tablet_types = [dict(row) for row in tablet_types_rows]
+            
+            # Get unique categories
+            categories = conn.execute('''
+                SELECT DISTINCT category FROM tablet_types 
+                WHERE category IS NOT NULL AND category != "" 
+                ORDER BY category
+            ''').fetchall()
+            category_list = [cat['category'] for cat in categories] if categories else []
             
             # Get deleted categories from app_settings
             deleted_categories_set = set()
@@ -123,9 +136,8 @@ def product_mapping():
                     deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
             except Exception as e:
                 current_app.logger.warning(f"Warning: Could not load deleted categories: {e}")
-                # Continue without filtering if there's an error
             
-            # Get category order from app_settings (or use alphabetical as fallback)
+            # Get category order from app_settings
             try:
                 category_order_json = conn.execute('''
                     SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
@@ -133,78 +145,28 @@ def product_mapping():
                 if category_order_json and category_order_json['setting_value']:
                     preferred_order = json.loads(category_order_json['setting_value'])
                 else:
-                    # No saved order - use alphabetical
                     preferred_order = sorted(category_list)
             except Exception as e:
                 current_app.logger.warning(f"Warning: Could not load category order: {e}")
                 preferred_order = sorted(category_list)
             
-            # Filter out deleted categories from the list
+            # Filter out deleted categories
             all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
-            
-            # Sort by preferred order (categories not in preferred_order go at the end alphabetically)
             all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
             
             # Find tablet types that don't have product configurations yet
             product_tablet_type_ids = set(p['tablet_type_id'] for p in products if p['tablet_type_id'])
             tablet_types_without_products = [tt for tt in tablet_types if tt['id'] not in product_tablet_type_ids]
             
-            return render_template('product_mapping.html', products=products, tablet_types=tablet_types, 
-                                 categories=all_categories, tablet_types_without_products=tablet_types_without_products)
+            return render_template('product_config.html', 
+                                   products=products, 
+                                   tablet_types=tablet_types, 
+                                   categories=all_categories, 
+                                   tablet_types_without_products=tablet_types_without_products)
     except Exception as e:
-        flash(f'Error loading product mapping: {str(e)}', 'error')
-        return render_template('product_mapping.html', products=[], tablet_types=[])
-
-
-
-@bp.route('/admin/tablet_types')
-@admin_required
-def tablet_types_config():
-    """Configuration page for tablet types and their inventory item IDs"""
-    try:
-        with db_read_only() as conn:
-            # Get all tablet types with their current inventory item IDs
-            tablet_types_rows = conn.execute('''
-            SELECT * FROM tablet_types 
-            ORDER BY COALESCE(category, ''), tablet_type_name
-        ''').fetchall()
-            
-            # Convert Row objects to dictionaries
-            tablet_types = [dict(row) for row in tablet_types_rows]
-            
-            # Get all tablet types for resolving variety pack contents
-            all_tablet_types_rows = conn.execute('SELECT id, tablet_type_name FROM tablet_types').fetchall()
-            all_tablet_types = {dict(tt)['id']: dict(tt)['tablet_type_name'] for tt in all_tablet_types_rows}
-            
-            # Enrich tablet types with resolved variety pack contents
-            import json
-            for tt in tablet_types:
-                if tt.get('variety_pack_contents'):
-                    try:
-                        contents = json.loads(tt['variety_pack_contents'])
-                        tt['variety_pack_contents_resolved'] = [
-                            {
-                                'tablet_type_id': item['tablet_type_id'],
-                                'tablet_type_name': all_tablet_types.get(item['tablet_type_id'], f"ID {item['tablet_type_id']}"),
-                                'tablets_per_bottle': item['tablets_per_bottle']
-                            }
-                            for item in contents
-                        ]
-                    except:
-                        tt['variety_pack_contents_resolved'] = []
-            
-            # Get unique categories
-            categories_rows = conn.execute('''
-            SELECT DISTINCT category FROM tablet_types 
-            WHERE category IS NOT NULL AND category != '' 
-            ORDER BY category
-        ''').fetchall()
-            category_list = [dict(cat)['category'] for cat in categories_rows] if categories_rows else []
-            
-            return render_template('tablet_types_config.html', tablet_types=tablet_types, categories=category_list)
-    except Exception as e:
-        flash(f'Error loading tablet types: {str(e)}', 'error')
-        return render_template('tablet_types_config.html', tablet_types=[])
+        current_app.logger.error(f"Error loading product config: {str(e)}")
+        flash(f'Error loading configuration: {str(e)}', 'error')
+        return render_template('product_config.html', products=[], tablet_types=[], categories=[], tablet_types_without_products=[])
 
 
 
