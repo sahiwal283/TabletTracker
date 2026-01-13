@@ -776,15 +776,13 @@ def submit_bottles():
         # Ensure submission_type column exists
         ensure_submission_type_column()
         
-        # Required fields
-        tablet_type_id = data.get('tablet_type_id')
-        bottles_made = data.get('bottles_made')
-        displays_made = data.get('displays_made', 0)
+        # Required fields - now using product_details.id instead of tablet_type_id
+        product_id = data.get('tablet_type_id')  # Form still sends as tablet_type_id for compatibility
+        displays_made = data.get('displays_made', 0) or 0
+        bottles_remaining = data.get('bottles_remaining', 0) or 0
         
-        if not tablet_type_id:
-            return jsonify({'error': 'Tablet type is required'}), 400
-        if bottles_made is None or bottles_made < 0:
-            return jsonify({'error': 'Valid bottles made count is required'}), 400
+        if not product_id:
+            return jsonify({'error': 'Product is required'}), 400
         
         with db_transaction() as conn:
             # Get employee name from session
@@ -800,20 +798,27 @@ def submit_bottles():
                 
                 employee_name = employee['full_name']
             
-            # Get tablet type details
-            tablet_type = conn.execute('''
-                SELECT * FROM tablet_types WHERE id = ?
-            ''', (tablet_type_id,)).fetchone()
+            # Get product details (now from product_details table)
+            product = conn.execute('''
+                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id
+                FROM product_details pd
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                WHERE pd.id = ?
+            ''', (product_id,)).fetchone()
             
-            if not tablet_type:
-                return jsonify({'error': 'Tablet type not found'}), 400
+            if not product:
+                return jsonify({'error': 'Product not found'}), 400
             
-            tablet_type = dict(tablet_type)
-            is_variety_pack = tablet_type.get('is_variety_pack', False)
-            is_bottle_only = tablet_type.get('is_bottle_only', False)
-            tablets_per_bottle = tablet_type.get('tablets_per_bottle', 0) or 0
+            product = dict(product)
+            is_variety_pack = product.get('is_variety_pack', False)
+            is_bottle_product = product.get('is_bottle_product', False)
+            tablets_per_bottle = product.get('tablets_per_bottle', 0) or 0
+            bottles_per_display = product.get('bottles_per_display', 0) or 0
             
-            if not is_variety_pack and not is_bottle_only:
+            # Calculate total bottles made = (displays × bottles/display) + remaining
+            bottles_made = (displays_made * bottles_per_display) + bottles_remaining
+            
+            if not is_variety_pack and not is_bottle_product:
                 return jsonify({'error': 'This product is not configured for bottle production'}), 400
             
             # Get submission_date and admin_notes
@@ -828,7 +833,7 @@ def submit_bottles():
             
             if is_variety_pack:
                 # Variety pack: deduct from reserved bags per flavor
-                variety_contents = tablet_type.get('variety_pack_contents')
+                variety_contents = product.get('variety_pack_contents')
                 if not variety_contents:
                     return jsonify({'error': 'Variety pack contents not configured'}), 400
                 
@@ -916,9 +921,9 @@ def submit_bottles():
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
                      submission_date, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'bottles')
-                ''', (employee_name, tablet_type.get('tablet_type_name'), 
-                      tablet_type.get('inventory_item_id'), bottles_made, displays_made,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'bottle')
+                ''', (employee_name, product.get('product_name'), 
+                      product.get('inventory_item_id'), bottles_made, displays_made,
                       submission_date, admin_notes))
                 
             else:
@@ -929,9 +934,10 @@ def submit_bottles():
                 if not bag_number:
                     return jsonify({'error': 'Bag number is required for bottle-only products'}), 400
                 
-                # Find the bag
+                # Find the bag using product's tablet_type_id
+                tablet_type_id_for_bag = product.get('tablet_type_id')
                 bag, needs_review, error_message = find_bag_for_submission(
-                    conn, tablet_type_id, bag_number, box_number, submission_type='bottles'
+                    conn, tablet_type_id_for_bag, bag_number, box_number, submission_type='bottle'
                 )
                 
                 if error_message:
@@ -969,7 +975,7 @@ def submit_bottles():
                     
                     deduction_details.append({
                         'bag_id': bag['id'],
-                        'tablet_type_name': tablet_type.get('tablet_type_name'),
+                        'tablet_type_name': product.get('tablet_type_name') or product.get('product_name'),
                         'bag_number': bag.get('bag_number'),
                         'box_number': bag.get('box_number'),
                         'tablets_deducted': tablets_used,
@@ -982,9 +988,9 @@ def submit_bottles():
                     (employee_name, product_name, inventory_item_id, box_number, bag_number,
                      bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
                      submission_date, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottles')
-                ''', (employee_name, tablet_type.get('tablet_type_name'), 
-                      tablet_type.get('inventory_item_id'), submission_box_number, bag_number,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
+                ''', (employee_name, product.get('product_name'), 
+                      product.get('inventory_item_id'), submission_box_number, bag_number,
                       bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
                       submission_date, admin_notes))
             
