@@ -63,6 +63,9 @@ class MigrationRunner:
         self._add_column_if_not_exists('tablet_types', 'tablets_per_bottle', 'INTEGER')
         self._add_column_if_not_exists('tablet_types', 'bottles_per_pack', 'INTEGER')
         self._add_column_if_not_exists('tablet_types', 'variety_pack_contents', 'TEXT')
+        
+        # Add bottle-only flag (v2.24.0+dev) - products sold only in bottles, not blister cards
+        self._add_column_if_not_exists('tablet_types', 'is_bottle_only', 'BOOLEAN DEFAULT 0')
     
     def _migrate_warehouse_submissions(self):
         """Migrate warehouse_submissions table"""
@@ -134,6 +137,9 @@ class MigrationRunner:
     
         # Add receipt_number column for tracking receipt numbers
         self._add_column_if_not_exists('warehouse_submissions', 'receipt_number', 'TEXT')
+        
+        # Add bottles_made column for bottle-based submissions (v2.24.0+dev)
+        self._add_column_if_not_exists('warehouse_submissions', 'bottles_made', 'INTEGER DEFAULT 0')
     
     def _migrate_shipments(self):
         """Migrate shipments table"""
@@ -155,6 +161,9 @@ class MigrationRunner:
         # Add Zoho receive push tracking columns (v2.23.0+dev)
         self._add_column_if_not_exists('bags', 'zoho_receive_pushed', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('bags', 'zoho_receive_id', 'TEXT')
+        
+        # Add bottle reservation flag (v2.24.0+dev) - for variety pack bag reservation
+        self._add_column_if_not_exists('bags', 'reserved_for_bottles', 'BOOLEAN DEFAULT 0')
     
     def _migrate_tablet_type_categories(self):
         """Migrate tablet_type_categories table - ensure it exists"""

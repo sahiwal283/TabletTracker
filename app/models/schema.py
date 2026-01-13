@@ -98,7 +98,8 @@ class SchemaManager:
             is_variety_pack BOOLEAN DEFAULT 0,
             tablets_per_bottle INTEGER,
             bottles_per_pack INTEGER,
-            variety_pack_contents TEXT
+            variety_pack_contents TEXT,
+            is_bottle_only BOOLEAN DEFAULT 0
         )''')
     
     def _create_product_details_table(self, c):
@@ -127,6 +128,7 @@ class SchemaManager:
             damaged_tablets INTEGER DEFAULT 0,
             discrepancy_flag BOOLEAN DEFAULT FALSE,
             assigned_po_id INTEGER,
+            bottles_made INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (assigned_po_id) REFERENCES purchase_orders (id)
         )''')
@@ -192,6 +194,7 @@ class SchemaManager:
             tablet_type_id INTEGER,
             status TEXT DEFAULT 'Available',
             receive_name TEXT,
+            reserved_for_bottles BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
         )''')
