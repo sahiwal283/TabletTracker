@@ -1460,9 +1460,18 @@ def get_submission_details(submission_id):
             
             current_app.logger.info(f"GET SUBMISSION DETAILS: id={submission_id}, product_name='{submission_dict.get('product_name')}', db_submission_type='{db_submission_type}'")
             
+            # Store diagnostic info to include in response for debugging
+            debug_info = {
+                'ws_product_name': submission_dict.get('product_name'),
+                'ws_submission_type': db_submission_type,
+                'detection_result': None,
+                'product_config_found': False
+            }
+            
             # If submission_type is already 'bottle' in the database, use it
             if db_submission_type == 'bottle':
                 submission_type = 'bottle'
+                debug_info['detection_result'] = 'db_submission_type_is_bottle'
                 current_app.logger.info(f"Submission {submission_id} already has submission_type='bottle' in database")
             
             # Always check product config to determine if this is a bottle/variety pack submission
@@ -1475,6 +1484,7 @@ def get_submission_details(submission_id):
                 ''', (product_name,)).fetchone()
                 
                 if product_config:
+                    debug_info['product_config_found'] = True
                     product_config_dict = dict(product_config)
                     # Check flags OR if it has variety_pack_contents (fallback for legacy data)
                     is_variety = product_config_dict.get('is_variety_pack')
@@ -1482,16 +1492,27 @@ def get_submission_details(submission_id):
                     has_variety_contents = product_config_dict.get('variety_pack_contents')
                     has_bottle_config = product_config_dict.get('tablets_per_bottle')
                     
+                    debug_info['is_variety'] = is_variety
+                    debug_info['is_bottle'] = is_bottle
+                    debug_info['has_variety_contents'] = bool(has_variety_contents)
+                    debug_info['has_bottle_config'] = bool(has_bottle_config)
+                    
                     current_app.logger.info(f"Product config for '{product_name}': is_variety={is_variety}, is_bottle={is_bottle}, has_contents={bool(has_variety_contents)}, has_bottle_config={bool(has_bottle_config)}")
                     
                     if is_variety or is_bottle or has_variety_contents or has_bottle_config:
                         submission_type = 'bottle'
                         submission_dict['submission_type'] = 'bottle'
+                        debug_info['detection_result'] = 'detected_from_product_config'
                         current_app.logger.info(f"Detected bottle/variety pack submission {submission_id} for product '{product_name}'")
                 else:
+                    debug_info['detection_result'] = 'product_config_not_found'
                     current_app.logger.warning(f"No product_config found for product_name='{product_name}' in submission {submission_id}")
             else:
+                debug_info['detection_result'] = 'no_product_name_in_submission'
                 current_app.logger.warning(f"Submission {submission_id} has no product_name, cannot check product config")
+            
+            # Store final submission_type in debug_info
+            debug_info['final_submission_type'] = submission_type
             
             # If bag_label_count is 0 or missing but bag_id exists, try to get it directly from bags table
             if submission_dict.get('bag_id') and (not submission_dict.get('bag_label_count') or submission_dict.get('bag_label_count') == 0):
@@ -1769,7 +1790,8 @@ def get_submission_details(submission_id):
             return jsonify({
                 'success': True,
                 'submission': submission_dict,
-                'bag_deductions': bag_deductions
+                'bag_deductions': bag_deductions,
+                '_debug': debug_info  # Temporary debug info - remove after fixing
             })
     except Exception as e:
         import traceback
