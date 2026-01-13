@@ -1009,17 +1009,20 @@ def submit_bottles():
 def get_bottle_products():
     """Get products that can be used with the bottles form
     
-    Returns tablet types where is_bottle_only = true OR is_variety_pack = true
+    Returns products where is_bottle_product = true OR is_variety_pack = true
     """
     try:
         with db_read_only() as conn:
             products = conn.execute('''
-                SELECT id, tablet_type_name, inventory_item_id, 
-                       is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack,
-                       variety_pack_contents
-                FROM tablet_types 
-                WHERE is_bottle_only = 1 OR is_variety_pack = 1
-                ORDER BY tablet_type_name
+                SELECT pd.id, pd.product_name, pd.tablet_type_id,
+                       pd.is_bottle_product, pd.is_variety_pack, 
+                       pd.tablets_per_bottle, pd.bottles_per_display,
+                       pd.variety_pack_contents,
+                       tt.tablet_type_name, tt.inventory_item_id
+                FROM product_details pd
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                WHERE pd.is_bottle_product = 1 OR pd.is_variety_pack = 1
+                ORDER BY pd.product_name
             ''').fetchall()
             
             return jsonify({

@@ -1302,11 +1302,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const option = document.createElement('option');
                     option.value = product.id;
                     
-                    const badge = product.is_variety_pack ? '🍾 VP' : '🍶';
-                    option.textContent = `${badge} ${product.tablet_type_name}`;
+                    const badge = product.is_variety_pack ? '🌈 VP' : '🍶';
+                    option.textContent = `${badge} ${product.product_name}`;
                     option.dataset.isVarietyPack = product.is_variety_pack ? '1' : '0';
-                    option.dataset.isBottleOnly = product.is_bottle_only ? '1' : '0';
+                    option.dataset.isBottleProduct = product.is_bottle_product ? '1' : '0';
                     option.dataset.tabletsPerBottle = product.tablets_per_bottle || '0';
+                    option.dataset.bottlesPerDisplay = product.bottles_per_display || '0';
+                    option.dataset.tabletTypeId = product.tablet_type_id || '';
                     
                     select.appendChild(option);
                 });
@@ -1322,8 +1324,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         bottlesProductSelect.addEventListener('change', async function() {
             const selectedOption = this.options[this.selectedIndex];
             const isVarietyPack = selectedOption.dataset?.isVarietyPack === '1';
-            const isBottleOnly = selectedOption.dataset?.isBottleOnly === '1';
+            const isBottleProduct = selectedOption.dataset?.isBottleProduct === '1';
             const tabletsPerBottle = parseInt(selectedOption.dataset?.tabletsPerBottle || '0');
+            const bottlesPerDisplay = parseInt(selectedOption.dataset?.bottlesPerDisplay || '0');
             
             const bagSection = document.getElementById('bottle-bag-section');
             const varietySection = document.getElementById('variety-pack-section');
@@ -1343,13 +1346,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Show product info
             productInfo.classList.remove('hidden');
             if (isVarietyPack) {
-                typeBadge.textContent = '🍾 Variety Pack';
+                typeBadge.textContent = '🌈 Variety Pack';
                 typeBadge.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800';
             } else {
-                typeBadge.textContent = '🍶 Bottle Only';
+                typeBadge.textContent = '🍶 Bottle Product';
                 typeBadge.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800';
             }
-            tabletsInfo.textContent = tabletsPerBottle > 0 ? `${tabletsPerBottle} tablets/bottle` : '';
+            let infoText = [];
+            if (tabletsPerBottle > 0) infoText.push(`${tabletsPerBottle} tablets/bottle`);
+            if (bottlesPerDisplay > 0) infoText.push(`${bottlesPerDisplay} bottles/display`);
+            tabletsInfo.textContent = infoText.join(' • ');
             
             // Show calculation section
             calculation.classList.remove('hidden');
