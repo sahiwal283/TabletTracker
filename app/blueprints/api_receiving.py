@@ -625,6 +625,160 @@ def close_bag(bag_id):
         return jsonify({'success': False, 'error': f'Failed to close bag: {str(e)}'}), 500
 
 
+@bp.route('/api/bag/<int:bag_id>/reserve-bottles', methods=['POST'])
+@role_required('dashboard')
+def reserve_bag_for_bottles(bag_id):
+    """Toggle bag reservation for bottle production (variety packs)
+    
+    Reserved bags are set aside for variety pack or bottle production.
+    A bag can be reserved even after machine/packaged submissions - 
+    only the remaining tablets (original - packaged) are available.
+    """
+    try:
+        user_role = session.get('employee_role')
+        is_admin = session.get('admin_authenticated')
+        if user_role not in ['manager', 'admin'] and not is_admin:
+            return jsonify({'success': False, 'error': 'Only managers and admins can reserve bags'}), 403
+        
+        with db_transaction() as conn:
+            # Get bag with details and calculate remaining tablets
+            bag_row = conn.execute('''
+                SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count,
+                       COALESCE(b.reserved_for_bottles, 0) as reserved_for_bottles,
+                       COALESCE(b.status, 'Available') as status,
+                       sb.box_number, tt.tablet_type_name, tt.id as tablet_type_id,
+                       r.po_id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE b.id = ?
+            ''', (bag_id,)).fetchone()
+            
+            if not bag_row:
+                return jsonify({'success': False, 'error': 'Bag not found'}), 404
+            
+            bag = dict(bag_row)
+            
+            # Check if bag is closed
+            if bag.get('status') == 'Closed':
+                return jsonify({'success': False, 'error': 'Cannot reserve a closed bag'}), 400
+            
+            # Calculate remaining tablets (original - packaged)
+            # Machine count is intermediary, packaged is what's actually consumed
+            original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
+            
+            packaged_total = conn.execute('''
+                SELECT COALESCE(SUM(
+                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                ), 0) as total
+                FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+            ''', (bag_id,)).fetchone()
+            
+            packaged_count = packaged_total['total'] if packaged_total else 0
+            remaining_count = max(0, original_count - packaged_count)
+            
+            # Toggle reservation
+            current_reserved = bag.get('reserved_for_bottles', 0)
+            new_reserved = 0 if current_reserved else 1
+            
+            conn.execute('''
+                UPDATE bags 
+                SET reserved_for_bottles = ?
+                WHERE id = ?
+            ''', (new_reserved, bag_id))
+            
+            action = 'reserved for bottles' if new_reserved else 'unreserved'
+            bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {bag.get('box_number', 'N/A')}, Bag {bag.get('bag_number', 'N/A')}"
+            
+            return jsonify({
+                'success': True,
+                'reserved_for_bottles': bool(new_reserved),
+                'remaining_count': remaining_count,
+                'original_count': original_count,
+                'packaged_count': packaged_count,
+                'message': f'Successfully {action}: {bag_info} ({remaining_count} tablets remaining)'
+            })
+    except Exception as e:
+        current_app.logger.error(f"Error reserving bag {bag_id}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to reserve bag: {str(e)}'}), 500
+
+
+@bp.route('/api/bags/reserved-for-bottles', methods=['GET'])
+@role_required('dashboard')
+def get_reserved_bags():
+    """Get all bags reserved for bottle production, grouped by tablet type
+    
+    Returns bags with remaining tablet counts for bottle submission form.
+    """
+    try:
+        with db_read_only() as conn:
+            reserved_bags = conn.execute('''
+                SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count,
+                       sb.box_number, r.po_id,
+                       tt.id as tablet_type_id, tt.tablet_type_name,
+                       po.po_number
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                LEFT JOIN purchase_orders po ON r.po_id = po.id
+                WHERE b.reserved_for_bottles = 1
+                AND COALESCE(b.status, 'Available') != 'Closed'
+                ORDER BY tt.tablet_type_name, b.bag_number
+            ''').fetchall()
+            
+            # Group by tablet type and calculate remaining counts
+            grouped = {}
+            for bag_row in reserved_bags:
+                bag = dict(bag_row)
+                tt_id = bag['tablet_type_id']
+                
+                # Calculate remaining tablets for this bag
+                original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
+                
+                packaged_total = conn.execute('''
+                    SELECT COALESCE(SUM(
+                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                    ), 0) as total
+                    FROM warehouse_submissions ws
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                ''', (bag['id'],)).fetchone()
+                
+                packaged_count = packaged_total['total'] if packaged_total else 0
+                remaining_count = max(0, original_count - packaged_count)
+                
+                bag['original_count'] = original_count
+                bag['packaged_count'] = packaged_count
+                bag['remaining_count'] = remaining_count
+                
+                if tt_id not in grouped:
+                    grouped[tt_id] = {
+                        'tablet_type_id': tt_id,
+                        'tablet_type_name': bag['tablet_type_name'],
+                        'bags': [],
+                        'total_remaining': 0
+                    }
+                
+                grouped[tt_id]['bags'].append(bag)
+                grouped[tt_id]['total_remaining'] += remaining_count
+            
+            return jsonify({
+                'success': True,
+                'reserved_bags': list(grouped.values())
+            })
+    except Exception as e:
+        current_app.logger.error(f"Error getting reserved bags: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/api/bag/<int:bag_id>/push_to_zoho', methods=['POST'])
 @role_required('dashboard')
 def push_bag_to_zoho(bag_id):
