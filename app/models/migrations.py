@@ -19,6 +19,7 @@ class MigrationRunner:
         self._migrate_purchase_orders()
         self._migrate_po_lines()
         self._migrate_tablet_types()
+        self._migrate_product_details()
         self._migrate_warehouse_submissions()
         self._migrate_shipments()
         self._migrate_bags()
@@ -58,7 +59,8 @@ class MigrationRunner:
         # Add category_id column
         self._add_column_if_not_exists('tablet_types', 'category_id', 'INTEGER')
     
-        # Add variety pack support columns
+        # Legacy variety pack columns on tablet_types (deprecated - moved to product_details in v2.24.2)
+        # Keep for backwards compatibility but prefer product_details columns
         self._add_column_if_not_exists('tablet_types', 'is_variety_pack', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('tablet_types', 'tablets_per_bottle', 'INTEGER')
         self._add_column_if_not_exists('tablet_types', 'bottles_per_pack', 'INTEGER')
@@ -66,6 +68,23 @@ class MigrationRunner:
         
         # Add bottle-only flag (v2.24.0+dev) - products sold only in bottles, not blister cards
         self._add_column_if_not_exists('tablet_types', 'is_bottle_only', 'BOOLEAN DEFAULT 0')
+    
+    def _migrate_product_details(self):
+        """Migrate product_details table - add variety pack and bottle product columns (v2.24.2+dev)"""
+        # Add bottle product flag - for products sold in bottles (not blister cards)
+        self._add_column_if_not_exists('product_details', 'is_bottle_product', 'BOOLEAN DEFAULT 0')
+        
+        # Add variety pack flag - for products that combine multiple tablet types
+        self._add_column_if_not_exists('product_details', 'is_variety_pack', 'BOOLEAN DEFAULT 0')
+        
+        # Add tablets per bottle - how many tablets in one bottle
+        self._add_column_if_not_exists('product_details', 'tablets_per_bottle', 'INTEGER')
+        
+        # Add bottles per display - how many bottles in a display/pack
+        self._add_column_if_not_exists('product_details', 'bottles_per_display', 'INTEGER')
+        
+        # Add variety pack contents - JSON array of {tablet_type_id, tablets_per_bottle}
+        self._add_column_if_not_exists('product_details', 'variety_pack_contents', 'TEXT')
     
     def _migrate_warehouse_submissions(self):
         """Migrate warehouse_submissions table"""

@@ -84,25 +84,72 @@ def update_tablet_type_inventory():
 @bp.route('/api/save_product', methods=['POST'])
 @admin_required
 def save_product():
-    """Save or update a product configuration"""
+    """Save or update a product configuration
+    
+    Supports three product types:
+    1. Regular blister card products: uses packages_per_display, tablets_per_package
+    2. Bottle products (single flavor): uses tablets_per_bottle, bottles_per_display
+    3. Variety pack products: uses tablets_per_bottle, bottles_per_display, variety_pack_contents
+    """
     try:
         data = request.get_json()
         
-        required_fields = ['product_name', 'tablet_type_id', 'packages_per_display', 'tablets_per_package']
-        for field in required_fields:
-            if field not in data or data[field] is None:
-                return jsonify({'success': False, 'error': f'{field} is required'}), 400
+        product_name = data.get('product_name', '').strip()
+        if not product_name:
+            return jsonify({'success': False, 'error': 'Product name is required'}), 400
         
-        try:
-            tablet_type_id = int(data['tablet_type_id'])
-            packages_per_display = int(data['packages_per_display'])
-            tablets_per_package = int(data['tablets_per_package'])
-        except (ValueError, TypeError):
-            return jsonify({'success': False, 'error': 'Invalid numeric values for tablet_type_id, packages_per_display, or tablets_per_package'}), 400
+        is_bottle_product = data.get('is_bottle_product', False)
+        is_variety_pack = data.get('is_variety_pack', False)
+        
+        # Validate based on product type
+        if is_variety_pack:
+            # Variety pack: needs tablets_per_bottle, bottles_per_display, variety_pack_contents
+            tablets_per_bottle = data.get('tablets_per_bottle')
+            bottles_per_display = data.get('bottles_per_display')
+            variety_pack_contents = data.get('variety_pack_contents')
+            
+            if not tablets_per_bottle or not bottles_per_display:
+                return jsonify({'success': False, 'error': 'Variety packs require tablets_per_bottle and bottles_per_display'}), 400
+            if not variety_pack_contents:
+                return jsonify({'success': False, 'error': 'Variety packs require variety_pack_contents'}), 400
+            
+            tablet_type_id = None  # Variety packs don't reference a single tablet type
+            packages_per_display = 0
+            tablets_per_package = 0
+            
+        elif is_bottle_product:
+            # Bottle product (single flavor): needs tablet_type_id, tablets_per_bottle, bottles_per_display
+            tablet_type_id = data.get('tablet_type_id')
+            tablets_per_bottle = data.get('tablets_per_bottle')
+            bottles_per_display = data.get('bottles_per_display')
+            
+            if not tablet_type_id:
+                return jsonify({'success': False, 'error': 'Bottle products require a tablet type'}), 400
+            if not tablets_per_bottle or not bottles_per_display:
+                return jsonify({'success': False, 'error': 'Bottle products require tablets_per_bottle and bottles_per_display'}), 400
+            
+            tablet_type_id = int(tablet_type_id)
+            packages_per_display = 0
+            tablets_per_package = 0
+            variety_pack_contents = None
+            
+        else:
+            # Regular blister card product
+            tablet_type_id = data.get('tablet_type_id')
+            packages_per_display = data.get('packages_per_display')
+            tablets_per_package = data.get('tablets_per_package')
+            
+            if not tablet_type_id or not packages_per_display or not tablets_per_package:
+                return jsonify({'success': False, 'error': 'Card products require tablet_type_id, packages_per_display, and tablets_per_package'}), 400
+            
+            tablet_type_id = int(tablet_type_id)
+            packages_per_display = int(packages_per_display)
+            tablets_per_package = int(tablets_per_package)
+            tablets_per_bottle = None
+            bottles_per_display = None
+            variety_pack_contents = None
         
         with db_transaction() as conn:
-            product_name = data.get('product_name')
-            
             if data.get('id'):
                 try:
                     product_id = int(data['id'])
@@ -111,20 +158,29 @@ def save_product():
                     
                 conn.execute('''
                     UPDATE product_details 
-                    SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?
+                    SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?,
+                        is_bottle_product = ?, is_variety_pack = ?, tablets_per_bottle = ?, 
+                        bottles_per_display = ?, variety_pack_contents = ?
                     WHERE id = ?
-                ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package, product_id))
+                ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
+                      is_bottle_product, is_variety_pack, tablets_per_bottle,
+                      bottles_per_display, variety_pack_contents, product_id))
                 message = f"Updated {product_name}"
             else:
                 conn.execute('''
-                    INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package)
-                    VALUES (?, ?, ?, ?)
-                ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package))
+                    INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package,
+                        is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
+                      is_bottle_product, is_variety_pack, tablets_per_bottle, 
+                      bottles_per_display, variety_pack_contents))
                 message = f"Created {product_name}"
             
             return jsonify({'success': True, 'message': message})
     except Exception as e:
         current_app.logger.error(f"Error saving product: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -537,7 +593,7 @@ def delete_category():
 @bp.route('/api/add_tablet_type', methods=['POST'])
 @admin_required
 def add_tablet_type():
-    """Add a new tablet type"""
+    """Add a new tablet type (a single tablet flavor/formulation)"""
     try:
         data = request.get_json()
         if not data:
@@ -545,6 +601,7 @@ def add_tablet_type():
             
         tablet_type_name = (data.get('tablet_type_name') or '').strip()
         inventory_item_id = (data.get('inventory_item_id') or '').strip()
+        category = (data.get('category') or '').strip()
         
         if not tablet_type_name:
             return jsonify({'success': False, 'error': 'Tablet type name required'}), 400
@@ -570,17 +627,10 @@ def add_tablet_type():
                         'error': f'Inventory ID already used by {existing_id["tablet_type_name"]}'
                     }), 400
         
-            is_bottle_only = data.get('is_bottle_only', False)
-            is_variety_pack = data.get('is_variety_pack', False)
-            tablets_per_bottle = data.get('tablets_per_bottle')
-            bottles_per_pack = data.get('bottles_per_pack')
-            variety_pack_contents = data.get('variety_pack_contents')
-        
             conn.execute('''
-                INSERT INTO tablet_types (tablet_type_name, inventory_item_id, is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (tablet_type_name, inventory_item_id if inventory_item_id else None, 
-                  is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack, variety_pack_contents))
+                INSERT INTO tablet_types (tablet_type_name, inventory_item_id, category)
+                VALUES (?, ?, ?)
+            ''', (tablet_type_name, inventory_item_id if inventory_item_id else None, category if category else None))
             
             return jsonify({'success': True, 'message': f'Added tablet type: {tablet_type_name}'})
     except Exception as e:

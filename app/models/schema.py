@@ -110,6 +110,11 @@ class SchemaManager:
             tablet_type_id INTEGER,
             packages_per_display INTEGER DEFAULT 0,
             tablets_per_package INTEGER DEFAULT 0,
+            is_bottle_product BOOLEAN DEFAULT 0,
+            is_variety_pack BOOLEAN DEFAULT 0,
+            tablets_per_bottle INTEGER,
+            bottles_per_display INTEGER,
+            variety_pack_contents TEXT,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
     

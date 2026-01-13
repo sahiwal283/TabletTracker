@@ -39,51 +39,28 @@
 
     <!-- ===== TABLET TYPES TAB ===== -->
     <div id="content-tablet-types" class="tab-content">
+        <!-- Info Box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 class="font-semibold text-blue-900 mb-1">🧪 What are Tablet Types?</h3>
+            <p class="text-sm text-blue-800">Tablet types are the individual tablet flavors/formulations you receive from suppliers (e.g., "MIT Pineapple", "MIT Spearmint"). Each bag you receive contains one tablet type.</p>
+        </div>
+        
         <!-- Add New Tablet Type -->
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">
                 <svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg>
                 Add New Tablet Type
             </h3>
-            <form id="add-tablet-type-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input type="text" id="new-tablet-name" placeholder="Tablet Type Name" class="form-input" required>
-                    <input type="text" id="new-inventory-id" placeholder="Inventory Item ID (optional)" class="form-input">
-                    <button type="submit" class="btn-primary">Add Tablet Type</button>
-                </div>
-                <div class="border-t pt-4">
-                    <div class="flex flex-wrap gap-6 mb-3">
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" id="new-is-bottle-only" class="form-checkbox">
-                            <span class="text-sm font-medium text-gray-700">Bottle Only</span>
-                            <span class="text-xs text-gray-500">(sold only in bottles)</span>
-                        </label>
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" id="new-is-variety-pack" class="form-checkbox">
-                            <span class="text-sm font-medium text-gray-700">Variety Pack</span>
-                            <span class="text-xs text-gray-500">(multiple flavors)</span>
-                        </label>
-                    </div>
-                    <div id="variety-pack-fields" class="space-y-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tablets per Bottle</label>
-                                <input type="number" id="new-tablets-per-bottle" placeholder="e.g., 12" class="form-input" min="1">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Bottles per Pack</label>
-                                <input type="number" id="new-bottles-per-pack" placeholder="e.g., 1" class="form-input" min="1">
-                            </div>
-                        </div>
-                        <div class="border-t pt-4">
-                            <div class="flex justify-between items-center mb-3">
-                                <label class="block text-sm font-medium text-gray-700">Pack Contents (Flavors)</label>
-                                <button type="button" onclick="addVarietyPackFlavor('new')" class="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add Flavor</button>
-                            </div>
-                            <div id="new-variety-pack-contents" class="space-y-2"></div>
-                        </div>
-                    </div>
-                </div>
+            <form id="add-tablet-type-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input type="text" id="new-tablet-name" placeholder="Tablet Type Name (e.g., MIT Pineapple)" class="form-input" required>
+                <input type="text" id="new-inventory-id" placeholder="Zoho Inventory Item ID (optional)" class="form-input">
+                <select id="new-tablet-category" class="form-input">
+                    <option value="">Select category...</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn-primary">Add Tablet Type</button>
             </form>
         </div>
 
@@ -112,8 +89,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inventory ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zoho Inventory ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -122,30 +98,13 @@
                             <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ tt.tablet_type_name }}
-                                    {% if tt.is_bottle_only %}<span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Bottle</span>{% endif %}
-                                    {% if tt.is_variety_pack %}<span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">VP</span>{% endif %}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <span class="tablet-display" id="id-display-{{ tt.id }}">
                                         {% if tt.inventory_item_id %}<span class="font-mono bg-green-100 px-2 py-1 rounded text-xs">{{ tt.inventory_item_id }}</span>
                                         {% else %}<span class="text-gray-400 italic">Not Set</span>{% endif %}
                                     </span>
-                                    <input type="text" class="form-input tablet-edit hidden text-sm" id="id-edit-{{ tt.id }}" value="{{ tt.inventory_item_id or '' }}">
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    <div class="tablet-display" id="variety-display-{{ tt.id }}">
-                                        {% if tt.is_variety_pack %}{{ tt.tablets_per_bottle or '?' }} tabs/bottle
-                                        {% elif tt.is_bottle_only %}Bottle only
-                                        {% else %}Regular{% endif %}
-                                    </div>
-                                    <div class="tablet-edit hidden space-y-2" id="variety-edit-{{ tt.id }}">
-                                        <label class="flex items-center gap-2"><input type="checkbox" id="bottle-only-check-{{ tt.id }}" class="form-checkbox" {% if tt.is_bottle_only %}checked{% endif %}><span class="text-xs">Bottle Only</span></label>
-                                        <label class="flex items-center gap-2"><input type="checkbox" id="variety-check-{{ tt.id }}" class="form-checkbox" {% if tt.is_variety_pack %}checked{% endif %} onchange="toggleVarietyFields({{ tt.id }})"><span class="text-xs">Variety Pack</span></label>
-                                        <div id="variety-fields-{{ tt.id }}" class="{% if not tt.is_variety_pack %}hidden{% endif %} space-y-2">
-                                            <input type="number" id="tablets-bottle-{{ tt.id }}" value="{{ tt.tablets_per_bottle or '' }}" placeholder="Tablets/bottle" class="form-input text-xs" min="1">
-                                            <input type="number" id="bottles-pack-{{ tt.id }}" value="{{ tt.bottles_per_pack or '' }}" placeholder="Bottles/pack" class="form-input text-xs" min="1">
-                                        </div>
-                                    </div>
+                                    <input type="text" class="form-input tablet-edit hidden text-sm" id="id-edit-{{ tt.id }}" value="{{ tt.inventory_item_id or '' }}" placeholder="Enter Zoho Inventory Item ID">
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <div class="tablet-display" id="actions-display-{{ tt.id }}">
@@ -183,8 +142,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inventory ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zoho Inventory ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -193,30 +151,13 @@
                             <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ tt.tablet_type_name }}
-                                    {% if tt.is_bottle_only %}<span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Bottle</span>{% endif %}
-                                    {% if tt.is_variety_pack %}<span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">VP</span>{% endif %}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <span class="tablet-display" id="id-display-{{ tt.id }}">
                                         {% if tt.inventory_item_id %}<span class="font-mono bg-green-100 px-2 py-1 rounded text-xs">{{ tt.inventory_item_id }}</span>
                                         {% else %}<span class="text-gray-400 italic">Not Set</span>{% endif %}
                                     </span>
-                                    <input type="text" class="form-input tablet-edit hidden text-sm" id="id-edit-{{ tt.id }}" value="{{ tt.inventory_item_id or '' }}">
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
-                                    <div class="tablet-display" id="variety-display-{{ tt.id }}">
-                                        {% if tt.is_variety_pack %}{{ tt.tablets_per_bottle or '?' }} tabs/bottle
-                                        {% elif tt.is_bottle_only %}Bottle only
-                                        {% else %}Regular{% endif %}
-                                    </div>
-                                    <div class="tablet-edit hidden space-y-2" id="variety-edit-{{ tt.id }}">
-                                        <label class="flex items-center gap-2"><input type="checkbox" id="bottle-only-check-{{ tt.id }}" class="form-checkbox" {% if tt.is_bottle_only %}checked{% endif %}><span class="text-xs">Bottle Only</span></label>
-                                        <label class="flex items-center gap-2"><input type="checkbox" id="variety-check-{{ tt.id }}" class="form-checkbox" {% if tt.is_variety_pack %}checked{% endif %} onchange="toggleVarietyFields({{ tt.id }})"><span class="text-xs">Variety Pack</span></label>
-                                        <div id="variety-fields-{{ tt.id }}" class="{% if not tt.is_variety_pack %}hidden{% endif %} space-y-2">
-                                            <input type="number" id="tablets-bottle-{{ tt.id }}" value="{{ tt.tablets_per_bottle or '' }}" placeholder="Tablets/bottle" class="form-input text-xs" min="1">
-                                            <input type="number" id="bottles-pack-{{ tt.id }}" value="{{ tt.bottles_per_pack or '' }}" placeholder="Bottles/pack" class="form-input text-xs" min="1">
-                                        </div>
-                                    </div>
+                                    <input type="text" class="form-input tablet-edit hidden text-sm" id="id-edit-{{ tt.id }}" value="{{ tt.inventory_item_id or '' }}" placeholder="Enter Zoho Inventory Item ID">
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <div class="tablet-display" id="actions-display-{{ tt.id }}">
@@ -240,12 +181,22 @@
 
     <!-- ===== PRODUCTS TAB ===== -->
     <div id="content-products" class="tab-content hidden">
-        <!-- Calculation Formula -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <h3 class="text-lg font-semibold text-blue-900 mb-3">📊 Calculation Formula</h3>
-            <div class="text-sm space-y-1">
-                <div><strong>Good Tablets =</strong> (Displays × Packages/Display × Tablets/Package) + (Cards × Tablets/Package) + Loose</div>
-                <div><strong>Damaged Tablets =</strong> Separate count</div>
+        <!-- Product Types Info -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-2">📊 Product Types</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div class="bg-white p-3 rounded border">
+                    <div class="font-medium text-gray-900">📦 Card Products</div>
+                    <div class="text-gray-600 text-xs mt-1">Tablets on blister cards/packs in displays</div>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <div class="font-medium text-gray-900">🍾 Bottle Products</div>
+                    <div class="text-gray-600 text-xs mt-1">Single flavor sold in bottles</div>
+                </div>
+                <div class="bg-white p-3 rounded border">
+                    <div class="font-medium text-gray-900">🌈 Variety Packs</div>
+                    <div class="text-gray-600 text-xs mt-1">Multiple flavors combined in bottles</div>
+                </div>
             </div>
         </div>
 
@@ -255,29 +206,87 @@
                 <svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg>
                 Add New Product
             </h3>
-            <form id="add-product-form" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <input type="text" id="new-product-name" placeholder="Product Name" class="form-input" required>
-                <select id="new-tablet-type" name="tablet_type" required class="form-input">
-                    <option value="">Select tablet type...</option>
-                    {% for category in categories %}
-                    {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
-                    {% if category_tablets %}
-                    <optgroup label="{{ category }}">
-                        {% for tt in category_tablets %}<option value="{{ tt.tablet_type_name }}" data-id="{{ tt.id }}">{{ tt.tablet_type_name }}</option>{% endfor %}
-                    </optgroup>
-                    {% endif %}
-                    {% endfor %}
-                </select>
-                <input type="number" id="new-ppd" placeholder="Packages/Display" class="form-input" min="1" required>
-                <input type="number" id="new-tpp" placeholder="Tablets/Package" class="form-input" min="1" required>
-                <button type="submit" class="btn-primary">Add Product</button>
+            
+            <!-- Product Type Selector -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Product Type</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center">
+                        <input type="radio" name="product-type" value="card" checked onchange="toggleProductTypeFields()" class="form-radio">
+                        <span class="ml-2 text-sm">📦 Card Product</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="product-type" value="bottle" onchange="toggleProductTypeFields()" class="form-radio">
+                        <span class="ml-2 text-sm">🍾 Bottle Product</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="product-type" value="variety" onchange="toggleProductTypeFields()" class="form-radio">
+                        <span class="ml-2 text-sm">🌈 Variety Pack</span>
+                    </label>
+                </div>
+            </div>
+            
+            <form id="add-product-form" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="new-product-name" placeholder="Product Name" class="form-input" required>
+                    
+                    <!-- Single tablet type selector (for card and bottle products) -->
+                    <div id="single-tablet-type-field">
+                        <select id="new-tablet-type" name="tablet_type" class="form-input">
+                            <option value="">Select tablet type...</option>
+                            {% for category in categories %}
+                            {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
+                            {% if category_tablets %}
+                            <optgroup label="{{ category }}">
+                                {% for tt in category_tablets %}<option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>{% endfor %}
+                            </optgroup>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Card product fields -->
+                <div id="card-product-fields" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="number" id="new-ppd" placeholder="Packages per Display" class="form-input" min="1">
+                    <input type="number" id="new-tpp" placeholder="Tablets per Package" class="form-input" min="1">
+                    <button type="submit" class="btn-primary">Add Card Product</button>
+                </div>
+                
+                <!-- Bottle product fields -->
+                <div id="bottle-product-fields" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="number" id="new-tpb" placeholder="Tablets per Bottle" class="form-input" min="1">
+                    <input type="number" id="new-bpd" placeholder="Bottles per Display" class="form-input" min="1">
+                    <button type="submit" class="btn-primary">Add Bottle Product</button>
+                </div>
+                
+                <!-- Variety pack fields -->
+                <div id="variety-pack-fields" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="number" id="new-vp-tpb" placeholder="Total Tablets per Bottle (e.g., 12)" class="form-input" min="1">
+                        <input type="number" id="new-vp-bpd" placeholder="Bottles per Display (e.g., 6)" class="form-input" min="1">
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <label class="block text-sm font-medium text-gray-700">Pack Contents - Which Flavors & How Many</label>
+                            <button type="button" onclick="addVarietyPackFlavor()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add Flavor</button>
+                        </div>
+                        <div id="variety-pack-contents" class="space-y-2">
+                            <!-- Dynamically added flavor entries -->
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Example: 2x Pineapple + 2x Spearmint + 2x Mango = 6 tablets per flavor × 6 flavors = 12 total</p>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary w-full">Add Variety Pack</button>
+                </div>
             </form>
         </div>
 
         <!-- Products List -->
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900">Products</h3>
+                <h3 class="text-lg font-medium text-gray-900">All Products</h3>
             </div>
             
             {% for category in categories %}
@@ -293,56 +302,72 @@
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-600 text-white">{{ category_products | length }}</span>
                 </button>
                 <div id="section-prod-{{ category | replace(' ', '-') }}" class="section-content hidden">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pkg/Display</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tab/Pkg</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tabs/Display</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            {% for product in category_products %}
-                            <tr class="hover:bg-gray-50" id="product-row-{{ product.id }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    <span class="product-display" id="name-display-{{ product.id }}">{{ product.product_name }}</span>
-                                    <input type="text" class="form-input product-edit hidden text-sm" id="name-edit-{{ product.id }}" value="{{ product.product_name }}">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{{ product.tablet_type_name }}</span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span class="product-display" id="ppd-display-{{ product.id }}">{{ product.packages_per_display }}</span>
-                                    <input type="number" class="form-input product-edit hidden w-20 text-sm" id="ppd-edit-{{ product.id }}" value="{{ product.packages_per_display }}" min="1">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span class="product-display" id="tpp-display-{{ product.id }}">{{ product.tablets_per_package }}</span>
-                                    <input type="number" class="form-input product-edit hidden w-20 text-sm" id="tpp-edit-{{ product.id }}" value="{{ product.tablets_per_package }}" min="1">
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                                    {{ product.packages_per_display * product.tablets_per_package }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    <div class="product-display" id="actions-pdisplay-{{ product.id }}">
-                                        <button onclick="editProduct({{ product.id }})" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
-                                        <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900">Delete</button>
+                    <div class="divide-y divide-gray-200">
+                        {% for product in category_products %}
+                        <div class="p-4 hover:bg-gray-50" id="product-row-{{ product.id }}">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-lg">
+                                        {% if product.is_variety_pack %}🌈
+                                        {% elif product.is_bottle_product %}🍾
+                                        {% else %}📦{% endif %}
+                                    </span>
+                                    <div>
+                                        <div class="font-medium text-gray-900">{{ product.product_name }}</div>
+                                        <div class="text-xs text-gray-500">
+                                            {% if product.is_variety_pack %}
+                                                Variety Pack: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                            {% elif product.is_bottle_product %}
+                                                {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                            {% else %}
+                                                {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                    <div class="product-edit hidden" id="actions-pedit-{{ product.id }}">
-                                        <button onclick="saveProduct({{ product.id }})" class="text-green-600 hover:text-green-900 mr-2">Save</button>
-                                        <button onclick="cancelProductEdit({{ product.id }})" class="text-gray-600 hover:text-gray-900">Cancel</button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
             {% endif %}
             {% endfor %}
+            
+            <!-- Variety Packs Section (show separately if any exist) -->
+            {% set variety_packs = products | selectattr('is_variety_pack') | list %}
+            {% if variety_packs %}
+            <div class="border-b border-gray-200">
+                <button onclick="toggleSection('prod-variety-packs')" 
+                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 text-left flex items-center gap-3">
+                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-variety-packs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    <span class="font-semibold text-gray-700">🌈 Variety Packs</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-600 text-white">{{ variety_packs | length }}</span>
+                </button>
+                <div id="section-prod-variety-packs" class="section-content hidden">
+                    <div class="divide-y divide-gray-200">
+                        {% for product in variety_packs %}
+                        <div class="p-4 hover:bg-gray-50">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="font-medium text-gray-900">{{ product.product_name }}</div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ product.tablets_per_bottle }} tablets/bottle, {{ product.bottles_per_display }} bottles/display
+                                    </div>
+                                </div>
+                                <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Tablet Types Missing Products -->
@@ -446,16 +471,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.section-chevron').forEach(chevron => chevron.style.transform = 'rotate(-90deg)');
 });
 
-// Variety pack fields toggle
-document.getElementById('new-is-variety-pack')?.addEventListener('change', function(e) {
-    document.getElementById('variety-pack-fields').classList.toggle('hidden', !e.target.checked);
-});
-
-function toggleVarietyFields(id) {
-    const checkbox = document.getElementById(`variety-check-${id}`);
-    document.getElementById(`variety-fields-${id}`)?.classList.toggle('hidden', !checkbox?.checked);
-}
-
 // Tablet Type CRUD
 function editTabletType(id) {
     document.querySelectorAll(`#tablet-row-${id} .tablet-display`).forEach(el => el.classList.add('hidden'));
@@ -470,11 +485,7 @@ function cancelTabletEdit(id) {
 async function saveTabletType(id) {
     const data = {
         tablet_type_id: id,
-        inventory_item_id: document.getElementById(`id-edit-${id}`).value.trim(),
-        is_bottle_only: document.getElementById(`bottle-only-check-${id}`)?.checked || false,
-        is_variety_pack: document.getElementById(`variety-check-${id}`)?.checked || false,
-        tablets_per_bottle: parseInt(document.getElementById(`tablets-bottle-${id}`)?.value) || null,
-        bottles_per_pack: parseInt(document.getElementById(`bottles-pack-${id}`)?.value) || null
+        inventory_item_id: document.getElementById(`id-edit-${id}`).value.trim()
     };
     try {
         const response = await csrfFetch('/api/update_tablet_type_inventory', {
@@ -502,10 +513,7 @@ document.getElementById('add-tablet-type-form')?.addEventListener('submit', asyn
     const data = {
         tablet_type_name: document.getElementById('new-tablet-name').value.trim(),
         inventory_item_id: document.getElementById('new-inventory-id').value.trim() || null,
-        is_bottle_only: document.getElementById('new-is-bottle-only').checked,
-        is_variety_pack: document.getElementById('new-is-variety-pack').checked,
-        tablets_per_bottle: parseInt(document.getElementById('new-tablets-per-bottle')?.value) || null,
-        bottles_per_pack: parseInt(document.getElementById('new-bottles-per-pack')?.value) || null
+        category: document.getElementById('new-tablet-category')?.value || null
     };
     try {
         const response = await csrfFetch('/api/add_tablet_type', {
@@ -517,41 +525,72 @@ document.getElementById('add-tablet-type-form')?.addEventListener('submit', asyn
     } catch (e) { showError(e.message); }
 });
 
-// Product CRUD
-function editProduct(id) {
-    document.querySelectorAll(`#product-row-${id} .product-display`).forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll(`#product-row-${id} .product-edit`).forEach(el => el.classList.remove('hidden'));
+// Product type toggle
+function toggleProductTypeFields() {
+    const productType = document.querySelector('input[name="product-type"]:checked')?.value || 'card';
+    
+    document.getElementById('card-product-fields').classList.toggle('hidden', productType !== 'card');
+    document.getElementById('bottle-product-fields').classList.toggle('hidden', productType !== 'bottle');
+    document.getElementById('variety-pack-fields').classList.toggle('hidden', productType !== 'variety');
+    document.getElementById('single-tablet-type-field').classList.toggle('hidden', productType === 'variety');
+    
+    // Update required fields
+    const cardFields = ['new-ppd', 'new-tpp'];
+    const bottleFields = ['new-tpb', 'new-bpd'];
+    const varietyFields = ['new-vp-tpb', 'new-vp-bpd'];
+    
+    cardFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = productType === 'card';
+    });
+    bottleFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = productType === 'bottle';
+    });
+    varietyFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = productType === 'variety';
+    });
+    
+    const tabletTypeSelect = document.getElementById('new-tablet-type');
+    if (tabletTypeSelect) tabletTypeSelect.required = productType !== 'variety';
 }
 
-function cancelProductEdit(id) {
-    document.querySelectorAll(`#product-row-${id} .product-display`).forEach(el => el.classList.remove('hidden'));
-    document.querySelectorAll(`#product-row-${id} .product-edit`).forEach(el => el.classList.add('hidden'));
-}
-
-async function saveProduct(id) {
-    const data = {
-        id: id,
-        product_name: document.getElementById(`name-edit-${id}`).value,
-        packages_per_display: parseInt(document.getElementById(`ppd-edit-${id}`).value),
-        tablets_per_package: parseInt(document.getElementById(`tpp-edit-${id}`).value)
-    };
-    try {
-        const response = await csrfFetch('/api/save_product', {
-            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
-        });
-        const result = await response.json();
-        if (result.success) { showSuccess(result.message); setTimeout(() => location.reload(), 1000); }
-        else { showError(result.error); }
-    } catch (e) { showError(e.message); }
+// Variety pack flavor management
+let flavorCounter = 0;
+function addVarietyPackFlavor() {
+    const container = document.getElementById('variety-pack-contents');
+    if (!container) return;
+    
+    const flavorId = `flavor-${++flavorCounter}`;
+    const flavorDiv = document.createElement('div');
+    flavorDiv.className = 'flex gap-2 items-center p-2 bg-gray-50 rounded';
+    flavorDiv.id = flavorId;
+    
+    flavorDiv.innerHTML = `
+        <select class="form-input text-sm flex-1 flavor-select" required>
+            <option value="">Select flavor...</option>
+            {% for category in categories %}
+            {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
+            {% if category_tablets %}
+            <optgroup label="{{ category }}">
+                {% for tt in category_tablets %}<option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% endfor %}
+        </select>
+        <input type="number" class="form-input text-sm w-24 qty-input" placeholder="Qty" min="1" required>
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-800 text-lg font-bold px-2">×</button>
+    `;
+    container.appendChild(flavorDiv);
 }
 
 async function deleteProduct(id) {
-    const name = document.getElementById(`name-display-${id}`)?.textContent;
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!confirm('Delete this product?')) return;
     try {
         const response = await csrfFetch(`/api/delete_product/${id}`, { method: 'DELETE' });
         const result = await response.json();
-        if (result.success) { showSuccess(result.message); document.getElementById(`product-row-${id}`).remove(); }
+        if (result.success) { showSuccess(result.message); document.getElementById(`product-row-${id}`)?.remove(); }
         else { showError(result.error); }
     } catch (e) { showError(e.message); }
 }
@@ -559,14 +598,86 @@ async function deleteProduct(id) {
 // Add product form
 document.getElementById('add-product-form')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const select = document.getElementById('new-tablet-type');
-    const option = select.options[select.selectedIndex];
-    const data = {
-        product_name: document.getElementById('new-product-name').value,
-        tablet_type_id: parseInt(option.getAttribute('data-id')),
-        packages_per_display: parseInt(document.getElementById('new-ppd').value),
-        tablets_per_package: parseInt(document.getElementById('new-tpp').value)
-    };
+    
+    const productType = document.querySelector('input[name="product-type"]:checked')?.value || 'card';
+    const productName = document.getElementById('new-product-name').value.trim();
+    
+    if (!productName) {
+        showError('Product name is required');
+        return;
+    }
+    
+    let data = { product_name: productName };
+    
+    if (productType === 'card') {
+        // Card product
+        const tabletTypeId = document.getElementById('new-tablet-type').value;
+        const ppd = document.getElementById('new-ppd').value;
+        const tpp = document.getElementById('new-tpp').value;
+        
+        if (!tabletTypeId || !ppd || !tpp) {
+            showError('All fields are required for card products');
+            return;
+        }
+        
+        data.tablet_type_id = parseInt(tabletTypeId);
+        data.packages_per_display = parseInt(ppd);
+        data.tablets_per_package = parseInt(tpp);
+        data.is_bottle_product = false;
+        data.is_variety_pack = false;
+        
+    } else if (productType === 'bottle') {
+        // Bottle product (single flavor)
+        const tabletTypeId = document.getElementById('new-tablet-type').value;
+        const tpb = document.getElementById('new-tpb').value;
+        const bpd = document.getElementById('new-bpd').value;
+        
+        if (!tabletTypeId || !tpb || !bpd) {
+            showError('All fields are required for bottle products');
+            return;
+        }
+        
+        data.tablet_type_id = parseInt(tabletTypeId);
+        data.tablets_per_bottle = parseInt(tpb);
+        data.bottles_per_display = parseInt(bpd);
+        data.is_bottle_product = true;
+        data.is_variety_pack = false;
+        
+    } else if (productType === 'variety') {
+        // Variety pack
+        const tpb = document.getElementById('new-vp-tpb').value;
+        const bpd = document.getElementById('new-vp-bpd').value;
+        
+        if (!tpb || !bpd) {
+            showError('Tablets per bottle and bottles per display are required');
+            return;
+        }
+        
+        // Collect variety pack contents
+        const contents = [];
+        document.querySelectorAll('#variety-pack-contents > div').forEach(div => {
+            const select = div.querySelector('.flavor-select');
+            const qtyInput = div.querySelector('.qty-input');
+            if (select?.value && qtyInput?.value) {
+                contents.push({
+                    tablet_type_id: parseInt(select.value),
+                    tablets_per_bottle: parseInt(qtyInput.value)
+                });
+            }
+        });
+        
+        if (contents.length === 0) {
+            showError('Add at least one flavor to the variety pack');
+            return;
+        }
+        
+        data.tablets_per_bottle = parseInt(tpb);
+        data.bottles_per_display = parseInt(bpd);
+        data.variety_pack_contents = JSON.stringify(contents);
+        data.is_bottle_product = true;
+        data.is_variety_pack = true;
+    }
+    
     try {
         const response = await csrfFetch('/api/save_product', {
             method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
