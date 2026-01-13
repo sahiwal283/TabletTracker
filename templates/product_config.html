@@ -568,7 +568,7 @@ function addVarietyPackFlavor() {
     flavorDiv.id = flavorId;
     
     flavorDiv.innerHTML = `
-        <select class="form-input text-sm flex-1 flavor-select" required>
+        <select class="form-input text-sm flavor-select" style="flex: 1; min-width: 200px;" required>
             <option value="">Select flavor...</option>
             {% for category in categories %}
             {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
@@ -579,7 +579,7 @@ function addVarietyPackFlavor() {
             {% endif %}
             {% endfor %}
         </select>
-        <input type="number" class="form-input text-sm w-24 qty-input" placeholder="Qty" min="1" required>
+        <input type="number" class="form-input text-sm qty-input" style="width: 70px;" placeholder="Qty" min="1" required>
         <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-800 text-lg font-bold px-2">×</button>
     `;
     container.appendChild(flavorDiv);
