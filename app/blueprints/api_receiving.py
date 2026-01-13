@@ -109,18 +109,26 @@ def get_receiving_details(receive_id):
                                 0)
                     machine_total += sub_total
                 
-                # Packaged submissions
+                # Packaged submissions (includes bottle deductions)
                 packaged_count = conn.execute('''
                     SELECT COALESCE(SUM(
-                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        COALESCE(ws.loose_tablets, 0)
+                        CASE 
+                            WHEN ws.submission_type = 'bottle' THEN
+                                CASE 
+                                    WHEN COALESCE(ws.loose_tablets, 0) > 0 THEN ws.loose_tablets
+                                    ELSE COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                                END
+                            ELSE
+                                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                                COALESCE(ws.loose_tablets, 0)
+                        END
                     ), 0) as total_packaged
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                     LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
                     LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
-                    WHERE ws.submission_type = 'packaged'
+                    WHERE ws.submission_type IN ('packaged', 'bottle')
                     AND (
                         (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
                         OR (
@@ -664,18 +672,26 @@ def reserve_bag_for_bottles(bag_id):
             if bag.get('status') == 'Closed':
                 return jsonify({'success': False, 'error': 'Cannot reserve a closed bag'}), 400
             
-            # Calculate remaining tablets (original - packaged)
-            # Machine count is intermediary, packaged is what's actually consumed
+            # Calculate remaining tablets (original - packaged - bottle)
+            # Machine count is intermediary, packaged and bottle are what's actually consumed
             original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
             
             packaged_total = conn.execute('''
                 SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                    CASE 
+                        WHEN ws.submission_type = 'bottle' THEN
+                            CASE 
+                                WHEN COALESCE(ws.loose_tablets, 0) > 0 THEN ws.loose_tablets
+                                ELSE COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                            END
+                        ELSE
+                            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                    END
                 ), 0) as total
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottle')
             ''', (bag_id,)).fetchone()
             
             packaged_count = packaged_total['total'] if packaged_total else 0
@@ -738,17 +754,25 @@ def get_reserved_bags():
                 bag = dict(bag_row)
                 tt_id = bag['tablet_type_id']
                 
-                # Calculate remaining tablets for this bag
+                # Calculate remaining tablets for this bag (including bottle deductions)
                 original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
                 
                 packaged_total = conn.execute('''
                     SELECT COALESCE(SUM(
-                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                        CASE 
+                            WHEN ws.submission_type = 'bottle' THEN
+                                CASE 
+                                    WHEN COALESCE(ws.loose_tablets, 0) > 0 THEN ws.loose_tablets
+                                    ELSE COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                                END
+                            ELSE
+                                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+                        END
                     ), 0) as total
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                    WHERE ws.bag_id = ? AND ws.submission_type IN ('packaged', 'bottle')
                 ''', (bag['id'],)).fetchone()
                 
                 packaged_count = packaged_total['total'] if packaged_total else 0
