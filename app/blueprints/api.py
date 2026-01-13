@@ -1455,10 +1455,11 @@ def get_submission_details(submission_id):
                 return jsonify({'success': False, 'error': 'Submission not found'}), 404
             
             submission_dict = dict(submission)
-            submission_type = submission_dict.get('submission_type', 'packaged')
+            submission_type = submission_dict.get('submission_type') or 'packaged'
             
-            # Check if this is a variety pack or bottle product (fix for legacy submissions without submission_type)
-            if submission_type != 'bottle' and submission_dict.get('product_name'):
+            # Always check product config to determine if this is a bottle/variety pack submission
+            # This handles both new submissions and legacy ones where submission_type might not be set
+            if submission_dict.get('product_name'):
                 product_config = conn.execute('''
                     SELECT is_variety_pack, is_bottle_product FROM product_details WHERE product_name = ?
                 ''', (submission_dict.get('product_name'),)).fetchone()
@@ -1467,6 +1468,7 @@ def get_submission_details(submission_id):
                     if product_config_dict.get('is_variety_pack') or product_config_dict.get('is_bottle_product'):
                         submission_type = 'bottle'
                         submission_dict['submission_type'] = 'bottle'
+                        current_app.logger.info(f"Detected bottle/variety pack submission {submission_id} for product {submission_dict.get('product_name')}")
             
             # If bag_label_count is 0 or missing but bag_id exists, try to get it directly from bags table
             if submission_dict.get('bag_id') and (not submission_dict.get('bag_label_count') or submission_dict.get('bag_label_count') == 0):
