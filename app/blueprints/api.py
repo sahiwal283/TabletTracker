@@ -1965,6 +1965,7 @@ def delete_submission(submission_id):
             submission = conn.execute('''
                 SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
                        loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
+                       bottles_made,
                        COALESCE(submission_type, 'packaged') as submission_type
                 FROM warehouse_submissions
                 WHERE id = ?
@@ -1981,27 +1982,44 @@ def delete_submission(submission_id):
             
             # Get product details for calculations
             product = conn.execute('''
-                SELECT pd.packages_per_display, pd.tablets_per_package
+                SELECT pd.packages_per_display, pd.tablets_per_package,
+                       pd.tablets_per_bottle, pd.bottles_per_display,
+                       pd.is_bottle_product, pd.is_variety_pack
                 FROM product_details pd
-                JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE pd.product_name = ?
             ''', (submission['product_name'],)).fetchone()
             
-            if not product:
-                return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
-            
-            # Convert Row to dict for safe access
-            product = dict(product)
-            
             # Calculate counts to remove based on submission type
             submission_type = submission.get('submission_type', 'packaged')
-            if submission_type == 'machine':
+            
+            if submission_type == 'bottle':
+                # For bottle submissions, delete junction table entries first
+                conn.execute('''
+                    DELETE FROM submission_bag_deductions WHERE submission_id = ?
+                ''', (submission_id,))
+                
+                # Calculate tablets for bottle submissions
+                if product:
+                    product = dict(product)
+                    tablets_per_bottle = product.get('tablets_per_bottle') or 0
+                    bottles_made = submission.get('bottles_made', 0) or 0
+                    good_tablets = bottles_made * tablets_per_bottle
+                else:
+                    # If no product config, just use 0 (can't calculate)
+                    good_tablets = 0
+            elif submission_type == 'machine':
                 good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
             else:
-                good_tablets = (submission['displays_made'] * product['packages_per_display'] * product['tablets_per_package'] +
-                               submission['packs_remaining'] * product['tablets_per_package'] +
+                # Packaged submissions require product config
+                if not product:
+                    return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
+                product = dict(product)
+                good_tablets = (submission['displays_made'] * (product.get('packages_per_display') or 0) * (product.get('tablets_per_package') or 0) +
+                               submission['packs_remaining'] * (product.get('tablets_per_package') or 0) +
                                submission['loose_tablets'])
-            damaged_tablets = submission['damaged_tablets']
+            
+            damaged_tablets = submission.get('damaged_tablets', 0) or 0
             
             # Remove counts from PO line if assigned
             if old_po_id and inventory_item_id:
