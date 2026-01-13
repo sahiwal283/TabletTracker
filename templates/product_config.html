@@ -22,18 +22,22 @@
     </div>
 
     <!-- Tab Navigation -->
-    <div class="flex border-b border-gray-200 mb-6">
+    <div class="flex border-b border-gray-200 mb-6 overflow-x-auto">
         <button onclick="switchTab('tablet-types')" id="tab-tablet-types" 
-                class="px-6 py-3 text-sm font-medium border-b-2 border-blue-500 text-blue-600">
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-blue-500 text-blue-600 whitespace-nowrap">
             🧪 Tablet Types
         </button>
         <button onclick="switchTab('products')" id="tab-products" 
-                class="px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
             📦 Products
         </button>
         <button onclick="switchTab('categories')" id="tab-categories" 
-                class="px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
             🏷️ Categories
+        </button>
+        <button onclick="switchTab('machines')" id="tab-machines" 
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
+            ⚙️ Machines
         </button>
     </div>
 
@@ -441,6 +445,55 @@
                         {% endfor %}
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MACHINES TAB ===== -->
+    <div id="content-machines" class="tab-content hidden">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 class="font-semibold text-blue-900 mb-1">⚙️ What are Machines?</h3>
+            <p class="text-sm text-blue-800">Machines are used for production counting. Each machine can produce a different number of blister cards per turn of the crank.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Machine Configuration</h3>
+                <button onclick="openAddMachineModal()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
+                    ➕ Add Machine
+                </button>
+            </div>
+
+            <div id="machines-list" class="space-y-3">
+                <!-- Will be populated by JavaScript -->
+                <p class="text-gray-500 text-center py-4">Loading machines...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Machine Modal -->
+<div id="machine-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeMachineModal()">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-t-lg">
+            <div class="flex justify-between items-center">
+                <h3 id="machine-modal-title" class="text-xl font-bold">Add Machine</h3>
+                <button onclick="closeMachineModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Machine Name <span class="text-red-600">*</span></label>
+                <input type="text" id="machine-name-input" placeholder="e.g., Machine 1, Production Line A" class="form-input w-full">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Cards Per Turn <span class="text-red-600">*</span></label>
+                <input type="number" id="machine-cards-input" min="1" value="1" class="form-input w-full">
+                <p class="text-xs text-gray-500 mt-1">How many blister cards does this machine produce per crank turn?</p>
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button onclick="closeMachineModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button onclick="saveMachine()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Machine</button>
             </div>
         </div>
     </div>
@@ -866,6 +919,142 @@ async function saveEditVarietyPack() {
         }
     } catch (e) { showError(e.message); }
 }
+
+// ===== MACHINE MANAGEMENT =====
+let machines = [];
+let editingMachineId = null;
+
+async function loadMachines() {
+    try {
+        const response = await fetch('/api/machines');
+        const data = await response.json();
+        
+        if (data.success) {
+            machines = data.machines;
+            renderMachinesList();
+        }
+    } catch (error) {
+        console.error('Error loading machines:', error);
+    }
+}
+
+function renderMachinesList() {
+    const container = document.getElementById('machines-list');
+    if (!container) return;
+    
+    if (machines.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No machines configured yet. Add your first machine!</p>';
+        return;
+    }
+    
+    container.innerHTML = machines.map(machine => `
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <div class="font-semibold text-gray-900">${machine.machine_name}</div>
+                    <div class="text-sm text-gray-500">${machine.cards_per_turn} cards per turn</div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="openEditMachineModal(${machine.id})" 
+                            class="text-blue-600 hover:text-blue-800 text-sm font-medium">✏️ Edit</button>
+                    <button onclick="deleteMachine(${machine.id}, '${machine.machine_name}')" 
+                            class="text-red-600 hover:text-red-800 text-sm font-medium">🗑️</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openAddMachineModal() {
+    editingMachineId = null;
+    document.getElementById('machine-modal-title').textContent = 'Add Machine';
+    document.getElementById('machine-name-input').value = '';
+    document.getElementById('machine-cards-input').value = '1';
+    document.getElementById('machine-modal').classList.remove('hidden');
+}
+
+function openEditMachineModal(machineId) {
+    editingMachineId = machineId;
+    const machine = machines.find(m => m.id === machineId);
+    if (!machine) return;
+    
+    document.getElementById('machine-modal-title').textContent = 'Edit Machine';
+    document.getElementById('machine-name-input').value = machine.machine_name;
+    document.getElementById('machine-cards-input').value = machine.cards_per_turn;
+    document.getElementById('machine-modal').classList.remove('hidden');
+}
+
+function closeMachineModal() {
+    document.getElementById('machine-modal').classList.add('hidden');
+    editingMachineId = null;
+}
+
+async function saveMachine() {
+    const name = document.getElementById('machine-name-input').value.trim();
+    const cardsPerTurn = parseInt(document.getElementById('machine-cards-input').value);
+    
+    if (!name) {
+        showError('Machine name is required');
+        return;
+    }
+    
+    if (!cardsPerTurn || cardsPerTurn < 1) {
+        showError('Cards per turn must be at least 1');
+        return;
+    }
+    
+    try {
+        const url = editingMachineId ? `/api/machines/${editingMachineId}` : '/api/machines';
+        const method = editingMachineId ? 'PUT' : 'POST';
+        
+        const response = await csrfFetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                machine_name: name,
+                cards_per_turn: cardsPerTurn
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            closeMachineModal();
+            loadMachines();
+        } else {
+            showError(result.error || 'Failed to save machine');
+        }
+    } catch (error) {
+        showError('Failed to save: ' + error.message);
+    }
+}
+
+async function deleteMachine(machineId, machineName) {
+    if (!confirm(`Delete machine "${machineName}"?\n\nThis will hide the machine from future selections but won't affect historical data.`)) {
+        return;
+    }
+    
+    try {
+        const response = await csrfFetch(`/api/machines/${machineId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            loadMachines();
+        } else {
+            showError(result.error || 'Failed to delete machine');
+        }
+    } catch (error) {
+        showError('Failed to delete: ' + error.message);
+    }
+}
+
+// Load machines when page loads
+document.addEventListener('DOMContentLoaded', loadMachines);
 </script>
 
 <!-- Edit Variety Pack Modal -->
