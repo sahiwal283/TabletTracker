@@ -257,7 +257,7 @@ async function toggleBagReservation(bagId, currentlyReserved, productName, bagNu
     const action = currentlyReserved ? 'unreserve' : 'reserve for bottles';
     
     try {
-        const response = await csrfFetch(`/api/bag/${bagId}/toggle-reservation`, {
+        const response = await csrfFetch(`/api/bag/${bagId}/reserve-bottles`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
