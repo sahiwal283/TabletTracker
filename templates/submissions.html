@@ -931,6 +931,7 @@ async function deleteSubmission(submissionId) {
 }
 
 // View submission details modal
+// VERSION: 2.24.33 - Bottle submission modal fix
 async function viewSubmissionDetails(submissionId) {
     try {
         const response = await fetch(`/api/submission/${submissionId}/details`);
@@ -951,11 +952,19 @@ async function viewSubmissionDetails(submissionId) {
         // Get bag deductions for bottle submissions
         const bagDeductions = data.bag_deductions || [];
         
+        // Debug logging - remove after confirming fix works
+        console.log('=== SUBMISSION DETAILS DEBUG (v2.24.33) ===');
+        console.log('submission_type:', sub.submission_type);
+        console.log('bagDeductions.length:', bagDeductions.length);
+        console.log('bottles_made:', sub.bottles_made);
+        
         // Auto-detect bottle submission: if we have bag_deductions OR bottles_made, it's a bottle submission
         // This provides a fallback in case submission_type isn't correctly set
         const isBottleSubmission = sub.submission_type === 'bottle' || 
                                    bagDeductions.length > 0 || 
                                    (sub.bottles_made && sub.bottles_made > 0);
+        
+        console.log('isBottleSubmission:', isBottleSubmission);
         
         // Determine submission type badge
         let typeBadge = '';
