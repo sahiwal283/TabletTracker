@@ -116,6 +116,7 @@ class SchemaManager:
             tablets_per_bottle INTEGER,
             bottles_per_display INTEGER,
             variety_pack_contents TEXT,
+            category TEXT,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
     

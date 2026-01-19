@@ -231,8 +231,16 @@
             </div>
             
             <form id="add-product-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <input type="text" id="new-product-name" placeholder="Product Name" class="form-input" required>
+                    
+                    <!-- Product Category (optional - overrides tablet type category) -->
+                    <select id="new-product-category" class="form-input">
+                        <option value="">Product Category (optional)</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
+                    </select>
                     
                     <!-- Single tablet type selector (for card and bottle products) -->
                     <div id="single-tablet-type-field">
@@ -330,7 +338,7 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <button onclick="openEditProductModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablet_type_id or 'null' }}, {{ product.packages_per_display or 0 }}, {{ product.tablets_per_package or 0 }}, {{ 'true' if product.is_bottle_product else 'false' }}, {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }})" 
+                                    <button onclick="openEditProductModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablet_type_id or 'null' }}, {{ product.packages_per_display or 0 }}, {{ product.tablets_per_package or 0 }}, {{ 'true' if product.is_bottle_product else 'false' }}, {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }}, '{{ product.category or '' }}')" 
                                             class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
                                     <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
@@ -688,13 +696,17 @@ document.getElementById('add-product-form')?.addEventListener('submit', async fu
     
     const productType = document.querySelector('input[name="product-type"]:checked')?.value || 'card';
     const productName = document.getElementById('new-product-name').value.trim();
+    const productCategory = document.getElementById('new-product-category')?.value || '';
     
     if (!productName) {
         showError('Product name is required');
         return;
     }
     
-    let data = { product_name: productName };
+    let data = { 
+        product_name: productName,
+        category: productCategory || null
+    };
     
     if (productType === 'card') {
         // Card product
@@ -1151,9 +1163,10 @@ document.addEventListener('DOMContentLoaded', loadMachines);
 // ===== EDIT PRODUCT (Card/Bottle) =====
 let editingProductIdGeneral = null;
 
-function openEditProductModal(id, name, tabletTypeId, ppd, tpp, isBottle, tpb, bpd) {
+function openEditProductModal(id, name, tabletTypeId, ppd, tpp, isBottle, tpb, bpd, category) {
     editingProductIdGeneral = id;
     document.getElementById('edit-prod-name').value = name;
+    document.getElementById('edit-prod-category').value = category || '';
     document.getElementById('edit-prod-tablet-type').value = tabletTypeId || '';
     
     // Set product type radio
@@ -1187,6 +1200,7 @@ function toggleEditProductType() {
 
 async function saveEditProduct() {
     const name = document.getElementById('edit-prod-name').value.trim();
+    const category = document.getElementById('edit-prod-category').value || '';
     const tabletTypeId = document.getElementById('edit-prod-tablet-type').value;
     const isBottle = document.getElementById('edit-prod-type-bottle').checked;
     
@@ -1198,6 +1212,7 @@ async function saveEditProduct() {
     const data = {
         id: editingProductIdGeneral,
         product_name: name,
+        category: category || null,
         tablet_type_id: tabletTypeId ? parseInt(tabletTypeId) : null
     };
     
@@ -1248,6 +1263,16 @@ async function saveEditProduct() {
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
                 <input type="text" id="edit-prod-name" class="form-input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Product Category (optional)</label>
+                <select id="edit-prod-category" class="form-input w-full">
+                    <option value="">Use tablet type category</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Override the tablet type's category if this product belongs to a different brand/line</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>

@@ -93,10 +93,11 @@ def product_config():
         with db_transaction() as conn:
             # Get all products with their tablet type and calculation details
             products = conn.execute('''
-                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, tt.category
+                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, 
+                       COALESCE(pd.category, tt.category) as category
                 FROM product_details pd
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                ORDER BY COALESCE(tt.category, 'ZZZ'), pd.product_name
+                ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
             
             # Check if category column exists and add it if missing

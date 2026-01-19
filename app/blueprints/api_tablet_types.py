@@ -98,6 +98,9 @@ def save_product():
         if not product_name:
             return jsonify({'success': False, 'error': 'Product name is required'}), 400
         
+        # Get optional category (products can have independent categories from tablet types)
+        category = data.get('category', '').strip() or None
+        
         is_bottle_product = data.get('is_bottle_product', False)
         is_variety_pack = data.get('is_variety_pack', False)
         
@@ -160,20 +163,20 @@ def save_product():
                     UPDATE product_details 
                     SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?,
                         is_bottle_product = ?, is_variety_pack = ?, tablets_per_bottle = ?, 
-                        bottles_per_display = ?, variety_pack_contents = ?
+                        bottles_per_display = ?, variety_pack_contents = ?, category = ?
                     WHERE id = ?
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
                       is_bottle_product, is_variety_pack, tablets_per_bottle,
-                      bottles_per_display, variety_pack_contents, product_id))
+                      bottles_per_display, variety_pack_contents, category, product_id))
                 message = f"Updated {product_name}"
             else:
                 conn.execute('''
                     INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package,
-                        is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents, category)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
                       is_bottle_product, is_variety_pack, tablets_per_bottle, 
-                      bottles_per_display, variety_pack_contents))
+                      bottles_per_display, variety_pack_contents, category))
                 message = f"Created {product_name}"
             
             return jsonify({'success': True, 'message': message})

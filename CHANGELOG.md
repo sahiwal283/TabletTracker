@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.26.0] - 2026-01-19
+
+### ✨ Feature
+
+#### Added Independent Product Category Field
+- **Feature**: Products can now have their own category independent of their tablet type's category
+- **Use Case**: Same tablet flavor can be packaged differently for different product lines/brands
+  - Example: "Hyroxi Mit A - Mango Peach" tablet type (MIT A category) can be packaged as "FIX MIT Just Peachy" product (FIX Energy category)
+- **Implementation**:
+  - Added `category` column to `product_details` table
+  - Products inherit tablet type category by default, but can override with their own category
+  - Product creation form includes optional "Product Category" selector
+  - Product edit form includes optional "Product Category" selector with helpful description
+  - Products tab now groups by product's own category (or tablet type category if not set)
+  - Backend query uses `COALESCE(pd.category, tt.category)` to handle both cases
+- **Benefits**:
+  - Supports multi-brand product lines using the same tablet flavors
+  - Different packaging styles can belong to appropriate product categories
+  - Maintains backward compatibility - products without category use tablet type category
+  - More flexible product organization for complex inventory needs
+- **Files Updated**:
+  - `app/models/schema.py` (added category column to product_details table definition)
+  - `app/blueprints/api_tablet_types.py` (save_product endpoint handles category)
+  - `app/blueprints/admin.py` (product query uses product category with fallback)
+  - `templates/product_config.html` (forms include category selector, edit modal updated)
+  - `database/add_product_category_column.py` (migration script created)
+
+---
+
 ## [2.25.2] - 2026-01-19
 
 ### 🐛 Bug Fix
