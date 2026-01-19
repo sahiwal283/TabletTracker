@@ -349,6 +349,28 @@ def update_tablet_type_category():
                 WHERE id = ?
             ''', (category, tablet_type_id))
             
+            # If a category was assigned (not removed), check if we can remove it from created_categories
+            # since it's now "in use" and will appear in the tablet_types query
+            if category:
+                try:
+                    created_categories_json = conn.execute('''
+                        SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
+                    ''').fetchone()
+                    
+                    if created_categories_json and created_categories_json['setting_value']:
+                        created_categories = set(json.loads(created_categories_json['setting_value']))
+                        if category in created_categories:
+                            # This was a newly created category that's now being used - remove from created list
+                            created_categories.remove(category)
+                            conn.execute('''
+                                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                                VALUES (?, ?, ?)
+                            ''', ('created_categories', json.dumps(list(created_categories)), 
+                                  'List of categories that have been created but may not have tablet types yet'))
+                except Exception as e:
+                    # Not critical - just log and continue
+                    current_app.logger.warning(f"Could not clean up created categories: {e}")
+            
             return jsonify({'success': True, 'message': 'Category updated successfully'})
     except Exception as e:
         current_app.logger.error(f"Error updating tablet type category: {str(e)}")
@@ -381,9 +403,10 @@ def get_tablet_types():
 @bp.route('/api/categories', methods=['GET'])
 @admin_required
 def get_categories():
-    """Get all unique categories"""
+    """Get all unique categories from both tablet_types and created_categories"""
     try:
         with db_read_only() as conn:
+            # Get categories from tablet_types (in use)
             categories = conn.execute('''
                 SELECT DISTINCT category 
                 FROM tablet_types 
@@ -392,7 +415,24 @@ def get_categories():
             ''').fetchall()
             
             category_list = [cat['category'] for cat in categories] if categories else []
+            category_set = set(category_list)
             
+            # Get created categories from app_settings (may not be in use yet)
+            try:
+                created_categories_json = conn.execute('''
+                    SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
+                ''').fetchone()
+                if created_categories_json and created_categories_json['setting_value']:
+                    created_categories = json.loads(created_categories_json['setting_value'])
+                    # Add to category set (union)
+                    for cat in created_categories:
+                        if cat and cat not in category_set:
+                            category_list.append(cat)
+                            category_set.add(cat)
+            except Exception as e:
+                current_app.logger.warning(f"Could not load created categories: {e}")
+            
+            # Get deleted categories
             deleted_categories_set = set()
             try:
                 deleted_categories_json = conn.execute('''
@@ -406,6 +446,7 @@ def get_categories():
             except Exception as e:
                 current_app.logger.warning(f"Could not load deleted categories: {e}")
             
+            # Get category order
             try:
                 category_order_json = conn.execute('''
                     SELECT setting_value FROM app_settings WHERE setting_key = 'category_order'
@@ -421,6 +462,7 @@ def get_categories():
                 current_app.logger.warning(f"Could not load category order: {e}")
                 preferred_order = sorted(category_list)
             
+            # Filter out deleted categories and sort
             all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
             all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
             
@@ -433,7 +475,7 @@ def get_categories():
 @bp.route('/api/categories', methods=['POST'])
 @admin_required
 def add_category():
-    """Add a new category"""
+    """Add a new category and persist it in app_settings"""
     try:
         data = request.get_json()
         category_name = data.get('category_name', '').strip()
@@ -441,7 +483,8 @@ def add_category():
         if not category_name:
             return jsonify({'success': False, 'error': 'Category name required'}), 400
         
-        with db_read_only() as conn:
+        with db_transaction() as conn:
+            # Check if category already exists in tablet_types
             existing = conn.execute('''
                 SELECT DISTINCT category 
                 FROM tablet_types 
@@ -451,9 +494,34 @@ def add_category():
             if existing:
                 return jsonify({'success': False, 'error': 'Category already exists'}), 400
             
+            # Get existing created categories from app_settings
+            created_categories = set()
+            try:
+                created_categories_json = conn.execute('''
+                    SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
+                ''').fetchone()
+                if created_categories_json and created_categories_json['setting_value']:
+                    created_categories = set(json.loads(created_categories_json['setting_value']))
+            except Exception:
+                created_categories = set()
+            
+            # Check if already in created categories
+            if category_name in created_categories:
+                return jsonify({'success': False, 'error': 'Category already exists'}), 400
+            
+            # Add new category to created_categories
+            created_categories.add(category_name)
+            
+            # Save back to app_settings
+            conn.execute('''
+                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                VALUES (?, ?, ?)
+            ''', ('created_categories', json.dumps(list(created_categories)), 
+                  'List of categories that have been created but may not have tablet types yet'))
+            
             return jsonify({
                 'success': True, 
-                'message': f'Category "{category_name}" is ready. Assign tablet types to make it active.'
+                'message': f'Category "{category_name}" created successfully!'
             })
     except Exception as e:
         current_app.logger.error(f"Error adding category: {str(e)}")
@@ -524,7 +592,7 @@ def rename_category():
 @bp.route('/api/categories/delete', methods=['POST'])
 @admin_required
 def delete_category():
-    """Delete a category (removes category from all tablet types)"""
+    """Delete a category (removes category from all tablet types and created_categories)"""
     try:
         data = request.get_json()
         category_name = data.get('category_name', '').strip()
@@ -558,27 +626,46 @@ def delete_category():
                 
                 if verify_delete['count'] != 0:
                     return jsonify({'success': False, 'error': 'Failed to delete category. Transaction rolled back.'}), 500
+            
+            # Remove from created_categories if it exists there
+            try:
+                created_categories_json = conn.execute('''
+                    SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
+                ''').fetchone()
                 
-                try:
-                    deleted_categories_json = conn.execute('''
+                if created_categories_json and created_categories_json['setting_value']:
+                    created_categories = set(json.loads(created_categories_json['setting_value']))
+                    if category_name in created_categories:
+                        created_categories.remove(category_name)
+                        conn.execute('''
+                            INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                            VALUES (?, ?, ?)
+                        ''', ('created_categories', json.dumps(list(created_categories)), 
+                              'List of categories that have been created but may not have tablet types yet'))
+            except Exception as e:
+                current_app.logger.warning(f"Could not remove from created categories: {e}")
+            
+            # Track as deleted
+            try:
+                deleted_categories_json = conn.execute('''
                     SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
                 ''').fetchone()
                 
-                    deleted_categories = set()
-                    if deleted_categories_json and deleted_categories_json['setting_value']:
-                        try:
-                            deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
-                        except (json.JSONDecodeError, ValueError, TypeError):
-                            deleted_categories = set()
+                deleted_categories = set()
+                if deleted_categories_json and deleted_categories_json['setting_value']:
+                    try:
+                        deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        deleted_categories = set()
                 
-                    deleted_categories.add(category_name)
+                deleted_categories.add(category_name)
                 
-                    conn.execute('''
-                        INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
-                        VALUES (?, ?, ?)
-                        ''', ('deleted_categories', json.dumps(list(deleted_categories)), 'List of deleted categories that should not appear'))
-                except Exception as e:
-                    current_app.logger.warning(f"Could not track deleted category: {e}")
+                conn.execute('''
+                    INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                    VALUES (?, ?, ?)
+                ''', ('deleted_categories', json.dumps(list(deleted_categories)), 'List of deleted categories that should not appear'))
+            except Exception as e:
+                current_app.logger.warning(f"Could not track deleted category: {e}")
             
             return jsonify({
                 'success': True, 

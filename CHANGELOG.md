@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.25.2] - 2026-01-19
+
+### 🐛 Bug Fix
+
+#### Fixed Category Creation Not Persisting
+- **Issue**: Users created new categories but they didn't show up in dropdowns or anywhere in the UI
+- **Root Cause**: The "Add Category" endpoint checked if category existed but didn't actually save it anywhere - categories only existed when assigned to tablet types
+- **Impact**: Newly created categories were invisible until manually typed in or assigned, making them unusable
+- **Fix**: 
+  - Categories now persist in `app_settings` table under `created_categories` key when created
+  - Category retrieval (GET `/api/categories`) now combines categories from both:
+    - `tablet_types` table (categories currently in use)
+    - `created_categories` in `app_settings` (newly created but not yet used)
+  - Category assignment automatically moves category from "created" to "in use" status
+  - Category deletion removes from both tablet_types and created_categories
+  - Admin product config page updated to show all categories including newly created ones
+- **Benefits**:
+  - Categories immediately appear in all dropdowns after creation
+  - Can create categories ahead of time before assigning tablet types
+  - Better workflow: create category → assign tablet types, instead of having to assign while creating
+  - Prevents confusion and duplicate category creation attempts
+- **Files Updated**:
+  - `app/blueprints/api_tablet_types.py` (add_category, get_categories, update_tablet_type_category, delete_category functions)
+  - `app/blueprints/admin.py` (product_config view to include created_categories)
+
+---
+
 ## [2.25.1] - 2026-01-19
 
 ### 🎨 UX Improvement

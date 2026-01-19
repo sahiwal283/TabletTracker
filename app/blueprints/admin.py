@@ -118,13 +118,29 @@ def product_config():
             ''').fetchall()
             tablet_types = [dict(row) for row in tablet_types_rows]
             
-            # Get unique categories
+            # Get unique categories from tablet_types (in use)
             categories = conn.execute('''
                 SELECT DISTINCT category FROM tablet_types 
                 WHERE category IS NOT NULL AND category != "" 
                 ORDER BY category
             ''').fetchall()
             category_list = [cat['category'] for cat in categories] if categories else []
+            category_set = set(category_list)
+            
+            # Get created categories from app_settings (may not be in use yet)
+            try:
+                created_categories_json = conn.execute('''
+                    SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
+                ''').fetchone()
+                if created_categories_json and created_categories_json['setting_value']:
+                    created_categories = json.loads(created_categories_json['setting_value'])
+                    # Add to category list (union)
+                    for cat in created_categories:
+                        if cat and cat not in category_set:
+                            category_list.append(cat)
+                            category_set.add(cat)
+            except Exception as e:
+                current_app.logger.warning(f"Warning: Could not load created categories: {e}")
             
             # Get deleted categories from app_settings
             deleted_categories_set = set()
