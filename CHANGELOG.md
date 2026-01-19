@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.25.1] - 2026-01-19
+
+### 🎨 UX Improvement
+
+#### Enhanced Unassigned Tablet Types UI for Easier Category Assignment
+- **Issue**: Users saw "Unassigned Tablet Types" warning but couldn't figure out how to assign categories
+- **Root Cause**: The dropdown selectors existed but were not obvious or user-friendly enough
+- **Improvements**:
+  - Made unassigned section more prominent with larger warning icon and better visual design
+  - Changed from inline dropdown-only to dropdown + "Assign Category" button for clearer action
+  - Added helpful description text: "These tablet types need to be assigned to a category"
+  - Improved layout with card-based design for each unassigned tablet type
+  - Added visual feedback: loading state on button ("Assigning..."), success toast notification
+  - Added smooth fade-out animation when tablet type is successfully assigned
+  - Section auto-hides when all tablet types are assigned
+  - More prominent orange gradient background with border to catch attention
+- **Benefits**:
+  - Clear call-to-action with dedicated button
+  - Users immediately understand what they need to do
+  - Better visual feedback confirms successful assignment
+  - Professional, polished user experience
+- **Files Updated**:
+  - `templates/product_config.html` (UI improvements and new `assignCategory()` JavaScript function)
+
+---
+
 ## [2.23.15] - 2025-01-XX
 
 ### 🐛 Bug Fix

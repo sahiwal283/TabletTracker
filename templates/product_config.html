@@ -431,22 +431,47 @@
                 {% endfor %}
                 
                 <!-- Unassigned -->
-                <div class="border border-orange-200 rounded-lg p-4 bg-orange-50">
-                    <h4 class="font-medium text-orange-800 mb-3">⚠️ Unassigned Tablet Types</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {% set unassigned_count = tablet_types | rejectattr('category') | list | length + (tablet_types | selectattr('category', 'equalto', '') | list | length) %}
+                {% if unassigned_count > 0 %}
+                <div class="border-2 border-orange-400 rounded-lg p-6 bg-gradient-to-br from-orange-50 to-yellow-50 shadow-lg">
+                    <div class="flex items-center mb-4">
+                        <svg class="w-8 h-8 text-orange-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div>
+                            <h4 class="font-bold text-xl text-orange-900">⚠️ Unassigned Tablet Types</h4>
+                            <p class="text-sm text-orange-700 mt-1">These tablet types need to be assigned to a category. Select a category for each one below.</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
                         {% for tt in tablet_types %}
                         {% if not tt.category or tt.category == '' %}
-                        <div class="flex items-center text-sm">
-                            <select class="text-xs border border-gray-300 rounded px-2 py-1 mr-2" onchange="updateTabletTypeCategory({{ tt.id }}, this.value, true)">
-                                <option value="">Assign to...</option>
-                                {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
-                            </select>
-                            <span>{{ tt.tablet_type_name }}</span>
+                        <div class="bg-white border border-orange-200 rounded-lg p-4 hover:shadow-md transition-shadow" id="unassigned-row-{{ tt.id }}">
+                            <div class="flex items-center justify-between flex-wrap gap-3">
+                                <div class="flex items-center gap-3 flex-1 min-w-0">
+                                    <span class="text-2xl">🏷️</span>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-semibold text-gray-900 truncate">{{ tt.tablet_type_name }}</div>
+                                        <div class="text-xs text-gray-500">Not categorized yet</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <select id="category-select-{{ tt.id }}" class="form-input text-sm px-3 py-2 border-2 border-orange-300 focus:border-orange-500 rounded-lg">
+                                        <option value="">-- Select Category --</option>
+                                        {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+                                    </select>
+                                    <button onclick="assignCategory({{ tt.id }}, '{{ tt.tablet_type_name | e }}')" 
+                                            class="btn-primary text-sm px-4 py-2 bg-orange-600 hover:bg-orange-700 whitespace-nowrap">
+                                        Assign Category
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                         {% endfor %}
                     </div>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -807,6 +832,71 @@ async function updateTabletTypeCategory(id, category, isChecked) {
         if (result.success) { setTimeout(() => location.reload(), 300); }
         else { alert('Error: ' + result.error); location.reload(); }
     } catch (e) { alert('Error: ' + e.message); location.reload(); }
+}
+
+// New function for assign category button
+async function assignCategory(tabletTypeId, tabletTypeName) {
+    const selectElement = document.getElementById(`category-select-${tabletTypeId}`);
+    const category = selectElement?.value;
+    
+    if (!category) {
+        showError('Please select a category first');
+        return;
+    }
+    
+    // Show loading state
+    const button = event.target;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Assigning...';
+    button.classList.add('opacity-50');
+    
+    try {
+        const response = await csrfFetch('/api/tablet_type/category', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                tablet_type_id: tabletTypeId, 
+                category: category 
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show success message
+            showSuccess(`✅ "${tabletTypeName}" assigned to "${category}"`);
+            
+            // Fade out the row
+            const row = document.getElementById(`unassigned-row-${tabletTypeId}`);
+            if (row) {
+                row.style.transition = 'opacity 0.5s, transform 0.5s';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(20px)';
+                
+                // Remove after animation and reload if this was the last one
+                setTimeout(() => {
+                    row.remove();
+                    // Check if there are any unassigned rows left
+                    const remainingRows = document.querySelectorAll('[id^="unassigned-row-"]');
+                    if (remainingRows.length === 0) {
+                        // Reload to show the updated categories
+                        setTimeout(() => location.reload(), 500);
+                    }
+                }, 500);
+            }
+        } else {
+            showError('Failed to assign category: ' + result.error);
+            button.disabled = false;
+            button.textContent = originalText;
+            button.classList.remove('opacity-50');
+        }
+    } catch (e) {
+        showError('Error: ' + e.message);
+        button.disabled = false;
+        button.textContent = originalText;
+        button.classList.remove('opacity-50');
+    }
 }
 
 // Toast notifications
