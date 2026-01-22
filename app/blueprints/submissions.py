@@ -127,7 +127,13 @@ def submissions_list():
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter, po.zoho_po_id,
                    pd.packages_per_display, pd.tablets_per_package,
-                   COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
+                   COALESCE(pd.tablets_per_package, (
+                       SELECT pd2.tablets_per_package 
+                       FROM product_details pd2
+                       JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                       WHERE tt2.inventory_item_id = ws.inventory_item_id
+                       LIMIT 1
+                   )) as tablets_per_package_final,
                    tt.inventory_item_id, tt.id as tablet_type_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    COALESCE(ws.needs_review, 0) as needs_review,
@@ -146,7 +152,13 @@ def submissions_list():
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
                            ws.loose_tablets,
-                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)),
                            0
                        )
                        WHEN 'bottle' THEN COALESCE(
@@ -154,8 +166,20 @@ def submissions_list():
                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                        )
                        ELSE (
-                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
-                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)) +
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)) + 
                        ws.loose_tablets + ws.damaged_tablets
                        )
                    END as calculated_total
@@ -163,8 +187,6 @@ def submissions_list():
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
@@ -503,7 +525,13 @@ def export_submissions_csv():
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    pd.packages_per_display, pd.tablets_per_package,
-                   COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
+                   COALESCE(pd.tablets_per_package, (
+                       SELECT pd2.tablets_per_package 
+                       FROM product_details pd2
+                       JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                       WHERE tt2.inventory_item_id = ws.inventory_item_id
+                       LIMIT 1
+                   )) as tablets_per_package_final,
                    tt.inventory_item_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    ws.admin_notes,
@@ -512,7 +540,13 @@ def export_submissions_csv():
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
                            ws.loose_tablets,
-                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)),
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)),
                            0
                        )
                        WHEN 'bottle' THEN COALESCE(
@@ -520,8 +554,20 @@ def export_submissions_csv():
                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                        )
                        ELSE (
-                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) +
-                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package), 0)) + 
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)) +
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)) + 
                        ws.loose_tablets + ws.damaged_tablets
                        )
                    END as calculated_total
@@ -529,8 +575,6 @@ def export_submissions_csv():
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
             WHERE 1=1
             '''
             

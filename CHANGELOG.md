@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.7] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Duplicate Rows in Submissions Display
+- **Issue**: Single submission appeared as 2+ identical rows in submissions list
+  - Example: Receipt 6393-41 showed 2 machine count rows, but database had only 1 submission
+  - Deleting one row appeared to delete both (actually just removed duplicates from display)
+- **Root Cause**: SQL query cartesian product from fallback product joins
+  - Query joined to `product_details pd_fallback` via tablet_types for fallback calculations
+  - When multiple products use same tablet type (7OH 1ct, 4ct, 7ct all use "18mg 7OH"), join creates duplicate rows
+  - Example: Submission → joins to 18mg 7OH tablet → joins to 3 products → 3 rows for 1 submission
+- **Impact**: 
+  - Inflated submission counts in UI (148 shown but fewer actually exist)
+  - Confusing user experience - "deleting 1 deletes 2"
+  - Incorrect pagination
+  - Export CSV had duplicate rows
+- **Fix**: Replaced problematic JOINs with subqueries using LIMIT 1
+  - Changed from: `LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id`
+  - Changed to: Subquery with `LIMIT 1` to get single fallback value
+  - Applied fix to both submissions list query and CSV export query
+  - Eliminates cartesian product while maintaining fallback functionality
+- **Result**: Each submission now displays exactly once (1 submission = 1 row)
+- **Files Updated**:
+  - `app/blueprints/submissions.py` (fixed both queries - list view and CSV export)
+
+---
+
 ## [2.27.6] - 2026-01-22
 
 ### 🐛 Bug Fix
