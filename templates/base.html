@@ -2662,7 +2662,7 @@ async function viewReceiveDetails(receiveId, receiveName) {
                                     </div>
                                     <div class="flex items-center gap-2">
                                     <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
-                                        ${!isClosed && remaining > 0 && (isAdmin || isManager) ? `
+                                        ${!zohoReceivePushed && (isAdmin || isManager) ? `
                                             <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number});" 
                                                     id="reserve-btn-${bag.bag_id}"
                                                     class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.6] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Reserved Bags Accepting Regular Submissions
+- **Issue**: Bags marked as "Reserved" were still accepting machine count and packaged submissions
+  - Reserved bags should ONLY accept variety pack/bottle submissions
+  - Regular submissions (machine, packaged, bag count) were matching to reserved bags
+- **Root Cause**: `find_bag_for_submission()` queries didn't filter out `reserved_for_bottles = 1`
+  - All 4 query variations (box-based/flavor-based × packaging/non-packaging) missing reserved check
+  - Reserved bags appeared in matching results like any other bag
+- **Impact**: Reserved bags got contaminated with non-variety submissions, breaking variety pack inventory tracking
+- **Fix**: Added `AND COALESCE(b.reserved_for_bottles, 0) = 0` to all bag matching queries
+- **Result**: Reserved bags now properly isolated for variety pack use only
+
+#### Added Unreserve Button for Closed Bags
+- **Issue**: Closed bags with "Reserved" status had no way to unreserve them
+- **Root Cause**: Reserve/Unreserve button condition was `!isClosed && remaining > 0`
+  - Closed bags didn't show the button at all
+  - User couldn't unreserve even if bag wasn't pushed to Zoho yet
+- **Fix**: Changed condition to `!zohoReceivePushed` instead of `!isClosed && remaining > 0`
+  - Shows reserve/unreserve button on all bags (open or closed)
+  - Hides button only after bag pushed to Zoho (irreversible action)
+  - Makes sense: reservation is independent of bag closure status
+- **Result**: Admins/managers can now unreserve closed bags (as long as not pushed to Zoho)
+
+**Files Updated:**
+- `app/utils/receive_tracking.py` (added reserved_for_bottles exclusion to 4 queries)
+- `templates/base.html` (fixed unreserve button visibility condition)
+
+---
+
 ## [2.27.5] - 2026-01-22
 
 ### 🐛 Bug Fix
