@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.3] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Machine Count Submission Error - Undefined Variable
+- **Issue**: Machine count submission failed with "name 'tablet_type' is not defined" error (500 INTERNAL SERVER ERROR)
+- **Root Cause**: Code still referenced old `tablet_type` variable that was removed when switching to product-based selection
+  - Lines 562-563 tried to get `tablet_type.get('inventory_item_id')` and `tablet_type.get('id')`
+  - But `tablet_type` variable no longer exists - replaced with `product`
+- **Impact**: Machine count submissions completely broken - users couldn't submit counts
+- **Fix**: Removed redundant variable references (inventory_item_id and tablet_type_id already extracted from product earlier)
+- **Files Updated**:
+  - `app/blueprints/production.py` (removed references to undefined tablet_type variable)
+
+---
+
 ## [2.27.2] - 2026-01-22
 
 ### 🐛 Bug Fix
