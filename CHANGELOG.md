@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.2] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Product Dropdown Not Populating in Machine Count Form
+- **Issue**: Categories appeared in dropdown but no products showed when selecting a category
+- **Root Cause**: `convertToTwoLevelDropdown()` function designed for tablet types, not products
+  - Function fetched from `/api/tablet_types/categories` and matched by tablet type ID/name
+  - Products have different IDs (product IDs), names, and categories than tablet types
+  - JavaScript couldn't match products to categories, so second dropdown stayed empty
+- **Fix**: 
+  - Created new `convertToTwoLevelDropdownByDataAttr()` function specifically for products
+  - Uses `data-category` attribute directly from option elements (no API call needed)
+  - Simpler, faster, and works correctly with product categories
+  - Groups products by their category (product category or tablet category fallback)
+  - Machine Count form now uses new function
+- **Result**: FIX MIT products and all other products now appear correctly in categorized dropdowns
+- **Files Updated**:
+  - `templates/base.html` (added new convertToTwoLevelDropdownByDataAttr function)
+  - `templates/production.html` (added data-category attribute, use new function)
+
+---
+
 ## [2.27.1] - 2026-01-22
 
 ### 🐛 Bug Fix

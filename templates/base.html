@@ -651,6 +651,105 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
     }
 }
 
+// Convert dropdown to two-level system using data attributes (for products)
+function convertToTwoLevelDropdownByDataAttr(selectElement, dataAttrName) {
+    if (!selectElement || selectElement.tagName !== 'SELECT') return;
+    
+    // Check if already converted
+    if (selectElement.dataset.twoLevelConverted === 'true') return;
+    selectElement.dataset.twoLevelConverted = 'true';
+    
+    const options = Array.from(selectElement.options);
+    const placeholder = options.find(opt => opt.value === '' || opt.value === null);
+    
+    // Group options by data attribute
+    const groups = {};
+    options.forEach(option => {
+        if (!option.value || option.value === '') return;
+        
+        const category = option.getAttribute(dataAttrName) || 'Other';
+        if (!groups[category]) {
+            groups[category] = [];
+        }
+        groups[category].push(option);
+    });
+    
+    // Sort categories alphabetically
+    const sortedCategories = Object.keys(groups).sort();
+    
+    // Hide original select
+    selectElement.style.display = 'none';
+    
+    // Create category dropdown
+    const categorySelect = document.createElement('select');
+    categorySelect.className = selectElement.className;
+    categorySelect.required = selectElement.required;
+    categorySelect.innerHTML = '<option value="">Select category...</option>';
+    
+    // Add category options
+    sortedCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        categorySelect.appendChild(opt);
+    });
+    
+    // Create item dropdown
+    const itemSelect = document.createElement('select');
+    itemSelect.className = selectElement.className;
+    itemSelect.id = selectElement.id + '_item';
+    itemSelect.name = selectElement.name;
+    itemSelect.required = selectElement.required;
+    itemSelect.style.display = 'none';
+    itemSelect.innerHTML = '<option value="">Select item...</option>';
+    
+    // Insert dropdowns
+    selectElement.parentNode.insertBefore(categorySelect, selectElement);
+    selectElement.parentNode.insertBefore(itemSelect, selectElement);
+    
+    // Handle category selection
+    categorySelect.addEventListener('change', function() {
+        const selectedCategory = this.value;
+        
+        // Show/hide item dropdown
+        if (selectedCategory) {
+            itemSelect.style.display = '';
+            itemSelect.innerHTML = '<option value="">Select item...</option>';
+            
+            // Populate items for selected category
+            if (groups[selectedCategory]) {
+                groups[selectedCategory].forEach(opt => {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = opt.value;
+                    newOpt.textContent = opt.textContent;
+                    // Copy all data attributes
+                    Array.from(opt.attributes).forEach(attr => {
+                        if (attr.name.startsWith('data-')) {
+                            newOpt.setAttribute(attr.name, attr.value);
+                        }
+                    });
+                    itemSelect.appendChild(newOpt);
+                });
+            }
+        } else {
+            itemSelect.style.display = 'none';
+            itemSelect.value = '';
+        }
+        
+        // Clear original select value when category changes
+        selectElement.value = '';
+    });
+    
+    // Handle item selection
+    itemSelect.addEventListener('change', function() {
+        selectElement.value = this.value;
+        
+        // Trigger change event on original select for any listeners
+        const event = new Event('change', { bubbles: true });
+        selectElement.dispatchEvent(event);
+    });
+}
+
 // Convert tablet type dropdown to two-level dropdown system
 // Moved here to be available for openEditSubmissionModal
 async function convertToTwoLevelDropdown(selectElement) {
