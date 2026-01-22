@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.4] - 2026-01-22
+
+### 🎨 UX Improvement
+
+#### Improved Error Message for Zoho Over-Receipt Validation
+- **Issue**: Users received generic "Failed to create purchase receive in Zoho" error when pushing bags
+- **Root Cause**: Zoho API returns error code 36012 when packaged quantity exceeds ordered quantity
+  - Example: PO ordered 1000 tablets, but bag packaged count is 1100 tablets
+  - Zoho enforces business rule: cannot receive more than ordered
+  - Generic error message didn't explain the actual issue or how to fix it
+- **Improvement**: 
+  - Added specific handling for Zoho error code 36012
+  - Clear error message: "Packaged quantity (X) exceeds quantity ordered in PO"
+  - Explains Zoho's business rule enforcement
+  - Suggests resolution: check PO line item quantity or adjust packaged count
+- **Result**: Users now understand exactly what the problem is and how to fix it
+- **Files Updated**:
+  - `app/blueprints/api_receiving.py` (improved error handling for Zoho error code 36012)
+
+---
+
 ## [2.27.3] - 2026-01-22
 
 ### 🐛 Bug Fix

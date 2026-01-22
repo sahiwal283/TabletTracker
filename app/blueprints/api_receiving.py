@@ -969,12 +969,22 @@ def push_bag_to_zoho(bag_id):
         
         # Check for errors in Zoho response
         if result.get('code') and result.get('code') != 0:
+            error_code = result.get('code')
             error_msg = result.get('message', 'Unknown Zoho API error')
-            current_app.logger.error(f"Zoho API error: {error_msg}")
-            return jsonify({
-                'success': False,
-                'error': f'Zoho API error: {error_msg}'
-            }), 500
+            current_app.logger.error(f"Zoho API error (code {error_code}): {error_msg}")
+            
+            # Handle specific error codes with helpful messages
+            if error_code == 36012:
+                # Quantity recorded cannot be more than quantity ordered
+                return jsonify({
+                    'success': False,
+                    'error': f'Cannot push to Zoho: Packaged quantity ({packaged_count}) exceeds quantity ordered in PO. Zoho enforces this business rule. Please check the PO line item quantity or adjust the packaged count.'
+                }), 400
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Zoho API error (code {error_code}): {error_msg}'
+                }), 500
         
         # Get the created receive ID - try multiple possible field names
         zoho_receive_id = None
