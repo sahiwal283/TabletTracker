@@ -980,9 +980,55 @@ def push_bag_to_zoho(bag_id):
             # Handle specific error codes with helpful messages
             if error_code == 36012:
                 # Quantity recorded cannot be more than quantity ordered
+                # Get detailed PO line item info to provide helpful error message
+                try:
+                    po_line_info = conn.execute('''
+                        SELECT pl.line_item_name, pl.quantity_ordered, pl.good_count, pl.damaged_count,
+                               (pl.quantity_ordered - pl.good_count - pl.damaged_count) as remaining_capacity
+                        FROM po_lines pl
+                        WHERE pl.po_id = (SELECT po_id FROM receiving WHERE id = (
+                            SELECT receiving_id FROM small_boxes WHERE id = (
+                                SELECT small_box_id FROM bags WHERE id = ?
+                            )
+                        ))
+                        AND pl.inventory_item_id = ?
+                        LIMIT 1
+                    ''', (bag_id, bag.get('inventory_item_id'))).fetchone()
+                    
+                    if po_line_info:
+                        pl = dict(po_line_info)
+                        error_detail = f'''❌ Zoho Quantity Limit Exceeded
+
+📦 Product: {pl.get("line_item_name", "Unknown")}
+📊 PO Line Item Status:
+  • Ordered: {pl.get("quantity_ordered", 0):,} tablets
+  • Already Received: {pl.get("good_count", 0):,} tablets
+  • Remaining Capacity: {pl.get("remaining_capacity", 0):,} tablets
+  
+🎒 This Bag:
+  • Trying to Push: {packaged_count:,} tablets
+  • Overage: {packaged_count - pl.get("remaining_capacity", 0):,} tablets
+
+⚠️ Zoho enforces strict limits - cannot receive more than ordered.
+
+💡 Options:
+  1. Delete some submissions to reduce packaged count
+  2. Increase ordered quantity in Zoho PO first
+  3. Create an overs PO for the excess quantity'''
+                        
+                        return jsonify({
+                            'success': False,
+                            'error': error_detail
+                        }), 400
+                except Exception as e:
+                    current_app.logger.error(f"Error getting PO line details: {e}")
+                    # Fallback to basic error
+                    pass
+                
+                # Fallback error if we couldn't get details
                 return jsonify({
                     'success': False,
-                    'error': f'Cannot push to Zoho: Packaged quantity ({packaged_count}) exceeds quantity ordered in PO. Zoho enforces this business rule. Please check the PO line item quantity or adjust the packaged count.'
+                    'error': f'Cannot push to Zoho: Packaged quantity ({packaged_count:,}) exceeds quantity ordered in PO. Zoho enforces this business rule. Please check the PO line item quantity or adjust the packaged count.'
                 }), 400
             else:
                 return jsonify({

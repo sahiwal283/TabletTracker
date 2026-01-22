@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.1] - 2026-01-22
+
+### 🎨 UX Improvement
+
+#### Enhanced Zoho Over-Quantity Error with Detailed Breakdown
+- **Issue**: Error message when Zoho rejects over-quantity was too generic and unhelpful
+  - Previous: "Packaged quantity (X) exceeds quantity ordered in PO"
+  - User couldn't see: how much was ordered, already received, remaining capacity, or overage amount
+- **Improvement**: Comprehensive error breakdown with all relevant numbers
+  ```
+  ❌ Zoho Quantity Limit Exceeded
+  
+  📦 Product: Hyroxi Mit A - Pineapple
+  📊 PO Line Item Status:
+    • Ordered: 1,000 tablets
+    • Already Received: 800 tablets
+    • Remaining Capacity: 200 tablets
+    
+  🎒 This Bag:
+    • Trying to Push: 1,000 tablets
+    • Overage: 800 tablets
+  
+  ⚠️ Zoho enforces strict limits - cannot receive more than ordered.
+  
+  💡 Options:
+    1. Delete some submissions to reduce packaged count
+    2. Increase ordered quantity in Zoho PO first
+    3. Create an overs PO for the excess quantity
+  ```
+- **Benefits**:
+  - User immediately sees exact numbers for decision-making
+  - Shows overage amount clearly
+  - Provides 3 actionable solutions
+  - Professional formatting with emojis for scannability
+  - No more ambiguity or guesswork
+- **Files Updated**:
+  - `app/blueprints/api_receiving.py` (enhanced error code 36012 handling with PO line query)
+
+---
+
 ## [2.28.0] - 2026-01-22
 
 ### 🐛 Bug Fix - Comprehensive
