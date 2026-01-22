@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.26.2] - 2026-01-22
+
+### 🎨 UX Improvement
+
+#### Fixed Tab Navigation - Stay on Same Tab After Save
+- **Issue**: After saving anything (tablet type, product, category, machine), user was forced back to Tablet Types tab
+- **Impact**: Disruptive workflow - users had to repeatedly click back to their working tab
+- **Fix**: 
+  - Added localStorage persistence for active tab
+  - Tab state now saved when switching tabs
+  - Page reload automatically restores the tab you were working on
+  - Works across all tabs: Tablet Types, Products, Categories, Machines
+- **Result**: Seamless workflow - save and continue working on the same tab
+- **Files Updated**:
+  - `templates/product_config.html` (added tab state persistence with localStorage)
+
+---
+
 ## [2.26.1] - 2026-01-22
 
 ### 🐛 Bug Fix

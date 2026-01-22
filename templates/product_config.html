@@ -580,7 +580,7 @@
 </div>
 
 <script>
-// Tab switching
+// Tab switching with persistence
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('[id^="tab-"]').forEach(el => {
@@ -591,6 +591,9 @@ function switchTab(tabName) {
     const tab = document.getElementById(`tab-${tabName}`);
     tab.classList.remove('border-transparent', 'text-gray-500');
     tab.classList.add('border-blue-500', 'text-blue-600');
+    
+    // Save active tab to localStorage
+    localStorage.setItem('productConfigActiveTab', tabName);
 }
 
 // Section toggle
@@ -606,9 +609,15 @@ function toggleSection(sectionId) {
     }
 }
 
-// Initialize chevrons
+// Initialize chevrons and restore active tab
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.section-chevron').forEach(chevron => chevron.style.transform = 'rotate(-90deg)');
+    
+    // Restore previously active tab
+    const savedTab = localStorage.getItem('productConfigActiveTab');
+    if (savedTab && document.getElementById(`content-${savedTab}`)) {
+        switchTab(savedTab);
+    }
 });
 
 // Tablet Type CRUD
