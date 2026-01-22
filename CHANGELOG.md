@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.1] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Bag Count Form - Reverted to Tablet Type Selection
+- **Issue**: Bag Count form was incorrectly changed to product selection in v2.27.0
+- **Root Cause**: Misunderstanding of what bag count represents
+- **Correct Behavior**: Bag count is for counting **raw material** (entire bags of tablets before packaging)
+  - Raw material = tablet type (e.g., "18mg 7OH"), not finished product (e.g., "7OH 4ct")
+  - Workers count tablets in supplier bags before they're packaged into products
+  - Used for end-of-period reconciliation with vendors
+- **Fix**: Reverted Bag Count form to use tablet type selection
+- **What Stays Product-Based**:
+  - Machine Count ✅ (workers making specific products)
+  - Packaged ✅ (workers packaging specific products)
+  - Bottles ✅ (workers making bottle products/variety packs)
+- **What Uses Tablet Type**:
+  - Bag Count ✅ (counting raw material bags)
+- **Files Updated**:
+  - `templates/production.html` (reverted bag count form to tablet type)
+  - `app/blueprints/production.py` (bag count endpoint uses tablet_type_id)
+
+---
+
 ## [2.27.0] - 2026-01-22
 
 ### ✨ Feature

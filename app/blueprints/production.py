@@ -349,7 +349,11 @@ def submit_warehouse():
 
 @bp.route('/api/submissions/bag-count', methods=['POST'])
 def submit_count():
-    """Process manual count submission for PO close-outs - RECEIVE-BASED TRACKING"""
+    """Process manual count submission for PO close-outs - RECEIVE-BASED TRACKING
+    
+    Bag counts are for RAW MATERIAL (entire bags of tablets), not packaged products.
+    Use tablet_type_id since we're counting unpackaged tablets.
+    """
     try:
         data = request.get_json() if request.is_json else request.form
         
@@ -357,9 +361,9 @@ def submit_count():
         ensure_submission_type_column()
         
         # Validate required fields
-        product_id = data.get('product_id')
-        if not product_id:
-            return jsonify({'error': 'Product is required'}), 400
+        tablet_type_id = data.get('tablet_type_id')
+        if not tablet_type_id:
+            return jsonify({'error': 'Tablet type is required'}), 400
         
         with db_transaction() as conn:
             # Get employee name from session (logged-in user)
@@ -375,27 +379,21 @@ def submit_count():
                 
                 employee_name = employee['full_name']
             
-            # Get product details and derive tablet type
-            product = conn.execute('''
-                SELECT pd.id, pd.product_name, pd.tablet_type_id,
-                       tt.tablet_type_name, tt.inventory_item_id
-                FROM product_details pd
-                JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE pd.id = ?
-            ''', (product_id,)).fetchone()
+            # Get tablet type details
+            tablet_type = conn.execute('''
+                SELECT id, tablet_type_name, inventory_item_id
+                FROM tablet_types
+                WHERE id = ?
+            ''', (tablet_type_id,)).fetchone()
             
-            if not product:
-                return jsonify({'error': 'Product not found'}), 400
+            if not tablet_type:
+                return jsonify({'error': 'Tablet type not found'}), 400
             
             # Convert Row to dict for safe access
-            product = dict(product)
+            tablet_type = dict(tablet_type)
             
-            # Extract tablet type info
-            tablet_type_id = product.get('tablet_type_id')
-            if not tablet_type_id:
-                return jsonify({'error': 'Product has no tablet type configured'}), 400
-            
-            inventory_item_id = product.get('inventory_item_id')
+            # Extract values
+            inventory_item_id = tablet_type.get('inventory_item_id')
             if not inventory_item_id:
                 return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
             
@@ -434,13 +432,14 @@ def submit_count():
             submission_box_number = bag.get('box_number') if bag else data.get('box_number')
             
             # Insert count record with bag_id (or NULL if needs review)
+            # Use tablet_type_name for product_name since this is raw material counting
             conn.execute('''
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              bag_id, assigned_po_id, needs_review, loose_tablets, 
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
-            ''', (employee_name, product.get('product_name'), inventory_item_id, submission_box_number,
+            ''', (employee_name, tablet_type.get('tablet_type_name'), inventory_item_id, submission_box_number,
                   data.get('bag_number'), bag_id, assigned_po_id, needs_review,
                   actual_count, submission_date, admin_notes))
             

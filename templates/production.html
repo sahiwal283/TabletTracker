@@ -303,28 +303,26 @@
         </div>
         
         <form id="count-form" class="space-y-4">
-            <!-- Product Selection -->
+            <!-- Tablet Type Selection (Raw Material) -->
             <div>
-                <label for="bag_count_product" class="block text-sm font-medium text-gray-700 mb-1">
-                    Product *
+                <label for="bag_count_tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
+                    Tablet Type *
                 </label>
-                <select id="bag_count_product" name="product_id" required class="form-input text-base">
-                    <option value="">Select product...</option>
-                    {% for product in products %}
-                        <option value="{{ product.id }}" data-product-name="{{ product.product_name }}" data-tablet-type="{{ product.tablet_type_id }}">
-                            {{ product.product_name }}
-                        </option>
+                <select id="bag_count_tablet_type" name="tablet_type_id" required class="form-input text-base">
+                    <option value="">Select tablet type...</option>
+                    {% for tablet_type in tablet_types %}
+                        <option value="{{ tablet_type.id }}">{{ tablet_type.tablet_type_name }}</option>
                     {% endfor %}
                 </select>
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
-                        const select = document.getElementById('bag_count_product');
+                        const select = document.getElementById('bag_count_tablet_type');
                         if (select && typeof convertToTwoLevelDropdown === 'function') {
                             convertToTwoLevelDropdown(select);
                         }
                     });
                 </script>
-                <p class="text-xs text-gray-500 mt-1">Select the specific product (e.g., "7OH 4ct")</p>
+                <p class="text-xs text-gray-500 mt-1">Select the tablet type (raw material bag you're counting)</p>
             </div>
             
             <!-- Box Number -->
@@ -417,7 +415,7 @@
                 <label for="bottles_product" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">
                     Product *
                 </label>
-                <select id="bottles_product" name="tablet_type_id" required class="form-input">
+                <select id="bottles_product" name="product_id" required class="form-input">
                     <option value="">Select product...</option>
                     <!-- Populated by JavaScript -->
                 </select>
