@@ -565,6 +565,9 @@ function switchForm(formType) {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
+    // Global flags to prevent double-submit
+    let packagedSubmitting = false;
+    
     // Production Submission Form
     const warehouseForm = document.getElementById('warehouse-form');
     const productBaseSelect = document.getElementById('product_base');

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.8] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Packaged Form Submission Error - Undefined Variable
+- **Issue**: Packaged form submission failed with "ReferenceError: packagedSubmitting is not defined"
+- **Root Cause**: Variable `packagedSubmitting` referenced in form submit handler but never declared
+  - Added double-submit prevention flag but forgot to declare it at proper scope
+  - Variable must be declared before form event listener
+- **Impact**: Packaged submissions completely broken - users couldn't submit packaging counts
+- **Fix**: Declared `packagedSubmitting` flag at top of DOMContentLoaded handler
+- **Files Updated**:
+  - `templates/production.html` (added packagedSubmitting declaration)
+
+---
+
 ## [2.27.7] - 2026-01-22
 
 ### 🐛 Bug Fix
