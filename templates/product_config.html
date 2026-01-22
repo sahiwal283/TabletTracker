@@ -351,6 +351,51 @@
             {% endif %}
             {% endfor %}
             
+            <!-- Uncategorized Products Section -->
+            {% set uncategorized_products = products | rejectattr('is_variety_pack') | rejectattr('category') | list %}
+            {% if uncategorized_products %}
+            <div class="border-b border-gray-200">
+                <button onclick="toggleSection('prod-uncategorized')" 
+                        class="w-full px-6 py-4 bg-gradient-to-r from-gray-50 to-slate-50 hover:from-gray-100 hover:to-slate-100 text-left flex items-center gap-3">
+                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    <span class="font-semibold text-gray-700">📋 Uncategorized Products</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-600 text-white">{{ uncategorized_products | length }}</span>
+                </button>
+                <div id="section-prod-uncategorized" class="section-content hidden">
+                    <div class="divide-y divide-gray-200">
+                        {% for product in uncategorized_products %}
+                        <div class="p-4 hover:bg-gray-50" id="product-row-{{ product.id }}">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-lg">
+                                        {% if product.is_bottle_product %}🍶{% else %}📦{% endif %}
+                                    </span>
+                                    <div>
+                                        <div class="font-medium text-gray-900">{{ product.product_name }}</div>
+                                        <div class="text-xs text-gray-500">
+                                            {% if product.is_bottle_product %}
+                                                🍶 Bottle: {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                            {% else %}
+                                                📦 Card: {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="openEditProductModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablet_type_id or 'null' }}, {{ product.packages_per_display or 0 }}, {{ product.tablets_per_package or 0 }}, {{ 'true' if product.is_bottle_product else 'false' }}, {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }}, '{{ product.category or '' }}')" 
+                                            class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
+                                    <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             <!-- Variety Packs Section (show separately if any exist) -->
             {% set variety_packs = products | selectattr('is_variety_pack') | list %}
             {% if variety_packs %}

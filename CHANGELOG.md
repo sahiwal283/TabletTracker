@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.26.1] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Uncategorized Products Not Showing in Products Tab
+- **Issue**: Only variety packs were visible in Products tab - all other 20+ products were hidden
+- **Root Cause**: Template only displayed products that had a category assigned. Products without categories (NULL) weren't displayed at all
+- **Impact**: Users couldn't see or manage most of their products
+- **Fix**: 
+  - Added "📋 Uncategorized Products" section that shows all products without categories
+  - Section appears before Variety Packs section
+  - Shows product count badge
+  - Collapsible like other sections
+  - Products can be edited to add categories from this section
+- **Result**: All 21 products now visible - 20 in Uncategorized section + 1 in Variety Packs
+- **Files Updated**:
+  - `templates/product_config.html` (added uncategorized products section)
+
+---
+
 ## [2.26.0] - 2026-01-19
 
 ### ✨ Feature
