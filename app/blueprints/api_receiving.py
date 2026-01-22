@@ -69,12 +69,16 @@ def get_receiving_details(receive_id):
                 # Machine submissions
                 machine_submissions = conn.execute('''
                     SELECT ws.tablets_pressed_into_cards, ws.loose_tablets, ws.packs_remaining,
-                           COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
+                           COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )) as tablets_per_package_final,
                            ws.inventory_item_id
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-                    LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
                     LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
                     LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
                     WHERE ws.submission_type = 'machine'

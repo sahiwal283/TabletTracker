@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.0] - 2026-01-22
+
+### 🐛 Bug Fix - Comprehensive
+
+#### Eliminated All Cartesian Product Bugs Causing Duplicate Submission Display
+- **Issue**: Duplicate submission rows appeared across ENTIRE application
+  - Submissions list page: duplicates ✓ (previously fixed)
+  - Shipments received page: duplicates ✓ (previously fixed)
+  - Dashboard bag details: duplicates (fixed now)
+  - Receive details modal: duplicates (fixed now)
+  - Purchase order modals: duplicates (fixed now)
+  - CSV exports: duplicates (fixed now)
+- **Root Cause**: Systemic SQL cartesian product from fallback product JOINs
+  - **23 queries across 5 files** had problematic fallback JOINs
+  - Pattern: `LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id`
+  - When multiple products use same tablet type → multiple rows per submission
+- **Comprehensive Fix**: Systematically replaced ALL fallback JOINs with subqueries
+  - Changed from: JOIN creating cartesian product
+  - Changed to: Subquery with `LIMIT 1` for single fallback value
+  - Automated fix script used to ensure consistency
+  - All 23 instances eliminated across entire codebase
+- **Files Fixed** (5 total):
+  - `app/blueprints/submissions.py` ✅ (2 queries: list + export)
+  - `app/blueprints/api_submissions.py` ✅ (1 query: bag submissions)
+  - `app/blueprints/api_receiving.py` ✅ (2 queries: machine + general)
+  - `app/blueprints/dashboard.py` ✅ (2 queries: dashboard displays)
+  - `app/blueprints/api.py` ✅ (4 queries: various endpoints)
+- **Result**: Zero cartesian products - every submission displays exactly once throughout entire application
+- **Verification**: `grep -r "pd_fallback|tt_fallback" app/blueprints/*.py` returns 0 results
+
+---
+
 ## [2.27.9] - 2026-01-22
 
 ### 🐛 Bug Fix

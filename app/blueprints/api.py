@@ -1428,7 +1428,13 @@ def get_submission_details(submission_id):
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    pd.packages_per_display, pd.tablets_per_package,
-                   COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
+                   COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )) as tablets_per_package_final,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count, 
                    r.id as receive_id, r.received_date,
                    m.machine_name, m.cards_per_turn as machine_cards_per_turn,
@@ -1441,10 +1447,7 @@ def get_submission_details(submission_id):
                    ) as shipment_number
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-            LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-            LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
-            LEFT JOIN bags b ON ws.bag_id = b.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name            LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
             LEFT JOIN machines m ON ws.machine_id = m.id
@@ -1627,12 +1630,15 @@ def get_submission_details(submission_id):
                 # Get all submissions to this bag up to and including this one, in chronological order
                 bag_submissions = conn.execute('''
                     SELECT ws.*, pd.packages_per_display, pd.tablets_per_package,
-                           COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final
+                           COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )) as tablets_per_package_final
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-                    LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
-                    WHERE ws.assigned_po_id = ?
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name                    WHERE ws.assigned_po_id = ?
                     AND ws.product_name = ?
                     AND ws.box_number = ?
                     AND ws.bag_number = ?
@@ -2429,7 +2435,13 @@ def get_po_submissions(po_id):
                         COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                         ws.admin_notes,
                         pd.packages_per_display,
-                        COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package,
+                        COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )) as tablets_per_package,
                         tt.inventory_item_id,
                         ws.assigned_po_id,
                         po.po_number,
@@ -2438,10 +2450,7 @@ def get_po_submissions(po_id):
                         {po_verified_select}
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                    LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-                    LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
-                    LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+                    LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id                    LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                     LEFT JOIN bags b ON ws.bag_id = b.id
                     WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                     ORDER BY ws.created_at ASC
@@ -2464,7 +2473,13 @@ def get_po_submissions(po_id):
                         COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
                         ws.admin_notes,
                         pd.packages_per_display,
-                        COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package,
+                        COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )) as tablets_per_package,
                         tt.inventory_item_id,
                         ws.assigned_po_id,
                         po.po_number,
@@ -2473,10 +2488,7 @@ def get_po_submissions(po_id):
                         {po_verified_select}
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                    LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
-                    LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
-                    LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+                    LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id                    LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
                     LEFT JOIN bags b ON ws.bag_id = b.id
                     WHERE ws.assigned_po_id IN ({po_ids_placeholders})
                     ORDER BY ws.created_at ASC
