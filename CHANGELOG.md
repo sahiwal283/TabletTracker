@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.26.3] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Receipt Number Filter Lost When Sorting
+- **Issue**: When filtering by receipt number, changing the sort order (e.g., from TIME to RECEIPT #) cleared the receipt filter
+- **Root Cause**: The `filter_query` variable used for sort links didn't include `receipt_number` parameter
+- **Impact**: Users had to re-enter receipt number after every sort change, making it impossible to sort filtered results
+- **Fix**: Added `receipt_number` to the filter_query parameters that persist across sort operations
+- **Result**: All filters now stack properly with sorting - receipt number filter persists when changing sort order
+- **Files Updated**:
+  - `templates/submissions.html` (added receipt_number to filter_query)
+
+---
+
 ## [2.26.2] - 2026-01-22
 
 ### 🎨 UX Improvement

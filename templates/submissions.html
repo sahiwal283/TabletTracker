@@ -207,6 +207,7 @@
                     {% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}
                     {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
                     {% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}
+                    {% if filter_receipt_number %}{% set _ = query_parts.append('receipt_number=' + filter_receipt_number) %}{% endif %}
                     {% set filter_query = query_parts|join('&') %}
                     
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
