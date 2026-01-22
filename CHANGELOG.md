@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.9] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Duplicate Submissions Display in Shipments Received Page
+- **Issue**: Bag submissions modal showed duplicate rows for same submissions
+  - Same issue as submissions list page - cartesian product from fallback JOINs
+  - Example: "FIX MIT - Pina Royale" appeared as 2 identical rows in modal
+- **Root Cause**: `/api/bag/<bag_id>/submissions` query had same problematic fallback JOINs
+  - `LEFT JOIN product_details pd_fallback` creating duplicate rows when multiple products use same tablet type
+- **Fix**: Removed fallback JOINs and replaced with subquery using LIMIT 1
+- **Result**: Bag submissions modal now shows each submission exactly once
+- **Files Updated**:
+  - `app/blueprints/api_submissions.py` (fixed bag submissions query)
+
+---
+
 ## [2.27.8] - 2026-01-22
 
 ### 🐛 Bug Fix
