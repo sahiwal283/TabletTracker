@@ -23,11 +23,18 @@ def production_form():
         with db_read_only() as conn:
             # Get product list for dropdown
             products = conn.execute('''
-            SELECT pd.product_name, tt.tablet_type_name, pd.packages_per_display, pd.tablets_per_package
+            SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.category,
+                   tt.tablet_type_name, tt.category as tablet_category,
+                   pd.packages_per_display, pd.tablets_per_package,
+                   pd.is_bottle_product, pd.tablets_per_bottle, pd.bottles_per_display
             FROM product_details pd
-            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            ORDER BY pd.product_name
+            LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE pd.is_variety_pack = 0
+            ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
+            
+            # Convert to list of dicts
+            products = [dict(p) for p in products]
             
             # Get all tablet types for bag count dropdown
             tablet_types_raw = conn.execute('''
@@ -350,8 +357,9 @@ def submit_count():
         ensure_submission_type_column()
         
         # Validate required fields
-        if not data.get('tablet_type'):
-            return jsonify({'error': 'tablet_type is required'}), 400
+        product_id = data.get('product_id')
+        if not product_id:
+            return jsonify({'error': 'Product is required'}), 400
         
         with db_transaction() as conn:
             # Get employee name from session (logged-in user)
@@ -367,17 +375,29 @@ def submit_count():
                 
                 employee_name = employee['full_name']
             
-            # Get tablet type details
-            tablet_type = conn.execute('''
-                SELECT * FROM tablet_types
-                WHERE tablet_type_name = ?
-            ''', (data.get('tablet_type'),)).fetchone()
+            # Get product details and derive tablet type
+            product = conn.execute('''
+                SELECT pd.id, pd.product_name, pd.tablet_type_id,
+                       tt.tablet_type_name, tt.inventory_item_id
+                FROM product_details pd
+                JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                WHERE pd.id = ?
+            ''', (product_id,)).fetchone()
             
-            if not tablet_type:
-                return jsonify({'error': 'Tablet type not found'}), 400
+            if not product:
+                return jsonify({'error': 'Product not found'}), 400
             
             # Convert Row to dict for safe access
-            tablet_type = dict(tablet_type)
+            product = dict(product)
+            
+            # Extract tablet type info
+            tablet_type_id = product.get('tablet_type_id')
+            if not tablet_type_id:
+                return jsonify({'error': 'Product has no tablet type configured'}), 400
+            
+            inventory_item_id = product.get('inventory_item_id')
+            if not inventory_item_id:
+                return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
             
             # Safe type conversion
             try:
@@ -396,14 +416,6 @@ def submit_count():
                     admin_notes = admin_notes_raw.strip() or None
                 elif admin_notes_raw:
                     admin_notes = str(admin_notes_raw).strip() or None
-        
-        # Get inventory_item_id and tablet_type_id
-            inventory_item_id = tablet_type.get('inventory_item_id')
-            tablet_type_id = tablet_type.get('id')
-            if not inventory_item_id:
-                return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
-            if not tablet_type_id:
-                return jsonify({'error': 'Tablet type_id not found'}), 400
             
             # RECEIVE-BASED TRACKING: Find matching bag in receives
             # NEW: Pass bag_number first, box_number as optional parameter
@@ -428,7 +440,7 @@ def submit_count():
              bag_id, assigned_po_id, needs_review, loose_tablets, 
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
-            ''', (employee_name, data.get('tablet_type'), inventory_item_id, submission_box_number,
+            ''', (employee_name, product.get('product_name'), inventory_item_id, submission_box_number,
                   data.get('bag_number'), bag_id, assigned_po_id, needs_review,
                   actual_count, submission_date, admin_notes))
             
@@ -457,13 +469,13 @@ def submit_machine_count():
         ensure_machine_counts_table()
         ensure_machine_count_columns()
         
-        tablet_type_id = data.get('tablet_type_id')
+        product_id = data.get('product_id')
         machine_count = data.get('machine_count')
         count_date = data.get('count_date')
         
         # Validation
-        if not tablet_type_id:
-            return jsonify({'error': 'Tablet type is required'}), 400
+        if not product_id:
+            return jsonify({'error': 'Product is required'}), 400
         if machine_count is None or machine_count < 0:
             return jsonify({'error': 'Valid machine count is required'}), 400
         if not count_date:
@@ -483,33 +495,32 @@ def submit_machine_count():
                 
                 employee_name = employee['full_name']
         
-            # Verify tablet type exists and get its info
-            tablet_type = conn.execute('''
-            SELECT id, tablet_type_name, inventory_item_id 
-            FROM tablet_types 
-            WHERE id = ?
-            ''', (tablet_type_id,)).fetchone()
-            if not tablet_type:
-                return jsonify({'error': 'Invalid tablet type'}), 400
-            
-            tablet_type = dict(tablet_type)
-            
-            # Get a product for this tablet type to get tablets_per_package
+            # Get product details and derive tablet type
             product = conn.execute('''
-            SELECT product_name, tablets_per_package 
-            FROM product_details 
-            WHERE tablet_type_id = ? 
-            LIMIT 1
-            ''', (tablet_type_id,)).fetchone()
+            SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.tablets_per_package,
+                   tt.tablet_type_name, tt.inventory_item_id
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE pd.id = ?
+            ''', (product_id,)).fetchone()
             
             if not product:
-                return jsonify({'error': 'No product found for this tablet type. Please configure a product first.'}), 400
+                return jsonify({'error': 'Product not found'}), 400
             
             product = dict(product)
-            tablets_per_package = product.get('tablets_per_package', 0)
             
+            # Extract values
+            tablet_type_id = product.get('tablet_type_id')
+            if not tablet_type_id:
+                return jsonify({'error': 'Product has no tablet type configured'}), 400
+            
+            tablets_per_package = product.get('tablets_per_package', 0)
             if tablets_per_package == 0:
                 return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
+            
+            inventory_item_id = product.get('inventory_item_id')
+            if not inventory_item_id:
+                return jsonify({'error': f'Product "{product.get("product_name")}" is missing inventory_item_id. Please configure this in admin.'}), 400
             
             # Get machine_id from form data FIRST (before calculating cards_per_turn)
             machine_id = data.get('machine_id')
@@ -776,8 +787,8 @@ def submit_bottles():
         # Ensure submission_type column exists
         ensure_submission_type_column()
         
-        # Required fields - now using product_details.id instead of tablet_type_id
-        product_id = data.get('tablet_type_id')  # Form still sends as tablet_type_id for compatibility
+        # Required fields - using product_details.id
+        product_id = data.get('product_id')
         displays_made = data.get('displays_made', 0) or 0
         bottles_remaining = data.get('bottles_remaining', 0) or 0
         

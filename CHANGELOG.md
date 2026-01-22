@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.0] - 2026-01-22
+
+### ✨ Feature
+
+#### Changed Production Forms from Tablet Type to Product Selection
+- **Feature**: All production submission forms now use product selection instead of tablet type selection
+- **Rationale**: Production happens by specific product (e.g., "FIX Focus 5ct"), not just tablet type (e.g., "1ct FIX Focus")
+  - Multiple products can use the same tablet type with different packaging configurations
+  - Workers know which product they're making, not which tablet type
+  - Product selection is more intuitive and accurate for warehouse staff
+- **Benefits**:
+  - **Eliminates ambiguity**: System knows exact product being made (not just first product matching tablet type)
+  - **Accurate calculations**: Uses correct product's packages_per_display and tablets_per_package
+  - **Better user experience**: Workers select what they're actually making
+  - **Proper bag matching**: System derives tablet_type_id from product for bag matching
+- **Implementation**:
+  - Machine Count form: Changed from "Tablet Type" to "Product" dropdown
+  - Bag Count form: Changed from "Tablet Type" to "Product" dropdown  
+  - Bottles form: Changed from "Tablet Type" to "Product" dropdown (if applicable)
+  - Backend endpoints updated to accept product_id and derive tablet_type_id
+  - Product query includes all necessary fields (id, tablet_type_id, packaging config)
+  - Excludes variety packs from production forms (not yet supported)
+- **Example**: Instead of selecting "18mg 7OH" (which could be 1ct, 4ct, or 7ct), user now selects "7OH 4ct" specifically
+- **Files Updated**:
+  - `templates/production.html` (all production forms updated to product selection)
+  - `app/blueprints/production.py` (endpoints updated to accept product_id, product query enhanced)
+
+---
+
 ## [2.26.3] - 2026-01-22
 
 ### 🐛 Bug Fix
