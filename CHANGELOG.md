@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.2] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Zoho Push Sending Incomplete Packaged Count
+- **Issue**: Bags pushed to Zoho with incorrect (lower) quantities
+  - Example: Bag showed 9,248 packaged in TabletTracker but Zoho receive only had 5,900
+  - Missing 3,348 tablets from Zoho receive
+- **Root Cause**: `get_bag_with_packaged_count()` only counted packaged submissions, ignoring:
+  - Bottle submissions (bottle-only products)
+  - Variety pack deductions (via submission_bag_deductions junction table)
+  - Function calculated partial count, Zoho received incomplete data
+- **Impact**: 
+  - Zoho inventory inaccurate (understated receipts)
+  - Discrepancy between TabletTracker and Zoho
+  - Downstream reporting and inventory affected
+- **Fix**: Updated `get_bag_with_packaged_count()` to include ALL submission types:
+  1. Packaged submissions (card products) ✅
+  2. Bottle submissions (bottle-only products) ✅ (NOW INCLUDED)
+  3. Variety pack deductions via junction table ✅ (NOW INCLUDED)
+  - Total = packaged + bottles + variety_pack_deductions
+- **Result**: Zoho now receives complete, accurate packaged counts matching TabletTracker display
+- **Data Integrity**: Previously pushed bags with incorrect counts will need manual correction in Zoho
+- **Files Updated**:
+  - `app/services/receiving_service.py` (enhanced get_bag_with_packaged_count to include all submission types)
+
+---
+
 ## [2.28.1] - 2026-01-22
 
 ### 🎨 UX Improvement

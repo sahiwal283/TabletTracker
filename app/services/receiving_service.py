@@ -210,7 +210,8 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
             receive_number = receive_number_row['receive_number'] if receive_number_row else 1
             bag['receive_name'] = f"{bag['po_number']}-{receive_number}"
         
-        # Calculate packaged_count from submissions
+        # Calculate packaged_count from ALL submission types
+        # Packaged submissions (card products)
         packaged_count_row = conn.execute('''
             SELECT COALESCE(SUM(
                 (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -223,7 +224,29 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
             AND ws.submission_type = 'packaged'
         ''', (bag_id,)).fetchone()
         
-        bag['packaged_count'] = packaged_count_row['total_packaged'] if packaged_count_row else 0
+        # Bottle submissions (bottle-only products with bag_id)
+        bottle_direct_row = conn.execute('''
+            SELECT COALESCE(SUM(
+                COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+            ), 0) as total_bottle
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+        ''', (bag_id,)).fetchone()
+        
+        # Variety pack deductions via junction table
+        bottle_junction_row = conn.execute('''
+            SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total_junction
+            FROM submission_bag_deductions sbd
+            WHERE sbd.bag_id = ?
+        ''', (bag_id,)).fetchone()
+        
+        # Total packaged = packaged + bottles + variety pack deductions
+        bag['packaged_count'] = (
+            (packaged_count_row['total_packaged'] if packaged_count_row else 0) +
+            (bottle_direct_row['total_bottle'] if bottle_direct_row else 0) +
+            (bottle_junction_row['total_junction'] if bottle_junction_row else 0)
+        )
         
         return bag
 
