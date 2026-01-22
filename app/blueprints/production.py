@@ -206,6 +206,19 @@ def submit_warehouse():
             if not receipt_number:
                 return jsonify({'error': 'Receipt number is required'}), 400
             
+            # Check for duplicate receipt number for packaged submissions (prevent double-submit)
+            existing_packaged = conn.execute('''
+                SELECT id, product_name, created_at
+                FROM warehouse_submissions
+                WHERE receipt_number = ? AND submission_type = 'packaged'
+                LIMIT 1
+            ''', (receipt_number,)).fetchone()
+            
+            if existing_packaged:
+                return jsonify({
+                    'error': f'Receipt number {receipt_number} already used for a packaged submission (Product: {existing_packaged["product_name"]}, Created: {existing_packaged["created_at"]}). Please use a unique receipt number or check if this was already submitted.'
+                }), 400
+            
             # Try to get box/bag from form data first
             # Normalize empty strings to None for flavor-based bags (new system)
             box_number_raw = data.get('box_number')
@@ -620,6 +633,20 @@ def submit_machine_count():
         
         # Get receipt_number from form data
             receipt_number = (data.get('receipt_number') or '').strip() or None
+            
+            # Check for duplicate receipt number (prevent double-submit)
+            if receipt_number:
+                existing_machine_count = conn.execute('''
+                    SELECT id, product_name, created_at
+                    FROM warehouse_submissions
+                    WHERE receipt_number = ? AND submission_type = 'machine'
+                    LIMIT 1
+                ''', (receipt_number,)).fetchone()
+                
+                if existing_machine_count:
+                    return jsonify({
+                        'error': f'Receipt number {receipt_number} already used for a machine count submission (Product: {existing_machine_count["product_name"]}, Created: {existing_machine_count["created_at"]}). Please use a unique receipt number.'
+                    }), 400
         
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:

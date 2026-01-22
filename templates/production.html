@@ -1046,9 +1046,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (warehouseForm) warehouseForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
+        // Prevent double-submit with global flag
+        if (packagedSubmitting) {
+            console.warn('Packaged submission already in progress, ignoring duplicate submit');
+            return;
+        }
+        packagedSubmitting = true;
+        
         // Validate that product_name is populated (set by two-level dropdown)
         const productNameField = document.getElementById('product_name');
         if (!productNameField || !productNameField.value) {
+            packagedSubmitting = false;
             showError('Please select a product');
             return;
         }
@@ -1059,6 +1067,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!receiptLookupSuccess) {
             // Manual entry (old system) - require both box and bag
             if (!hiddenBoxField.value && !fallbackBoxInput.value) {
+                packagedSubmitting = false;
                 showError('Box number is required. Please enter receipt number or fill fallback fields.');
                 return;
             }
@@ -1067,6 +1076,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // If receipt lookup succeeded, bag should already be in hiddenBagField
         // If not, require either manual bag entry or receipt number for lookup
         if (!receiptLookupSuccess && !hiddenBagField.value && !fallbackBagInput.value && !receiptInput.value) {
+            packagedSubmitting = false;
             showError('Bag number is required. Please enter receipt number or fill fallback fields.');
             return;
         }
@@ -1107,6 +1117,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
+            packagedSubmitting = false;
         }
     });
 
@@ -1189,9 +1200,17 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Machine Count Form
     const machineCountForm = document.getElementById('machine-count-form-submit');
+    let machineCountSubmitting = false;
     
     if (machineCountForm) machineCountForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        // Prevent double-submit with global flag
+        if (machineCountSubmitting) {
+            console.warn('Machine count submission already in progress, ignoring duplicate submit');
+            return;
+        }
+        machineCountSubmitting = true;
         
         const formData = new FormData(machineCountForm);
         const data = Object.fromEntries(formData.entries());
@@ -1235,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
+            machineCountSubmitting = false;
         }
     });
     

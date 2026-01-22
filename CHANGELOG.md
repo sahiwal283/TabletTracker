@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.27.5] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Prevented Duplicate Submissions with Same Receipt Number
+- **Issue**: Multiple submissions being created with the same receipt number (2-4 duplicates per receipt)
+- **Root Cause**: No duplicate receipt validation at database or backend level
+  - Database has no unique constraint on `receipt_number`
+  - Backend didn't check if receipt already used before inserting
+  - Frontend button disable wasn't enough to prevent rapid double-clicks
+- **Impact**: Data integrity issues - inflated counts, duplicate submissions cluttering system
+- **Fix - Multi-Layer Protection**:
+  1. **Backend Validation** (primary defense):
+     - Machine count: Check if receipt already used for machine submission
+     - Packaged: Check if receipt already used for packaged submission  
+     - Returns clear error with existing submission details
+  2. **Frontend Global Flag** (secondary defense):
+     - Added `machineCountSubmitting` and `packagedSubmitting` flags
+     - Prevents multiple simultaneous submit calls
+     - Logs warning if duplicate submit attempted
+  3. **Existing Button Disable** (tertiary defense):
+     - Already had button disable during submit
+     - Re-enables in finally block
+- **Result**: Receipt numbers now truly unique - one machine count + one packaged count per receipt maximum
+- **Error Message**: "Receipt number X already used for [type] submission (Product: Y, Created: timestamp)"
+- **Files Updated**:
+  - `app/blueprints/production.py` (added duplicate receipt checks for machine and packaged)
+  - `templates/production.html` (added global submitting flags to both forms)
+
+---
+
 ## [2.27.4] - 2026-01-22
 
 ### 🎨 UX Improvement
