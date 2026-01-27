@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.8] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Actually Applied ID Attribute Fix to Select Element
+- **Issue**: Previous two commits claimed to add ID but didn't actually modify the select element
+- **This Commit**: Successfully added `id="box_X_bag_Y_tablet_type"` to the select element
+- **Files Updated**: `templates/receiving.html` (line 839 - added id attribute to select)
+
+---
+
 ## [2.28.7] - 2026-01-22
 
 ### 🐛 Bug Fix
