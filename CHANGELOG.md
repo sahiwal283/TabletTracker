@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.6] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Copy Bag - Added Missing ID Attribute to Select Element
+- **Issue**: Copy bag debug logs showed "Group select found? false" and "Item select found? false"
+- **Root Cause**: Select element had `name` attribute but NO `id` attribute
+  - `convertToTwoLevelDropdown` creates group/item dropdowns with IDs based on original select's ID
+  - Formula: `{selectElement.id}_group` and `{selectElement.id}_item`
+  - But select element had no ID, so IDs became `undefined_group` and `undefined_item`
+  - Copy function searched for `box_X_bag_Y_tablet_type_group` which didn't exist
+- **Fix**: Added `id` attribute to select element matching its `name` attribute
+  - Before: `<select name="box_1_bag_2_tablet_type">`
+  - After: `<select id="box_1_bag_2_tablet_type" name="box_1_bag_2_tablet_type">`
+- **Result**: Now group/item selects will be created with correct IDs and copy function can find them
+- **Files Updated**:
+  - `templates/receiving.html` (added id attribute to tablet type select in addBag function)
+
+---
+
 ## [2.28.5] - 2026-01-22
 
 ### 🐛 Bug Fix
