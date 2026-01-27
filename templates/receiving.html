@@ -1110,10 +1110,11 @@ async function copyBox(boxNumber) {
         const newBagNumber = bagCounter[newBoxNumber];
         
         // Wait for the dropdown to be added and converted to two-level
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Set the values
-        const newTabletTypeSelect = document.querySelector(`select[name="box_${newBoxNumber}_bag_${newBagNumber}_tablet_type"]`);
+        // Find the ORIGINAL hidden select by ID (not the item select created by two-level conversion)
+        const baseSelectId = `box_${newBoxNumber}_bag_${newBagNumber}_tablet_type`;
+        const newTabletTypeSelect = document.getElementById(baseSelectId);
         const newBagCountInput = document.querySelector(`input[name="box_${newBoxNumber}_bag_${newBagNumber}_bag_count"]`);
         
         if (newTabletTypeSelect && newBagCountInput) {
