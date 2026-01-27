@@ -1123,9 +1123,9 @@ async function copyBox(boxNumber) {
             
             // Handle two-level dropdown if present
             if (newTabletTypeSelect.style.display === 'none') {
-                // Find the category and item dropdowns (created by convertToTwoLevelDropdown)
-                const groupSelect = document.getElementById(newTabletTypeSelect.id + '_group');
-                const itemSelect = document.getElementById(newTabletTypeSelect.id + '_item');
+                // Find the category and item dropdowns using base ID
+                const groupSelect = document.getElementById(baseSelectId + '_group');
+                const itemSelect = document.getElementById(baseSelectId + '_item');
                 
                 if (groupSelect && itemSelect) {
                     // Find the option in the new select element
