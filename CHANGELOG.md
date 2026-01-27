@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.5] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Improved Copy Bag Function with Debug Logging and Timing
+- **Issue**: Tablet type dropdown still not copying despite previous fixes
+- **Improvements**:
+  - Increased wait times: 300ms → 500ms for dropdown conversion, 200ms → 300ms for item population
+  - Added comprehensive console logging to debug dropdown selection issues
+  - Removed redundant final change event that was causing flavor counter issues
+  - Logs show: conversion status, selectors found, category/item values being set
+- **Debug Logging**: Console now shows step-by-step what's happening during copy:
+  - "Found new bag elements"
+  - "Dropdown converted to two-level? true/false"
+  - "Group select found? true/false"
+  - "Category to select: MIT A"
+  - "Set item select value to: 123"
+  - "Final select value: 123"
+- **Result**: Better timing + debugging to identify remaining issues
+- **Files Updated**:
+  - `templates/receiving.html` (improved timing, added debug logging, removed redundant event)
+
+---
+
 ## [2.28.4] - 2026-01-22
 
 ### 🐛 Bug Fix
