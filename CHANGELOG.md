@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.4] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Copy Bag Skipping Numbers and Dropdown Issues
+- **Issue 1**: Copy bag created Bag 1, then Bag 3 (skipped Bag 2)
+  - Root cause: Change event triggered flavor bag counter increment even when copying same value
+  - Each copy triggered `getNextFlavorBagNumber()` unnecessarily
+- **Fix 1**: Added check to skip counter increment if flavor unchanged
+  - `if (previousFlavor === tabletTypeId) return;`
+  - Only increments when flavor actually changes or is newly selected
+  
+- **Issue 2**: Tablet type dropdown still showing "Select category..." after copy
+  - Root causes: 
+    - Timing too short (100ms) for two-level dropdown conversion
+    - Item dropdown not being shown after selection
+- **Fix 2**: 
+  - Increased wait time from 100ms to 300ms (allows conversion to complete)
+  - Increased item population wait from 100ms to 200ms
+  - Added `itemSelect.style.display = ''` to show the dropdown after selection
+  
+- **Result**: Copy bag now works correctly - proper numbering and dropdown selection copied
+- **Files Updated**:
+  - `templates/receiving.html` (fixed flavor counter and dropdown timing/visibility)
+
+---
+
 ## [2.28.3] - 2026-01-22
 
 ### 🐛 Bug Fix

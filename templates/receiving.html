@@ -874,6 +874,12 @@ function addBag(boxNumber) {
         // Get previously assigned flavor for this bag
         const previousFlavor = bagFlavorAssignments[bagId];
         
+        // Skip if this is a programmatic change to the same value (e.g., from copy function)
+        // Only process if flavor actually changed or is newly selected
+        if (previousFlavor === tabletTypeId) {
+            return; // Same flavor, no need to increment/decrement
+        }
+        
         // If flavor changed from a previous selection, decrement old counter
         if (previousFlavor && previousFlavor !== tabletTypeId) {
             decrementFlavorBagNumber(previousFlavor);
@@ -945,8 +951,8 @@ async function copyBag(boxNumber, bagNumber) {
     // Get the newly created bag number
     const newBagNumber = bagCounter[boxNumber];
     
-    // Wait for the dropdown to be added to the DOM
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for the dropdown to be added to the DOM AND converted to two-level
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     // Set the values in the new bag
     const newTabletTypeSelect = document.querySelector(`select[name="box_${boxNumber}_bag_${newBagNumber}_tablet_type"]`);
@@ -979,8 +985,11 @@ async function copyBag(boxNumber, bagNumber) {
                         groupSelect.dispatchEvent(categoryEvent);
                         
                         // Wait for items to populate, then select the item
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await new Promise(resolve => setTimeout(resolve, 200));
                         itemSelect.value = tabletTypeValue;
+                        
+                        // Show the item dropdown
+                        itemSelect.style.display = '';
                         
                         // Trigger change event on item select to sync back to original
                         const itemEvent = new Event('change', { bubbles: true });
@@ -1082,8 +1091,8 @@ async function copyBox(boxNumber) {
         addBag(newBoxNumber);
         const newBagNumber = bagCounter[newBoxNumber];
         
-        // Wait for the dropdown to be added and converted
-        await new Promise(resolve => setTimeout(resolve, 150));
+        // Wait for the dropdown to be added and converted to two-level
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         // Set the values
         const newTabletTypeSelect = document.querySelector(`select[name="box_${newBoxNumber}_bag_${newBagNumber}_tablet_type"]`);
