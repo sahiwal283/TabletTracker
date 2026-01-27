@@ -955,8 +955,9 @@ async function copyBag(boxNumber, bagNumber) {
     // Wait for the dropdown to be added to the DOM AND converted to two-level
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Set the values in the new bag
-    const newTabletTypeSelect = document.querySelector(`select[name="box_${boxNumber}_bag_${newBagNumber}_tablet_type"]`);
+    // Find the ORIGINAL hidden select (not the item select created by two-level conversion)
+    const baseSelectId = `box_${boxNumber}_bag_${newBagNumber}_tablet_type`;
+    const newTabletTypeSelect = document.getElementById(baseSelectId);
     const newBagCountInput = document.querySelector(`input[name="box_${boxNumber}_bag_${newBagNumber}_bag_count"]`);
     
     if (newTabletTypeSelect && newBagCountInput) {
@@ -976,28 +977,15 @@ async function copyBag(boxNumber, bagNumber) {
         // Check if dropdown was converted to two-level
         const isConverted = newTabletTypeSelect.style.display === 'none';
         console.log('[Copy Bag] Dropdown converted to two-level?', isConverted);
-        console.log('[Copy Bag] New select element ID:', newTabletTypeSelect.id);
-        console.log('[Copy Bag] New select element name:', newTabletTypeSelect.name);
+        console.log('[Copy Bag] Original select ID:', newTabletTypeSelect.id);
         
         if (isConverted) {
-            // Find the category and item dropdowns
-            const expectedGroupId = newTabletTypeSelect.id + '_group';
-            const expectedItemId = newTabletTypeSelect.id + '_item';
-            console.log('[Copy Bag] Looking for group select with ID:', expectedGroupId);
-            console.log('[Copy Bag] Looking for item select with ID:', expectedItemId);
-            
-            const groupSelect = document.getElementById(expectedGroupId);
-            const itemSelect = document.getElementById(expectedItemId);
+            // Find the category and item dropdowns using the ORIGINAL select's ID
+            const groupSelect = document.getElementById(baseSelectId + '_group');
+            const itemSelect = document.getElementById(baseSelectId + '_item');
             
             console.log('[Copy Bag] Group select found?', !!groupSelect);
             console.log('[Copy Bag] Item select found?', !!itemSelect);
-            
-            // If not found, let's see what IDs actually exist in the parent
-            if (!groupSelect || !itemSelect) {
-                const parent = newTabletTypeSelect.parentElement;
-                const allSelects = parent.querySelectorAll('select');
-                console.log('[Copy Bag] All select elements in parent:', Array.from(allSelects).map(s => s.id || s.name));
-            }
             
             if (groupSelect && itemSelect) {
                 // Find the option in the original select to get its category

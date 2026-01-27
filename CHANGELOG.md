@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.9] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Copy Bag by Finding Original Hidden Select Instead of Item Select
+- **Issue**: Copy function found the wrong select element
+  - Querying by `name` attribute found the ITEM select (created by two-level conversion)
+  - Item select has ID: `box_1_bag_2_tablet_type_item`
+  - Copy function then looked for: `box_1_bag_2_tablet_type_item_group` (doesn't exist!)
+  - Should look for: `box_1_bag_2_tablet_type_group` (the actual group select)
+- **Root Cause**: `querySelector('select[name="..."]')` returns the visible item select, not hidden original
+  - Item select gets the `name` attribute for form submission
+  - Original select is hidden and has no name (or different name)
+  - We found wrong element and built wrong IDs
+- **Fix**: Use `getElementById()` with base ID instead of querying by name
+  - Guarantees finding the original hidden select
+  - Group/item IDs derived from original: `{baseId}_group` and `{baseId}_item`
+- **Result**: Copy function now finds correct group/item selects and copies tablet type successfully
+- **Files Updated**:
+  - `templates/receiving.html` (changed selector from name query to getElementById)
+
+---
+
 ## [2.28.8] - 2026-01-22
 
 ### 🐛 Bug Fix
