@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.7] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Copy Bag - Actually Added Missing ID Attribute (Final Fix)
+- **Issue**: Previous fix didn't apply - select still had no ID
+- **Root Cause**: String replacement failed, select element still only had `name` attribute
+- **This Fix**: Successfully added `id` attribute to tablet type select element
+  - `<select id="box_X_bag_Y_tablet_type" name="box_X_bag_Y_tablet_type">`
+- **Result**: convertToTwoLevelDropdown creates `box_X_bag_Y_tablet_type_group` and `box_X_bag_Y_tablet_type_item`
+- **Copy function can now find them**: `getElementById(selectId + '_group')` and `getElementById(selectId + '_item')`
+- **Files Updated**:
+  - `templates/receiving.html` (added id attribute to select element in addBag function)
+
+---
+
 ## [2.28.6] - 2026-01-22
 
 ### 🐛 Bug Fix
