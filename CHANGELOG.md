@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.29.0] - 2026-01-22
+
+### 🎨 UX Improvement
+
+#### Simplified Dropdown Sorting to Pure Alphabetical Order
+- **Issue**: Items in "Select item..." dropdown not in alphabetical order across entire app
+  - Example: MIT A category showed Pineapple, Pink Rozay, BlueRaz, Mango Peach (not alphabetical)
+  - Should be: BlueRaz, Mango Peach, Pineapple, Pink Rozay, Purple Haze, Spearmint
+- **Root Cause**: Complex sorting logic prioritized numeric counts (e.g., "12ct") over alphabetical
+  - Code extracted counts and sorted numerically first, then alphabetically
+  - For items without counts, still used basic localeCompare (case-sensitive in one place)
+- **Fix**: Simplified to pure case-insensitive alphabetical sorting everywhere
+  - Removed count-based sorting logic
+  - Consistent `localeCompare(text, undefined, { sensitivity: 'base' })` everywhere
+  - Applied to both convertToTwoLevelDropdown functions (2 instances in base.html)
+- **Result**: All dropdown items now in simple A-Z order throughout entire application
+- **Applies to**: Production forms, submissions filters, receiving forms, all two-level dropdowns
+- **Files Updated**:
+  - `templates/base.html` (simplified sorting in both convertToTwoLevelDropdown functions)
+
+---
+
 ## [2.28.9] - 2026-01-22
 
 ### 🐛 Bug Fix
