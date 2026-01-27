@@ -919,18 +919,12 @@ async function convertToTwoLevelDropdown(selectElement) {
         });
     }
     
-    // Sort within groups (by count if numeric, then alphabetically)
+    // Sort within groups alphabetically (case-insensitive)
     Object.keys(groups).forEach(groupName => {
         groups[groupName].sort((a, b) => {
             const aText = a.text.trim();
             const bText = b.text.trim();
-            // Extract count if present (e.g., "12ct" -> 12)
-            const aMatch = aText.match(/(\d+)ct/i);
-            const bMatch = bText.match(/(\d+)ct/i);
-            if (aMatch && bMatch) {
-                return parseInt(aMatch[1]) - parseInt(bMatch[1]);
-            }
-            return aText.localeCompare(bText);
+            return aText.localeCompare(bText, undefined, { sensitivity: 'base' });
         });
     });
     
@@ -1878,18 +1872,12 @@ async function convertToTwoLevelDropdown(selectElement) {
         });
     }
     
-    // Sort within groups (by count if numeric, then alphabetically)
+    // Sort within groups alphabetically (case-insensitive)
     Object.keys(groups).forEach(groupName => {
         groups[groupName].sort((a, b) => {
             const aText = a.text.trim();
             const bText = b.text.trim();
-            // Extract count if present (e.g., "12ct" -> 12)
-            const aMatch = aText.match(/(\d+)ct/i);
-            const bMatch = bText.match(/(\d+)ct/i);
-            if (aMatch && bMatch) {
-                return parseInt(aMatch[1]) - parseInt(bMatch[1]);
-            }
-            return aText.localeCompare(bText);
+            return aText.localeCompare(bText, undefined, { sensitivity: 'base' });
         });
     });
     
