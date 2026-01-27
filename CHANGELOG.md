@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.28.3] - 2026-01-22
+
+### 🐛 Bug Fix
+
+#### Fixed Copy Box/Bag Functions Not Copying Tablet Type Selection
+- **Issue**: "Copy Box" and "Copy Bag" features didn't copy tablet type dropdown selections
+  - Bag count was copied correctly
+  - But tablet type dropdown showed "Select category..." instead of the selected type
+  - Users had to manually re-select tablet types, defeating the purpose of copy function
+- **Root Cause**: Copy functions looked for `.two-level-select` class that doesn't exist
+  - `convertToTwoLevelDropdown` creates dropdowns with IDs: `{original}_group` and `{original}_item`
+  - Copy function searched for wrong selectors and couldn't find the dropdowns
+  - Fell through to simple value assignment which didn't work with two-level system
+- **Fix**: Updated both copyBag() and copyBox() to use correct selectors
+  - Find group dropdown: `document.getElementById(selectId + '_group')`
+  - Find item dropdown: `document.getElementById(selectId + '_item')`
+  - Properly set category, trigger change, then set item
+  - Syncs back to original hidden select
+- **Result**: Copy Box and Copy Bag now fully functional - tablet types copy correctly
+- **Files Updated**:
+  - `templates/receiving.html` (fixed copyBag and copyBox functions)
+
+---
+
 ## [2.28.2] - 2026-01-22
 
 ### 🐛 Bug Fix

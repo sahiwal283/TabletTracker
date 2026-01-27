@@ -953,47 +953,50 @@ async function copyBag(boxNumber, bagNumber) {
     const newBagCountInput = document.querySelector(`input[name="box_${boxNumber}_bag_${newBagNumber}_bag_count"]`);
     
     if (newTabletTypeSelect && newBagCountInput) {
+        // Set values on original (hidden) select
         newTabletTypeSelect.value = tabletTypeValue;
         newBagCountInput.value = bagCountValue;
         
-        // If the select was converted to a two-level dropdown, we need to trigger the update
+        // If the select was converted to a two-level dropdown, we need to update the visible dropdowns
         if (newTabletTypeSelect.style.display === 'none') {
-            // Find the two-level dropdown container and update it
-            const container = newTabletTypeSelect.parentElement.querySelector('.two-level-select');
-            if (container) {
-                const categorySelect = container.querySelector('.category-select');
-                const itemSelect = container.querySelector('.item-select');
-                
-                // Find the selected tablet type's category from the new select (same structure as source)
+            // Find the category and item dropdowns (created by convertToTwoLevelDropdown)
+            const groupSelect = document.getElementById(newTabletTypeSelect.id + '_group');
+            const itemSelect = document.getElementById(newTabletTypeSelect.id + '_item');
+            
+            if (groupSelect && itemSelect) {
+                // Find the selected tablet type's category from the original select
                 const selectedOption = newTabletTypeSelect.querySelector(`option[value="${tabletTypeValue}"]`);
-                if (selectedOption && categorySelect && itemSelect) {
+                if (selectedOption) {
                     const optgroup = selectedOption.parentElement;
-                    if (optgroup.tagName === 'OPTGROUP') {
+                    if (optgroup && optgroup.tagName === 'OPTGROUP') {
                         const categoryLabel = optgroup.label;
-                        categorySelect.value = categoryLabel;
+                        
+                        // Set category dropdown
+                        groupSelect.value = categoryLabel;
                         
                         // Trigger category change to populate items
-                        const event = new Event('change', { bubbles: true });
-                        categorySelect.dispatchEvent(event);
+                        const categoryEvent = new Event('change', { bubbles: true });
+                        groupSelect.dispatchEvent(categoryEvent);
                         
-                        // Wait a moment for the items to populate, then select the item
-                        await new Promise(resolve => setTimeout(resolve, 50));
+                        // Wait for items to populate, then select the item
+                        await new Promise(resolve => setTimeout(resolve, 100));
                         itemSelect.value = tabletTypeValue;
                         
-                        // Update the hidden select
-                        newTabletTypeSelect.value = tabletTypeValue;
-                        
-                        // Trigger change event on item select to sync
+                        // Trigger change event on item select to sync back to original
                         const itemEvent = new Event('change', { bubbles: true });
                         itemSelect.dispatchEvent(itemEvent);
                     }
                 }
             }
+        } else {
+            // Direct select (not two-level), just trigger change
+            const changeEvent = new Event('change', { bubbles: true });
+            newTabletTypeSelect.dispatchEvent(changeEvent);
         }
         
         // IMPORTANT: Trigger change event to assign flavor bag number
-        const changeEvent = new Event('change', { bubbles: true });
-        newTabletTypeSelect.dispatchEvent(changeEvent);
+        const finalChangeEvent = new Event('change', { bubbles: true });
+        newTabletTypeSelect.dispatchEvent(finalChangeEvent);
         
         // Visual feedback
         const newBagDiv = document.getElementById(`box-${boxNumber}-bag-${newBagNumber}`);
@@ -1092,27 +1095,28 @@ async function copyBox(boxNumber) {
             
             // Handle two-level dropdown if present
             if (newTabletTypeSelect.style.display === 'none') {
-                const container = newTabletTypeSelect.parentElement.querySelector('.two-level-select');
-                if (container) {
-                    const categorySelect = container.querySelector('.category-select');
-                    const itemSelect = container.querySelector('.item-select');
-                    
-                    // Find the option in the new select element (they have the same structure)
+                // Find the category and item dropdowns (created by convertToTwoLevelDropdown)
+                const groupSelect = document.getElementById(newTabletTypeSelect.id + '_group');
+                const itemSelect = document.getElementById(newTabletTypeSelect.id + '_item');
+                
+                if (groupSelect && itemSelect) {
+                    // Find the option in the new select element
                     const selectedOption = newTabletTypeSelect.querySelector(`option[value="${bagData.tabletType}"]`);
-                    if (selectedOption && categorySelect && itemSelect) {
+                    if (selectedOption) {
                         const optgroup = selectedOption.parentElement;
-                        if (optgroup.tagName === 'OPTGROUP') {
+                        if (optgroup && optgroup.tagName === 'OPTGROUP') {
                             const categoryLabel = optgroup.label;
-                            categorySelect.value = categoryLabel;
+                            
+                            // Set category dropdown
+                            groupSelect.value = categoryLabel;
                             
                             // Trigger category change to populate items
-                            const event = new Event('change', { bubbles: true });
-                            categorySelect.dispatchEvent(event);
+                            const categoryEvent = new Event('change', { bubbles: true });
+                            groupSelect.dispatchEvent(categoryEvent);
                             
                             // Wait for items to populate, then select the item
-                            await new Promise(resolve => setTimeout(resolve, 50));
+                            await new Promise(resolve => setTimeout(resolve, 100));
                             itemSelect.value = bagData.tabletType;
-                            newTabletTypeSelect.value = bagData.tabletType;
                             
                             // Trigger change event on item select to sync
                             const itemEvent = new Event('change', { bubbles: true });
