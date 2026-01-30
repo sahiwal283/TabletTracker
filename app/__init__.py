@@ -1,7 +1,7 @@
 """
 TabletTracker application factory
 """
-from flask import Flask, render_template, request, session, jsonify
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, flash
 from datetime import timedelta
 from flask_babel import Babel
 from flask_wtf.csrf import CSRFProtect, CSRFError
@@ -86,8 +86,11 @@ def create_app(config_class=Config):
         # Return JSON for API routes
         if request.path.startswith('/api/'):
             return jsonify({'success': False, 'error': f'CSRF validation failed: {e.description}'}), 400
-        # For non-API routes, re-raise to use Flask-WTF's default HTML error page
-        raise e
+        # For non-API routes, redirect to login with message instead of crashing
+        # This happens when sessions expire or cookies are cleared
+        session.clear()
+        flash('Your session has expired. Please log in again.', 'error')
+        return redirect(url_for('auth.login'))
     
     # Initialize Rate Limiting (disabled for login routes - using failed attempt tracking instead)
     limiter = Limiter(

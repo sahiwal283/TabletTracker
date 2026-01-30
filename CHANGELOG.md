@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.29.1] - 2026-01-30
+
+### 🐛 Bug Fix - Critical
+
+#### Fixed App Crash from CSRF Session Expiration
+- **Issue**: Entire app crashed with "Something went wrong" error page
+  - Error: "The CSRF session token is missing"
+  - Happened when sessions expired (typically after 8 hours) or cookies cleared
+  - App became completely inaccessible - couldn't even reach login page
+- **Root Cause**: CSRF error handler was re-raising exception for non-API routes
+  - Line 90: `raise e` caused unhandled exception
+  - Flask showed generic 500 error page instead of graceful handling
+  - Users couldn't recover without server intervention
+- **Fix**: Redirect to login page with friendly message instead of crashing
+  - Clear expired session
+  - Flash message: "Your session has expired. Please log in again."
+  - Redirect to login page
+  - Users can immediately log back in
+- **Impact**: App no longer crashes from CSRF errors - graceful session expiration handling
+- **Files Updated**:
+  - `app/__init__.py` (fixed CSRF error handler to redirect instead of raise)
+
+---
+
 ## [2.29.0] - 2026-01-22
 
 ### 🎨 UX Improvement
