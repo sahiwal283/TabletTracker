@@ -90,7 +90,7 @@ def create_app(config_class=Config):
         # This happens when sessions expire or cookies are cleared
         session.clear()
         flash('Your session has expired. Please log in again.', 'error')
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('auth.index'))
     
     # Initialize Rate Limiting (disabled for login routes - using failed attempt tracking instead)
     limiter = Limiter(
