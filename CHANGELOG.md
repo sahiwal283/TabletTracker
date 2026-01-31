@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.1] - 2026-01-30
+
+### 🐛 Bug Fix
+
+#### Fixed Edit Receive Showing Wrong Bag Numbers
+- **Issue**: When editing draft receive, bag numbers showed as 19, 20, 21 instead of 1, 2, 3
+- **Root Cause**: Flavor bag counter continued from last saved value instead of using database bag numbers
+  - `addBag()` triggered `getNextFlavorBagNumber()` which incremented counter
+  - Didn't use `bag_number` from database
+  - Change event re-triggered counter increment
+- **Fix**: 
+  - Set `flavor_bag_number` hidden field directly from database value
+  - Update flavor counter to match database (don't auto-increment during load)
+  - Track assignment in `bagFlavorAssignments` to prevent re-incrementing
+  - Call `updateBagLabel()` with database bag number
+  - DON'T trigger change event on item select (would re-increment)
+- **Result**: Edit now shows correct bag numbers from database (Bag 1, Bag 2, Bag 3...)
+- **Files Updated**:
+  - `templates/receiving.html` (fixed editReceive function to preserve bag numbers)
+
+---
+
 ## [2.31.0] - 2026-01-30
 
 ### ✨ Feature - Edit Draft Receives (Complete Implementation)

@@ -1477,20 +1477,38 @@ async function editReceive(receivingId) {
             // Add each bag
             for (const bagData of boxData.bags) {
                 addBag(currentBoxNumber);
-                const currentBagNumber = bagCounter[currentBoxNumber];
+                const currentBagSequence = bagCounter[currentBoxNumber];
                 
                 // Wait for bag to be added
                 await new Promise(resolve => setTimeout(resolve, 200));
                 
                 // Set values
-                const tabletTypeSelect = document.getElementById(`box_${currentBoxNumber}_bag_${currentBagNumber}_tablet_type`);
-                const bagCountInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagNumber}_bag_count"]`);
+                const tabletTypeSelect = document.getElementById(`box_${currentBoxNumber}_bag_${currentBagSequence}_tablet_type`);
+                const bagCountInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_count"]`);
+                const flavorBagNumberInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_flavor_bag_number"]`);
                 
                 if (tabletTypeSelect && bagCountInput) {
                     tabletTypeSelect.value = bagData.tablet_type_id;
                     bagCountInput.value = bagData.bag_label_count;
                     
-                    // Trigger change to update two-level dropdown and assign flavor bag number
+                    // IMPORTANT: Set the flavor bag number from database (don't auto-increment)
+                    if (flavorBagNumberInput) {
+                        flavorBagNumberInput.value = bagData.bag_number;
+                        
+                        // Track this assignment to prevent re-incrementing
+                        const bagId = `${currentBoxNumber}-${currentBagSequence}`;
+                        bagFlavorAssignments[bagId] = bagData.tablet_type_id;
+                        
+                        // Update the flavor counter to match (so new bags continue correctly)
+                        if (!flavorBagCounter[bagData.tablet_type_id] || flavorBagCounter[bagData.tablet_type_id] < bagData.bag_number) {
+                            flavorBagCounter[bagData.tablet_type_id] = bagData.bag_number;
+                        }
+                    }
+                    
+                    // Update bag label to show correct number from database
+                    updateBagLabel(currentBoxNumber, currentBagSequence, bagData.tablet_type_id, bagData.bag_number);
+                    
+                    // Wait then set dropdowns (after updating counters to prevent auto-increment)
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
                     // Find and set category/item dropdowns
@@ -1508,7 +1526,8 @@ async function editReceive(receivingId) {
                                 await new Promise(resolve => setTimeout(resolve, 150));
                                 itemSelect.value = bagData.tablet_type_id;
                                 itemSelect.style.display = '';
-                                itemSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                                // DON'T trigger change event here - would re-increment counter
+                                // Value is already set in hidden select above
                             }
                         }
                     }
