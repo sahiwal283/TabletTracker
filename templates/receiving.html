@@ -120,6 +120,10 @@
                         {% if user_role in ['manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
                             {% if shipment.receiving.status == 'draft' %}
+                            <button onclick="event.stopPropagation(); editReceive({{ shipment.receiving.id }})" 
+                                    class="text-xs text-blue-600 hover:text-blue-800 underline font-semibold">
+                                ✏️ Edit
+                            </button>
                             <button onclick="event.stopPropagation(); publishReceive({{ shipment.receiving.id }})" 
                                     class="text-xs text-green-600 hover:text-green-800 underline font-semibold">
                                 ✓ Publish (Make Live)
@@ -1400,6 +1404,40 @@ async function unpublishReceive(receivingId) {
         }
     } catch (error) {
         alert('Error unpublishing receive: ' + error.message);
+    }
+}
+
+async function editReceive(receivingId) {
+    // Load receive data and open edit modal
+    try {
+        const response = await fetch(`/api/receive/${receivingId}/details`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('❌ Error loading receive: ' + data.error);
+            return;
+        }
+        
+        // Open the add receives modal (will reuse for editing)
+        document.getElementById('add-receives-modal').classList.remove('hidden');
+        
+        // Update modal title
+        const modalTitle = document.querySelector('#add-receives-modal h3');
+        if (modalTitle) {
+            modalTitle.textContent = '✏️ Edit Draft Receive';
+        }
+        
+        // Store editing ID
+        window.editingReceiveId = receivingId;
+        
+        // TODO: Pre-populate form with existing data from data.products
+        // For now, show message
+        alert('⚠️ Edit feature coming soon!\n\nFor now, you can:\n1. Delete this draft receive\n2. Create a new receive with correct data\n\nOr wait for the edit implementation.');
+        
+        closeAddReceivesModal();
+        
+    } catch (error) {
+        alert('Error loading receive: ' + error.message);
     }
 }
 
