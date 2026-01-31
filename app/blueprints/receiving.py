@@ -38,19 +38,20 @@ def receiving_list():
                 ''').fetchall()
                 purchase_orders = [dict(row) for row in po_rows]
             
-            # Get all receiving records with their boxes and bags
+            # Get all receiving records with their boxes and bags (include status)
             receiving_records = conn.execute('''
             SELECT r.*, 
                    COUNT(DISTINCT sb.id) as box_count,
                    COUNT(DISTINCT b.id) as total_bags,
                    po.po_number,
-                   po.closed as po_closed
+                   po.closed as po_closed,
+                   COALESCE(r.status, 'published') as status
             FROM receiving r
             LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
             LEFT JOIN bags b ON sb.id = b.small_box_id
             LEFT JOIN purchase_orders po ON r.po_id = po.id
             GROUP BY r.id
-            ORDER BY r.received_date DESC
+            ORDER BY CASE WHEN COALESCE(r.status, 'published') = 'draft' THEN 0 ELSE 1 END, r.received_date DESC
             ''').fetchall()
             
             # Calculate shipment numbers for each PO (numbered sequentially by received_date)

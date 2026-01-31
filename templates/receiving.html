@@ -86,9 +86,17 @@
                                     Shipment Received
                                 {% endif %}
                             </h3>
-                            {% if shipment.receiving.closed %}
+                            {% if shipment.receiving.status == 'draft' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-200 text-yellow-800">
+                                📝 DRAFT
+                            </span>
+                            {% elif shipment.receiving.closed %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
                                 🔒 CLOSED
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-200 text-green-800">
+                                ✓ LIVE
                             </span>
                             {% endif %}
                         </div>
@@ -111,6 +119,17 @@
                         </div>
                         {% if user_role in ['manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
+                            {% if shipment.receiving.status == 'draft' %}
+                            <button onclick="event.stopPropagation(); publishReceive({{ shipment.receiving.id }})" 
+                                    class="text-xs text-green-600 hover:text-green-800 underline font-semibold">
+                                ✓ Publish (Make Live)
+                            </button>
+                            {% elif shipment.receiving.status == 'published' and not shipment.receiving.closed %}
+                            <button onclick="event.stopPropagation(); unpublishReceive({{ shipment.receiving.id }})" 
+                                    class="text-xs text-yellow-600 hover:text-yellow-800 underline">
+                                📝 Move to Draft
+                            </button>
+                            {% endif %}
                             <button onclick="event.stopPropagation(); openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
                                 {% if shipment.receiving.po_number %}Change PO{% else %}Assign PO{% endif %}
@@ -195,9 +214,17 @@
                             <h3 class="text-lg font-semibold text-gray-900">
                                 Shipment Received
                             </h3>
-                            {% if shipment.receiving.closed %}
+                            {% if shipment.receiving.status == 'draft' %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-200 text-yellow-800">
+                                📝 DRAFT
+                            </span>
+                            {% elif shipment.receiving.closed %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
                                 🔒 CLOSED
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-200 text-green-800">
+                                ✓ LIVE
                             </span>
                             {% endif %}
                         </div>
@@ -1326,6 +1353,54 @@ function openDeleteShipmentModal(receivingId, receivedDate, poNumber) {
     document.getElementById('delete-confirm-checkbox').checked = false;
     document.getElementById('confirm-delete-btn').disabled = true;
     document.getElementById('delete-shipment-modal').classList.remove('hidden');
+}
+
+async function publishReceive(receivingId) {
+    if (!confirm('✓ Publish this receive?\n\nThis will make it LIVE and available for production submissions.')) {
+        return;
+    }
+    
+    try {
+        const response = await csrfFetch(`/api/receiving/${receivingId}/publish`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ ' + result.message);
+            location.reload();
+        } else {
+            alert('❌ Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error publishing receive: ' + error.message);
+    }
+}
+
+async function unpublishReceive(receivingId) {
+    if (!confirm('📝 Move this receive to DRAFT?\n\nIt will be hidden from production until published again.\n\nNote: This only works if no submissions exist for this receive yet.')) {
+        return;
+    }
+    
+    try {
+        const response = await csrfFetch(`/api/receiving/${receivingId}/unpublish`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('📝 ' + result.message);
+            location.reload();
+        } else {
+            alert('❌ Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error unpublishing receive: ' + error.message);
+    }
 }
 
 async function toggleReceiveClosed(receivingId, currentlyClosed) {

@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.30.0] - 2026-01-30
+
+### ✨ Feature - Draft Receives Workflow
+
+#### Added Draft/Published Status for Large Shipment Management
+- **Feature**: Receives can now be saved as drafts and published when ready
+- **Problem Solved**: Large shipments (96+ cases) were risky to enter in one sitting
+  - Accidental Enter key would save incomplete receive
+  - No way to pause and continue later
+  - Mistakes had to be manually fixed in database
+  - No way to edit receives after saving
+- **Implementation**:
+  
+  **Database:**
+  - Added `status` column to `receiving` table ('draft' or 'published')
+  - Default: 'published' (backward compatible with existing receives)
+  - Migration script: `database/add_receive_status_column.py`
+  
+  **UI - Save Options:**
+  - 📝 "Save as Draft" button (yellow) - saves progress without going live
+  - ✓ "Save & Publish" button (blue) - saves and makes immediately available
+  - Helpful tip text explaining draft functionality
+  
+  **UI - Status Badges:**
+  - 📝 DRAFT (yellow badge) - work in progress
+  - ✓ LIVE (green badge) - available for production
+  - 🔒 CLOSED (gray badge) - no more submissions accepted
+  
+  **UI - Publish/Unpublish:**
+  - Draft receives show "✓ Publish (Make Live)" button
+  - Published receives show "📝 Move to Draft" button (if no submissions yet)
+  - Clear confirmation dialogs explaining what will happen
+  
+  **Backend - Bag Matching:**
+  - Draft receives excluded from production bag matching
+  - Added `AND COALESCE(r.status, 'published') = 'published'` to all matching queries
+  - Draft bags won't interfere with live production
+  
+  **Backend - API Endpoints:**
+  - `POST /api/receiving/<id>/publish` - publish a draft receive
+  - `POST /api/receiving/<id>/unpublish` - move back to draft (only if no submissions)
+  - `POST /api/save_receives` - accepts `status` parameter ('draft' or 'published')
+  
+  **Benefits:**
+  - ✅ Save progress on large shipments incrementally
+  - ✅ No risk of accidental incomplete saves
+  - ✅ Can pause and resume data entry across multiple sessions
+  - ✅ Draft receives isolated from production
+  - ✅ Publish when ready with one click
+  - ✅ Can unpublish if needed (before submissions exist)
+  
+- **Files Updated**:
+  - `app/models/schema.py` (added status column to receiving table)
+  - `app/blueprints/api_receiving.py` (save_receives, publish, unpublish endpoints)
+  - `app/blueprints/receiving.py` (updated query to include status, sort drafts first)
+  - `app/utils/receive_tracking.py` (exclude draft receives from bag matching)
+  - `templates/receiving.html` (draft/publish buttons, status badges, JavaScript functions)
+  - `database/add_receive_status_column.py` (migration script)
+
+---
+
 ## [2.29.1] - 2026-01-30
 
 ### 🐛 Bug Fix - Critical

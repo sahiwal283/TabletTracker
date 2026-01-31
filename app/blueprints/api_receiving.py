@@ -1344,6 +1344,93 @@ def save_receives():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/api/receiving/<int:receiving_id>/publish', methods=['POST'])
+@role_required('shipping')
+def publish_receiving(receiving_id):
+    """Publish a draft receive to make it live and available for production"""
+    try:
+        with db_transaction() as conn:
+            # Get receive
+            receive = conn.execute('''
+                SELECT status FROM receiving WHERE id = ?
+            ''', (receiving_id,)).fetchone()
+            
+            if not receive:
+                return jsonify({'success': False, 'error': 'Receive not found'}), 404
+            
+            current_status = receive['status'] if receive else 'published'
+            
+            if current_status == 'published':
+                return jsonify({'success': False, 'error': 'Receive is already published'}), 400
+            
+            # Update status to published
+            conn.execute('''
+                UPDATE receiving 
+                SET status = 'published'
+                WHERE id = ?
+            ''', (receiving_id,))
+            
+            return jsonify({
+                'success': True,
+                'message': 'Receive published successfully! Now available for production.',
+                'status': 'published'
+            })
+    except Exception as e:
+        current_app.logger.error(f"Error publishing receive: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/receiving/<int:receiving_id>/unpublish', methods=['POST'])
+@role_required('shipping')
+def unpublish_receiving(receiving_id):
+    """Unpublish a receive (move back to draft) - only if no submissions exist"""
+    try:
+        with db_transaction() as conn:
+            # Get receive
+            receive = conn.execute('''
+                SELECT status FROM receiving WHERE id = ?
+            ''', (receiving_id,)).fetchone()
+            
+            if not receive:
+                return jsonify({'success': False, 'error': 'Receive not found'}), 404
+            
+            current_status = receive['status'] if receive else 'published'
+            
+            if current_status == 'draft':
+                return jsonify({'success': False, 'error': 'Receive is already a draft'}), 400
+            
+            # Check if any submissions exist for this receive's bags
+            submission_count = conn.execute('''
+                SELECT COUNT(*) as count
+                FROM warehouse_submissions ws
+                JOIN bags b ON ws.bag_id = b.id
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                WHERE sb.receiving_id = ?
+            ''', (receiving_id,)).fetchone()
+            
+            if submission_count and submission_count['count'] > 0:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Cannot unpublish: {submission_count["count"]} submission(s) already exist for this receive. Delete submissions first.'
+                }), 400
+            
+            # Update status to draft
+            conn.execute('''
+                UPDATE receiving 
+                SET status = 'draft'
+                WHERE id = ?
+            ''', (receiving_id,))
+            
+            return jsonify({
+                'success': True,
+                'message': 'Receive moved to draft. Will not appear in production until published again.',
+                'status': 'draft'
+            })
+    except Exception as e:
+        current_app.logger.error(f"Error unpublishing receive: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/api/receiving/<int:receiving_id>/assign_po', methods=['POST'])
 @role_required('shipping')
 def assign_po_to_receiving(receiving_id):
