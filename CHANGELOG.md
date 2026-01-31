@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.3] - 2026-01-30
+
+### 🐛 Bug Fix - CRITICAL
+
+#### Improved Edit Safety with Loading Indicators and User Warnings
+- **Issue**: Edit function caused data loss because form wasn't fully loaded before user made changes
+  - User clicked Edit, saw partial data, added boxes, saved
+  - Old boxes not yet loaded into form were lost
+  - No indication that loading was in progress
+- **Fix - Multiple Improvements**:
+  1. **Loading Confirmation**: Shows alert explaining loading process before starting
+  2. **Disabled Form**: Buttons disabled (grayed out) during loading
+  3. **Progress Title**: Modal title shows "Loading X Existing Boxes..."
+  4. **Completion Alert**: Shows "✅ Loaded X boxes" when ready
+  5. **Clear Warning**: Explains that save will include ALL boxes in form
+  6. **Console Logging**: Detailed logs for debugging
+- **User Experience**:
+  - Click Edit → Confirmation dialog
+  - Form loads with "Loading..." title
+  - Buttons disabled and grayed during load
+  - Alert when ready: "✅ Loaded 26 boxes - Form ready"
+  - User knows exactly when safe to proceed
+- **Files Updated**:
+  - `templates/receiving.html` (added loading states, warnings, disabled buttons during load)
+
+---
+
 ## [2.31.2] - 2026-01-30
 
 ### 🐛 Bug Fix - CRITICAL

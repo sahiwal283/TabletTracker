@@ -1424,6 +1424,11 @@ async function unpublishReceive(receivingId) {
 async function editReceive(receivingId) {
     // Load receive data and populate form for editing
     try {
+        // Show loading message
+        if (!confirm(`📝 Edit Draft Receive\n\nLoading existing boxes and bags...\n\nThis will take a moment. Please wait for the form to fully load before making changes.\n\nClick OK to continue.`)) {
+            return;
+        }
+        
         const response = await fetch(`/api/receiving/${receivingId}/editable`);
         const data = await response.json();
         
@@ -1432,17 +1437,27 @@ async function editReceive(receivingId) {
             return;
         }
         
+        console.log(`[Edit Receive] Loading ${data.boxes.length} boxes with receive ID ${receivingId}`);
+        
         // Open the modal
         document.getElementById('add-receives-modal').classList.remove('hidden');
         
-        // Update modal title
+        // Update modal title with box count
         const modalTitle = document.querySelector('#add-receives-modal h3');
         if (modalTitle) {
-            modalTitle.textContent = '✏️ Edit Draft Receive';
+            modalTitle.textContent = `✏️ Edit Draft Receive - Loading ${data.boxes.length} Existing Boxes...`;
         }
         
         // Store editing ID globally
         window.editingReceiveId = receivingId;
+        
+        // Disable form during loading
+        const form = document.getElementById('receives-form');
+        const submitButtons = form.querySelectorAll('button[type="submit"], button[onclick*="saveReceivesDraft"]');
+        submitButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+        });
         
         // Clear existing boxes in form
         const boxesContainer = document.getElementById('boxes-container');
@@ -1535,9 +1550,36 @@ async function editReceive(receivingId) {
             }
         }
         
+        // Re-enable form after all boxes loaded
+        submitButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
+        
+        // Update modal title to indicate ready
+        if (modalTitle) {
+            modalTitle.textContent = `✏️ Edit Draft Receive - ${data.boxes.length} Boxes Loaded`;
+        }
+        
+        console.log(`[Edit Receive] Successfully loaded ${data.boxes.length} boxes`);
+        console.log(`[Edit Receive] Form is now ready for editing`);
+        
+        // Show success message
+        alert(`✅ Loaded ${data.boxes.length} existing boxes\n\nYou can now add more boxes or modify existing ones.\n\nIMPORTANT: When you click Save, it will save ALL boxes shown in the form (old + new).`);
+        
     } catch (error) {
-        alert('Error loading receive for editing: ' + error.message);
+        alert('❌ Error loading receive for editing: ' + error.message);
         console.error(error);
+        
+        // Re-enable buttons on error
+        const form = document.getElementById('receives-form');
+        if (form) {
+            const submitButtons = form.querySelectorAll('button[type="submit"], button[onclick*="saveReceivesDraft"]');
+            submitButtons.forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            });
+        }
     }
 }
 
