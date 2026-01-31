@@ -1340,20 +1340,35 @@ def save_receives():
             elif session.get('admin_authenticated'):
                 received_by = 'Admin'
             
-            # If updating existing receive, delete old boxes/bags first
+            # If updating existing receive, only delete and recreate if explicitly updating
+            # CRITICAL: This is destructive - only use when form has ALL data loaded
             if receiving_id:
                 # Verify receive exists and is editable
                 existing = conn.execute('SELECT status FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
                 if not existing:
                     return jsonify({'success': False, 'error': 'Receive not found'}), 404
                 
-                # Delete existing bags
+                # Only allow updates to draft receives to prevent data loss
+                if existing['status'] != 'draft':
+                    return jsonify({
+                        'success': False, 
+                        'error': 'Can only edit draft receives. Publish receives are locked to prevent accidental data loss.'
+                    }), 400
+                
+                # CRITICAL SAFETY CHECK: Warn if this looks like data loss
+                old_count = conn.execute('''
+                    SELECT COUNT(*) as count FROM small_boxes WHERE receiving_id = ?
+                ''', (receiving_id,)).fetchone()
+                
+                if old_count and old_count['count'] > len(boxes_data):
+                    current_app.logger.warning(f"⚠️ UPDATE WARNING: Receive {receiving_id} had {old_count['count']} boxes, new data has {len(boxes_data)}. Potential data loss!")
+                
+                # Delete existing bags and boxes (will be replaced with form data)
                 conn.execute('''
                     DELETE FROM bags 
                     WHERE small_box_id IN (SELECT id FROM small_boxes WHERE receiving_id = ?)
                 ''', (receiving_id,))
                 
-                # Delete existing boxes
                 conn.execute('DELETE FROM small_boxes WHERE receiving_id = ?', (receiving_id,))
                 
                 # Update receiving record

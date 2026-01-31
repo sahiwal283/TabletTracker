@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.2] - 2026-01-30
+
+### 🐛 Bug Fix - CRITICAL
+
+#### Added Safety Checks to Prevent Data Loss on Edit
+- **CRITICAL ISSUE**: User lost 26 boxes when saving after edit
+  - Edit loaded form, user added 4 new boxes (27-30), saved
+  - Update logic deleted ALL 26 old boxes, only saved the 4 new ones
+  - 26 boxes of data permanently lost
+- **Root Cause**: Update logic deletes all boxes/bags, then inserts what's in form
+  - If form doesn't have all original data loaded, data is lost
+  - No safety check for data loss
+  - Published receives could be accidentally edited
+- **Fix - Multiple Safety Layers**:
+  1. **Lock Published Receives**: Can only edit draft receives
+  2. **Data Loss Warning**: Log warning if new data has fewer boxes than old
+  3. **Status Check**: Verify receive is draft before allowing update
+  4. **Error Message**: Clear message explaining edit only works on drafts
+- **Recommendation**: **DO NOT USE EDIT YET** - Wait for safer implementation
+  - Current edit is destructive if form doesn't load properly
+  - Better to add new receives or manually add boxes to existing
+- **Files Updated**:
+  - `app/blueprints/api_receiving.py` (added safety checks and warnings)
+
+---
+
 ## [2.31.1] - 2026-01-30
 
 ### 🐛 Bug Fix
