@@ -446,16 +446,27 @@
                     </button>
                 </div>
                 
-                <!-- Submit Button -->
-                <div class="mt-6 flex justify-end gap-3 border-t pt-4">
-                    <button type="button" onclick="closeAddReceivesModal()" 
-                            class="btn-secondary px-6 py-2">
-                        Cancel
-                    </button>
-                    <button type="submit" 
-                            class="btn-primary px-6 py-2">
-                        Save Receives
-                    </button>
+                <!-- Submit Buttons -->
+                <div class="mt-6 border-t pt-4">
+                    <div class="flex justify-between items-center gap-3 mb-3">
+                        <div class="text-sm text-gray-600">
+                            <span class="font-medium">💡 Tip:</span> Save as Draft to continue editing later
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" onclick="closeAddReceivesModal()" 
+                                class="btn-secondary px-4 py-2">
+                            Cancel
+                        </button>
+                        <button type="button" onclick="saveReceivesDraft()" 
+                                class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
+                            📝 Save as Draft
+                        </button>
+                        <button type="submit" 
+                                class="btn-primary px-6 py-2">
+                            ✓ Save & Publish
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1171,10 +1182,10 @@ async function copyBox(boxNumber) {
     }
 }
 
-async function submitReceives(event) {
-    event.preventDefault();
+async function submitReceivesWithStatus(event, status = 'published') {
+    if (event) event.preventDefault();
     
-    const form = event.target;
+    const form = document.getElementById('receives-form');
     const formData = new FormData(form);
     
     // Parse form data into structured format
@@ -1255,14 +1266,16 @@ async function submitReceives(event) {
             },
             body: JSON.stringify({
                 boxes: boxesArray,
-                po_id: poId ? parseInt(poId) : null
+                po_id: poId ? parseInt(poId) : null,
+                status: status
             })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            alert('✅ Shipment received recorded successfully!');
+            const statusMsg = status === 'draft' ? '📝 Saved as DRAFT' : '✅ Saved & Published';
+            alert(`${statusMsg}\n\n${result.message}`);
             closeAddReceivesModal();
             location.reload();
         } else {
@@ -1277,6 +1290,15 @@ async function submitReceives(event) {
         submitButton.disabled = false;
         submitButton.textContent = 'Save Receives';
     }
+}
+
+// Wrapper functions for different submit types
+async function submitReceives(event) {
+    return submitReceivesWithStatus(event, 'published');
+}
+
+async function saveReceivesDraft() {
+    return submitReceivesWithStatus(null, 'draft');
 }
 
 function openAssignPOModal(receivingId, currentPoIdParam) {

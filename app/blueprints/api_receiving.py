@@ -1249,6 +1249,11 @@ def save_receives():
         data = request.get_json()
         boxes_data = data.get('boxes', [])
         po_id = data.get('po_id')
+        status = data.get('status', 'published')  # Default to published for backward compatibility
+        
+        # Validate status
+        if status not in ['draft', 'published']:
+            status = 'published'
         
         if not boxes_data:
             return jsonify({'success': False, 'error': 'No boxes data provided'}), 400
@@ -1283,11 +1288,11 @@ def save_receives():
             elif session.get('admin_authenticated'):
                 received_by = 'Admin'
             
-            # Create receiving record
+            # Create receiving record with status
             receiving_cursor = conn.execute('''
-                INSERT INTO receiving (po_id, received_by, received_date, total_small_boxes, notes)
-                VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
-            ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)'))
+                INSERT INTO receiving (po_id, received_by, received_date, total_small_boxes, notes, status)
+                VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+            ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)', status))
             
             receiving_id = receiving_cursor.lastrowid
             total_bags = 0
@@ -1326,10 +1331,12 @@ def save_receives():
                 WHERE id = ?
             ''', (len(boxes_data), receiving_id))
             
+            status_message = 'as DRAFT (not live yet)' if status == 'draft' else 'and published (now live)'
             return jsonify({
                 'success': True,
-                'message': f'Successfully recorded {len(boxes_data)} box(es) with {total_bags} bag(s)',
-                'receiving_id': receiving_id
+                'message': f'Successfully recorded {len(boxes_data)} box(es) with {total_bags} bag(s) {status_message}',
+                'receiving_id': receiving_id,
+                'status': status
             })
     except Exception as e:
         current_app.logger.error(f"Error saving receives: {str(e)}")

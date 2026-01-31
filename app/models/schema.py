@@ -174,6 +174,7 @@ class SchemaManager:
             received_by TEXT,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'published',
             FOREIGN KEY (po_id) REFERENCES purchase_orders (id),
             FOREIGN KEY (shipment_id) REFERENCES shipments (id)
         )''')
