@@ -1241,6 +1241,57 @@ def process_receiving():
         return jsonify({'error': f'Failed to process receiving: {str(e)}'}), 500
 
 
+@bp.route('/api/receiving/<int:receiving_id>/editable', methods=['GET'])
+@role_required('shipping')
+def get_receive_editable(receiving_id):
+    """Get receive data in format suitable for editing (boxes and bags structure)"""
+    try:
+        with db_read_only() as conn:
+            # Get receive details
+            receive = conn.execute('''
+                SELECT r.*, po.po_number
+                FROM receiving r
+                LEFT JOIN purchase_orders po ON r.po_id = po.id
+                WHERE r.id = ?
+            ''', (receiving_id,)).fetchone()
+            
+            if not receive:
+                return jsonify({'success': False, 'error': 'Receive not found'}), 404
+            
+            # Get boxes with bags
+            boxes = conn.execute('''
+                SELECT sb.id, sb.box_number, sb.total_bags
+                FROM small_boxes sb
+                WHERE sb.receiving_id = ?
+                ORDER BY sb.box_number
+            ''', (receiving_id,)).fetchall()
+            
+            boxes_data = []
+            for box in boxes:
+                # Get bags for this box
+                bags = conn.execute('''
+                    SELECT b.id, b.bag_number, b.bag_label_count, b.tablet_type_id, b.status
+                    FROM bags b
+                    WHERE b.small_box_id = ?
+                    ORDER BY b.bag_number
+                ''', (box['id'],)).fetchall()
+                
+                boxes_data.append({
+                    'box_number': box['box_number'],
+                    'bags': [dict(bag) for bag in bags]
+                })
+            
+            return jsonify({
+                'success': True,
+                'receive': dict(receive),
+                'boxes': boxes_data
+            })
+    except Exception as e:
+        current_app.logger.error(f"Error getting editable receive: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/api/save_receives', methods=['POST'])
 @role_required('shipping')
 def save_receives():
@@ -1250,6 +1301,7 @@ def save_receives():
         boxes_data = data.get('boxes', [])
         po_id = data.get('po_id')
         status = data.get('status', 'published')  # Default to published for backward compatibility
+        receiving_id = data.get('receiving_id')  # If provided, update existing receive
         
         # Validate status
         if status not in ['draft', 'published']:
@@ -1288,13 +1340,37 @@ def save_receives():
             elif session.get('admin_authenticated'):
                 received_by = 'Admin'
             
-            # Create receiving record with status
-            receiving_cursor = conn.execute('''
-                INSERT INTO receiving (po_id, received_by, received_date, total_small_boxes, notes, status)
-                VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
-            ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)', status))
+            # If updating existing receive, delete old boxes/bags first
+            if receiving_id:
+                # Verify receive exists and is editable
+                existing = conn.execute('SELECT status FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
+                if not existing:
+                    return jsonify({'success': False, 'error': 'Receive not found'}), 404
+                
+                # Delete existing bags
+                conn.execute('''
+                    DELETE FROM bags 
+                    WHERE small_box_id IN (SELECT id FROM small_boxes WHERE receiving_id = ?)
+                ''', (receiving_id,))
+                
+                # Delete existing boxes
+                conn.execute('DELETE FROM small_boxes WHERE receiving_id = ?', (receiving_id,))
+                
+                # Update receiving record
+                conn.execute('''
+                    UPDATE receiving 
+                    SET po_id = ?, total_small_boxes = ?, notes = ?, status = ?
+                    WHERE id = ?
+                ''', (po_id if po_id else None, len(boxes_data), f'Updated: {len(boxes_data)} box(es)', status, receiving_id))
+            else:
+                # Create new receiving record with status
+                receiving_cursor = conn.execute('''
+                    INSERT INTO receiving (po_id, received_by, received_date, total_small_boxes, notes, status)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+                ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)', status))
+                
+                receiving_id = receiving_cursor.lastrowid
             
-            receiving_id = receiving_cursor.lastrowid
             total_bags = 0
             
             # Process each box
@@ -1331,10 +1407,17 @@ def save_receives():
                 WHERE id = ?
             ''', (len(boxes_data), receiving_id))
             
+            # Determine success message
+            if data.get('receiving_id'):
+                action = 'updated'
+            else:
+                action = 'recorded'
+            
             status_message = 'as DRAFT (not live yet)' if status == 'draft' else 'and published (now live)'
+            
             return jsonify({
                 'success': True,
-                'message': f'Successfully recorded {len(boxes_data)} box(es) with {total_bags} bag(s) {status_message}',
+                'message': f'Successfully {action} {len(boxes_data)} box(es) with {total_bags} bag(s) {status_message}',
                 'receiving_id': receiving_id,
                 'status': status
             })

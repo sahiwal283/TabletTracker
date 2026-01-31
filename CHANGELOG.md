@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.0] - 2026-01-30
+
+### ✨ Feature - Edit Draft Receives (Complete Implementation)
+
+#### Added Full Edit Functionality for Draft Receives
+- **Feature**: Draft receives can now be fully edited - add/modify/remove boxes and bags
+- **Problem Solved**: User accidentally saved 26-box shipment before completing 96 boxes
+  - No way to continue adding boxes to existing receive
+  - Had to start completely over (unacceptable for large shipments)
+  - Labeling and organization would be lost
+- **Implementation**:
+  
+  **Backend - Get Editable Data:**
+  - `GET /api/receiving/<id>/editable` - returns boxes and bags in editable format
+  - Structured data ready for form pre-population
+  
+  **Backend - Update Logic:**
+  - `save_receives` endpoint handles both create and update
+  - If `receiving_id` provided: deletes old boxes/bags, recreates with new data
+  - Update vs insert detected automatically
+  - Success message indicates "updated" vs "recorded"
+  
+  **Frontend - Edit Button:**
+  - ✏️ Edit button on draft receives (blue, prominent)
+  - Loads existing data via API
+  - Opens same modal as "Add Receives" (reused for editing)
+  - Modal title changes to "✏️ Edit Draft Receive"
+  
+  **Frontend - Form Pre-population:**
+  - Clears existing form completely
+  - Re-creates each box sequentially
+  - Adds each bag with correct values
+  - Sets tablet type dropdowns (handles two-level dropdown conversion)
+  - Sets bag counts
+  - Maintains PO assignment
+  - Preserves flavor bag numbering
+  
+  **Workflow:**
+  1. Click "✏️ Edit" on draft receive
+  2. Form loads with all 26 existing boxes
+  3. Add more boxes (27, 28, ..., 96)
+  4. Click "📝 Save as Draft" to save progress
+  5. Repeat until complete
+  6. Click "✓ Save & Publish" when done
+  
+- **Benefits**:
+  - ✅ Can continue large shipments across multiple sessions
+  - ✅ No data loss - all existing boxes preserved
+  - ✅ Can add more boxes to existing receive
+  - ✅ Can modify bag counts if needed
+  - ✅ Progress saved incrementally
+  - ✅ Perfect for 96+ case shipments
+  
+- **Files Updated**:
+  - `app/blueprints/api_receiving.py` (get_receive_editable endpoint, update logic in save_receives)
+  - `templates/receiving.html` (editReceive function, form pre-population, update detection)
+
+---
+
 ## [2.30.0] - 2026-01-30
 
 ### ✨ Feature - Draft Receives Workflow

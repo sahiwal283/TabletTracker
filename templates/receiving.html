@@ -771,6 +771,13 @@ async function openAddReceivesModal() {
 function closeAddReceivesModal(event) {
     if (!event || event.target === event.currentTarget || event.target.closest('button')) {
         document.getElementById('add-receives-modal').classList.add('hidden');
+        
+        // Clear editing state and reset modal title
+        window.editingReceiveId = null;
+        const modalTitle = document.querySelector('#add-receives-modal h3');
+        if (modalTitle) {
+            modalTitle.textContent = '📦 Record Shipment Received';
+        }
     }
 }
 
@@ -1298,15 +1305,22 @@ async function submitReceivesWithStatus(event, status = 'published') {
             body: JSON.stringify({
                 boxes: boxesArray,
                 po_id: poId ? parseInt(poId) : null,
-                status: status
+                status: status,
+                receiving_id: window.editingReceiveId || null
             })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            const statusMsg = status === 'draft' ? '📝 Saved as DRAFT' : '✅ Saved & Published';
+            const isEditing = window.editingReceiveId;
+            const action = isEditing ? 'Updated' : 'Saved';
+            const statusMsg = status === 'draft' ? `📝 ${action} as DRAFT` : `✅ ${action} & Published`;
             alert(`${statusMsg}\n\n${result.message}`);
+            
+            // Clear editing state
+            window.editingReceiveId = null;
+            
             closeAddReceivesModal();
             location.reload();
         } else {
@@ -1408,9 +1422,9 @@ async function unpublishReceive(receivingId) {
 }
 
 async function editReceive(receivingId) {
-    // Load receive data and open edit modal
+    // Load receive data and populate form for editing
     try {
-        const response = await fetch(`/api/receive/${receivingId}/details`);
+        const response = await fetch(`/api/receiving/${receivingId}/editable`);
         const data = await response.json();
         
         if (!data.success) {
@@ -1418,7 +1432,7 @@ async function editReceive(receivingId) {
             return;
         }
         
-        // Open the add receives modal (will reuse for editing)
+        // Open the modal
         document.getElementById('add-receives-modal').classList.remove('hidden');
         
         // Update modal title
@@ -1427,17 +1441,84 @@ async function editReceive(receivingId) {
             modalTitle.textContent = '✏️ Edit Draft Receive';
         }
         
-        // Store editing ID
+        // Store editing ID globally
         window.editingReceiveId = receivingId;
         
-        // TODO: Pre-populate form with existing data from data.products
-        // For now, show message
-        alert('⚠️ Edit feature coming soon!\n\nFor now, you can:\n1. Delete this draft receive\n2. Create a new receive with correct data\n\nOr wait for the edit implementation.');
+        // Clear existing boxes in form
+        const boxesContainer = document.getElementById('boxes-container');
+        boxesContainer.innerHTML = '';
+        boxCounter = 0;
+        flavorBagCounter = {};
+        bagFlavorAssignments = {};
         
-        closeAddReceivesModal();
+        // Set PO if assigned
+        const poSelect = document.getElementById('po-select');
+        if (poSelect && data.receive.po_id) {
+            poSelect.value = data.receive.po_id;
+            // Load max bag numbers for this PO
+            await loadMaxBagNumbersForPO();
+        }
+        
+        // Re-create each box with its bags
+        for (const boxData of data.boxes) {
+            addBox();
+            const currentBoxNumber = boxCounter;
+            
+            // Wait for box to be added
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Clear auto-added first bag
+            const bagsContainer = document.getElementById(`box-${currentBoxNumber}-bags`);
+            if (bagsContainer) {
+                bagsContainer.innerHTML = '';
+                bagCounter[currentBoxNumber] = 0;
+            }
+            
+            // Add each bag
+            for (const bagData of boxData.bags) {
+                addBag(currentBoxNumber);
+                const currentBagNumber = bagCounter[currentBoxNumber];
+                
+                // Wait for bag to be added
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                // Set values
+                const tabletTypeSelect = document.getElementById(`box_${currentBoxNumber}_bag_${currentBagNumber}_tablet_type`);
+                const bagCountInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagNumber}_bag_count"]`);
+                
+                if (tabletTypeSelect && bagCountInput) {
+                    tabletTypeSelect.value = bagData.tablet_type_id;
+                    bagCountInput.value = bagData.bag_label_count;
+                    
+                    // Trigger change to update two-level dropdown and assign flavor bag number
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // Find and set category/item dropdowns
+                    const groupSelect = document.getElementById(tabletTypeSelect.id + '_group');
+                    const itemSelect = document.getElementById(tabletTypeSelect.id + '_item');
+                    
+                    if (groupSelect && itemSelect) {
+                        const selectedOption = tabletTypeSelect.querySelector(`option[value="${bagData.tablet_type_id}"]`);
+                        if (selectedOption) {
+                            const optgroup = selectedOption.parentElement;
+                            if (optgroup && optgroup.tagName === 'OPTGROUP') {
+                                groupSelect.value = optgroup.label;
+                                groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                                
+                                await new Promise(resolve => setTimeout(resolve, 150));
+                                itemSelect.value = bagData.tablet_type_id;
+                                itemSelect.style.display = '';
+                                itemSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
         
     } catch (error) {
-        alert('Error loading receive: ' + error.message);
+        alert('Error loading receive for editing: ' + error.message);
+        console.error(error);
     }
 }
 
