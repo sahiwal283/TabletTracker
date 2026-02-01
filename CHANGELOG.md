@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.4] - 2026-01-30
+
+### 🐛 Bug Fix - CRITICAL
+
+#### Fixed Edit Creating New Receive Instead of Updating
+- **Issue**: Edit loaded boxes correctly but saved as NEW receive, not update
+  - User clicked Edit, saw all boxes load
+  - Added new boxes, clicked Save
+  - Created new receive with only new boxes (data loss)
+- **Root Cause**: `window.editingReceiveId` was being cleared prematurely
+  - `closeAddReceivesModal()` cleared `editingReceiveId` on close
+  - But edit function calls modal multiple times during loading
+  - ID got cleared before save, so save thought it was a new receive
+  - Console showed: "Editing receive ID: null (new receive)"
+- **Fix**: Don't clear `editingReceiveId` in closeAddReceivesModal
+  - Only clear AFTER successful save (in success handler)
+  - Keep ID persistent throughout edit session
+  - Added logging to track when ID is set/cleared
+- **Result**: Edit now properly updates existing receive instead of creating new one
+- **Files Updated**:
+  - `templates/receiving.html` (removed premature ID clearing, added logging)
+
+---
+
 ## [2.31.3] - 2026-01-30
 
 ### 🐛 Bug Fix - CRITICAL

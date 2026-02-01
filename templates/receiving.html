@@ -772,8 +772,9 @@ function closeAddReceivesModal(event) {
     if (!event || event.target === event.currentTarget || event.target.closest('button')) {
         document.getElementById('add-receives-modal').classList.add('hidden');
         
-        // Clear editing state and reset modal title
-        window.editingReceiveId = null;
+        // DON'T clear editing state on close - only clear after successful save
+        // window.editingReceiveId = null;  // REMOVED - was causing ID loss
+        
         const modalTitle = document.querySelector('#add-receives-modal h3');
         if (modalTitle) {
             modalTitle.textContent = '📦 Record Shipment Received';
@@ -1346,13 +1347,15 @@ async function submitReceivesWithStatus(event, status = 'published') {
             const statusMsg = status === 'draft' ? `📝 ${action} as DRAFT` : `✅ ${action} & Published`;
             alert(`${statusMsg}\n\n${result.message}`);
             
-            // Clear editing state
+            // Clear editing state AFTER successful save
             window.editingReceiveId = null;
+            console.log('[Submit] CLEARED editingReceiveId after successful save');
             
             closeAddReceivesModal();
             location.reload();
         } else {
             alert('❌ Error: ' + (result.error || 'Failed to save receives'));
+            // Don't clear editingReceiveId on error - user might retry
         }
         
         submitButton.disabled = false;
@@ -1478,6 +1481,7 @@ async function editReceive(receivingId) {
         
         // Store editing ID globally
         window.editingReceiveId = receivingId;
+        console.log('[Edit] SET editingReceiveId to:', receivingId);
         
         // Disable form during loading
         const form = document.getElementById('receives-form');
