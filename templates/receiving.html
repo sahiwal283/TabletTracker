@@ -1271,9 +1271,30 @@ async function submitReceivesWithStatus(event, status = 'published') {
         }
     }
     
+    // Debug logging
+    console.log('[Submit] Form data collected:');
+    console.log('[Submit] Total boxes found:', Object.keys(boxes).length);
+    console.log('[Submit] Boxes object:', boxes);
+    console.log('[Submit] BoxesArray (to be sent):', boxesArray);
+    console.log('[Submit] Total boxes in array:', boxesArray.length);
+    console.log('[Submit] Editing receive ID:', window.editingReceiveId || 'null (new receive)');
+    
     if (boxesArray.length === 0) {
         alert('Please add at least one bag with tablet type and bag count.');
         return;
+    }
+    
+    // Show warning if editing and box count seems wrong
+    if (window.editingReceiveId) {
+        const boxesInDOM = document.querySelectorAll('[id^="box-"]').length;
+        console.log('[Submit] Boxes visible in DOM:', boxesInDOM);
+        console.log('[Submit] Boxes being sent to server:', boxesArray.length);
+        
+        if (boxesArray.length < boxesInDOM) {
+            if (!confirm(`⚠️ WARNING: Potential data loss!\n\nBoxes visible in form: ${boxesInDOM}\nBoxes being sent to server: ${boxesArray.length}\n\nSome boxes may be missing required data (tablet type, bag count, or flavor bag number).\n\nDo you want to continue anyway?`)) {
+                return;
+            }
+        }
     }
     
     // Validate PO selection (now required)
@@ -1296,6 +1317,13 @@ async function submitReceivesWithStatus(event, status = 'published') {
         const originalText = submitButton.textContent;
         submitButton.disabled = true;
         submitButton.textContent = 'Saving...';
+        
+        console.log('[Submit] Sending to server:', {
+            boxes: boxesArray,
+            po_id: poId,
+            status: status,
+            receiving_id: window.editingReceiveId || null
+        });
         
         const response = await csrfFetch('/api/save_receives', {
             method: 'POST',
