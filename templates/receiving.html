@@ -1631,11 +1631,23 @@ async function editReceive(receivingId) {
                                 itemSelect.value = bagData.tablet_type_id;
                                 itemSelect.style.display = '';
                                 
+                                // CRITICAL: Ensure item select has the name attribute for FormData collection
+                                // The convertToTwoLevelDropdown transfers name to itemSelect
+                                // But verify it's there
+                                console.log(`[Edit]   Item select name attribute:`, itemSelect.name);
+                                if (!itemSelect.name || itemSelect.name === '') {
+                                    console.warn(`[Edit]   WARNING: Item select has no name! Setting it now.`);
+                                    itemSelect.name = tabletTypeSelect.name || `box_${currentBoxNumber}_bag_${currentBagSequence}_tablet_type`;
+                                }
+                                
                                 // Verify item select has value
                                 console.log(`[Edit]   Item select value after set:`, itemSelect.value);
                                 
                                 if (!itemSelect.value || itemSelect.value === '') {
                                     console.error(`[Edit]   ERROR: Item select value is empty after setting!`);
+                                    // Force set it again
+                                    itemSelect.value = bagData.tablet_type_id;
+                                    console.log(`[Edit]   Forced item select value to:`, itemSelect.value);
                                 }
                             }
                         } else {
