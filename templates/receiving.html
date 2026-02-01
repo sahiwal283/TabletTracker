@@ -1477,16 +1477,23 @@ async function editReceive(receivingId) {
         // Re-create each box with its bags
         let loadedBoxCount = 0;
         let loadedBagCount = 0;
+        const totalBoxes = data.boxes.length;
         
-        for (const boxData of data.boxes) {
-            console.log(`[Edit] Loading Box ${boxData.box_number} with ${boxData.bags.length} bags`);
+        for (let i = 0; i < data.boxes.length; i++) {
+            const boxData = data.boxes[i];
+            console.log(`[Edit] Loading Box ${i + 1}/${totalBoxes} (Box #${boxData.box_number}) with ${boxData.bags.length} bags`);
+            
+            // Update progress in modal title
+            if (modalTitle) {
+                modalTitle.textContent = `✏️ Loading Box ${i + 1}/${totalBoxes}...`;
+            }
             
             addBox();
             const currentBoxNumber = boxCounter;
             loadedBoxCount++;
             
-            // Wait for box to be added to DOM
-            await new Promise(resolve => setTimeout(resolve, 150));
+            // Wait longer for box to be added to DOM
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             // Verify box was actually added
             const boxDiv = document.getElementById(`box-${currentBoxNumber}`);
@@ -1506,15 +1513,16 @@ async function editReceive(receivingId) {
             }
             
             // Add each bag
-            for (const bagData of boxData.bags) {
-                console.log(`[Edit] Loading Bag ${bagData.bag_number} (tablet_type: ${bagData.tablet_type_id}, count: ${bagData.bag_label_count})`);
+            for (let j = 0; j < boxData.bags.length; j++) {
+                const bagData = boxData.bags[j];
+                console.log(`[Edit]   Loading Bag ${j + 1}/${boxData.bags.length} - Bag #${bagData.bag_number} (tablet_type: ${bagData.tablet_type_id}, count: ${bagData.bag_label_count})`);
                 
                 addBag(currentBoxNumber);
                 const currentBagSequence = bagCounter[currentBoxNumber];
                 loadedBagCount++;
                 
-                // Wait for bag to be added to DOM
-                await new Promise(resolve => setTimeout(resolve, 250));
+                // Wait longer for bag to be added to DOM and converted
+                await new Promise(resolve => setTimeout(resolve, 400));
                 
                 // Verify bag was added
                 const bagDiv = document.getElementById(`box-${currentBoxNumber}-bag-${currentBagSequence}`);
