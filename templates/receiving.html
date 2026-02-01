@@ -1619,8 +1619,8 @@ async function editReceive(receivingId) {
         });
         
         // Verify all boxes are actually in the DOM
-        const actualBoxCount = document.querySelectorAll('[id^="box-"]').length;
-        const actualBagCount = document.querySelectorAll('[id^="box-"][id$^="-bag-"]').length;
+        const actualBoxCount = document.querySelectorAll('[id^="box-"]:not([id*="-bag-"])').length;
+        const actualBagCount = document.querySelectorAll('[id*="-bag-"]').length;
         
         console.log(`[Edit] Expected to load: ${data.boxes.length} boxes`);
         console.log(`[Edit] Actually loaded: ${loadedBoxCount} boxes, ${loadedBagCount} bags`);
