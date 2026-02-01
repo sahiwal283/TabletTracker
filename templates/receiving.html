@@ -1256,12 +1256,22 @@ async function submitReceivesWithStatus(event, status = 'published') {
         const bagsArray = [];
         for (const bagSeq in boxes[boxNum]) {
             const bag = boxes[boxNum][bagSeq];
+            
+            // Log each bag to see what's missing
+            console.log(`[Submit] Box ${boxNum} Bag ${bagSeq}:`, {
+                tablet_type: bag.tablet_type || 'MISSING',
+                bag_count: bag.bag_count || 'MISSING',
+                flavor_bag_number: bag.flavor_bag_number || 'MISSING'
+            });
+            
             if (bag.tablet_type && bag.bag_count && bag.flavor_bag_number) {
                 bagsArray.push({
                     tablet_type_id: parseInt(bag.tablet_type),
                     bag_count: parseInt(bag.bag_count),
                     bag_number: parseInt(bag.flavor_bag_number) // NEW: Use flavor-based bag number
                 });
+            } else {
+                console.warn(`[Submit] SKIPPED Box ${boxNum} Bag ${bagSeq} - missing required data`);
             }
         }
         if (bagsArray.length > 0) {
@@ -1568,13 +1578,13 @@ async function editReceive(receivingId) {
                 const bagCountInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_count"]`);
                 const flavorBagNumberInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_flavor_bag_number"]`);
                 
-                if (tabletTypeSelect && bagCountInput) {
+                if (tabletTypeSelect && bagCountInput && flavorBagNumberInput) {
                     tabletTypeSelect.value = bagData.tablet_type_id;
                     bagCountInput.value = bagData.bag_label_count;
                     
-                    // IMPORTANT: Set the flavor bag number from database (don't auto-increment)
-                    if (flavorBagNumberInput) {
-                        flavorBagNumberInput.value = bagData.bag_number;
+                    // CRITICAL: Set the flavor bag number from database (required for form collection)
+                    flavorBagNumberInput.value = bagData.bag_number;
+                    console.log(`[Edit] Set flavor_bag_number for Box ${currentBoxNumber} Bag ${currentBagSequence}: ${bagData.bag_number}`);
                         
                         // Track this assignment to prevent re-incrementing
                         const bagId = `${currentBoxNumber}-${currentBagSequence}`;
