@@ -1585,15 +1585,14 @@ async function editReceive(receivingId) {
                     // CRITICAL: Set the flavor bag number from database (required for form collection)
                     flavorBagNumberInput.value = bagData.bag_number;
                     console.log(`[Edit] Set flavor_bag_number for Box ${currentBoxNumber} Bag ${currentBagSequence}: ${bagData.bag_number}`);
-                        
-                        // Track this assignment to prevent re-incrementing
-                        const bagId = `${currentBoxNumber}-${currentBagSequence}`;
-                        bagFlavorAssignments[bagId] = bagData.tablet_type_id;
-                        
-                        // Update the flavor counter to match (so new bags continue correctly)
-                        if (!flavorBagCounter[bagData.tablet_type_id] || flavorBagCounter[bagData.tablet_type_id] < bagData.bag_number) {
-                            flavorBagCounter[bagData.tablet_type_id] = bagData.bag_number;
-                        }
+                    
+                    // Track this assignment to prevent re-incrementing
+                    const bagId = `${currentBoxNumber}-${currentBagSequence}`;
+                    bagFlavorAssignments[bagId] = bagData.tablet_type_id;
+                    
+                    // Update the flavor counter to match (so new bags continue correctly)
+                    if (!flavorBagCounter[bagData.tablet_type_id] || flavorBagCounter[bagData.tablet_type_id] < bagData.bag_number) {
+                        flavorBagCounter[bagData.tablet_type_id] = bagData.bag_number;
                     }
                     
                     // Update bag label to show correct number from database
