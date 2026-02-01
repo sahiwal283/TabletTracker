@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.6] - 2026-01-19
+
+### 🐛 Bug Fix
+
+#### Fixed "viewPOReceives is not defined" Error on Receiving Page
+- **Issue**: Clicking "Back to Receives" in receive details modal on receiving page caused JavaScript error
+  - Error: `ReferenceError: viewPOReceives is not defined`
+  - Function was only defined in `purchase_orders.html`, not available globally
+- **Fix**: Moved `viewPOReceives` and `closeReceivesModal` functions to `base.html`
+  - Functions now available on all pages that extend base template
+  - Modal works correctly from any page context
+- **Files Updated**:
+  - `templates/base.html` (added viewPOReceives and closeReceivesModal functions)
+
+---
+
 ## [2.31.4] - 2026-01-30
 
 ### 🐛 Bug Fix - CRITICAL
