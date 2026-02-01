@@ -58,6 +58,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.31.5] - 2026-01-30
+
+### 🐛 Bug Fix - CRITICAL FIX
+
+#### Fixed Edit Only Saving New Boxes by Syncing Dropdowns Before FormData
+- **Issue**: Edit loaded all boxes correctly but only saved newly added boxes
+  - Loaded bags showed `tablet_type: 'MISSING'` in FormData
+  - New bags showed `tablet_type: '20'` correctly
+  - Item select value was set (logs showed it), but FormData didn't collect it
+- **Root Cause**: Two-level dropdown values not synced back to hidden original select before FormData collection
+  - During edit: set itemSelect.value = X
+  - But hidden originalSelect.value stayed empty
+  - FormData might read from hidden select (or stale data)
+  - Values set during loading got lost before form submission
+- **Fix**: Sync ALL two-level dropdowns back to hidden selects RIGHT BEFORE FormData
+  - Find all item selects: `select[id$="_item"]`
+  - Copy value from itemSelect back to original hidden select
+  - Happens immediately before `new FormData(form)`
+  - Guarantees FormData gets current values
+- **Result**: Edit now saves ALL boxes (loaded + new ones) correctly
+- **Files Updated**:
+  - `templates/receiving.html` (added dropdown sync before FormData collection)
+
+---
+
 ## [2.31.2] - 2026-01-30
 
 ### 🐛 Bug Fix - CRITICAL

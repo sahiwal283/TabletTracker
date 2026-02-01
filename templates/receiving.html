@@ -1225,6 +1225,26 @@ async function submitReceivesWithStatus(event, status = 'published') {
     if (event) event.preventDefault();
     
     const form = document.getElementById('receives-form');
+    
+    // CRITICAL FIX: Sync all two-level dropdowns back to form before reading FormData
+    // During edit, dropdown values may not be in FormData if they were pre-populated
+    console.log('[Submit] Syncing all two-level dropdowns to form fields...');
+    const allItemSelects = document.querySelectorAll('select[id$="_item"]');
+    let syncedCount = 0;
+    allItemSelects.forEach(itemSelect => {
+        if (itemSelect.value && itemSelect.value !== '') {
+            // Find corresponding original select
+            const originalId = itemSelect.id.replace('_item', '');
+            const originalSelect = document.getElementById(originalId);
+            if (originalSelect) {
+                originalSelect.value = itemSelect.value;
+                console.log(`[Submit] Synced ${originalId}: ${itemSelect.value}`);
+                syncedCount++;
+            }
+        }
+    });
+    console.log(`[Submit] Synced ${syncedCount} dropdown values`);
+    
     const formData = new FormData(form);
     
     // Parse form data into structured format
