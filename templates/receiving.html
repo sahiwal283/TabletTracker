@@ -1475,27 +1475,53 @@ async function editReceive(receivingId) {
         }
         
         // Re-create each box with its bags
+        let loadedBoxCount = 0;
+        let loadedBagCount = 0;
+        
         for (const boxData of data.boxes) {
+            console.log(`[Edit] Loading Box ${boxData.box_number} with ${boxData.bags.length} bags`);
+            
             addBox();
             const currentBoxNumber = boxCounter;
+            loadedBoxCount++;
             
-            // Wait for box to be added
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Wait for box to be added to DOM
+            await new Promise(resolve => setTimeout(resolve, 150));
+            
+            // Verify box was actually added
+            const boxDiv = document.getElementById(`box-${currentBoxNumber}`);
+            if (!boxDiv) {
+                console.error(`[Edit] ERROR: Box ${currentBoxNumber} not added to DOM!`);
+                alert(`❌ ERROR: Failed to create box ${currentBoxNumber}. Please refresh and try again.`);
+                return;
+            }
             
             // Clear auto-added first bag
             const bagsContainer = document.getElementById(`box-${currentBoxNumber}-bags`);
             if (bagsContainer) {
                 bagsContainer.innerHTML = '';
                 bagCounter[currentBoxNumber] = 0;
+            } else {
+                console.error(`[Edit] ERROR: Bags container for box ${currentBoxNumber} not found!`);
             }
             
             // Add each bag
             for (const bagData of boxData.bags) {
+                console.log(`[Edit] Loading Bag ${bagData.bag_number} (tablet_type: ${bagData.tablet_type_id}, count: ${bagData.bag_label_count})`);
+                
                 addBag(currentBoxNumber);
                 const currentBagSequence = bagCounter[currentBoxNumber];
+                loadedBagCount++;
                 
-                // Wait for bag to be added
-                await new Promise(resolve => setTimeout(resolve, 200));
+                // Wait for bag to be added to DOM
+                await new Promise(resolve => setTimeout(resolve, 250));
+                
+                // Verify bag was added
+                const bagDiv = document.getElementById(`box-${currentBoxNumber}-bag-${currentBagSequence}`);
+                if (!bagDiv) {
+                    console.error(`[Edit] ERROR: Bag ${currentBagSequence} in Box ${currentBoxNumber} not added to DOM!`);
+                    continue;
+                }
                 
                 // Set values
                 const tabletTypeSelect = document.getElementById(`box_${currentBoxNumber}_bag_${currentBagSequence}_tablet_type`);
@@ -1556,16 +1582,31 @@ async function editReceive(receivingId) {
             btn.style.opacity = '1';
         });
         
+        // Verify all boxes are actually in the DOM
+        const actualBoxCount = document.querySelectorAll('[id^="box-"]').length;
+        const actualBagCount = document.querySelectorAll('[id^="box-"][id$^="-bag-"]').length;
+        
+        console.log(`[Edit] Expected to load: ${data.boxes.length} boxes`);
+        console.log(`[Edit] Actually loaded: ${loadedBoxCount} boxes, ${loadedBagCount} bags`);
+        console.log(`[Edit] In DOM: ${actualBoxCount} boxes`);
+        
         // Update modal title to indicate ready
         if (modalTitle) {
-            modalTitle.textContent = `✏️ Edit Draft Receive - ${data.boxes.length} Boxes Loaded`;
+            modalTitle.textContent = `✏️ Edit Draft Receive - ${loadedBoxCount} Boxes Loaded (${loadedBagCount} Bags)`;
         }
         
-        console.log(`[Edit Receive] Successfully loaded ${data.boxes.length} boxes`);
+        // Verify data was loaded before allowing edits
+        if (loadedBoxCount !== data.boxes.length) {
+            alert(`⚠️ WARNING: Only loaded ${loadedBoxCount} of ${data.boxes.length} boxes!\n\nSomething went wrong during loading. Please close and try again.\n\nDO NOT SAVE or you will lose data!`);
+            // Keep buttons disabled
+            return;
+        }
+        
+        console.log(`[Edit Receive] Successfully loaded ${loadedBoxCount} boxes with ${loadedBagCount} bags`);
         console.log(`[Edit Receive] Form is now ready for editing`);
         
-        // Show success message
-        alert(`✅ Loaded ${data.boxes.length} existing boxes\n\nYou can now add more boxes or modify existing ones.\n\nIMPORTANT: When you click Save, it will save ALL boxes shown in the form (old + new).`);
+        // Show success message with verification
+        alert(`✅ Successfully Loaded:\n• ${loadedBoxCount} boxes\n• ${loadedBagCount} bags\n\nYou can now add more boxes.\n\n⚠️ IMPORTANT: When you save, ALL ${loadedBoxCount} existing boxes + any new boxes will be saved.`);
         
     } catch (error) {
         alert('❌ Error loading receive for editing: ' + error.message);
