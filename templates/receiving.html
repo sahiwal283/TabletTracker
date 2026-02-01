@@ -1601,25 +1601,48 @@ async function editReceive(receivingId) {
                     // Wait then set dropdowns (after updating counters to prevent auto-increment)
                     await new Promise(resolve => setTimeout(resolve, 200));
                     
+                    // Wait for two-level conversion to complete
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
                     // Find and set category/item dropdowns
                     const groupSelect = document.getElementById(tabletTypeSelect.id + '_group');
                     const itemSelect = document.getElementById(tabletTypeSelect.id + '_item');
+                    
+                    console.log(`[Edit] Setting dropdowns for Box ${currentBoxNumber} Bag ${currentBagSequence}`);
+                    console.log(`[Edit]   Group select found:`, !!groupSelect);
+                    console.log(`[Edit]   Item select found:`, !!itemSelect);
+                    console.log(`[Edit]   Tablet type ID to set:`, bagData.tablet_type_id);
                     
                     if (groupSelect && itemSelect) {
                         const selectedOption = tabletTypeSelect.querySelector(`option[value="${bagData.tablet_type_id}"]`);
                         if (selectedOption) {
                             const optgroup = selectedOption.parentElement;
                             if (optgroup && optgroup.tagName === 'OPTGROUP') {
-                                groupSelect.value = optgroup.label;
+                                const categoryLabel = optgroup.label;
+                                console.log(`[Edit]   Setting category:`, categoryLabel);
+                                
+                                groupSelect.value = categoryLabel;
                                 groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
                                 
-                                await new Promise(resolve => setTimeout(resolve, 150));
+                                // Wait for items to populate
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                                
+                                console.log(`[Edit]   Setting item value:`, bagData.tablet_type_id);
                                 itemSelect.value = bagData.tablet_type_id;
                                 itemSelect.style.display = '';
-                                // DON'T trigger change event here - would re-increment counter
-                                // Value is already set in hidden select above
+                                
+                                // Verify item select has value
+                                console.log(`[Edit]   Item select value after set:`, itemSelect.value);
+                                
+                                if (!itemSelect.value || itemSelect.value === '') {
+                                    console.error(`[Edit]   ERROR: Item select value is empty after setting!`);
+                                }
                             }
+                        } else {
+                            console.error(`[Edit]   ERROR: Option with value ${bagData.tablet_type_id} not found in hidden select`);
                         }
+                    } else {
+                        console.error(`[Edit]   ERROR: Group or item select not found for bag`);
                     }
                 }
             }
