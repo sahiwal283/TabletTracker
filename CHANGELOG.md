@@ -7,18 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.32.3] - 2026-01-19
+## [2.32.4] - 2026-01-19
 
 ### 🔧 Enhancement
 
-#### Added Loose Tablets and Damaged Tablets Fields to Packaging Form
-- **Request**: User asked to add damage field back to packaging form
-- **Added Fields**:
-  - Loose Tablets - Extra tablets not in cards (added to good count)
-  - Damaged Tablets - Broken or unusable tablets (tracked separately)
-- **Note**: Backend already supported these fields, only frontend was missing
+#### Added Damages Field to Packaging Form and Fixed Dropdown Sorting
+- **Damages Field**: Added "Damages" field to packaging form (for damaged/unusable cards)
+- **Removed**: Loose Tablets field (not needed)
+- **Fixed**: Two-level dropdown items now sorted alphabetically
+  - Items within each category (e.g., Hyroxi MIT A flavors) are now A-Z sorted
 - **Files Updated**:
-  - `templates/production.html` (added input fields)
+  - `templates/production.html` (added damages field, removed loose tablets)
+  - `templates/base.html` (added alphabetical sorting to item dropdown)
 
 ---
 

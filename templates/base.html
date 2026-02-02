@@ -716,9 +716,14 @@ function convertToTwoLevelDropdownByDataAttr(selectElement, dataAttrName) {
             itemSelect.style.display = '';
             itemSelect.innerHTML = '<option value="">Select item...</option>';
             
-            // Populate items for selected category
+            // Populate items for selected category (sorted alphabetically)
             if (groups[selectedCategory]) {
-                groups[selectedCategory].forEach(opt => {
+                // Sort items alphabetically by text content
+                const sortedItems = [...groups[selectedCategory]].sort((a, b) => 
+                    a.textContent.localeCompare(b.textContent, undefined, { sensitivity: 'base' })
+                );
+                
+                sortedItems.forEach(opt => {
                     const newOpt = document.createElement('option');
                     newOpt.value = opt.value;
                     newOpt.textContent = opt.textContent;
