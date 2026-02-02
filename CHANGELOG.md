@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.6] - 2026-01-19
+
+### 🚀 Enhancement
+
+#### Auto-Assign Flagged Submissions After Zoho Sync (PO Close)
+- **Issue**: Submissions flagged for review remained unassigned even after matching PO was closed
+  - When submission was created, 2 POs matched → flagged for review
+  - After PO was closed via Zoho sync, only 1 match remained
+  - User still had to manually click "Assign Receive" to assign
+- **Fix**: Re-evaluate flagged submissions automatically after Zoho sync
+  - New function `reevaluate_flagged_submissions()` in bag_matching_service
+  - Called after every Zoho PO sync
+  - Finds flagged, unassigned submissions that now have exactly 1 match
+  - Auto-assigns them without any user interaction needed
+- **Result**: Submissions are assigned automatically when POs are closed
+- **Files Updated**:
+  - `app/services/bag_matching_service.py` (new reevaluate function)
+  - `app/services/zoho_service.py` (call reevaluate after sync)
+
+---
+
 ## [2.32.5] - 2026-01-19
 
 ### 🚀 Enhancement

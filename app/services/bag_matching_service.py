@@ -271,3 +271,78 @@ def find_matching_bags_with_receive_names(
     
     return matching_bags
 
+
+def reevaluate_flagged_submissions(conn: sqlite3.Connection) -> int:
+    """
+    Re-evaluate all submissions flagged for review (needs_review = 1) that are unassigned.
+    
+    After a PO is closed, some submissions that previously had multiple matches
+    may now have only one match. This function auto-assigns those submissions.
+    
+    Args:
+        conn: Database connection object (must support writes)
+    
+    Returns:
+        Number of submissions that were auto-assigned
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get all flagged, unassigned submissions
+    flagged_submissions = conn.execute('''
+        SELECT ws.id, ws.inventory_item_id, ws.bag_number, ws.box_number, ws.submission_type, ws.product_name
+        FROM warehouse_submissions ws
+        WHERE ws.needs_review = 1
+        AND ws.bag_id IS NULL
+    ''').fetchall()
+    
+    if not flagged_submissions:
+        return 0
+    
+    auto_assigned_count = 0
+    
+    for submission in flagged_submissions:
+        sub_dict = dict(submission)
+        submission_id = sub_dict['id']
+        submission_type = sub_dict.get('submission_type', 'packaged')
+        exclude_closed_bags = (submission_type != 'packaged')
+        
+        # Get tablet_type_id from inventory_item_id
+        tablet_type_id = None
+        if sub_dict.get('inventory_item_id'):
+            tt_row = conn.execute('''
+                SELECT id FROM tablet_types WHERE inventory_item_id = ?
+            ''', (sub_dict['inventory_item_id'],)).fetchone()
+            if tt_row:
+                tablet_type_id = tt_row['id']
+        
+        # Fallback: get from product_details
+        if not tablet_type_id and sub_dict.get('product_name'):
+            pd_row = conn.execute('''
+                SELECT tablet_type_id FROM product_details WHERE product_name = ?
+            ''', (sub_dict['product_name'],)).fetchone()
+            if pd_row:
+                tablet_type_id = pd_row['tablet_type_id']
+        
+        if not tablet_type_id or not sub_dict.get('bag_number'):
+            continue
+        
+        sub_dict['tablet_type_id'] = tablet_type_id
+        
+        # Find matching bags (will exclude closed POs now)
+        matching_bags = find_matching_bags(conn, sub_dict, exclude_closed_bags)
+        
+        # If exactly 1 match, auto-assign
+        if len(matching_bags) == 1:
+            bag = matching_bags[0]
+            conn.execute('''
+                UPDATE warehouse_submissions 
+                SET bag_id = ?, assigned_po_id = ?, needs_review = 0
+                WHERE id = ?
+            ''', (bag['id'], bag.get('po_id'), submission_id))
+            
+            logger.info(f"Auto-assigned submission {submission_id} to bag {bag['id']} during re-evaluation")
+            auto_assigned_count += 1
+    
+    return auto_assigned_count
+
