@@ -898,23 +898,50 @@ document.addEventListener('DOMContentLoaded', async function() {
                     // Hide fallback section
                     fallbackSection.classList.add('hidden');
                     
-                    // Find the category for this tablet type
+                    // FIXED: Match by PRODUCT NAME (base name), not tablet type
+                    // The machine count stores the actual product_name used (e.g., "Hyroxi Mit A - Mango Peach 5ct")
+                    // We should match by product base name, not tablet type, because multiple products 
+                    // can share the same tablet type (raw material)
+                    const mcProductName = mc.product_name;
+                    const mcBaseName = mcProductName.replace(/\s+(1ct|4ct|5ct|7ct|12ct)$/i, '');
                     const tabletTypeName = mc.tablet_type_name;
-                    let matchedCategory = null;
                     
-                    // Search in category groups
+                    console.log('[Receipt Lookup] Machine count product:', mcProductName);
+                    console.log('[Receipt Lookup] Derived base name:', mcBaseName);
+                    console.log('[Receipt Lookup] Tablet type:', tabletTypeName);
+                    
+                    // First try to find by EXACT base name match (most accurate)
+                    let matchedCategory = null;
+                    let matchedBaseName = null;
+                    
+                    // Search for exact base name match in category groups
                     for (const [category, baseNames] of Object.entries(categoryGroups)) {
-                        for (const baseName of baseNames) {
-                            const productsInBase = productGroups[baseName] || [];
-                            if (productsInBase.some(p => p.tabletType === tabletTypeName)) {
-                                matchedCategory = category;
-                                break;
-                            }
+                        if (baseNames.includes(mcBaseName)) {
+                            matchedCategory = category;
+                            matchedBaseName = mcBaseName;
+                            console.log('[Receipt Lookup] Found exact base name match in category:', category);
+                            break;
                         }
-                        if (matchedCategory) break;
                     }
                     
-                    if (matchedCategory) {
+                    // If no exact match, fall back to tablet type matching (legacy behavior)
+                    if (!matchedCategory) {
+                        console.log('[Receipt Lookup] No exact base name match, falling back to tablet type matching');
+                        for (const [category, baseNames] of Object.entries(categoryGroups)) {
+                            for (const baseName of baseNames) {
+                                const productsInBase = productGroups[baseName] || [];
+                                if (productsInBase.some(p => p.tabletType === tabletTypeName)) {
+                                    matchedCategory = category;
+                                    matchedBaseName = baseName;
+                                    console.log('[Receipt Lookup] Found tablet type match in category:', category, 'base:', baseName);
+                                    break;
+                                }
+                            }
+                            if (matchedCategory) break;
+                        }
+                    }
+                    
+                    if (matchedCategory && matchedBaseName) {
                         // Set category (trigger change to populate base products)
                         categorySelect.value = matchedCategory;
                         categorySelect.dispatchEvent(new Event('change'));
@@ -922,20 +949,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                         
                         // Wait a tick for the change event to process
                         setTimeout(() => {
-                            // Find matching base name and products for this tablet type
-                            let matchedBaseName = null;
-                            let matchingProducts = [];
+                            // Get products for the matched base name
+                            const matchingProducts = productGroups[matchedBaseName] || [];
                             
-                            for (const [baseName, productsInBase] of Object.entries(productGroups)) {
-                                const matches = productsInBase.filter(p => p.tabletType === tabletTypeName);
-                                if (matches.length > 0) {
-                                    matchedBaseName = baseName;
-                                    matchingProducts = matches;
-                                    break;
-                                }
-                            }
-                            
-                            if (matchedBaseName && matchingProducts.length > 0) {
+                            if (matchingProducts.length > 0) {
                                 // Set base product
                                 baseSelect.value = matchedBaseName;
                                 baseSelect.dispatchEvent(new Event('change'));
@@ -944,23 +961,31 @@ document.addEventListener('DOMContentLoaded', async function() {
                                 // Show count selection
                                 countSelection.classList.remove('hidden');
                                 
-                                if (matchingProducts.length === 1) {
+                                // Try to find the exact product that was used in machine count
+                                const exactMatch = matchingProducts.find(p => p.name === mcProductName);
+                                
+                                if (exactMatch) {
+                                    // Auto-select the exact product from machine count
+                                    productCountSelect.value = exactMatch.name;
+                                    productCountSelect.disabled = true;
+                                    productNameHidden.value = exactMatch.name;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${exactMatch.name} auto-selected.</p>`;
+                                } else if (matchingProducts.length === 1) {
                                     // Auto-select the only product
                                     productCountSelect.value = matchingProducts[0].name;
                                     productCountSelect.disabled = true;
                                     productNameHidden.value = matchingProducts[0].name;
-                                    
-                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Tablet: ${tabletTypeName} - ${matchingProducts[0].name} auto-selected.</p>`;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${matchingProducts[0].name} auto-selected.</p>`;
                                 } else {
-                                    // Multiple products - user needs to select
+                                    // Multiple products - user needs to select count variant
                                     productCountSelect.disabled = false;
-                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Tablet: ${tabletTypeName}. Please select product variant.</p>`;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${matchedBaseName}. Please select count variant.</p>`;
                                 }
                             }
                         }, 100);
                     } else {
                         // Category not found - show warning but still hide fallback
-                        receiptStatus.innerHTML = `<p class="text-sm text-yellow-600">⚠️ Receipt matched but couldn't auto-select tablet type. Please select manually.</p>`;
+                        receiptStatus.innerHTML = `<p class="text-sm text-yellow-600">⚠️ Receipt matched but couldn't auto-select product. Please select manually.</p>`;
                         enableProductSelection();
                     }
                     

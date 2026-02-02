@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.1] - 2026-01-19
+
+### 🐛 Bug Fix
+
+#### Fixed Packaging Form Auto-Selecting Wrong Product from Receipt Lookup
+- **Issue**: When entering a receipt number in packaging form, wrong product was auto-selected
+  - Machine count for "Hyroxi Mit A - Mango Peach" was auto-selecting "FIX MIT Just Peachy"
+  - Wrong product being matched despite correct receipt lookup
+- **Root Cause**: Matching logic used TABLET TYPE instead of PRODUCT NAME
+  - Multiple products can share the same tablet type (raw material)
+  - First matching tablet type was selected, not the correct product
+- **Fix**: Match by product base name derived from machine count's product_name
+  - Extract base name from machine count product (remove count suffix)
+  - First try exact base name match (most accurate)
+  - Fall back to tablet type matching only if no exact match
+  - Also try to auto-select the exact count variant when possible
+- **Added**: Console logging for debugging receipt lookup matching
+- **Files Updated**:
+  - `templates/production.html` (fixed product matching logic)
+
+---
+
 ## [2.32.0] - 2026-01-19
 
 ### 🚀 New Feature - Prevent Data Loss on Long Forms
