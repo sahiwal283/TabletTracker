@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.3] - 2026-01-19
+
+### 🔧 Enhancement
+
+#### Added Loose Tablets and Damaged Tablets Fields to Packaging Form
+- **Request**: User asked to add damage field back to packaging form
+- **Added Fields**:
+  - Loose Tablets - Extra tablets not in cards (added to good count)
+  - Damaged Tablets - Broken or unusable tablets (tracked separately)
+- **Note**: Backend already supported these fields, only frontend was missing
+- **Files Updated**:
+  - `templates/production.html` (added input fields)
+
+---
+
 ## [2.32.2] - 2026-01-19
 
 ### 🐛 Bug Fix
