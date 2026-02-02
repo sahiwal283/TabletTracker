@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.2] - 2026-01-19
+
+### 🐛 Bug Fix
+
+#### Exclude Closed POs from Submission Assignment Modal
+- **Issue**: "Assign Submission to Receive" modal showed receives from closed POs
+  - PO-00156 was closed but still appeared as an option to select
+  - Users could accidentally assign submissions to closed POs
+- **Fix**: Added filter `(po.closed IS NULL OR po.closed = 0)` to all bag matching queries
+  - Updated 4 queries in `bag_matching_service.py`
+  - Updated 2 fallback queries in `api_receiving.py`
+- **Result**: Only active (non-closed) POs appear in assignment options
+- **Files Updated**:
+  - `app/services/bag_matching_service.py` (added closed PO filter)
+  - `app/blueprints/api_receiving.py` (added closed PO filter to fallback queries)
+
+---
+
 ## [2.32.1] - 2026-01-19
 
 ### 🐛 Bug Fix

@@ -91,6 +91,7 @@ def find_matching_bags(
                 AND b.bag_number = ?
                 AND COALESCE(b.status, 'Available') != 'Closed'
                 AND (r.closed IS NULL OR r.closed = FALSE)
+                AND (po.closed IS NULL OR po.closed = 0)
                 ORDER BY r.received_date DESC
             '''
             params = (tablet_type_id, box_number, bag_number)
@@ -115,6 +116,7 @@ def find_matching_bags(
                 AND sb.box_number = ? 
                 AND b.bag_number = ?
                 AND (r.closed IS NULL OR r.closed = FALSE)
+                AND (po.closed IS NULL OR po.closed = 0)
                 ORDER BY r.received_date DESC
             '''
             params = (tablet_type_id, box_number, bag_number)
@@ -141,6 +143,7 @@ def find_matching_bags(
                 AND b.bag_number = ?
                 AND COALESCE(b.status, 'Available') != 'Closed'
                 AND (r.closed IS NULL OR r.closed = FALSE)
+                AND (po.closed IS NULL OR po.closed = 0)
                 ORDER BY r.received_date DESC
             '''
             params = (tablet_type_id, bag_number)
@@ -164,6 +167,7 @@ def find_matching_bags(
                 WHERE b.tablet_type_id = ? 
                 AND b.bag_number = ?
                 AND (r.closed IS NULL OR r.closed = FALSE)
+                AND (po.closed IS NULL OR po.closed = 0)
                 ORDER BY r.received_date DESC
             '''
             params = (tablet_type_id, bag_number)

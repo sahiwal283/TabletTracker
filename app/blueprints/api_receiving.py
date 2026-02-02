@@ -1841,6 +1841,7 @@ def get_possible_receives_for_submission(submission_id):
                             WHERE tt.id = ?
                             AND COALESCE(b.status, 'Available') != 'Closed'
                             AND (r.closed IS NULL OR r.closed = FALSE)
+                            AND (po.closed IS NULL OR po.closed = 0)
                             ORDER BY r.received_date DESC
                             LIMIT 20
                         ''', (tablet_type_id,)).fetchall()
@@ -1863,6 +1864,7 @@ def get_possible_receives_for_submission(submission_id):
                             JOIN tablet_types tt ON b.tablet_type_id = tt.id
                             WHERE tt.id = ?
                             AND (r.closed IS NULL OR r.closed = FALSE)
+                            AND (po.closed IS NULL OR po.closed = 0)
                             ORDER BY r.received_date DESC
                             LIMIT 20
                         ''', (tablet_type_id,)).fetchall()
