@@ -710,9 +710,150 @@ function updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber) {
     }
 }
 
+// ==================== AUTO-SAVE FUNCTIONALITY ====================
+// Saves form data to localStorage every 30 seconds to prevent data loss
+const AUTOSAVE_KEY = 'tabletTracker_receiveFormDraft';
+const AUTOSAVE_INTERVAL = 30000; // 30 seconds
+let autosaveTimer = null;
+
+function getFormDataForAutosave() {
+    // Sync all two-level dropdowns first
+    const allItemSelects = document.querySelectorAll('select[id$="_item"]');
+    allItemSelects.forEach(itemSelect => {
+        if (itemSelect.value && itemSelect.value !== '') {
+            const originalId = itemSelect.id.replace('_item', '');
+            const originalSelect = document.getElementById(originalId);
+            if (originalSelect) {
+                originalSelect.value = itemSelect.value;
+            }
+        }
+    });
+    
+    const form = document.getElementById('receives-form');
+    const formData = new FormData(form);
+    const data = {
+        timestamp: new Date().toISOString(),
+        po_id: document.getElementById('po-select')?.value || null,
+        editing_receive_id: window.editingReceiveId || null,
+        fields: {}
+    };
+    
+    for (const [key, value] of formData.entries()) {
+        data.fields[key] = value;
+    }
+    
+    // Also save box/bag counter states
+    data.boxCounter = boxCounter;
+    data.bagCounter = { ...bagCounter };
+    data.flavorBagCounter = { ...flavorBagCounter };
+    data.bagFlavorAssignments = { ...bagFlavorAssignments };
+    
+    return data;
+}
+
+function autosaveToLocalStorage() {
+    try {
+        const data = getFormDataForAutosave();
+        const boxCount = Object.keys(data.fields).filter(k => k.match(/^box_\d+_bag_\d+_tablet_type$/)).length;
+        
+        // Only save if there's actual data
+        if (boxCount > 0) {
+            localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+            console.log(`[Autosave] Saved ${boxCount} bags at ${new Date().toLocaleTimeString()}`);
+        }
+    } catch (e) {
+        console.error('[Autosave] Error saving:', e);
+    }
+}
+
+function clearAutosave() {
+    localStorage.removeItem(AUTOSAVE_KEY);
+    console.log('[Autosave] Cleared saved draft');
+}
+
+function getSavedDraft() {
+    try {
+        const saved = localStorage.getItem(AUTOSAVE_KEY);
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.error('[Autosave] Error reading saved draft:', e);
+    }
+    return null;
+}
+
+function startAutosave() {
+    if (autosaveTimer) {
+        clearInterval(autosaveTimer);
+    }
+    autosaveTimer = setInterval(autosaveToLocalStorage, AUTOSAVE_INTERVAL);
+    console.log('[Autosave] Started - saving every 30 seconds');
+}
+
+function stopAutosave() {
+    if (autosaveTimer) {
+        clearInterval(autosaveTimer);
+        autosaveTimer = null;
+    }
+}
+
+// Refresh CSRF token before submission to prevent token expiration errors
+async function refreshCSRFToken() {
+    try {
+        const response = await fetch('/api/csrf-token');
+        const data = await response.json();
+        if (data.csrf_token) {
+            // Update meta tag
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) {
+                meta.setAttribute('content', data.csrf_token);
+            }
+            console.log('[CSRF] Token refreshed');
+            return data.csrf_token;
+        }
+    } catch (e) {
+        console.error('[CSRF] Failed to refresh token:', e);
+    }
+    return null;
+}
+
+// ==================== END AUTO-SAVE FUNCTIONALITY ====================
+
 // Initialize with Box 1 and Bag 1
 document.addEventListener('DOMContentLoaded', function() {
+    // Check for saved draft BEFORE adding default box
+    const savedDraft = getSavedDraft();
+    if (savedDraft) {
+        const savedTime = new Date(savedDraft.timestamp);
+        const timeDiff = (Date.now() - savedTime.getTime()) / 1000 / 60; // minutes
+        const bagCount = Object.keys(savedDraft.fields).filter(k => k.match(/^box_\d+_bag_\d+_tablet_type$/)).length;
+        
+        if (bagCount > 0 && timeDiff < 480) { // Less than 8 hours old
+            const restore = confirm(
+                `📦 Found saved draft from ${savedTime.toLocaleString()}\n\n` +
+                `Contains ${bagCount} bags\n` +
+                `PO: ${savedDraft.po_id || 'Not selected'}\n` +
+                `${savedDraft.editing_receive_id ? '(Editing existing receive)' : '(New receive)'}\n\n` +
+                `Would you like to restore this draft?\n\n` +
+                `Click OK to restore, or Cancel to start fresh.`
+            );
+            
+            if (restore) {
+                restoreSavedDraft(savedDraft);
+                startAutosave();
+                return; // Don't add default box
+            } else {
+                clearAutosave();
+            }
+        } else {
+            // Draft is too old, clear it
+            clearAutosave();
+        }
+    }
+    
     addBox();
+    startAutosave();
     
     // Check if we should auto-open a specific receive from URL parameter
     const urlParams = new URLSearchParams(window.location.search);
@@ -737,6 +878,104 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 100);
     }
 });
+
+async function restoreSavedDraft(savedDraft) {
+    console.log('[Restore] Starting draft restoration...');
+    
+    // Clear existing form
+    boxCounter = 0;
+    bagCounter = {};
+    flavorBagCounter = {};
+    bagFlavorAssignments = {};
+    document.getElementById('boxes-container').innerHTML = '';
+    
+    // Restore counters
+    if (savedDraft.boxCounter) boxCounter = savedDraft.boxCounter;
+    if (savedDraft.bagCounter) bagCounter = { ...savedDraft.bagCounter };
+    if (savedDraft.flavorBagCounter) flavorBagCounter = { ...savedDraft.flavorBagCounter };
+    if (savedDraft.bagFlavorAssignments) bagFlavorAssignments = { ...savedDraft.bagFlavorAssignments };
+    
+    // Restore editing state
+    if (savedDraft.editing_receive_id) {
+        window.editingReceiveId = savedDraft.editing_receive_id;
+    }
+    
+    // Set PO
+    if (savedDraft.po_id) {
+        const poSelect = document.getElementById('po-select');
+        if (poSelect) {
+            poSelect.value = savedDraft.po_id;
+        }
+    }
+    
+    // Parse saved fields to reconstruct boxes
+    const boxData = {};
+    for (const [key, value] of Object.entries(savedDraft.fields)) {
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number)$/);
+        if (match) {
+            const boxNum = parseInt(match[1]);
+            const bagNum = parseInt(match[2]);
+            const field = match[3];
+            
+            if (!boxData[boxNum]) boxData[boxNum] = {};
+            if (!boxData[boxNum][bagNum]) boxData[boxNum][bagNum] = {};
+            boxData[boxNum][bagNum][field] = value;
+        }
+    }
+    
+    // Rebuild boxes and bags
+    const sortedBoxes = Object.keys(boxData).map(n => parseInt(n)).sort((a, b) => a - b);
+    
+    for (const boxNum of sortedBoxes) {
+        addBox();
+        const currentBoxNum = boxCounter;
+        
+        const sortedBags = Object.keys(boxData[boxNum]).map(n => parseInt(n)).sort((a, b) => a - b);
+        
+        for (let i = 0; i < sortedBags.length; i++) {
+            const bagNum = sortedBags[i];
+            const bagData = boxData[boxNum][bagNum];
+            
+            // First bag is already added with the box
+            if (i > 0) {
+                addBag(currentBoxNum);
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Get the current bag sequence
+            const currentBagSeq = bagCounter[currentBoxNum] || 1;
+            const bagSelectId = `box_${currentBoxNum}_bag_${currentBagSeq}_tablet_type`;
+            
+            // Set tablet type
+            if (bagData.tablet_type) {
+                const originalSelect = document.getElementById(bagSelectId);
+                const itemSelect = document.getElementById(bagSelectId + '_item');
+                
+                if (originalSelect) originalSelect.value = bagData.tablet_type;
+                if (itemSelect) {
+                    itemSelect.value = bagData.tablet_type;
+                    itemSelect.dispatchEvent(new Event('change'));
+                }
+            }
+            
+            // Set bag count
+            if (bagData.bag_count) {
+                const countInput = document.querySelector(`input[name="box_${currentBoxNum}_bag_${currentBagSeq}_bag_count"]`);
+                if (countInput) countInput.value = bagData.bag_count;
+            }
+            
+            // Set flavor bag number
+            if (bagData.flavor_bag_number) {
+                const flavorInput = document.getElementById(`box_${currentBoxNum}_bag_${currentBagSeq}_flavor_bag_number`);
+                if (flavorInput) flavorInput.value = bagData.flavor_bag_number;
+            }
+        }
+    }
+    
+    console.log('[Restore] Draft restoration complete');
+    alert(`✅ Restored ${sortedBoxes.length} boxes from saved draft`);
+}
 
 async function openAddReceivesModal() {
     // Reset form
@@ -1224,6 +1463,10 @@ async function copyBox(boxNumber) {
 async function submitReceivesWithStatus(event, status = 'published') {
     if (event) event.preventDefault();
     
+    // FIRST: Refresh CSRF token to prevent expiration errors on long forms
+    console.log('[Submit] Refreshing CSRF token before submission...');
+    await refreshCSRFToken();
+    
     const form = document.getElementById('receives-form');
     
     // CRITICAL FIX: Sync all two-level dropdowns back to form before reading FormData
@@ -1376,6 +1619,11 @@ async function submitReceivesWithStatus(event, status = 'published') {
             const action = isEditing ? 'Updated' : 'Saved';
             const statusMsg = status === 'draft' ? `📝 ${action} as DRAFT` : `✅ ${action} & Published`;
             alert(`${statusMsg}\n\n${result.message}`);
+            
+            // Clear autosave after successful save
+            clearAutosave();
+            stopAutosave();
+            console.log('[Submit] Autosave cleared after successful save');
             
             // Clear editing state AFTER successful save
             window.editingReceiveId = null;

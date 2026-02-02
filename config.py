@@ -49,6 +49,9 @@ class Config:
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = 28800  # 8 hours in seconds
     
+    # CSRF settings - match session lifetime to prevent token expiration during long work sessions
+    WTF_CSRF_TIME_LIMIT = 28800  # 8 hours in seconds (same as session)
+    
     # App settings
     ITEMS_PER_PAGE = 50
     DEBUG = os.environ.get('FLASK_ENV') == 'development'

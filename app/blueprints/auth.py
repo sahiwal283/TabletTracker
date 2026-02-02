@@ -118,6 +118,14 @@ def logout():
     return redirect(url_for('auth.index'))
 
 
+@bp.route('/api/csrf-token', methods=['GET'])
+def get_csrf_token():
+    """Get a fresh CSRF token - useful for long-running forms to prevent token expiration"""
+    from flask_wtf.csrf import generate_csrf
+    token = generate_csrf()
+    return jsonify({'csrf_token': token})
+
+
 @bp.route('/version')
 def version():
     """Get application version information"""

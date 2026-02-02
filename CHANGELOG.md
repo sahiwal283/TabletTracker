@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.0] - 2026-01-19
+
+### 🚀 New Feature - Prevent Data Loss on Long Forms
+
+#### Auto-Save and CSRF Token Refresh for Receiving Forms
+- **Problem**: Users lost work (31+ boxes) when CSRF tokens expired after working on large receives
+  - Default CSRF token lifetime was 1 hour
+  - Large shipments (96 cases) take longer to enter
+  - Token expiration caused form submission to fail with no recovery
+- **Solution - Multi-layered Protection**:
+  1. **Extended CSRF Token Lifetime**: Increased from 1 hour to 8 hours (matches session lifetime)
+  2. **Auto-Save to localStorage**: Form data saved every 30 seconds automatically
+  3. **Draft Restoration**: On page load, prompts to restore any saved draft within 8 hours
+  4. **CSRF Token Refresh**: Token refreshed right before submission to prevent expiration
+  5. **Clean Autosave on Success**: Saved drafts cleared after successful submission
+- **New API Endpoint**: `/api/csrf-token` - Get fresh CSRF token for long-running forms
+- **User Experience**:
+  - Never lose work again on large receives
+  - Page reload/browser crash/accidental navigation protected
+  - Clear prompt to restore previous work
+- **Files Updated**:
+  - `config.py` (added WTF_CSRF_TIME_LIMIT = 28800)
+  - `app/blueprints/auth.py` (added /api/csrf-token endpoint)
+  - `templates/receiving.html` (added auto-save, restore, CSRF refresh)
+
+---
+
 ## [2.31.6] - 2026-01-19
 
 ### 🐛 Bug Fix
