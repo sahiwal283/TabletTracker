@@ -1917,6 +1917,27 @@ def get_possible_receives_for_submission(submission_id):
                     'error': f'Could not determine tablet_type_id for submission. Product: {submission_dict.get("product_name")}, inventory_item_id: {submission_dict.get("inventory_item_id")}'
                 }), 400
             
+            # AUTO-ASSIGN: If exactly 1 match and submission is currently unassigned, assign it now
+            if len(matching_bags) == 1 and not submission_dict.get('bag_id'):
+                bag = matching_bags[0]
+                # Use a new connection for the update (db_read_only doesn't allow writes)
+                from app.utils.db_utils import db_transaction
+                with db_transaction() as write_conn:
+                    write_conn.execute('''
+                        UPDATE warehouse_submissions 
+                        SET bag_id = ?, assigned_po_id = ?, needs_review = 0
+                        WHERE id = ?
+                    ''', (bag['bag_id'], bag.get('po_id'), submission_id))
+                    current_app.logger.info(f"Auto-assigned submission {submission_id} to bag {bag['bag_id']} (only 1 match)")
+                
+                return jsonify({
+                    'success': True,
+                    'auto_assigned': True,
+                    'submission': submission_dict,
+                    'assigned_bag': bag,
+                    'message': f"Automatically assigned to {bag['receive_name']} (only matching receive)"
+                })
+            
             return jsonify({
                 'success': True,
                 'submission': submission_dict,

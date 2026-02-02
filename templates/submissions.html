@@ -547,6 +547,14 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
             return;
         }
         
+        // AUTO-ASSIGN: If server auto-assigned because only 1 match, show success and close
+        if (data.auto_assigned) {
+            document.getElementById('reassign-modal').classList.add('hidden');
+            alert(`✅ ${data.message}`);
+            location.reload();
+            return;
+        }
+        
         // Show warning if submission is missing bag_number but we found receives
         if (data.warning) {
             document.querySelector('#reassign-modal .text-sm').textContent = data.warning;

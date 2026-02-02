@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.32.5] - 2026-01-19
+
+### 🚀 Enhancement
+
+#### Auto-Assign Submissions When Only One Matching Receive Exists
+- **Issue**: Modal showed single receive option requiring manual selection
+  - Originally 2 POs matched, so submission was flagged for review
+  - After one PO was closed, only 1 match remained
+  - Modal still required user to manually click the only option
+- **Fix**: Auto-assign when opening modal and only 1 receive matches
+  - Server checks if exactly 1 match and submission is unassigned
+  - Automatically assigns and returns success message
+  - Frontend shows alert and reloads page (no modal interaction needed)
+- **Benefit**: Reduces manual work for obvious assignments
+- **Files Updated**:
+  - `app/blueprints/api_receiving.py` (auto-assign logic in possible-receives endpoint)
+  - `templates/submissions.html` (handle auto_assigned response)
+  - `templates/dashboard.html` (handle auto_assigned response)
+
+---
+
 ## [2.32.4] - 2026-01-19
 
 ### 🔧 Enhancement
