@@ -2521,7 +2521,8 @@ function closeSubmissionDetailsModal(event) {
 }
 
 // Global receive details modal functions (available on all pages)
-async function viewReceiveDetails(receiveId, receiveName) {
+// Parameters: receiveId, receiveName, optional targetBoxNumber (to scroll to), optional targetBagId (to highlight)
+async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null, targetBagId = null) {
     try {
         // Check user role for showing close buttons
         const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
@@ -2538,27 +2539,213 @@ async function viewReceiveDetails(receiveId, receiveName) {
         
         const receive = data.receive;
         const products = data.products;
+        const boxesView = data.boxes_view || [];
+        
+        // Get saved view preference (default to 'box' for new users)
+        const savedView = localStorage.getItem('receiveDetailsViewMode') || 'box';
         
         // Check if we have PO info for the back button
         const hasPO = receive && receive.po_id && receive.po_number;
         const backButton = hasPO ? `
             <button onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOReceives(${receive.po_id}, '${receive.po_number}');" 
-                    class="text-white hover:bg-white hover:bg-opacity-20 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
-                ← Back to Receives
+                    class="text-white hover:bg-white hover:bg-opacity-20 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 text-sm">
+                ← Back
             </button>
         ` : '<div></div>';
         
-        // Build modal content
+        // Build box dropdown options
+        let boxDropdownOptions = '<option value="">Jump to Box...</option>';
+        boxesView.forEach(box => {
+            boxDropdownOptions += `<option value="${box.box_number}">Box ${box.box_number} (${box.bags.length} bags)</option>`;
+        });
+        
+        // Helper function to build bag card HTML (used by both views)
+        function buildBagCardHtml(bag, tabletTypeName, inventoryItemId, boxNumber) {
+            const receivedCount = bag.received_count || 0;
+            const machineCount = bag.machine_count || 0;
+            const packagedCount = bag.packaged_count || 0;
+            const totalCounted = machineCount + packagedCount;
+            const remaining = receivedCount - packagedCount;
+            const percentComplete = receivedCount > 0 
+                ? Math.round((totalCounted / receivedCount) * 100) 
+                : 0;
+            
+            let bgColor = 'bg-gray-50';
+            let labelColor = 'text-gray-600';
+            
+            if (remaining <= 0) {
+                bgColor = 'bg-green-50';
+                labelColor = 'text-green-600';
+            } else if (percentComplete >= 75) {
+                bgColor = 'bg-yellow-50';
+                labelColor = 'text-yellow-600';
+            }
+            
+            const isClosed = bag.status === 'Closed';
+            const zohoReceivePushed = bag.zoho_receive_pushed || false;
+            const isReserved = bag.reserved_for_bottles === 1 || bag.reserved_for_bottles === true;
+            const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
+            const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">✓ Zoho</span>' : '';
+            const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2">🍾 Reserved</span>' : '';
+            
+            // Escape strings for safe JS injection
+            const safeTabletTypeName = tabletTypeName.replace(/'/g, "\\'").replace(/"/g, '\\"');
+            const safeReceiveName = receiveName.replace(/'/g, "\\'").replace(/"/g, '\\"');
+            
+            return `
+                <div class="bag-card border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
+                     data-bag-id="${bag.bag_id}" data-box-number="${boxNumber}" data-bag-number="${bag.bag_number}" 
+                     data-tablet-type="${tabletTypeName.toLowerCase()}"
+                     title="${isClosed ? 'This bag is closed' : 'Click to view submissions for ' + tabletTypeName + ' Bag ' + bag.bag_number}"
+                     id="bag-card-${bag.bag_id}">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2 flex-1 cursor-pointer"
+                             onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${inventoryItemId}', ${receiveId}, '${safeReceiveName}', ${bag.bag_id}, ${boxNumber}, ${bag.bag_number});">
+                            <span class="text-sm font-medium text-blue-600">🎒 ${tabletTypeName} Bag ${bag.bag_number}</span>
+                            <span class="text-xs text-gray-500 font-normal">(Box ${boxNumber})</span>
+                            ${closedBadge}
+                            ${zohoPushedBadge}
+                            ${reservedBadge}
+                            <span class="text-xs text-gray-500">💡 Click for submissions</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                        <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
+                            ${!zohoReceivePushed && (isAdmin || isManager) ? `
+                                <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${safeTabletTypeName}', ${bag.bag_number}, ${boxNumber});" 
+                                        id="reserve-btn-${bag.bag_id}"
+                                        class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
+                                    ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
+                                </button>
+                            ` : ''}
+                            ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
+                                <button onclick="event.stopPropagation(); openPushToZohoModal(${bag.bag_id}, '${safeTabletTypeName}', ${bag.bag_number}, ${boxNumber}, ${bag.received_count || 0}, ${bag.packaged_count || 0}, ${receiveId}, '${safeReceiveName}');" 
+                                        class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">
+                                    📤 Push to Zoho
+                                </button>
+                            ` : ''}
+                            ${isAdmin || isManager ? `
+                                <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${safeTabletTypeName}', ${bag.bag_number}, ${boxNumber}, ${receiveId}, '${safeReceiveName}');" 
+                                        class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
+                                    ${isClosed ? '🔓 Reopen' : '🔒 Close'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="mb-2">
+                        <div class="w-full bg-gray-200 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full transition-all ${percentComplete >= 100 ? 'bg-green-500' : percentComplete >= 75 ? 'bg-yellow-500' : 'bg-blue-500'}"
+                                 style="width: ${Math.min(percentComplete, 100)}%"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Compact Stats -->
+                    <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div class="bg-indigo-50 rounded px-2 py-1">
+                            <div class="text-indigo-600 font-semibold">${(bag.received_count || 0).toLocaleString()}</div>
+                            <div class="text-gray-500">Received</div>
+                        </div>
+                        <div class="bg-blue-50 rounded px-2 py-1">
+                            <div class="text-blue-600 font-semibold">${(bag.machine_count || 0).toLocaleString()}</div>
+                            <div class="text-gray-500">Machine</div>
+                        </div>
+                        <div class="bg-purple-50 rounded px-2 py-1">
+                            <div class="text-purple-600 font-semibold">${(bag.packaged_count || 0).toLocaleString()}</div>
+                            <div class="text-gray-500">Packaged</div>
+                        </div>
+                        <div class="${bgColor} rounded px-2 py-1">
+                            <div class="${labelColor} font-semibold">${(remaining || 0).toLocaleString()}</div>
+                            <div class="text-gray-500">Remaining</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Build BOX VIEW content
+        let boxViewContent = '';
+        if (boxesView.length === 0) {
+            boxViewContent = `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No bags found in this receive</p>
+                </div>
+            `;
+        } else {
+            boxViewContent = '<div class="space-y-4">';
+            boxesView.forEach(box => {
+                boxViewContent += `
+                    <div class="box-section border-2 border-gray-300 rounded-lg p-4" data-box-number="${box.box_number}" id="box-section-${box.box_number}">
+                        <div class="flex items-center gap-2 mb-3">
+                            <h3 class="text-lg font-bold text-gray-900">📦 Box ${box.box_number}</h3>
+                            <span class="text-sm text-gray-500">(${box.bags.length} bags)</span>
+                            <div class="flex-1 border-t border-gray-300"></div>
+                        </div>
+                        <div class="space-y-3">
+                `;
+                box.bags.forEach(bag => {
+                    boxViewContent += buildBagCardHtml(bag, bag.tablet_type_name, bag.inventory_item_id, box.box_number);
+                });
+                boxViewContent += `
+                        </div>
+                    </div>
+                `;
+            });
+            boxViewContent += '</div>';
+        }
+        
+        // Build FLAVOR VIEW content
+        let flavorViewContent = '';
+        if (products.length === 0) {
+            flavorViewContent = `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="text-6xl mb-4">📭</div>
+                    <p class="text-lg">No products found in this receive</p>
+                </div>
+            `;
+        } else {
+            flavorViewContent = '<div class="space-y-6">';
+            products.forEach(product => {
+                flavorViewContent += `
+                    <div class="flavor-section border-2 border-gray-300 rounded-lg p-4" data-tablet-type="${product.tablet_type_name.toLowerCase()}">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">
+                            🧪 ${product.tablet_type_name}
+                        </h3>
+                `;
+                product.boxes.forEach(box => {
+                    flavorViewContent += `
+                        <div class="mb-4 ml-4 box-subsection" data-box-number="${box.box_number}">
+                            <div class="flex items-center gap-2 mb-3">
+                                <h4 class="font-semibold text-gray-700">📦 Box ${box.box_number}</h4>
+                                <div class="flex-1 border-t border-gray-300"></div>
+                            </div>
+                            <div class="space-y-3 ml-4">
+                    `;
+                    box.bags.forEach(bag => {
+                        flavorViewContent += buildBagCardHtml(bag, product.tablet_type_name, product.inventory_item_id, box.box_number);
+                    });
+                    flavorViewContent += `
+                            </div>
+                        </div>
+                    `;
+                });
+                flavorViewContent += '</div>';
+            });
+            flavorViewContent += '</div>';
+        }
+        
+        // Build modal content with dual views and navigation
         let modalContent = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceiveDetailsModal(event)">
                 <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
                     <!-- Header -->
-                    <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-6 py-4">
-                        <div class="flex justify-between items-center">
+                    <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-4 py-3">
+                        <div class="flex justify-between items-center gap-2">
                             ${backButton}
-                            <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📦 Receive Details: ${receiveName}</h3>
-                                <p class="text-sm text-blue-100 mt-1">
+                            <div class="flex-1 text-center min-w-0">
+                                <h3 class="text-lg font-bold truncate">📦 Receive Details: ${receiveName}</h3>
+                                <p class="text-xs text-blue-100 mt-0.5">
                                     Received on ${receive.received_date ? (() => {
                                         const date = new Date(receive.received_date + ' UTC');
                                         const estDate = new Date(date.toLocaleString('en-US', {timeZone: 'America/New_York'}));
@@ -2575,152 +2762,50 @@ async function viewReceiveDetails(receiveId, receiveName) {
                         </div>
                     </div>
                     
-                    <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-        `;
-        
-        if (products.length === 0) {
-            modalContent += `
-                <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
-                    <p class="text-lg">No products found in this receive</p>
-                </div>
-            `;
-        } else {
-            modalContent += '<div class="space-y-6">';
-            
-            products.forEach(product => {
-                // Product header
-                modalContent += `
-                    <div class="border-2 border-gray-300 rounded-lg p-4">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">
-                            🧪 ${product.tablet_type_name}
-                        </h3>
-                `;
-                
-                // Loop through each box
-                product.boxes.forEach(box => {
-                    modalContent += `
-                        <div class="mb-4 ml-4">
-                            <div class="flex items-center gap-2 mb-3">
-                                <h4 class="font-semibold text-gray-700">📦 Box ${box.box_number}</h4>
-                                <div class="flex-1 border-t border-gray-300"></div>
-                            </div>
-                            <div class="space-y-3 ml-4">
-                    `;
-                    
-                    // Loop through each bag in the box
-                    box.bags.forEach(bag => {
-                        const receivedCount = bag.received_count || 0;
-                        const machineCount = bag.machine_count || 0;
-                        const packagedCount = bag.packaged_count || 0;
-                        const totalCounted = machineCount + packagedCount;
-                        const remaining = receivedCount - packagedCount;
-                        const percentComplete = receivedCount > 0 
-                            ? Math.round((totalCounted / receivedCount) * 100) 
-                            : 0;
-                        
-                        // Determine status colors
-                        let bgColor = 'bg-gray-50';
-                        let labelColor = 'text-gray-600';
-                        
-                        if (remaining <= 0) {
-                            bgColor = 'bg-green-50';
-                            labelColor = 'text-green-600';
-                        } else if (percentComplete >= 75) {
-                            bgColor = 'bg-yellow-50';
-                            labelColor = 'text-yellow-600';
-                        }
-                        
-                        const isClosed = bag.status === 'Closed';
-                        const zohoReceivePushed = bag.zoho_receive_pushed || false;
-                        const isReserved = bag.reserved_for_bottles === 1 || bag.reserved_for_bottles === true;
-                        const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
-                        const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">✓ Zoho</span>' : '';
-                        const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2">🍾 Reserved</span>' : '';
-                        
-                        modalContent += `
-                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
-                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for ' + product.tablet_type_name + ' Bag ' + bag.bag_number}"
-                                 id="bag-card-${bag.bag_id}">
-                                <div class="flex justify-between items-center mb-2">
-                                    <div class="flex items-center gap-2 flex-1 cursor-pointer"
-                                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});">
-                                        <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name} Bag ${bag.bag_number}</span>
-                                        <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
-                                        ${closedBadge}
-                                        ${zohoPushedBadge}
-                                        ${reservedBadge}
-                                        <span class="text-xs text-gray-500">💡 Click for submissions</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                    <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
-                                        ${!zohoReceivePushed && (isAdmin || isManager) ? `
-                                            <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number});" 
-                                                    id="reserve-btn-${bag.bag_id}"
-                                                    class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
-                                                ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
-                                            </button>
-                                        ` : ''}
-                                        ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
-                                            <button onclick="event.stopPropagation(); openPushToZohoModal(${bag.bag_id}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${bag.received_count || 0}, ${bag.packaged_count || 0}, ${receiveId}, '${receiveName}');" 
-                                                    class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">
-                                                📤 Push to Zoho
-                                            </button>
-                                        ` : ''}
-                                        ${isAdmin || isManager ? `
-                                            <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
-                                                    class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
-                                                ${isClosed ? '🔓 Reopen' : '🔒 Close'}
-                                            </button>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                                
-                                <!-- Progress Bar -->
-                                <div class="mb-2">
-                                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                                        <div class="h-1.5 rounded-full transition-all ${percentComplete >= 100 ? 'bg-green-500' : percentComplete >= 75 ? 'bg-yellow-500' : 'bg-blue-500'}"
-                                             style="width: ${Math.min(percentComplete, 100)}%"></div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Compact Stats -->
-                                <div class="grid grid-cols-4 gap-2 text-center text-xs">
-                                    <div class="bg-indigo-50 rounded px-2 py-1">
-                                        <div class="text-indigo-600 font-semibold">${(bag.received_count || 0).toLocaleString()}</div>
-                                        <div class="text-gray-500">Received</div>
-                                    </div>
-                                    <div class="bg-blue-50 rounded px-2 py-1">
-                                        <div class="text-blue-600 font-semibold">${(bag.machine_count || 0).toLocaleString()}</div>
-                                        <div class="text-gray-500">Machine</div>
-                                    </div>
-                                    <div class="bg-purple-50 rounded px-2 py-1">
-                                        <div class="text-purple-600 font-semibold">${(bag.packaged_count || 0).toLocaleString()}</div>
-                                        <div class="text-gray-500">Packaged</div>
-                                    </div>
-                                    <div class="${bgColor} rounded px-2 py-1">
-                                        <div class="${labelColor} font-semibold">${(remaining || 0).toLocaleString()}</div>
-                                        <div class="text-gray-500">Remaining</div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    modalContent += `
-                            </div>
+                    <!-- Navigation Bar -->
+                    <div class="bg-gray-100 px-4 py-2 border-b flex flex-wrap items-center gap-3">
+                        <!-- View Toggle -->
+                        <div class="flex items-center bg-white rounded-lg border shadow-sm">
+                            <button id="view-box-btn" onclick="switchReceiveView('box')" 
+                                    class="px-3 py-1.5 text-sm font-medium rounded-l-lg transition-colors ${savedView === 'box' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
+                                📦 By Box
+                            </button>
+                            <button id="view-flavor-btn" onclick="switchReceiveView('flavor')" 
+                                    class="px-3 py-1.5 text-sm font-medium rounded-r-lg border-l transition-colors ${savedView === 'flavor' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
+                                🧪 By Flavor
+                            </button>
                         </div>
-                    `;
-                });
-                
-                modalContent += '</div>';
-            });
-            
-            modalContent += '</div>';
-        }
-        
-        modalContent += `
+                        
+                        <!-- Box Dropdown -->
+                        <select id="box-jump-dropdown" onchange="jumpToBox(this.value)" 
+                                class="px-2 py-1.5 text-sm border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                            ${boxDropdownOptions}
+                        </select>
+                        
+                        <!-- Search Filter -->
+                        <div class="flex-1 min-w-[150px] max-w-[300px]">
+                            <input type="text" id="bag-search-filter" placeholder="🔍 Filter by box, bag, or flavor..." 
+                                   oninput="filterReceiveBags(this.value)"
+                                   class="w-full px-3 py-1.5 text-sm border rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                        </div>
+                        
+                        <!-- Clear Filter -->
+                        <button onclick="clearReceiveFilter()" class="text-xs text-gray-500 hover:text-gray-700 underline">
+                            Clear
+                        </button>
+                    </div>
+                    
+                    <!-- Content Area -->
+                    <div id="receive-modal-content" class="p-4 overflow-y-auto max-h-[calc(90vh-180px)]">
+                        <!-- Box View -->
+                        <div id="box-view-content" class="${savedView === 'box' ? '' : 'hidden'}">
+                            ${boxViewContent}
+                        </div>
+                        
+                        <!-- Flavor View -->
+                        <div id="flavor-view-content" class="${savedView === 'flavor' ? '' : 'hidden'}">
+                            ${flavorViewContent}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2738,9 +2823,140 @@ async function viewReceiveDetails(receiveId, receiveName) {
         modalDiv.innerHTML = modalContent;
         document.body.appendChild(modalDiv);
         
+        // Auto-scroll to target box/bag if specified
+        if (targetBoxNumber !== null || targetBagId !== null) {
+            setTimeout(() => {
+                let targetElement = null;
+                
+                if (targetBagId !== null) {
+                    // Scroll to specific bag
+                    targetElement = document.getElementById(`bag-card-${targetBagId}`);
+                } else if (targetBoxNumber !== null) {
+                    // Scroll to box section (in box view)
+                    targetElement = document.getElementById(`box-section-${targetBoxNumber}`);
+                }
+                
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Add highlight animation
+                    targetElement.classList.add('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                    setTimeout(() => {
+                        targetElement.classList.remove('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                    }, 2500);
+                }
+            }, 100);
+        }
+        
     } catch (error) {
         console.error('Error loading receive details:', error);
         alert('Failed to load receive details: ' + error.message);
+    }
+}
+
+// Switch between Box and Flavor views
+function switchReceiveView(viewMode) {
+    const boxView = document.getElementById('box-view-content');
+    const flavorView = document.getElementById('flavor-view-content');
+    const boxBtn = document.getElementById('view-box-btn');
+    const flavorBtn = document.getElementById('view-flavor-btn');
+    
+    if (viewMode === 'box') {
+        boxView.classList.remove('hidden');
+        flavorView.classList.add('hidden');
+        boxBtn.classList.add('bg-teal-600', 'text-white');
+        boxBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+        flavorBtn.classList.remove('bg-teal-600', 'text-white');
+        flavorBtn.classList.add('text-gray-600', 'hover:bg-gray-100');
+    } else {
+        flavorView.classList.remove('hidden');
+        boxView.classList.add('hidden');
+        flavorBtn.classList.add('bg-teal-600', 'text-white');
+        flavorBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+        boxBtn.classList.remove('bg-teal-600', 'text-white');
+        boxBtn.classList.add('text-gray-600', 'hover:bg-gray-100');
+    }
+    
+    // Save preference
+    localStorage.setItem('receiveDetailsViewMode', viewMode);
+}
+
+// Jump to a specific box
+function jumpToBox(boxNumber) {
+    if (!boxNumber) return;
+    
+    const currentView = localStorage.getItem('receiveDetailsViewMode') || 'box';
+    let targetElement = null;
+    
+    if (currentView === 'box') {
+        targetElement = document.getElementById(`box-section-${boxNumber}`);
+    } else {
+        // In flavor view, find first box subsection with this number
+        targetElement = document.querySelector(`.box-subsection[data-box-number="${boxNumber}"]`);
+    }
+    
+    if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Brief highlight
+        targetElement.classList.add('ring-2', 'ring-teal-400');
+        setTimeout(() => {
+            targetElement.classList.remove('ring-2', 'ring-teal-400');
+        }, 1500);
+    }
+    
+    // Reset dropdown
+    document.getElementById('box-jump-dropdown').value = '';
+}
+
+// Filter bags by search term
+function filterReceiveBags(searchTerm) {
+    const term = searchTerm.toLowerCase().trim();
+    const allBagCards = document.querySelectorAll('#receive-modal-content .bag-card');
+    const allBoxSections = document.querySelectorAll('#receive-modal-content .box-section, #receive-modal-content .box-subsection');
+    const allFlavorSections = document.querySelectorAll('#receive-modal-content .flavor-section');
+    
+    if (!term) {
+        // Show all
+        allBagCards.forEach(card => card.classList.remove('hidden'));
+        allBoxSections.forEach(section => section.classList.remove('hidden'));
+        allFlavorSections.forEach(section => section.classList.remove('hidden'));
+        return;
+    }
+    
+    // Filter bag cards
+    allBagCards.forEach(card => {
+        const boxNum = card.dataset.boxNumber || '';
+        const bagNum = card.dataset.bagNumber || '';
+        const tabletType = card.dataset.tabletType || '';
+        
+        const matches = 
+            boxNum.includes(term) || 
+            `box ${boxNum}`.includes(term) ||
+            bagNum.includes(term) || 
+            `bag ${bagNum}`.includes(term) ||
+            tabletType.includes(term);
+        
+        card.classList.toggle('hidden', !matches);
+    });
+    
+    // Hide empty box sections
+    allBoxSections.forEach(section => {
+        const visibleBags = section.querySelectorAll('.bag-card:not(.hidden)');
+        section.classList.toggle('hidden', visibleBags.length === 0);
+    });
+    
+    // Hide empty flavor sections
+    allFlavorSections.forEach(section => {
+        const visibleBags = section.querySelectorAll('.bag-card:not(.hidden)');
+        section.classList.toggle('hidden', visibleBags.length === 0);
+    });
+}
+
+// Clear filter
+function clearReceiveFilter() {
+    const searchInput = document.getElementById('bag-search-filter');
+    if (searchInput) {
+        searchInput.value = '';
+        filterReceiveBags('');
     }
 }
 

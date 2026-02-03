@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.33.0] - 2026-02-03
+
+### 🚀 Feature
+
+#### Receive Details Modal UX Improvements
+Completely redesigned the receive details modal for improved navigation on large receives (50+ boxes).
+
+**New Features:**
+- **Dual View Modes**: Toggle between "By Box" and "By Flavor" organization
+  - "By Box" view: Shows all bags grouped by their physical box location
+  - "By Flavor" view: Shows bags grouped by tablet type/flavor (original behavior)
+- **Quick Navigation**: 
+  - Box dropdown to instantly jump to any box section
+  - Search/filter to find bags by box number, bag number, or flavor name
+- **Deep Linking**: Click any bag card on the receives page to open the modal and auto-scroll to that specific bag with a highlight animation
+- **View Persistence**: Selected view mode (By Box/By Flavor) is saved to localStorage
+
+**Problem Solved:**
+- Large receives with 97+ boxes were difficult to navigate - users had to scroll through all flavors to find specific boxes/bags
+- No way to directly jump to a specific bag when clicking from the receives page
+
+**Files Updated:**
+- `app/blueprints/api_receiving.py` - Added `boxes_view` data structure to API response
+- `templates/base.html` - Rewrote `viewReceiveDetails()` with dual views, navigation controls, and deep-linking
+- `templates/receiving.html` - Added click handlers to individual bag cards, removed duplicate local function
+
+---
+
 ## [2.32.6] - 2026-01-19
 
 ### 🚀 Enhancement

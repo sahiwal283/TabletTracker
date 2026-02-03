@@ -171,10 +171,13 @@ def get_receiving_details(receive_id):
                     )
                 ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchone()
                 
-                products[inventory_item_id]['boxes'][box_number][bag_number] = {
+                # Build bag data entry with all fields needed for both views
+                bag_entry = {
                     'bag_id': bag_id,
                     'bag_number': bag_number,
                     'box_number': box_number,
+                    'tablet_type_name': tablet_type_name,
+                    'inventory_item_id': inventory_item_id,
                     'status': bag.get('status', 'Available'),
                     'received_count': bag_label_count,
                     'machine_count': machine_total,
@@ -184,8 +187,9 @@ def get_receiving_details(receive_id):
                     'zoho_receive_id': bag.get('zoho_receive_id'),
                     'reserved_for_bottles': bool(bag.get('reserved_for_bottles', False))
                 }
+                products[inventory_item_id]['boxes'][box_number][bag_number] = bag_entry
             
-            # Convert nested dict to list format
+            # Convert nested dict to list format (flavor view)
             products_list = []
             for inventory_item_id, product_data in products.items():
                 product_entry = {
@@ -206,10 +210,35 @@ def get_receiving_details(receive_id):
                     product_entry['boxes'].append(box_entry)
                 products_list.append(product_entry)
             
+            # Build boxes_view: organized by box -> bags (with flavor info per bag)
+            # This view groups all bags by their physical box location
+            boxes_dict = {}
+            for inventory_item_id, product_data in products.items():
+                for box_number, bags_in_box in product_data['boxes'].items():
+                    if box_number not in boxes_dict:
+                        boxes_dict[box_number] = {
+                            'box_number': box_number,
+                            'bags': []
+                        }
+                    for bag_number, bag_data in bags_in_box.items():
+                        boxes_dict[box_number]['bags'].append({
+                            'bag_number': bag_number,
+                            **bag_data
+                        })
+            
+            # Convert to sorted list and sort bags within each box
+            boxes_view = []
+            for box_number in sorted(boxes_dict.keys()):
+                box_data = boxes_dict[box_number]
+                # Sort bags by bag_number within each box
+                box_data['bags'] = sorted(box_data['bags'], key=lambda b: b['bag_number'])
+                boxes_view.append(box_data)
+            
             return jsonify({
                 'success': True,
                 'receive': receive_dict,
-                'products': products_list
+                'products': products_list,
+                'boxes_view': boxes_view
             })
     except Exception as e:
         current_app.logger.error(f"Error getting receiving details: {str(e)}")

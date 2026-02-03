@@ -161,7 +161,9 @@
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
-                            <div class="bg-white border border-gray-200 rounded p-2 text-sm">
+                            <div class="bg-white border border-gray-200 rounded p-2 text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow transition-all"
+                                 onclick="event.stopPropagation(); viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else 1 }}', {{ box_data.box.box_number }}, {{ bag.id }})"
+                                 title="Click to view details for this bag">
                                 <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
                                     {{ bag.tablet_type_name }} Bag {{ bag.bag_number }}
@@ -276,7 +278,9 @@
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
-                            <div class="bg-white border border-gray-200 rounded p-2 text-sm">
+                            <div class="bg-white border border-gray-200 rounded p-2 text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow transition-all"
+                                 onclick="event.stopPropagation(); viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}', {{ box_data.box.box_number }}, {{ bag.id }})"
+                                 title="Click to view details for this bag">
                                 <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
                                     {{ bag.tablet_type_name }} Bag {{ bag.bag_number }}
@@ -387,7 +391,9 @@
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
-                            <div class="bg-white border border-gray-200 rounded p-2 text-sm">
+                            <div class="bg-white border border-gray-200 rounded p-2 text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow transition-all"
+                                 onclick="event.stopPropagation(); viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else 1 }}', {{ box_data.box.box_number }}, {{ bag.id }})"
+                                 title="Click to view details for this bag">
                                 <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
                                     {{ bag.tablet_type_name }} Bag {{ bag.bag_number }}
@@ -2119,210 +2125,8 @@ async function savePOAssignment() {
     }
 }
 
-// View Receive Details Modal
-async function viewReceiveDetails(receiveId, receiveName) {
-    try {
-        // Check user role for showing close buttons
-        const isAdmin = {% if session.get('admin_authenticated') or session.get('employee_role') == 'admin' %}true{% else %}false{% endif %};
-        const isManager = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
-        
-        const response = await fetch(`/api/receive/${receiveId}/details`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            alert('Error loading receive details: ' + (data.error || 'Unknown error'));
-            return;
-        }
-        
-        const receive = data.receive;
-        const products = data.products;
-        
-        // Build modal content
-        let modalContent = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceiveDetailsModal(event)">
-                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
-                    <!-- Header -->
-                    <div class="bg-gradient-to-r from-teal-600 to-blue-600 text-white px-6 py-4">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="text-xl font-bold">📦 Receive Details: ${receiveName}</h3>
-                                <p class="text-sm text-blue-100 mt-1">
-                                    Received on ${receive.received_date ? (() => {
-                                        const date = new Date(receive.received_date + ' UTC');
-                                        const estDate = new Date(date.toLocaleString('en-US', {timeZone: 'America/New_York'}));
-                                        const dateStr = estDate.toLocaleDateString('en-US', {year: 'numeric', month: '2-digit', day: '2-digit'});
-                                        const timeStr = estDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
-                                        return dateStr + ' at ' + timeStr;
-                                    })() : 'Unknown'} EST
-                                    ${receive.received_by ? 'by ' + receive.received_by : ''}
-                                </p>
-                            </div>
-                            <button onclick="closeReceiveDetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
-                                ✕
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-        `;
-        
-        if (products.length === 0) {
-            modalContent += `
-                <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
-                    <p class="text-lg">No products found in this receive</p>
-                </div>
-            `;
-        } else {
-            modalContent += '<div class="space-y-6">';
-            
-            products.forEach(product => {
-                // Product header
-                modalContent += `
-                    <div class="border-2 border-gray-300 rounded-lg p-4">
-                        <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">
-                            🧪 ${product.tablet_type_name}
-                        </h3>
-                `;
-                
-                // Loop through each box
-                product.boxes.forEach(box => {
-                    modalContent += `
-                        <div class="mb-4 ml-4">
-                            <div class="flex items-center gap-2 mb-3">
-                                <h4 class="font-semibold text-gray-700">📦 Box ${box.box_number}</h4>
-                                <div class="flex-1 border-t border-gray-300"></div>
-                            </div>
-                            <div class="space-y-3 ml-4">
-                    `;
-                    
-                    // Loop through each bag in the box
-                    box.bags.forEach(bag => {
-                        const totalCounted = bag.machine_count + bag.packaged_count;
-                        const remaining = bag.received_count - bag.packaged_count;
-                        const percentComplete = bag.received_count > 0 
-                            ? Math.round((totalCounted / bag.received_count) * 100) 
-                            : 0;
-                        
-                        // Determine status colors
-                        let bgColor = 'bg-gray-50';
-                        let labelColor = 'text-gray-600';
-                        
-                        if (remaining <= 0) {
-                            bgColor = 'bg-green-50';
-                            labelColor = 'text-green-600';
-                        } else if (percentComplete >= 75) {
-                            bgColor = 'bg-yellow-50';
-                            labelColor = 'text-yellow-600';
-                        }
-                        
-                        const isClosed = bag.status === 'Closed';
-                        const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
-                        
-                        const isReserved = bag.reserved_for_bottles === 1 || bag.reserved_for_bottles === true;
-                        const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">🍾 Reserved</span>' : '';
-                        
-                        modalContent += `
-                            <div class="border border-gray-200 rounded-lg p-3 hover:bg-blue-50 hover:shadow-md transition-all ${isClosed ? 'opacity-60' : ''}" 
-                                 title="${isClosed ? 'This bag is closed' : 'Click to view submissions for Box ' + box.box_number + ', Bag ' + bag.bag_number}"
-                                 id="bag-card-${bag.bag_id}">
-                                <div class="flex justify-between items-center mb-2">
-                                    <div class="flex items-center gap-2 flex-1 cursor-pointer"
-                                         onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${product.inventory_item_id}', ${receiveId}, '${receiveName}', ${bag.bag_id}, ${box.box_number}, ${bag.bag_number});">
-                                        <span class="text-sm font-medium text-blue-600">🎒 ${product.tablet_type_name} Bag ${bag.bag_number}</span>
-                                        <span class="text-xs text-gray-500 font-normal">(Box ${box.box_number})</span>
-                                        ${closedBadge}
-                                        ${reservedBadge}
-                                        <span class="text-xs text-gray-500">💡 Click for submissions</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                    <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
-                                        ${!isClosed && remaining > 0 && (isAdmin || isManager) ? `
-                                            <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number});" 
-                                                    id="reserve-btn-${bag.bag_id}"
-                                                    class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
-                                                ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
-                                            </button>
-                                        ` : ''}
-                                        ${isAdmin || isManager ? `
-                                            <button onclick="event.stopPropagation(); toggleBagClosed(${bag.bag_id}, ${isClosed}, '${product.tablet_type_name}', ${bag.bag_number}, ${box.box_number}, ${receiveId}, '${receiveName}');" 
-                                                    class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
-                                                ${isClosed ? '🔓 Reopen' : '🔒 Close'}
-                                            </button>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                                
-                                <!-- Progress Bar -->
-                                <div class="mb-2">
-                                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                                        <div class="h-1.5 rounded-full transition-all ${percentComplete >= 100 ? 'bg-green-500' : percentComplete >= 75 ? 'bg-yellow-500' : 'bg-blue-500'}"
-                                             style="width: ${Math.min(percentComplete, 100)}%"></div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Compact Stats -->
-                                <div class="grid grid-cols-4 gap-2 text-center text-xs">
-                                    <div class="bg-indigo-50 rounded px-2 py-1">
-                                        <div class="text-indigo-600 font-semibold">${bag.received_count.toLocaleString()}</div>
-                                        <div class="text-gray-500">Received</div>
-                                    </div>
-                                    <div class="bg-blue-50 rounded px-2 py-1">
-                                        <div class="text-blue-600 font-semibold">${(bag.machine_count || 0).toLocaleString()}</div>
-                                        <div class="text-gray-500">Machine</div>
-                                    </div>
-                                    <div class="bg-purple-50 rounded px-2 py-1">
-                                        <div class="text-purple-600 font-semibold">${(bag.packaged_count || 0).toLocaleString()}</div>
-                                        <div class="text-gray-500">Packaged</div>
-                                    </div>
-                                    <div class="${bgColor} rounded px-2 py-1">
-                                        <div class="${labelColor} font-semibold">${remaining.toLocaleString()}</div>
-                                        <div class="text-gray-500">Remaining</div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    modalContent += `
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                modalContent += '</div>';
-            });
-            
-            modalContent += '</div>';
-        }
-        
-        modalContent += `
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Add modal to page
-        const modalDiv = document.createElement('div');
-        modalDiv.id = 'receive-details-modal';
-        modalDiv.innerHTML = modalContent;
-        document.body.appendChild(modalDiv);
-        
-    } catch (error) {
-        console.error('Error loading receive details:', error);
-        alert('Failed to load receive details: ' + error.message);
-    }
-}
-
-function closeReceiveDetailsModal(event) {
-    if (!event || event.target === event.currentTarget) {
-        const modal = document.getElementById('receive-details-modal');
-        if (modal) {
-            modal.remove();
-        }
-    }
-}
+// NOTE: viewReceiveDetails and closeReceiveDetailsModal are now defined globally in base.html
+// with enhanced features: dual views (By Box / By Flavor), quick navigation, and deep-linking
 
 // Submissions modal functions
 let typeFilter = null;
