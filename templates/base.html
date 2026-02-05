@@ -318,26 +318,62 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
         const data = await response.json();
         
         if (data.success) {
-            // Close the modal
-            if (typeof closeReceiveDetailsModal === 'function') {
-                closeReceiveDetailsModal();
+            // Update the bag card in place without reloading the modal
+            const bagCard = document.getElementById(`bag-card-${bagId}`);
+            if (bagCard) {
+                const newStatus = data.status || (currentlyClosed ? 'Available' : 'Closed');
+                const isClosed = newStatus === 'Closed';
+                
+                // Update the bag card's appearance
+                if (isClosed) {
+                    bagCard.classList.add('opacity-60');
+                } else {
+                    bagCard.classList.remove('opacity-60');
+                }
+                
+                // Find and update the closed badge
+                const closedBadge = bagCard.querySelector('.inline-flex.items-center.px-2.py-0\\.5.rounded.text-xs.font-semibold.bg-gray-200.text-gray-700');
+                if (isClosed && !closedBadge) {
+                    // Add closed badge
+                    const badgeContainer = bagCard.querySelector('.flex.items-center.gap-2.flex-1');
+                    if (badgeContainer) {
+                        const badge = document.createElement('span');
+                        badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2';
+                        badge.textContent = '🔒 CLOSED';
+                        badgeContainer.appendChild(badge);
+                    }
+                } else if (!isClosed && closedBadge) {
+                    // Remove closed badge
+                    closedBadge.remove();
+                }
+                
+                // Update the close/reopen button text
+                const closeButtons = bagCard.querySelectorAll('button');
+                closeButtons.forEach(btn => {
+                    if (btn.textContent.includes('Close') || btn.textContent.includes('Reopen')) {
+                        if (isClosed) {
+                            btn.textContent = '🔓 Reopen';
+                            btn.className = btn.className.replace('text-orange-600', 'text-green-600').replace('hover:text-orange-800', 'hover:text-green-800');
+                            // Update onclick to pass new state
+                            btn.setAttribute('onclick', btn.getAttribute('onclick').replace(`, ${!isClosed},`, `, ${isClosed},`));
+                        } else {
+                            btn.textContent = '🔒 Close';
+                            btn.className = btn.className.replace('text-green-600', 'text-orange-600').replace('hover:text-green-800', 'hover:text-orange-800');
+                            // Update onclick to pass new state
+                            btn.setAttribute('onclick', btn.getAttribute('onclick').replace(`, ${!isClosed},`, `, ${isClosed},`));
+                        }
+                    }
+                });
             }
             
             // Show success message briefly
             const successMsg = document.createElement('div');
-            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
             successMsg.textContent = data.message;
             document.body.appendChild(successMsg);
             
             // Remove success message after 2 seconds
             setTimeout(() => successMsg.remove(), 2000);
-            
-            // Reopen the modal with updated data after a brief delay
-            setTimeout(() => {
-                if (typeof viewReceiveDetails === 'function') {
-                    viewReceiveDetails(receiveId, receiveName);
-                }
-            }, 300);
         } else {
             alert('Error: ' + (data.error || 'Failed to update bag status'));
         }
