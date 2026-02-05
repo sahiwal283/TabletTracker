@@ -833,12 +833,25 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedDraft) {
         const savedTime = new Date(savedDraft.timestamp);
         const timeDiff = (Date.now() - savedTime.getTime()) / 1000 / 60; // minutes
-        const bagCount = Object.keys(savedDraft.fields).filter(k => k.match(/^box_\d+_bag_\d+_tablet_type$/)).length;
         
-        if (bagCount > 0 && timeDiff < 480) { // Less than 8 hours old
+        // Count bags that have ACTUAL DATA (not just empty fields)
+        const bagsWithData = Object.keys(savedDraft.fields).filter(k => {
+            const match = k.match(/^box_\d+_bag_\d+_tablet_type$/);
+            if (match) {
+                const value = savedDraft.fields[k];
+                // Only count if the tablet_type field has a non-empty value
+                return value && value !== '' && value !== 'null';
+            }
+            return false;
+        }).length;
+        
+        // Check if there's meaningful data: bags with tablet types OR a PO selected
+        const hasMeaningfulData = bagsWithData > 0 || (savedDraft.po_id && savedDraft.po_id !== '');
+        
+        if (hasMeaningfulData && timeDiff < 480) { // Less than 8 hours old
             const restore = confirm(
                 `📦 Found saved draft from ${savedTime.toLocaleString()}\n\n` +
-                `Contains ${bagCount} bags\n` +
+                `Contains ${bagsWithData} bags\n` +
                 `PO: ${savedDraft.po_id || 'Not selected'}\n` +
                 `${savedDraft.editing_receive_id ? '(Editing existing receive)' : '(New receive)'}\n\n` +
                 `Would you like to restore this draft?\n\n` +
@@ -853,7 +866,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearAutosave();
             }
         } else {
-            // Draft is too old, clear it
+            // Draft is too old or has no meaningful data, clear it
             clearAutosave();
         }
     }
