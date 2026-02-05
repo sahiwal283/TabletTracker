@@ -1566,9 +1566,7 @@ def get_submission_details(submission_id):
             cards_made = machine_count * cards_per_turn
             submission_dict['cards_made'] = cards_made  # Add recalculated cards_made
             
-            # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
-            # Fallback to loose_tablets, then calculate from cards_made × tablets_per_package
-            packs_remaining = submission_dict.get('packs_remaining', 0) or 0
+            # Calculate total tablets based on submission type
             # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
             tablets_per_package = (submission_dict.get('tablets_per_package_final') or 
                                  submission_dict.get('tablets_per_package') or 0)
@@ -1588,7 +1586,12 @@ def get_submission_details(submission_id):
                     if tpp_row:
                         tpp_dict = dict(tpp_row)
                         tablets_per_package = tpp_dict.get('tablets_per_package', 0) or 0
-                
+            
+            # Calculate based on submission type
+            if submission_type == 'machine':
+                # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
+                # Fallback to loose_tablets, then calculate from cards_made × tablets_per_package
+                packs_remaining = submission_dict.get('packs_remaining', 0) or 0
                 submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
                                                      submission_dict.get('loose_tablets') or
                                                      (packs_remaining * tablets_per_package) or
@@ -1601,7 +1604,6 @@ def get_submission_details(submission_id):
             else:
                 # For packaged/bag submissions: calculate from displays and packs
                 packages_per_display = submission_dict.get('packages_per_display', 0) or 0
-                tablets_per_package = submission_dict.get('tablets_per_package', 0) or 0
                 displays_made = submission_dict.get('displays_made', 0) or 0
                 packs_remaining = submission_dict.get('packs_remaining', 0) or 0
                 loose_tablets = submission_dict.get('loose_tablets', 0) or 0
