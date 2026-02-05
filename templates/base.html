@@ -2235,7 +2235,7 @@ async function viewSubmissionDetails(submissionId) {
                                 </div>
                                 <div class="bg-gray-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Total Tablets</label>
-                                    <div class="mt-1 text-2xl font-bold text-gray-900">${sub.loose_tablets || 0}</div>
+                                    <div class="mt-1 text-2xl font-bold text-gray-900">${(sub.individual_calc || sub.total_tablets || sub.tablets_pressed_into_cards || 0).toLocaleString()}</div>
                                     <div class="text-xs text-gray-400 mt-1">Total counted</div>
                                 </div>
                             </div>
@@ -2245,7 +2245,16 @@ async function viewSubmissionDetails(submissionId) {
                                     <span>${sub.machine_name || 'Not specified'}</span>
                                     <span class="text-gray-400">•</span>
                                     <span class="font-medium">Cards Per Turn:</span>
-                                    <span>${sub.cards_per_turn || 'N/A'}</span>
+                                    <span>${(() => {
+                                        // Calculate cards per turn if not present
+                                        if (sub.cards_per_turn) return sub.cards_per_turn;
+                                        const turns = sub.displays_made || 0;
+                                        const cards = sub.cards_made || sub.packs_remaining || 0;
+                                        if (turns > 0 && cards > 0) {
+                                            return Math.round(cards / turns);
+                                        }
+                                        return 'N/A';
+                                    })()}</span>
                                 </div>
                             </div>
                             ` : isBottleSubmission ? `
