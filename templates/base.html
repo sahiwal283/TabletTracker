@@ -2600,7 +2600,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                      id="bag-card-${bag.bag_id}">
                     <div class="flex justify-between items-center mb-2">
                         <div class="flex items-center gap-2 flex-1 cursor-pointer"
-                             onclick="event.stopPropagation(); closeReceiveDetailsModal(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${inventoryItemId}', ${receiveId}, '${safeReceiveName}', ${bag.bag_id}, ${boxNumber}, ${bag.bag_number});">
+                             onclick="event.stopPropagation(); viewPOSubmissions(${receive.po_id}, '${receive.po_number}', '${inventoryItemId}', ${receiveId}, '${safeReceiveName}', ${bag.bag_id}, ${boxNumber}, ${bag.bag_number});">
                             <span class="text-sm font-medium text-blue-600">🎒 ${tabletTypeName} Bag ${bag.bag_number}</span>
                             <span class="text-xs text-gray-500 font-normal">(Box ${boxNumber})</span>
                             ${closedBadge}
@@ -2823,19 +2823,6 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         modalDiv.innerHTML = modalContent;
         document.body.appendChild(modalDiv);
         
-        // Restore filter from sessionStorage if present
-        const savedFilter = sessionStorage.getItem('receiveDetailsFilter');
-        if (savedFilter) {
-            const searchInput = document.getElementById('bag-search-filter');
-            if (searchInput) {
-                searchInput.value = savedFilter;
-                // Apply the filter after a brief delay to ensure DOM is ready
-                setTimeout(() => {
-                    filterReceiveBags(savedFilter);
-                }, 50);
-            }
-        }
-        
         // Auto-scroll to target box/bag if specified
         if (targetBoxNumber !== null || targetBagId !== null) {
             setTimeout(() => {
@@ -2927,9 +2914,6 @@ function filterReceiveBags(searchTerm) {
     const allBoxSections = document.querySelectorAll('#receive-modal-content .box-section, #receive-modal-content .box-subsection');
     const allFlavorSections = document.querySelectorAll('#receive-modal-content .flavor-section');
     
-    // Save filter to sessionStorage for persistence across navigation
-    sessionStorage.setItem('receiveDetailsFilter', searchTerm);
-    
     if (!term) {
         // Show all
         allBagCards.forEach(card => card.classList.remove('hidden'));
@@ -2974,8 +2958,6 @@ function clearReceiveFilter() {
         searchInput.value = '';
         filterReceiveBags('');
     }
-    // Clear from sessionStorage
-    sessionStorage.removeItem('receiveDetailsFilter');
 }
 
 function closeReceiveDetailsModal(event) {

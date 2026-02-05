@@ -2228,12 +2228,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         
         // Build modal HTML (abbreviated version - just shows list)
         let modalContent = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeSubmissionsModal(event)">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onclick="closeSubmissionsModal(event)">
                 <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
                             ${receiveId ? `
-                                <button onclick="closeSubmissionsModal(); viewReceiveDetails(${receiveId}, '${receiveName}');" 
+                                <button onclick="closeSubmissionsModal();" 
                                         class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                                         title="Back to receive details">
                                     ← Back
