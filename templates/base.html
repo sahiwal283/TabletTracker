@@ -318,76 +318,6 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
         const data = await response.json();
         
         if (data.success) {
-            // Update the bag card in place without reloading the modal
-            const bagCard = document.getElementById(`bag-card-${bagId}`);
-            if (bagCard) {
-                const newStatus = data.status || (currentlyClosed ? 'Available' : 'Closed');
-                const isClosed = newStatus === 'Closed';
-                
-                console.log(`[Bag Close] Updating bag ${bagId}, newStatus: ${newStatus}, isClosed: ${isClosed}`);
-                
-                // Update opacity
-                if (isClosed) {
-                    bagCard.classList.add('opacity-60');
-                } else {
-                    bagCard.classList.remove('opacity-60');
-                }
-                
-                // Find and update the CLOSED badge (look for any badge containing "CLOSED")
-                const allBadges = bagCard.querySelectorAll('span.inline-flex.items-center');
-                let closedBadge = null;
-                allBadges.forEach(badge => {
-                    if (badge.textContent.includes('CLOSED')) {
-                        closedBadge = badge;
-                    }
-                });
-                
-                if (isClosed && !closedBadge) {
-                    // Add closed badge after the bag name
-                    const bagNameSpan = bagCard.querySelector('.text-blue-600');
-                    if (bagNameSpan && bagNameSpan.parentElement) {
-                        const badge = document.createElement('span');
-                        badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2';
-                        badge.textContent = '🔒 CLOSED';
-                        bagNameSpan.insertAdjacentElement('afterend', badge);
-                        console.log('[Bag Close] Added CLOSED badge');
-                    }
-                } else if (!isClosed && closedBadge) {
-                    // Remove closed badge
-                    closedBadge.remove();
-                    console.log('[Bag Close] Removed CLOSED badge');
-                }
-                
-                // Update the close/reopen button - find by looking for button with Close or Reopen text
-                const allButtons = bagCard.querySelectorAll('button');
-                allButtons.forEach(btn => {
-                    const btnText = btn.textContent.trim();
-                    if (btnText.includes('Close') || btnText.includes('Reopen')) {
-                        console.log(`[Bag Close] Found button with text: "${btnText}"`);
-                        
-                        if (isClosed) {
-                            // Bag is now closed, button should say "Reopen"
-                            btn.textContent = '🔓 Reopen';
-                            btn.className = 'text-xs text-green-600 hover:text-green-800 underline whitespace-nowrap';
-                            
-                            // Rebuild onclick handler with new state (true = currently closed)
-                            const newOnclick = `event.stopPropagation(); toggleBagClosed(${bagId}, true, '${productName.replace(/'/g, "\\'")}', ${bagNumber}, ${boxNumber}, ${receiveId}, '${receiveName.replace(/'/g, "\\'")}');`;
-                            btn.setAttribute('onclick', newOnclick);
-                            console.log('[Bag Close] Button updated to Reopen');
-                        } else {
-                            // Bag is now open, button should say "Close"
-                            btn.textContent = '🔒 Close';
-                            btn.className = 'text-xs text-orange-600 hover:text-orange-800 underline whitespace-nowrap';
-                            
-                            // Rebuild onclick handler with new state (false = currently open)
-                            const newOnclick = `event.stopPropagation(); toggleBagClosed(${bagId}, false, '${productName.replace(/'/g, "\\'")}', ${bagNumber}, ${boxNumber}, ${receiveId}, '${receiveName.replace(/'/g, "\\'")}');`;
-                            btn.setAttribute('onclick', newOnclick);
-                            console.log('[Bag Close] Button updated to Close');
-                        }
-                    }
-                });
-            }
-            
             // Show success message briefly
             const successMsg = document.createElement('div');
             successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
@@ -396,6 +326,30 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
             
             // Remove success message after 2 seconds
             setTimeout(() => successMsg.remove(), 2000);
+            
+            // Silently refresh the modal content to show updated status
+            // Preserve the current filter and scroll position
+            const filterInput = document.getElementById('bag-search-filter');
+            const currentFilter = filterInput ? filterInput.value : '';
+            const scrollContainer = document.getElementById('receive-modal-content');
+            const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+            
+            // Refresh modal
+            await viewReceiveDetails(receiveId, receiveName, boxNumber, bagId);
+            
+            // Restore filter and scroll after refresh
+            setTimeout(() => {
+                const newFilterInput = document.getElementById('bag-search-filter');
+                if (newFilterInput && currentFilter) {
+                    newFilterInput.value = currentFilter;
+                    filterReceiveBags(currentFilter);
+                }
+                
+                const newScrollContainer = document.getElementById('receive-modal-content');
+                if (newScrollContainer && currentScroll) {
+                    newScrollContainer.scrollTop = currentScroll;
+                }
+            }, 100);
         } else {
             alert('Error: ' + (data.error || 'Failed to update bag status'));
         }
