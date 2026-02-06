@@ -324,43 +324,65 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
                 const newStatus = data.status || (currentlyClosed ? 'Available' : 'Closed');
                 const isClosed = newStatus === 'Closed';
                 
-                // Update the bag card's appearance
+                console.log(`[Bag Close] Updating bag ${bagId}, newStatus: ${newStatus}, isClosed: ${isClosed}`);
+                
+                // Update opacity
                 if (isClosed) {
                     bagCard.classList.add('opacity-60');
                 } else {
                     bagCard.classList.remove('opacity-60');
                 }
                 
-                // Find and update the closed badge
-                const closedBadge = bagCard.querySelector('.inline-flex.items-center.px-2.py-0\\.5.rounded.text-xs.font-semibold.bg-gray-200.text-gray-700');
+                // Find and update the CLOSED badge (look for any badge containing "CLOSED")
+                const allBadges = bagCard.querySelectorAll('span.inline-flex.items-center');
+                let closedBadge = null;
+                allBadges.forEach(badge => {
+                    if (badge.textContent.includes('CLOSED')) {
+                        closedBadge = badge;
+                    }
+                });
+                
                 if (isClosed && !closedBadge) {
-                    // Add closed badge
-                    const badgeContainer = bagCard.querySelector('.flex.items-center.gap-2.flex-1');
-                    if (badgeContainer) {
+                    // Add closed badge after the bag name
+                    const bagNameSpan = bagCard.querySelector('.text-blue-600');
+                    if (bagNameSpan && bagNameSpan.parentElement) {
                         const badge = document.createElement('span');
                         badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2';
                         badge.textContent = '🔒 CLOSED';
-                        badgeContainer.appendChild(badge);
+                        bagNameSpan.insertAdjacentElement('afterend', badge);
+                        console.log('[Bag Close] Added CLOSED badge');
                     }
                 } else if (!isClosed && closedBadge) {
                     // Remove closed badge
                     closedBadge.remove();
+                    console.log('[Bag Close] Removed CLOSED badge');
                 }
                 
-                // Update the close/reopen button text
-                const closeButtons = bagCard.querySelectorAll('button');
-                closeButtons.forEach(btn => {
-                    if (btn.textContent.includes('Close') || btn.textContent.includes('Reopen')) {
+                // Update the close/reopen button - find by looking for button with Close or Reopen text
+                const allButtons = bagCard.querySelectorAll('button');
+                allButtons.forEach(btn => {
+                    const btnText = btn.textContent.trim();
+                    if (btnText.includes('Close') || btnText.includes('Reopen')) {
+                        console.log(`[Bag Close] Found button with text: "${btnText}"`);
+                        
                         if (isClosed) {
+                            // Bag is now closed, button should say "Reopen"
                             btn.textContent = '🔓 Reopen';
-                            btn.className = btn.className.replace('text-orange-600', 'text-green-600').replace('hover:text-orange-800', 'hover:text-green-800');
-                            // Update onclick to pass new state
-                            btn.setAttribute('onclick', btn.getAttribute('onclick').replace(`, ${!isClosed},`, `, ${isClosed},`));
+                            btn.className = 'text-xs text-green-600 hover:text-green-800 underline whitespace-nowrap';
+                            
+                            // Rebuild onclick handler with new state (true = currently closed)
+                            const newOnclick = `event.stopPropagation(); toggleBagClosed(${bagId}, true, '${productName.replace(/'/g, "\\'")}', ${bagNumber}, ${boxNumber}, ${receiveId}, '${receiveName.replace(/'/g, "\\'")}');`;
+                            btn.setAttribute('onclick', newOnclick);
+                            console.log('[Bag Close] Button updated to Reopen');
                         } else {
+                            // Bag is now open, button should say "Close"
                             btn.textContent = '🔒 Close';
-                            btn.className = btn.className.replace('text-green-600', 'text-orange-600').replace('hover:text-green-800', 'hover:text-orange-800');
-                            // Update onclick to pass new state
-                            btn.setAttribute('onclick', btn.getAttribute('onclick').replace(`, ${!isClosed},`, `, ${isClosed},`));
+                            btn.className = 'text-xs text-orange-600 hover:text-orange-800 underline whitespace-nowrap';
+                            
+                            // Rebuild onclick handler with new state (false = currently open)
+                            const newOnclick = `event.stopPropagation(); toggleBagClosed(${bagId}, false, '${productName.replace(/'/g, "\\'")}', ${bagNumber}, ${boxNumber}, ${receiveId}, '${receiveName.replace(/'/g, "\\'")}');`;
+                            btn.setAttribute('onclick', newOnclick);
+                            console.log('[Bag Close] Button updated to Close');
                         }
                     }
                 });
