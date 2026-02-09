@@ -281,9 +281,36 @@ async function toggleBagReservation(bagId, currentlyReserved, productName, bagNu
                 }
             }
             
+            // Update the Reserved badge on the bag card
+            const bagCard = document.getElementById(`bag-card-${bagId}`);
+            if (bagCard) {
+                // Find existing Reserved badge
+                const allBadges = bagCard.querySelectorAll('span.inline-flex.items-center');
+                let reservedBadge = null;
+                allBadges.forEach(badge => {
+                    if (badge.textContent.includes('Reserved')) {
+                        reservedBadge = badge;
+                    }
+                });
+                
+                if (data.reserved_for_bottles && !reservedBadge) {
+                    // Add Reserved badge
+                    const bagNameSpan = bagCard.querySelector('.text-blue-600');
+                    if (bagNameSpan) {
+                        const badge = document.createElement('span');
+                        badge.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2';
+                        badge.textContent = '🍾 Reserved';
+                        bagNameSpan.insertAdjacentElement('afterend', badge);
+                    }
+                } else if (!data.reserved_for_bottles && reservedBadge) {
+                    // Remove Reserved badge
+                    reservedBadge.remove();
+                }
+            }
+            
             // Show success message briefly
             const successMsg = document.createElement('div');
-            successMsg.className = 'fixed top-4 right-4 bg-purple-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.className = 'fixed top-4 right-4 bg-purple-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
             successMsg.textContent = data.message;
             document.body.appendChild(successMsg);
             setTimeout(() => successMsg.remove(), 2000);
