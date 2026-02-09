@@ -15,9 +15,22 @@ from config import Config
 
 
 def get_db() -> sqlite3.Connection:
-    """Get a database connection with Row factory"""
-    conn = sqlite3.connect(Config.DATABASE_PATH)
+    """Get a database connection with Row factory and proper timeout settings"""
+    # Use a 30 second timeout to prevent indefinite blocking on database locks
+    # This helps with concurrent writes in production
+    conn = sqlite3.connect(
+        Config.DATABASE_PATH,
+        timeout=30.0,  # Wait up to 30 seconds for lock to clear
+        check_same_thread=False  # Allow connection to be used across threads
+    )
     conn.row_factory = sqlite3.Row
+    
+    # Enable WAL mode for better concurrency (allows concurrent reads during writes)
+    try:
+        conn.execute('PRAGMA journal_mode=WAL')
+    except:
+        pass  # If WAL can't be enabled, continue with default journal mode
+    
     return conn
 
 

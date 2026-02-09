@@ -2313,7 +2313,7 @@ async function viewSubmissionDetails(submissionId) {
                             ` : ''}
                             ` : `
                             <!-- Packaged/Bag Submission -->
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-2 gap-4">
                                 <div class="bg-blue-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Displays Made</label>
                                     <div class="mt-1 text-2xl font-bold text-blue-600">${sub.displays_made || 0}</div>
@@ -2322,11 +2322,13 @@ async function viewSubmissionDetails(submissionId) {
                                     <label class="text-xs text-gray-500 uppercase">Cards Remaining</label>
                                     <div class="mt-1 text-2xl font-bold text-purple-600">${sub.packs_remaining || 0}</div>
                                 </div>
-                                <div class="bg-red-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Damaged Tablets</label>
-                                    <div class="mt-1 text-2xl font-bold text-red-600">${sub.damaged_tablets || 0}</div>
-                                </div>
                             </div>
+                            ${sub.damaged_tablets && sub.damaged_tablets > 0 ? `
+                            <div class="mt-4 bg-red-50 rounded-lg p-4">
+                                <label class="text-xs text-gray-500 uppercase">Damaged Tablets</label>
+                                <div class="mt-1 text-2xl font-bold text-red-600">${sub.damaged_tablets.toLocaleString()}</div>
+                            </div>
+                            ` : ''}
                             <div class="mt-4 bg-gray-50 rounded-lg p-4">
                                 <label class="text-xs text-gray-500 uppercase">Total Tablets</label>
                                 <div class="mt-1 text-3xl font-bold text-gray-900">${(sub.individual_calc || sub.total_tablets || 0).toLocaleString()}</div>
@@ -3385,16 +3387,6 @@ function getCSRFHeaders(additionalHeaders = {}) {
 }
 
 // Wrapper for fetch with CSRF token
-async function csrfFetch(url, options = {}) {
-    const method = (options.method || 'GET').toUpperCase();
-    
-    // Add CSRF token for state-changing methods
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-        options.headers = getCSRFHeaders(options.headers || {});
-    }
-    
-    return fetch(url, options);
-}
 </script>
 </body>
 </html>
