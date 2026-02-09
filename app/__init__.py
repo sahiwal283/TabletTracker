@@ -122,14 +122,9 @@ def create_app(config_class=Config):
     
     @app.errorhandler(500)
     def internal_error(error):
-        # Log the error for debugging
-        import traceback
-        app.logger.error(f"500 Internal Server Error on {request.path}")
-        app.logger.error(f"Error: {str(error)}")
-        app.logger.error(traceback.format_exc())
-        
         # Return JSON for API routes
         if request.path.startswith('/api/'):
+            import traceback
             error_msg = str(error)
             if config_class.ENV != 'production':
                 # Include traceback in development
