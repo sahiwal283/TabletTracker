@@ -3335,12 +3335,9 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             // Close the push modal
             closePushToZohoModal();
             
-            // Close the receive details modal
-            closeReceiveDetailsModal();
-            
             // Show success message
             const successMsg = document.createElement('div');
-            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
             successMsg.innerHTML = `<div class="font-semibold">✓ ${data.message}</div>`;
             if (data.zoho_receive_id) {
                 successMsg.innerHTML += `<div class="text-sm opacity-90">Zoho Receive ID: ${data.zoho_receive_id}</div>`;
@@ -3350,10 +3347,29 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             // Remove success message after 3 seconds
             setTimeout(() => successMsg.remove(), 3000);
             
-            // Reopen the receive modal with updated data
+            // Refresh the receive details modal to show updated bag status (with Zoho badge)
+            // Preserve filter and scroll position
+            const filterInput = document.getElementById('bag-search-filter');
+            const currentFilter = filterInput ? filterInput.value : '';
+            const scrollContainer = document.getElementById('receive-modal-content');
+            const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+            
+            // Refresh modal
+            await viewReceiveDetails(receiveId, receiveName, null, bagId);
+            
+            // Restore filter and scroll after refresh
             setTimeout(() => {
-                viewReceiveDetails(receiveId, receiveName);
-            }, 300);
+                const newFilterInput = document.getElementById('bag-search-filter');
+                if (newFilterInput && currentFilter) {
+                    newFilterInput.value = currentFilter;
+                    filterReceiveBags(currentFilter);
+                }
+                
+                const newScrollContainer = document.getElementById('receive-modal-content');
+                if (newScrollContainer && currentScroll) {
+                    newScrollContainer.scrollTop = currentScroll;
+                }
+            }, 100);
         } else {
             // Show error message
             alert('Error: ' + (data.error || 'Failed to push to Zoho'));
