@@ -1544,7 +1544,20 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
-                    showBottlesSuccess(result.message || 'Bottle production submitted successfully!');
+                    // Show success message
+                    let displayMessage = result.message || 'Bottle production submitted successfully!';
+                    
+                    // If there's a warning, show it too
+                    if (result.warning) {
+                        showBottlesSuccess(displayMessage);
+                        // Show warning in a separate message
+                        setTimeout(() => {
+                            showBottlesWarning(result.warning);
+                        }, 100);
+                    } else {
+                        showBottlesSuccess(displayMessage);
+                    }
+                    
                     bottlesFormSubmit.reset();
                     document.getElementById('bottle-bag-section').classList.add('hidden');
                     document.getElementById('variety-pack-section').classList.add('hidden');
@@ -1568,6 +1581,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             <span class="text-xl mr-2">✅</span> ${message}
         </div>`;
         setTimeout(() => msgDiv.innerHTML = '', 5000);
+    }
+    
+    function showBottlesWarning(message) {
+        const msgDiv = document.getElementById('bottles-form-messages');
+        const currentContent = msgDiv.innerHTML;
+        msgDiv.innerHTML = currentContent + `<div class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded mt-3">
+            <span class="text-xl mr-2">⚠️</span> ${message}
+        </div>`;
+        setTimeout(() => msgDiv.innerHTML = '', 8000);
     }
     
     function showBottlesError(message) {

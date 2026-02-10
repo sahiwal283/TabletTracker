@@ -1049,10 +1049,11 @@ def submit_bottles():
                                    (bottle_junction['total'] if bottle_junction else 0)
                     remaining = max(0, original_count - already_used)
                     
+                    # Check if submission exceeds remaining count - warn but don't block
+                    overpack_warning = None
                     if tablets_used > remaining:
-                        return jsonify({
-                            'error': f'Not enough tablets in bag. Need {tablets_used}, only {remaining} remaining.'
-                        }), 400
+                        overpack_warning = f'⚠️ Bag may be overpacked: Need {tablets_used}, only {remaining} calculated remaining. Submission allowed but flagged for review.'
+                        current_app.logger.warning(f"Bottle submission for bag {bag['id']}: {overpack_warning}")
                     
                     deduction_details.append({
                         'bag_id': bag['id'],
@@ -1060,7 +1061,8 @@ def submit_bottles():
                         'bag_number': bag.get('bag_number'),
                         'box_number': bag.get('box_number'),
                         'tablets_deducted': tablets_used,
-                        'po_id': assigned_po_id
+                        'po_id': assigned_po_id,
+                        'overpack_warning': overpack_warning
                     })
                 
                 # Create submission record for bottle-only product
@@ -1077,9 +1079,14 @@ def submit_bottles():
             
             total_tablets = bottles_made * tablets_per_bottle if tablets_per_bottle else sum(d['tablets_deducted'] for d in deduction_details)
             
+            # Check if any deductions have warnings
+            warnings = [d.get('overpack_warning') for d in deduction_details if d.get('overpack_warning')]
+            warning_message = warnings[0] if warnings else None
+            
             return jsonify({
                 'success': True,
                 'message': f'Bottle submission recorded: {bottles_made} bottles ({total_tablets} tablets)',
+                'warning': warning_message,
                 'bottles_made': bottles_made,
                 'displays_made': displays_made,
                 'total_tablets': total_tablets,
