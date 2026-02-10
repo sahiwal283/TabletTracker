@@ -253,7 +253,7 @@ async function csrfFetch(url, options = {}) {
 }
 
 // Toggle bag reservation for bottles - defined early so it's available in modals
-async function toggleBagReservation(bagId, currentlyReserved, productName, bagNumber, boxNumber) {
+async function toggleBagReservation(bagId, currentlyReserved, productName, bagNumber, boxNumber, receiveId, receiveName) {
     const action = currentlyReserved ? 'unreserve' : 'reserve for bottles';
     
     try {
@@ -267,53 +267,36 @@ async function toggleBagReservation(bagId, currentlyReserved, productName, bagNu
         const data = await response.json();
         
         if (data.success) {
-            // Update button in modal
-            const btn = document.getElementById(`reserve-btn-${bagId}`);
-            if (btn) {
-                if (data.reserved_for_bottles) {
-                    btn.textContent = '🍾 Unreserve';
-                    btn.classList.remove('text-gray-600', 'hover:text-gray-800');
-                    btn.classList.add('text-purple-600', 'hover:text-purple-800');
-                } else {
-                    btn.textContent = '📦 Reserve';
-                    btn.classList.remove('text-purple-600', 'hover:text-purple-800');
-                    btn.classList.add('text-gray-600', 'hover:text-gray-800');
-                }
-            }
-            
-            // Update the Reserved badge on the bag card
-            const bagCard = document.getElementById(`bag-card-${bagId}`);
-            if (bagCard) {
-                // Find existing Reserved badge
-                const allBadges = bagCard.querySelectorAll('span.inline-flex.items-center');
-                let reservedBadge = null;
-                allBadges.forEach(badge => {
-                    if (badge.textContent.includes('Reserved')) {
-                        reservedBadge = badge;
-                    }
-                });
-                
-                if (data.reserved_for_bottles && !reservedBadge) {
-                    // Add Reserved badge
-                    const bagNameSpan = bagCard.querySelector('.text-blue-600');
-                    if (bagNameSpan) {
-                        const badge = document.createElement('span');
-                        badge.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2';
-                        badge.textContent = '🍾 Reserved';
-                        bagNameSpan.insertAdjacentElement('afterend', badge);
-                    }
-                } else if (!data.reserved_for_bottles && reservedBadge) {
-                    // Remove Reserved badge
-                    reservedBadge.remove();
-                }
-            }
-            
             // Show success message briefly
             const successMsg = document.createElement('div');
             successMsg.className = 'fixed top-4 right-4 bg-purple-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
             successMsg.textContent = data.message;
             document.body.appendChild(successMsg);
             setTimeout(() => successMsg.remove(), 2000);
+            
+            // Refresh the receive details modal to show updated reservation badge
+            // Preserve filter and scroll position
+            const filterInput = document.getElementById('bag-search-filter');
+            const currentFilter = filterInput ? filterInput.value : '';
+            const scrollContainer = document.getElementById('receive-modal-content');
+            const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+            
+            // Refresh modal
+            await viewReceiveDetails(receiveId, receiveName, boxNumber, bagId);
+            
+            // Restore filter and scroll after refresh
+            setTimeout(() => {
+                const newFilterInput = document.getElementById('bag-search-filter');
+                if (newFilterInput && currentFilter) {
+                    newFilterInput.value = currentFilter;
+                    filterReceiveBags(currentFilter);
+                }
+                
+                const newScrollContainer = document.getElementById('receive-modal-content');
+                if (newScrollContainer && currentScroll) {
+                    newScrollContainer.scrollTop = currentScroll;
+                }
+            }, 100);
         } else {
             alert('Error: ' + (data.error || 'Failed to update reservation'));
         }
@@ -2654,7 +2637,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         <div class="flex items-center gap-2">
                         <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
                             ${!zohoReceivePushed && (isAdmin || isManager) ? `
-                                <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${safeTabletTypeName}', ${bag.bag_number}, ${boxNumber});" 
+                                <button onclick="event.stopPropagation(); toggleBagReservation(${bag.bag_id}, ${isReserved}, '${safeTabletTypeName}', ${bag.bag_number}, ${boxNumber}, ${receiveId}, '${safeReceiveName}');" 
                                         id="reserve-btn-${bag.bag_id}"
                                         class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
                                     ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
