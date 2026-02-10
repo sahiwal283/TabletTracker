@@ -854,8 +854,9 @@ def submit_bottles():
             if not is_variety_pack and not is_bottle_product:
                 return jsonify({'error': 'This product is not configured for bottle production'}), 400
             
-            # Get submission_date and admin_notes
+            # Get submission_date, receipt_number, and admin_notes
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
+            receipt_number = (data.get('receipt_number') or '').strip() or None
             admin_notes = None
             if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
                 admin_notes_raw = data.get('admin_notes', '')
@@ -970,11 +971,11 @@ def submit_bottles():
                 conn.execute('''
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
-                     submission_date, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'bottle')
+                     submission_date, receipt_number, admin_notes, submission_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), bottles_made, displays_made,
-                      submission_date, admin_notes))
+                      submission_date, receipt_number, admin_notes))
                 
                 # Get the submission ID we just created
                 submission_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -1067,12 +1068,12 @@ def submit_bottles():
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, box_number, bag_number,
                      bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
-                     submission_date, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
+                     submission_date, receipt_number, admin_notes, submission_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), submission_box_number, bag_number,
                       bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
-                      submission_date, admin_notes))
+                      submission_date, receipt_number, admin_notes))
             
             total_tablets = bottles_made * tablets_per_bottle if tablets_per_bottle else sum(d['tablets_deducted'] for d in deduction_details)
             
