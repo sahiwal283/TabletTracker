@@ -1833,6 +1833,8 @@ def edit_submission(submission_id):
                     ''', (new_product_name,)).fetchone()
                 
                 if new_product_info:
+                    # Convert Row to dict for safe access
+                    new_product_info = dict(new_product_info)
                     inventory_item_id = new_product_info['inventory_item_id']
                     # Use the actual product_name from product_details if available
                     if new_product_info.get('product_name'):
