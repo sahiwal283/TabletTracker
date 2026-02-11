@@ -94,7 +94,8 @@ def get_bag_submissions(bag_id):
                        pd.tablets_per_bottle, pd.bottles_per_display
                 FROM submission_bag_deductions sbd
                 JOIN warehouse_submissions ws ON sbd.submission_id = ws.id
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 WHERE sbd.bag_id = ?
                 ORDER BY sbd.created_at DESC
             ''', (bag_id,)).fetchall()
