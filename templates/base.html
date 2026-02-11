@@ -2141,9 +2141,32 @@ async function viewSubmissionDetails(submissionId) {
         // Check if user is admin/manager
         const isAdmin = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
         
-        // Format dates
-        const submissionDate = sub.submission_date ? new Date(sub.submission_date).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'N/A';
-        const createdDate = sub.created_at ? new Date(sub.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'N/A';
+        // Format dates - properly handle UTC timestamps
+        // submission_date is date-only (YYYY-MM-DD), created_at is full timestamp
+        const submissionDate = sub.submission_date ? (() => {
+            // Parse date-only string as local date (don't add timezone)
+            const parts = sub.submission_date.split('-');
+            if (parts.length === 3) {
+                const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                return d.toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            }
+            return sub.submission_date;
+        })() : 'N/A';
+        
+        const createdDate = sub.created_at ? (() => {
+            // Parse timestamp as UTC, then convert to EST
+            const utcDate = new Date(sub.created_at + (sub.created_at.includes('Z') ? '' : ' UTC'));
+            return utcDate.toLocaleString('en-US', { 
+                timeZone: 'America/New_York',
+                year: 'numeric',
+                month: 'numeric', 
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+        })() : 'N/A';
         
         // Get bag deductions for bottle submissions
         const bagDeductions = data.bag_deductions || [];
