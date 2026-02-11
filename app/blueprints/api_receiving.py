@@ -68,17 +68,11 @@ def get_receiving_details(receive_id):
                 
                 # Machine submissions
                 machine_submissions = conn.execute('''
-                    SELECT ws.tablets_pressed_into_cards, ws.loose_tablets, ws.packs_remaining,
-                           COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
-                               FROM product_details pd2
-                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
-                               WHERE tt2.inventory_item_id = ws.inventory_item_id
-                               LIMIT 1
-                           )) as tablets_per_package_final,
-                           ws.inventory_item_id
+                    SELECT ws.tablets_pressed_into_cards, ws.packs_remaining,
+                           pd.tablets_per_package
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                     LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
                     LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
                     WHERE ws.submission_type = 'machine'
@@ -94,21 +88,9 @@ def get_receiving_details(receive_id):
                 machine_total = 0
                 for machine_sub in machine_submissions:
                     msub = dict(machine_sub)
-                    tablets_per_package = msub.get('tablets_per_package_final') or 0
-                    
-                    if not tablets_per_package and msub.get('inventory_item_id'):
-                        tpp_row = conn.execute('''
-                            SELECT pd.tablets_per_package
-                            FROM tablet_types tt
-                            JOIN product_details pd ON tt.id = pd.tablet_type_id
-                            WHERE tt.inventory_item_id = ?
-                            LIMIT 1
-                        ''', (msub['inventory_item_id'],)).fetchone()
-                        if tpp_row:
-                            tablets_per_package = dict(tpp_row).get('tablets_per_package', 0) or 0
+                    tablets_per_package = msub.get('tablets_per_package') or 0
                     
                     sub_total = (msub.get('tablets_pressed_into_cards') or
-                                msub.get('loose_tablets') or
                                 ((msub.get('packs_remaining', 0) or 0) * tablets_per_package) or
                                 0)
                     machine_total += sub_total
@@ -117,11 +99,11 @@ def get_receiving_details(receive_id):
                 packaged_count = conn.execute('''
                     SELECT COALESCE(SUM(
                         (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        COALESCE(ws.loose_tablets, 0)
+                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
                     ), 0) as total_packaged
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                     LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
                     LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
                     WHERE ws.submission_type = 'packaged'
@@ -140,7 +122,8 @@ def get_receiving_details(receive_id):
                         COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                     ), 0) as total_bottle
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                     WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
                 ''', (bag_id,)).fetchone()
                 
