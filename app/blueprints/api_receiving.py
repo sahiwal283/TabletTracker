@@ -96,44 +96,52 @@ def get_receiving_details(receive_id):
                     machine_total += sub_total
                 
                 # Packaged submissions (card products)
-                packaged_count = conn.execute('''
-                    SELECT COALESCE(SUM(sub.tablet_count), 0) as total_packaged
-                    FROM (
-                        SELECT 
-                            ws.id,
-                            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) as tablet_count
-                        FROM warehouse_submissions ws
-                        LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                        LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
-                        LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
-                        WHERE ws.submission_type = 'packaged'
-                        AND (
-                            (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
-                            OR (
-                                ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                                AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
-                            )
+                # Get product config once using inventory_item_id
+                product_config = conn.execute('''
+                    SELECT pd.packages_per_display, pd.tablets_per_package
+                    FROM tablet_types tt
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                    WHERE tt.inventory_item_id = ?
+                    LIMIT 1
+                ''', (inventory_item_id,)).fetchone()
+                
+                packages_per_display = 0
+                tablets_per_package = 0
+                if product_config:
+                    product_config = dict(product_config)
+                    packages_per_display = product_config.get('packages_per_display') or 0
+                    tablets_per_package = product_config.get('tablets_per_package') or 0
+                
+                packaged_submissions = conn.execute('''
+                    SELECT ws.displays_made, ws.packs_remaining
+                    FROM warehouse_submissions ws
+                    LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
+                    LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
+                    WHERE ws.submission_type = 'packaged'
+                    AND (
+                        (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
+                        OR (
+                            ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
+                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
                         )
-                        GROUP BY ws.id
-                    ) sub
-                ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchone()
+                    )
+                ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchall()
+                
+                total_packaged = 0
+                for sub in packaged_submissions:
+                    sub_dict = dict(sub)
+                    displays = sub_dict.get('displays_made') or 0
+                    cards = sub_dict.get('packs_remaining') or 0
+                    sub_total = (displays * packages_per_display * tablets_per_package) + (cards * tablets_per_package)
+                    total_packaged += sub_total
                 
                 # Bottle submissions (bottle-only products with bag_id)
-                bottle_direct_count = conn.execute('''
-                    SELECT COALESCE(SUM(sub.tablet_count), 0) as total_bottle
-                    FROM (
-                        SELECT 
-                            ws.id,
-                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0) as tablet_count
-                        FROM warehouse_submissions ws
-                        LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
-                        GROUP BY ws.id
-                    ) sub
-                ''', (bag_id,)).fetchone()
+                bottle_direct_count_result = conn.execute('''
+                    SELECT COALESCE(SUM(COALESCE(ws.bottles_made, 0) * ?), 0) as total_bottle
+                    FROM warehouse_submissions ws
+                    WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                ''', (tablets_per_package, bag_id)).fetchone()
+                bottle_direct_total = dict(bottle_direct_count_result)['total_bottle'] if bottle_direct_count_result else 0
                 
                 # Variety pack deductions via junction table
                 bottle_junction_count = conn.execute('''
@@ -141,10 +149,9 @@ def get_receiving_details(receive_id):
                     FROM submission_bag_deductions sbd
                     WHERE sbd.bag_id = ?
                 ''', (bag_id,)).fetchone()
+                bottle_junction_total = dict(bottle_junction_count)['total_junction'] if bottle_junction_count else 0
                 
-                total_packaged = (dict(packaged_count)['total_packaged'] if packaged_count else 0) + \
-                                 (dict(bottle_direct_count)['total_bottle'] if bottle_direct_count else 0) + \
-                                 (dict(bottle_junction_count)['total_junction'] if bottle_junction_count else 0)
+                total_packaged = total_packaged + bottle_direct_total + bottle_junction_total
                 
                 # Bag count submissions
                 bag_count = conn.execute('''
