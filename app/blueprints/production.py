@@ -21,7 +21,7 @@ def production_form():
     """Combined production submission and bag count form"""
     try:
         with db_read_only() as conn:
-            # Get product list for dropdown
+            # Get product list for dropdown (exclude bottle-only products and variety packs)
             products = conn.execute('''
             SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.category,
                    tt.tablet_type_name, tt.category as tablet_category,
@@ -30,6 +30,7 @@ def production_form():
             FROM product_details pd
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.is_variety_pack = 0
+            AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
             ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
             
