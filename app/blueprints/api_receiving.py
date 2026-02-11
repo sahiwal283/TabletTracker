@@ -97,34 +97,42 @@ def get_receiving_details(receive_id):
                 
                 # Packaged submissions (card products)
                 packaged_count = conn.execute('''
-                    SELECT COALESCE(SUM(
-                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                    ), 0) as total_packaged
-                    FROM warehouse_submissions ws
-                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
-                    LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
-                    WHERE ws.submission_type = 'packaged'
-                    AND (
-                        (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
-                        OR (
-                            ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                    SELECT COALESCE(SUM(sub.tablet_count), 0) as total_packaged
+                    FROM (
+                        SELECT 
+                            ws.id,
+                            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) as tablet_count
+                        FROM warehouse_submissions ws
+                        LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
+                        LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
+                        WHERE ws.submission_type = 'packaged'
+                        AND (
+                            (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
+                            OR (
+                                ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
+                                AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                            )
                         )
-                    )
+                        GROUP BY ws.id
+                    ) sub
                 ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchone()
                 
                 # Bottle submissions (bottle-only products with bag_id)
                 bottle_direct_count = conn.execute('''
-                    SELECT COALESCE(SUM(
-                        COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                    ), 0) as total_bottle
-                    FROM warehouse_submissions ws
-                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                    SELECT COALESCE(SUM(sub.tablet_count), 0) as total_bottle
+                    FROM (
+                        SELECT 
+                            ws.id,
+                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0) as tablet_count
+                        FROM warehouse_submissions ws
+                        LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                        GROUP BY ws.id
+                    ) sub
                 ''', (bag_id,)).fetchone()
                 
                 # Variety pack deductions via junction table
@@ -708,25 +716,33 @@ def reserve_bag_for_bottles(bag_id):
             
             # Packaged submissions (card products)
             packaged_total = conn.execute('''
-                SELECT COALESCE(SUM(
-                    (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                ), 0) as total
-                FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                SELECT COALESCE(SUM(sub.tablet_count), 0) as total
+                FROM (
+                    SELECT 
+                        ws.id,
+                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) as tablet_count
+                    FROM warehouse_submissions ws
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                    WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                    GROUP BY ws.id
+                ) sub
             ''', (bag_id,)).fetchone()
             
             # Bottle submissions (bottle-only products with bag_id)
             bottle_direct = conn.execute('''
-                SELECT COALESCE(SUM(
-                    COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                ), 0) as total
-                FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                SELECT COALESCE(SUM(sub.tablet_count), 0) as total
+                FROM (
+                    SELECT 
+                        ws.id,
+                        COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0) as tablet_count
+                    FROM warehouse_submissions ws
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                    WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                    GROUP BY ws.id
+                ) sub
             ''', (bag_id,)).fetchone()
             
             # Variety pack deductions via junction table
@@ -803,25 +819,33 @@ def get_reserved_bags():
                 
                 # Packaged submissions (card products)
                 packaged_total = conn.execute('''
-                    SELECT COALESCE(SUM(
-                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                    ), 0) as total
-                    FROM warehouse_submissions ws
-                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                    SELECT COALESCE(SUM(sub.tablet_count), 0) as total
+                    FROM (
+                        SELECT 
+                            ws.id,
+                            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) as tablet_count
+                        FROM warehouse_submissions ws
+                        LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+                        GROUP BY ws.id
+                    ) sub
                 ''', (bag['id'],)).fetchone()
                 
                 # Bottle submissions (bottle-only products with bag_id)
                 bottle_direct = conn.execute('''
-                    SELECT COALESCE(SUM(
-                        COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                    ), 0) as total
-                    FROM warehouse_submissions ws
-                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                    SELECT COALESCE(SUM(sub.tablet_count), 0) as total
+                    FROM (
+                        SELECT 
+                            ws.id,
+                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0) as tablet_count
+                        FROM warehouse_submissions ws
+                        LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+                        GROUP BY ws.id
+                    ) sub
                 ''', (bag['id'],)).fetchone()
                 
                 # Variety pack deductions via junction table
