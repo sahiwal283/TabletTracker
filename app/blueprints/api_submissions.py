@@ -41,33 +41,30 @@ def get_bag_submissions(bag_id):
             submissions = conn.execute('''
                 SELECT ws.*, 
                        pd.product_name as pd_product_name,
-                       COALESCE(pd.packages_per_display, pd2.packages_per_display) as packages_per_display,
-                       COALESCE(pd.tablets_per_package, pd2.tablets_per_package) as tablets_per_package,
+                       pd.packages_per_display,
+                       pd.tablets_per_package,
                        (
                            CASE COALESCE(ws.submission_type, 'packaged')
                                WHEN 'packaged' THEN (
-                                   ws.displays_made * COALESCE(pd.packages_per_display, pd2.packages_per_display, 0) * COALESCE(pd.tablets_per_package, pd2.tablets_per_package, 0) + 
-                                   ws.packs_remaining * COALESCE(pd.tablets_per_package, pd2.tablets_per_package, 0) +
-                                   COALESCE(ws.loose_tablets, 0) + COALESCE(ws.damaged_tablets, 0)
+                                   COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                                   COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)
                                )
                                WHEN 'bag' THEN COALESCE(ws.loose_tablets, 0)
                                WHEN 'machine' THEN COALESCE(
                                    ws.tablets_pressed_into_cards,
-                                   ws.loose_tablets,
-                                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, pd2.tablets_per_package, 0)),
+                                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)),
                                    0
                                )
                                WHEN 'bottle' THEN COALESCE(
                                    (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
-                                   COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, pd2.tablets_per_bottle, 0)
+                                   COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                                )
-                               ELSE COALESCE(ws.loose_tablets, 0) + COALESCE(ws.damaged_tablets, 0)
+                               ELSE 0
                            END
                        ) as total_tablets
                 FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                 LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                LEFT JOIN product_details pd2 ON tt.id = pd2.tablet_type_id
+                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 WHERE (
                     ws.bag_id = ?
                     OR (
