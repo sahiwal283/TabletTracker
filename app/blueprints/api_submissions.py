@@ -63,8 +63,13 @@ def get_bag_submissions(bag_id):
                            END
                        ) as total_tablets
                 FROM warehouse_submissions ws
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                LEFT JOIN (
+                    SELECT tt.inventory_item_id, pd.*
+                    FROM tablet_types tt
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                    WHERE pd.id IS NOT NULL
+                    GROUP BY tt.inventory_item_id
+                ) pd ON ws.inventory_item_id = pd.inventory_item_id
                 WHERE (
                     ws.bag_id = ?
                     OR (
@@ -75,6 +80,7 @@ def get_bag_submissions(bag_id):
                         AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
+                GROUP BY ws.id
                 ORDER BY ws.created_at DESC
             ''', (bag_id, bag['inventory_item_id'], bag['bag_number'], bag['po_id'], bag['box_number'])).fetchall()
             
