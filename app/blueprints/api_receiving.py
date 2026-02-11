@@ -66,37 +66,7 @@ def get_receiving_details(receive_id):
                 bag_id = bag.get('id')
                 po_id = receive_dict.get('po_id')
                 
-                # Machine submissions
-                machine_submissions = conn.execute('''
-                    SELECT ws.tablets_pressed_into_cards, ws.packs_remaining,
-                           pd.tablets_per_package
-                    FROM warehouse_submissions ws
-                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
-                    LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
-                    WHERE ws.submission_type = 'machine'
-                    AND (
-                        (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
-                        OR (
-                            ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
-                        )
-                    )
-                ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchall()
-                
-                machine_total = 0
-                for machine_sub in machine_submissions:
-                    msub = dict(machine_sub)
-                    tablets_per_package = msub.get('tablets_per_package') or 0
-                    
-                    sub_total = (msub.get('tablets_pressed_into_cards') or
-                                ((msub.get('packs_remaining', 0) or 0) * tablets_per_package) or
-                                0)
-                    machine_total += sub_total
-                
-                # Packaged submissions (card products)
-                # Get product config once using inventory_item_id
+                # Get product config once using inventory_item_id (used for both machine and packaged)
                 product_config = conn.execute('''
                     SELECT pd.packages_per_display, pd.tablets_per_package
                     FROM tablet_types tt
@@ -112,6 +82,32 @@ def get_receiving_details(receive_id):
                     packages_per_display = product_config.get('packages_per_display') or 0
                     tablets_per_package = product_config.get('tablets_per_package') or 0
                 
+                # Machine submissions - get raw data without JOINs
+                machine_submissions = conn.execute('''
+                    SELECT ws.tablets_pressed_into_cards, ws.packs_remaining
+                    FROM warehouse_submissions ws
+                    LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
+                    LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
+                    WHERE ws.submission_type = 'machine'
+                    AND (
+                        (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
+                        OR (
+                            ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
+                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                        )
+                    )
+                ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchall()
+                
+                machine_total = 0
+                for sub in machine_submissions:
+                    sub_dict = dict(sub)
+                    tablets_pressed = sub_dict.get('tablets_pressed_into_cards') or 0
+                    cards = sub_dict.get('packs_remaining') or 0
+                    # Use tablets_pressed_into_cards if available, otherwise calculate from cards
+                    sub_total = tablets_pressed or (cards * tablets_per_package)
+                    machine_total += sub_total
+                
+                # Packaged submissions - get raw data without JOINs
                 packaged_submissions = conn.execute('''
                     SELECT ws.displays_made, ws.packs_remaining
                     FROM warehouse_submissions ws
