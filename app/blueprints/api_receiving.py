@@ -713,7 +713,8 @@ def reserve_bag_for_bottles(bag_id):
                     (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
                 ), 0) as total
                 FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
             ''', (bag_id,)).fetchone()
             
@@ -723,7 +724,8 @@ def reserve_bag_for_bottles(bag_id):
                     COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                 ), 0) as total
                 FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
             ''', (bag_id,)).fetchone()
             
@@ -806,7 +808,8 @@ def get_reserved_bags():
                         (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
                     ), 0) as total
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                     WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
                 ''', (bag['id'],)).fetchone()
                 
@@ -816,7 +819,8 @@ def get_reserved_bags():
                         COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
                     ), 0) as total
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
+                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                     WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
                 ''', (bag['id'],)).fetchone()
                 
