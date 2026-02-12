@@ -66,46 +66,10 @@ def get_receiving_details(receive_id):
                 bag_id = bag.get('id')
                 po_id = receive_dict.get('po_id')
                 
-                # Get product config once using inventory_item_id (used for both machine and packaged)
-                # Match by product_name to get the EXACT product config being used in the submission
-                # First try to get from actual submissions to see what product_name they're using
-                sample_submission = conn.execute('''
-                    SELECT ws.product_name
-                    FROM warehouse_submissions ws
-                    LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
-                    LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
-                    WHERE (
-                        (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
-                        OR (
-                            ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
-                        )
-                    )
-                    LIMIT 1
-                ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchone()
-                
-                packages_per_display = 0
-                tablets_per_package = 0
-                
-                if sample_submission:
-                    sample_product_name = dict(sample_submission).get('product_name')
-                    if sample_product_name:
-                        # Get config for the EXACT product being used
-                        product_config = conn.execute('''
-                            SELECT packages_per_display, tablets_per_package
-                            FROM product_details
-                            WHERE product_name = ?
-                            LIMIT 1
-                        ''', (sample_product_name,)).fetchone()
-                        
-                        if product_config:
-                            product_config = dict(product_config)
-                            packages_per_display = product_config.get('packages_per_display') or 0
-                            tablets_per_package = product_config.get('tablets_per_package') or 0
-                
-                # Machine submissions - get raw data without JOINs
+                # Get submissions with their product_name to calculate correctly
+                # Machine submissions
                 machine_submissions = conn.execute('''
-                    SELECT ws.tablets_pressed_into_cards, ws.packs_remaining
+                    SELECT ws.tablets_pressed_into_cards, ws.packs_remaining, ws.product_name
                     FROM warehouse_submissions ws
                     LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
                     LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
@@ -123,14 +87,23 @@ def get_receiving_details(receive_id):
                 for sub in machine_submissions:
                     sub_dict = dict(sub)
                     tablets_pressed = sub_dict.get('tablets_pressed_into_cards') or 0
-                    cards = sub_dict.get('packs_remaining') or 0
-                    # Use tablets_pressed_into_cards if available, otherwise calculate from cards
-                    sub_total = tablets_pressed or (cards * tablets_per_package)
-                    machine_total += sub_total
+                    
+                    # If tablets_pressed_into_cards exists, use it directly
+                    if tablets_pressed:
+                        machine_total += tablets_pressed
+                    else:
+                        # Fallback: calculate from cards using product config
+                        product_name = sub_dict.get('product_name')
+                        if product_name:
+                            config = conn.execute('SELECT tablets_per_package FROM product_details WHERE product_name = ?', (product_name,)).fetchone()
+                            if config:
+                                tpp = dict(config).get('tablets_per_package') or 0
+                                cards = sub_dict.get('packs_remaining') or 0
+                                machine_total += (cards * tpp)
                 
-                # Packaged submissions - get raw data without JOINs
+                # Packaged submissions - get with product_name
                 packaged_submissions = conn.execute('''
-                    SELECT ws.displays_made, ws.packs_remaining
+                    SELECT ws.displays_made, ws.packs_remaining, ws.product_name
                     FROM warehouse_submissions ws
                     LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
                     LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
@@ -147,18 +120,44 @@ def get_receiving_details(receive_id):
                 total_packaged = 0
                 for sub in packaged_submissions:
                     sub_dict = dict(sub)
-                    displays = sub_dict.get('displays_made') or 0
-                    cards = sub_dict.get('packs_remaining') or 0
-                    sub_total = (displays * packages_per_display * tablets_per_package) + (cards * tablets_per_package)
-                    total_packaged += sub_total
+                    product_name = sub_dict.get('product_name')
+                    
+                    if product_name:
+                        # Get config for this specific product
+                        config = conn.execute('''
+                            SELECT packages_per_display, tablets_per_package
+                            FROM product_details
+                            WHERE product_name = ?
+                        ''', (product_name,)).fetchone()
+                        
+                        if config:
+                            config_dict = dict(config)
+                            ppd = config_dict.get('packages_per_display') or 0
+                            tpp = config_dict.get('tablets_per_package') or 0
+                            
+                            displays = sub_dict.get('displays_made') or 0
+                            cards = sub_dict.get('packs_remaining') or 0
+                            sub_total = (displays * ppd * tpp) + (cards * tpp)
+                            total_packaged += sub_total
                 
                 # Bottle submissions (bottle-only products with bag_id)
-                bottle_direct_count_result = conn.execute('''
-                    SELECT COALESCE(SUM(COALESCE(ws.bottles_made, 0) * ?), 0) as total_bottle
+                bottle_submissions = conn.execute('''
+                    SELECT ws.bottles_made, ws.product_name
                     FROM warehouse_submissions ws
                     WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
-                ''', (tablets_per_package, bag_id)).fetchone()
-                bottle_direct_total = dict(bottle_direct_count_result)['total_bottle'] if bottle_direct_count_result else 0
+                ''', (bag_id,)).fetchall()
+                
+                bottle_direct_total = 0
+                for sub in bottle_submissions:
+                    sub_dict = dict(sub)
+                    product_name = sub_dict.get('product_name')
+                    bottles = sub_dict.get('bottles_made') or 0
+                    
+                    if product_name and bottles:
+                        config = conn.execute('SELECT tablets_per_bottle FROM product_details WHERE product_name = ?', (product_name,)).fetchone()
+                        if config:
+                            tpb = dict(config).get('tablets_per_bottle') or 0
+                            bottle_direct_total += (bottles * tpb)
                 
                 # Variety pack deductions via junction table
                 bottle_junction_count = conn.execute('''
