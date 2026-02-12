@@ -38,11 +38,16 @@ def get_bag_submissions(bag_id):
             # 2. Match on inventory_item_id + bag + po_id (box optional for flavor-based)
             # Note: If submissions are missing inventory_item_id, run database/backfill_inventory_item_id.py
             # Get product config using inventory_item_id
+            # Prefer card products (packages_per_display IS NOT NULL) over bottle products
             product_config = conn.execute('''
                 SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle
                 FROM tablet_types tt
                 LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 WHERE tt.inventory_item_id = ?
+                AND pd.id IS NOT NULL
+                ORDER BY 
+                    CASE WHEN pd.is_bottle_product = 1 THEN 1 ELSE 0 END,
+                    pd.packages_per_display DESC NULLS LAST
                 LIMIT 1
             ''', (bag['inventory_item_id'],)).fetchone()
             

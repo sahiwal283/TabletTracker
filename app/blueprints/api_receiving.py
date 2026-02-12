@@ -66,12 +66,17 @@ def get_receiving_details(receive_id):
                 bag_id = bag.get('id')
                 po_id = receive_dict.get('po_id')
                 
-                # Get product config ONCE using inventory_item_id (reliable)
+                # Get product config using inventory_item_id
+                # Prefer card products (packages_per_display IS NOT NULL) over bottle products
                 product_config = conn.execute('''
                     SELECT pd.packages_per_display, pd.tablets_per_package
                     FROM tablet_types tt
                     LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                     WHERE tt.inventory_item_id = ?
+                    AND pd.id IS NOT NULL
+                    ORDER BY 
+                        CASE WHEN pd.is_bottle_product = 1 THEN 1 ELSE 0 END,
+                        pd.packages_per_display DESC NULLS LAST
                     LIMIT 1
                 ''', (inventory_item_id,)).fetchone()
                 
