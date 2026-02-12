@@ -67,20 +67,41 @@ def get_receiving_details(receive_id):
                 po_id = receive_dict.get('po_id')
                 
                 # Get product config once using inventory_item_id (used for both machine and packaged)
-                product_config = conn.execute('''
-                    SELECT pd.packages_per_display, pd.tablets_per_package
-                    FROM tablet_types tt
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    WHERE tt.inventory_item_id = ?
+                # Match by product_name to get the EXACT product config being used in the submission
+                # First try to get from actual submissions to see what product_name they're using
+                sample_submission = conn.execute('''
+                    SELECT ws.product_name
+                    FROM warehouse_submissions ws
+                    LEFT JOIN bags b_verify ON ws.bag_id = b_verify.id
+                    LEFT JOIN small_boxes sb_verify ON b_verify.small_box_id = sb_verify.id
+                    WHERE (
+                        (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
+                        OR (
+                            ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
+                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                        )
+                    )
                     LIMIT 1
-                ''', (inventory_item_id,)).fetchone()
+                ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchone()
                 
                 packages_per_display = 0
                 tablets_per_package = 0
-                if product_config:
-                    product_config = dict(product_config)
-                    packages_per_display = product_config.get('packages_per_display') or 0
-                    tablets_per_package = product_config.get('tablets_per_package') or 0
+                
+                if sample_submission:
+                    sample_product_name = dict(sample_submission).get('product_name')
+                    if sample_product_name:
+                        # Get config for the EXACT product being used
+                        product_config = conn.execute('''
+                            SELECT packages_per_display, tablets_per_package
+                            FROM product_details
+                            WHERE product_name = ?
+                            LIMIT 1
+                        ''', (sample_product_name,)).fetchone()
+                        
+                        if product_config:
+                            product_config = dict(product_config)
+                            packages_per_display = product_config.get('packages_per_display') or 0
+                            tablets_per_package = product_config.get('tablets_per_package') or 0
                 
                 # Machine submissions - get raw data without JOINs
                 machine_submissions = conn.execute('''
