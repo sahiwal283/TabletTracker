@@ -37,30 +37,7 @@ def get_bag_submissions(bag_id):
             # 1. Have bag_id directly assigned to this bag, OR
             # 2. Match on inventory_item_id + bag + po_id (box optional for flavor-based)
             # Note: If submissions are missing inventory_item_id, run database/backfill_inventory_item_id.py
-            # Get product config using inventory_item_id
-            # Prefer card products (packages_per_display IS NOT NULL) over bottle products
-            product_config = conn.execute('''
-                SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle
-                FROM tablet_types tt
-                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                WHERE tt.inventory_item_id = ?
-                AND pd.id IS NOT NULL
-                ORDER BY 
-                    CASE WHEN pd.is_bottle_product = 1 THEN 1 ELSE 0 END,
-                    pd.packages_per_display DESC NULLS LAST
-                LIMIT 1
-            ''', (bag['inventory_item_id'],)).fetchone()
-            
-            packages_per_display = 0
-            tablets_per_package = 0
-            tablets_per_bottle = 0
-            if product_config:
-                product_config = dict(product_config)
-                packages_per_display = product_config.get('packages_per_display') or 0
-                tablets_per_package = product_config.get('tablets_per_package') or 0
-                tablets_per_bottle = product_config.get('tablets_per_bottle') or 0
-            
-            # Get raw submissions without JOINs - calculate totals in Python
+            # Get raw submissions - we'll calculate each one individually with its own config
             submissions = conn.execute('''
                 SELECT ws.*
                 FROM warehouse_submissions ws
@@ -77,30 +54,73 @@ def get_bag_submissions(bag_id):
                 ORDER BY ws.created_at DESC
             ''', (bag_id, bag['inventory_item_id'], bag['bag_number'], bag['po_id'], bag['box_number'])).fetchall()
             
-            # Calculate total_tablets for each submission in Python
+            # Calculate total_tablets for each submission using its specific product_name
             submissions_with_totals = []
             for row in submissions:
                 sub = dict(row)
                 submission_type = sub.get('submission_type') or 'packaged'
+                product_name = sub.get('product_name')
                 
+                # Get config for THIS specific submission's product_name
+                config = None
+                if product_name:
+                    # Try exact match first
+                    config = conn.execute('''
+                        SELECT packages_per_display, tablets_per_package, tablets_per_bottle
+                        FROM product_details
+                        WHERE product_name = ?
+                    ''', (product_name,)).fetchone()
+                    
+                    # If no match, try case-insensitive with trimmed spaces
+                    if not config:
+                        config = conn.execute('''
+                            SELECT packages_per_display, tablets_per_package, tablets_per_bottle
+                            FROM product_details
+                            WHERE TRIM(LOWER(product_name)) = TRIM(LOWER(?))
+                        ''', (product_name,)).fetchone()
+                
+                # Fallback to inventory_item_id if product_name lookup fails
+                if not config and sub.get('inventory_item_id'):
+                    config = conn.execute('''
+                        SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle
+                        FROM tablet_types tt
+                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                        WHERE tt.inventory_item_id = ?
+                        AND pd.id IS NOT NULL
+                        ORDER BY 
+                            CASE WHEN pd.is_bottle_product = 1 THEN 1 ELSE 0 END,
+                            pd.packages_per_display DESC NULLS LAST
+                        LIMIT 1
+                    ''', (sub.get('inventory_item_id'),)).fetchone()
+                
+                # Extract config values
+                ppd = 0
+                tpp = 0
+                tpb = 0
+                if config:
+                    config = dict(config)
+                    ppd = config.get('packages_per_display') or 0
+                    tpp = config.get('tablets_per_package') or 0
+                    tpb = config.get('tablets_per_bottle') or 0
+                
+                # Calculate total based on submission type
                 if submission_type == 'packaged':
                     displays = sub.get('displays_made') or 0
                     cards = sub.get('packs_remaining') or 0
-                    total = (displays * packages_per_display * tablets_per_package) + (cards * tablets_per_package)
+                    total = (displays * ppd * tpp) + (cards * tpp)
                 elif submission_type == 'bag':
                     total = sub.get('loose_tablets') or 0
                 elif submission_type == 'machine':
                     tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
                     cards = sub.get('packs_remaining') or 0
-                    total = tablets_pressed or (cards * tablets_per_package)
+                    total = tablets_pressed or (cards * tpp)
                 elif submission_type == 'bottle':
-                    # Check for variety pack deductions first
                     deductions = conn.execute('SELECT SUM(tablets_deducted) as total FROM submission_bag_deductions WHERE submission_id = ?', (sub['id'],)).fetchone()
                     if deductions and deductions['total']:
                         total = deductions['total']
                     else:
                         bottles = sub.get('bottles_made') or 0
-                        total = bottles * tablets_per_bottle
+                        total = bottles * tpb
                 else:
                     total = 0
                 
