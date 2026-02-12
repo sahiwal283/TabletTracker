@@ -610,19 +610,17 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                     // Clear and populate with tablet types (which will be converted to 2-tier)
                     productSelect.innerHTML = '<option value="">Select product...</option>';
                     
-                    // Add all tablet types as options
-                    // Note: The backend edit endpoint accepts product_name, so we need to map
-                    // tablet_type_name to product_name. For now, we'll use tablet_type_name
-                    // and the backend will handle the lookup
+                    // Add all tablet types as options with category data attribute
                     data.tablet_types.forEach(tabletType => {
                         const option = document.createElement('option');
                         option.value = tabletType.tablet_type_name;
                         option.textContent = tabletType.tablet_type_name;
+                        option.setAttribute('data-category', tabletType.category || 'Other');
                         productSelect.appendChild(option);
                     });
                     
-                    // Convert to two-level dropdown
-                    return convertToTwoLevelDropdown(productSelect);
+                    // Convert to two-level dropdown using category
+                    return convertToTwoLevelDropdownByDataAttr(productSelect, 'data-category');
                 })
                 .then(() => {
                     // After conversion, try to set the current product
