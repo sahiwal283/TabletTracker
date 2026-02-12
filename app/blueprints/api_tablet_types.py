@@ -387,10 +387,11 @@ def get_tablet_types():
     try:
         with db_read_only() as conn:
             tablet_types = conn.execute('''
-                SELECT id, tablet_type_name, inventory_item_id, category,
+                SELECT id, tablet_type_name, inventory_item_id, 
+                       COALESCE(category, 'Other') as category,
                        is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack
                 FROM tablet_types 
-                ORDER BY tablet_type_name
+                ORDER BY COALESCE(category, 'ZZZ'), tablet_type_name
             ''').fetchall()
             
             return jsonify({
