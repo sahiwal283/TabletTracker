@@ -123,6 +123,7 @@ def get_receiving_details(receive_id):
                     cards = sub_dict.get('packs_remaining') or 0
                     product_name = sub_dict.get('product_name')
                     
+                    config = None
                     if product_name:
                         # Get config for THIS submission's product (case-insensitive match)
                         config = conn.execute('''
@@ -130,13 +131,26 @@ def get_receiving_details(receive_id):
                             FROM product_details
                             WHERE TRIM(LOWER(product_name)) = TRIM(LOWER(?))
                         ''', (product_name,)).fetchone()
-                        
-                        if config:
-                            config = dict(config)
-                            ppd = config.get('packages_per_display') or 0
-                            tpp = config.get('tablets_per_package') or 0
-                            sub_total = (displays * ppd * tpp) + (cards * tpp)
-                            total_packaged += sub_total
+                    
+                    # Fallback to inventory_item_id if product_name lookup failed
+                    if not config:
+                        config = conn.execute('''
+                            SELECT pd.packages_per_display, pd.tablets_per_package
+                            FROM tablet_types tt
+                            LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                            WHERE tt.inventory_item_id = ?
+                            AND pd.id IS NOT NULL
+                            AND pd.packages_per_display IS NOT NULL
+                            ORDER BY pd.packages_per_display DESC
+                            LIMIT 1
+                        ''', (inventory_item_id,)).fetchone()
+                    
+                    if config:
+                        config = dict(config)
+                        ppd = config.get('packages_per_display') or 0
+                        tpp = config.get('tablets_per_package') or 0
+                        sub_total = (displays * ppd * tpp) + (cards * tpp)
+                        total_packaged += sub_total
                 
                 # Bottle submissions (bottle-only products with bag_id)
                 bottle_submissions = conn.execute('''
