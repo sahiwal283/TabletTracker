@@ -37,39 +37,28 @@ def get_bag_submissions(bag_id):
             # 1. Have bag_id directly assigned to this bag, OR
             # 2. Match on inventory_item_id + bag + po_id (box optional for flavor-based)
             # Note: If submissions are missing inventory_item_id, run database/backfill_inventory_item_id.py
-            # UPDATED: Handle flavor-based submissions where box_number might be NULL
+            # Get product config using inventory_item_id
+            product_config = conn.execute('''
+                SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle
+                FROM tablet_types tt
+                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                WHERE tt.inventory_item_id = ?
+                LIMIT 1
+            ''', (bag['inventory_item_id'],)).fetchone()
+            
+            packages_per_display = 0
+            tablets_per_package = 0
+            tablets_per_bottle = 0
+            if product_config:
+                product_config = dict(product_config)
+                packages_per_display = product_config.get('packages_per_display') or 0
+                tablets_per_package = product_config.get('tablets_per_package') or 0
+                tablets_per_bottle = product_config.get('tablets_per_bottle') or 0
+            
+            # Get raw submissions without JOINs - calculate totals in Python
             submissions = conn.execute('''
-                SELECT ws.*, 
-                       pd.product_name as pd_product_name,
-                       pd.packages_per_display,
-                       pd.tablets_per_package,
-                       (
-                           CASE COALESCE(ws.submission_type, 'packaged')
-                               WHEN 'packaged' THEN (
-                                   COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
-                                   COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)
-                               )
-                               WHEN 'bag' THEN COALESCE(ws.loose_tablets, 0)
-                               WHEN 'machine' THEN COALESCE(
-                                   ws.tablets_pressed_into_cards,
-                                   (ws.packs_remaining * COALESCE(pd.tablets_per_package, 0)),
-                                   0
-                               )
-                               WHEN 'bottle' THEN COALESCE(
-                                   (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
-                                   COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                               )
-                               ELSE 0
-                           END
-                       ) as total_tablets
+                SELECT ws.*
                 FROM warehouse_submissions ws
-                LEFT JOIN (
-                    SELECT tt.inventory_item_id, pd.*
-                    FROM tablet_types tt
-                    LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                    WHERE pd.id IS NOT NULL
-                    GROUP BY tt.inventory_item_id
-                ) pd ON ws.inventory_item_id = pd.inventory_item_id
                 WHERE (
                     ws.bag_id = ?
                     OR (
@@ -80,22 +69,48 @@ def get_bag_submissions(bag_id):
                         AND (ws.box_number = ? OR ws.box_number IS NULL)
                     )
                 )
-                GROUP BY ws.id
                 ORDER BY ws.created_at DESC
             ''', (bag_id, bag['inventory_item_id'], bag['bag_number'], bag['po_id'], bag['box_number'])).fetchall()
             
-            current_app.logger.info(f"   Matched {len(submissions)} direct submissions")
+            # Calculate total_tablets for each submission in Python
+            submissions_with_totals = []
+            for row in submissions:
+                sub = dict(row)
+                submission_type = sub.get('submission_type') or 'packaged'
+                
+                if submission_type == 'packaged':
+                    displays = sub.get('displays_made') or 0
+                    cards = sub.get('packs_remaining') or 0
+                    total = (displays * packages_per_display * tablets_per_package) + (cards * tablets_per_package)
+                elif submission_type == 'bag':
+                    total = sub.get('loose_tablets') or 0
+                elif submission_type == 'machine':
+                    tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
+                    cards = sub.get('packs_remaining') or 0
+                    total = tablets_pressed or (cards * tablets_per_package)
+                elif submission_type == 'bottle':
+                    # Check for variety pack deductions first
+                    deductions = conn.execute('SELECT SUM(tablets_deducted) as total FROM submission_bag_deductions WHERE submission_id = ?', (sub['id'],)).fetchone()
+                    if deductions and deductions['total']:
+                        total = deductions['total']
+                    else:
+                        bottles = sub.get('bottles_made') or 0
+                        total = bottles * tablets_per_bottle
+                else:
+                    total = 0
+                
+                sub['total_tablets'] = total
+                submissions_with_totals.append(sub)
+            
+            current_app.logger.info(f"   Matched {len(submissions_with_totals)} direct submissions")
             
             # Also get variety pack deductions via junction table
             variety_pack_deductions = conn.execute('''
                 SELECT sbd.id, sbd.submission_id, sbd.bag_id, sbd.tablets_deducted, sbd.created_at,
                        ws.employee_name, ws.product_name, ws.bottles_made, ws.displays_made,
-                       ws.submission_date, ws.submission_type,
-                       pd.tablets_per_bottle, pd.bottles_per_display
+                       ws.submission_date, ws.submission_type
                 FROM submission_bag_deductions sbd
                 JOIN warehouse_submissions ws ON sbd.submission_id = ws.id
-                LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 WHERE sbd.bag_id = ?
                 ORDER BY sbd.created_at DESC
             ''', (bag_id,)).fetchall()
@@ -104,7 +119,7 @@ def get_bag_submissions(bag_id):
             
             return jsonify({
                 'success': True,
-                'submissions': [dict(row) for row in submissions],
+                'submissions': submissions_with_totals,
                 'variety_pack_deductions': [dict(row) for row in variety_pack_deductions]
             })
     except Exception as e:
