@@ -383,20 +383,27 @@ def update_tablet_type_category():
 @bp.route('/api/tablet_types', methods=['GET'])
 @role_required('dashboard')
 def get_tablet_types():
-    """Get all tablet types/products for dropdowns"""
+    """Get all tablet types/products for dropdowns - includes product_details"""
     try:
         with db_read_only() as conn:
-            tablet_types = conn.execute('''
-                SELECT id, tablet_type_name, inventory_item_id, 
-                       COALESCE(category, 'Other') as category,
-                       is_bottle_only, is_variety_pack, tablets_per_bottle, bottles_per_pack
-                FROM tablet_types 
-                ORDER BY COALESCE(category, 'ZZZ'), tablet_type_name
+            # Get both tablet_types AND product_details to ensure all products appear
+            # Some entries might only exist in product_details, not tablet_types
+            products = conn.execute('''
+                SELECT DISTINCT
+                    COALESCE(pd.product_name, tt.tablet_type_name) as tablet_type_name,
+                    tt.id, tt.inventory_item_id,
+                    COALESCE(pd.category, tt.category, 'Other') as category,
+                    COALESCE(tt.is_bottle_only, 0) as is_bottle_only,
+                    COALESCE(tt.is_variety_pack, 0) as is_variety_pack,
+                    tt.tablets_per_bottle, tt.bottles_per_pack
+                FROM tablet_types tt
+                LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
+                ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), COALESCE(pd.product_name, tt.tablet_type_name)
             ''').fetchall()
             
             return jsonify({
                 'success': True,
-                'tablet_types': [dict(row) for row in tablet_types]
+                'tablet_types': [dict(row) for row in products]
             })
     except Exception as e:
         current_app.logger.error(f"Error getting tablet types: {str(e)}")
