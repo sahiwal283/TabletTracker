@@ -139,23 +139,8 @@ def get_receiving_details(receive_id):
                             total_packaged += sub_total
                 
                 # Bottle submissions (bottle-only products with bag_id)
-                # Get tablets_per_bottle from the product config we already have
-                # Or look it up separately if needed
-                tablets_per_bottle = 0
-                if product_config:
-                    # Check if product_details has tablets_per_bottle
-                    bottle_config = conn.execute('''
-                        SELECT pd.tablets_per_bottle
-                        FROM tablet_types tt
-                        LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
-                        WHERE tt.inventory_item_id = ?
-                        LIMIT 1
-                    ''', (inventory_item_id,)).fetchone()
-                    if bottle_config:
-                        tablets_per_bottle = dict(bottle_config).get('tablets_per_bottle') or 0
-                
                 bottle_submissions = conn.execute('''
-                    SELECT ws.bottles_made
+                    SELECT ws.bottles_made, ws.product_name
                     FROM warehouse_submissions ws
                     WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
                 ''', (bag_id,)).fetchall()
@@ -164,7 +149,14 @@ def get_receiving_details(receive_id):
                 for sub in bottle_submissions:
                     sub_dict = dict(sub)
                     bottles = sub_dict.get('bottles_made') or 0
-                    bottle_direct_total += (bottles * tablets_per_bottle)
+                    product_name = sub_dict.get('product_name')
+                    
+                    if bottles and product_name:
+                        # Get config for this bottle product
+                        config = conn.execute('SELECT tablets_per_bottle FROM product_details WHERE TRIM(LOWER(product_name)) = TRIM(LOWER(?))', (product_name,)).fetchone()
+                        if config:
+                            tpb = dict(config).get('tablets_per_bottle') or 0
+                            bottle_direct_total += (bottles * tpb)
                 
                 # Variety pack deductions via junction table
                 bottle_junction_count = conn.execute('''
