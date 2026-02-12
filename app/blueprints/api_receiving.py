@@ -121,6 +121,8 @@ def get_receiving_details(receive_id):
                 for sub in packaged_submissions:
                     sub_dict = dict(sub)
                     product_name = sub_dict.get('product_name')
+                    displays = sub_dict.get('displays_made') or 0
+                    cards = sub_dict.get('packs_remaining') or 0
                     
                     if product_name:
                         # Get config for this specific product
@@ -135,10 +137,13 @@ def get_receiving_details(receive_id):
                             ppd = config_dict.get('packages_per_display') or 0
                             tpp = config_dict.get('tablets_per_package') or 0
                             
-                            displays = sub_dict.get('displays_made') or 0
-                            cards = sub_dict.get('packs_remaining') or 0
                             sub_total = (displays * ppd * tpp) + (cards * tpp)
                             total_packaged += sub_total
+                            current_app.logger.info(f"Packaged calc: {displays} disp × {ppd} ppd × {tpp} tpp + {cards} cards × {tpp} tpp = {sub_total}")
+                        else:
+                            current_app.logger.warning(f"No config found for product_name: {product_name}")
+                    else:
+                        current_app.logger.warning(f"Packaged submission has no product_name: displays={displays}, cards={cards}")
                 
                 # Bottle submissions (bottle-only products with bag_id)
                 bottle_submissions = conn.execute('''
