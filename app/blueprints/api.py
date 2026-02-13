@@ -1866,6 +1866,9 @@ def edit_submission(submission_id):
                     WHERE ws.id = ?
                 ''', (submission_id,)).fetchone()
                 
+                if existing_config:
+                    existing_config = dict(existing_config)
+
                 if existing_config and (existing_config.get('packages_per_display') or existing_config.get('tablets_per_package')):
                     product = existing_config
                 else:

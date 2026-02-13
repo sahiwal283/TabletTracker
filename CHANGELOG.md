@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.4] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Fix Edit Submission Save Crash (`sqlite3.Row` `.get`)
+- **Issue**: Saving edits (such as updating cards remaining) could fail with `'sqlite3.Row' object has no attribute 'get'`
+- **Root Cause**: A fallback config row in `edit_submission` was still used as `sqlite3.Row` while accessed via `.get(...)`
+- **Fix**: Convert fallback `existing_config` to `dict` before `.get(...)` checks
+- **Result**: Edit Submission saves now complete without this runtime error
+- **Files Updated**:
+  - `app/blueprints/api.py`
+
+---
+
 ## [2.33.0] - 2026-02-03
 
 ### 🚀 Feature
