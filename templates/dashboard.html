@@ -1989,6 +1989,10 @@ function filterSubmissionsInModal(filterType) {
                     ${submissionType === 'machine' ? `
                         <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
+                    ` : submissionType === 'bottle' ? `
+                        <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
+                        <div><div class="text-xs text-gray-500">Single Bottles</div><div class="font-medium text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div></div>
+                        <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>
                     ` : `
                         <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Cards Remaining</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
@@ -3275,6 +3279,10 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
                         ${subType === 'machine' ? `
                             <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
+                        ` : subType === 'bottle' ? `
+                            <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
+                            <div><div class="text-xs text-gray-500">Single Bottles</div><div class="font-medium text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div></div>
+                            <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>
                         ` : `
                             <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Cards Remaining</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>

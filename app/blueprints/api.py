@@ -1470,7 +1470,7 @@ def get_submission_details(submission_id):
             product_name = submission_dict.get('product_name')
             if product_name:
                 product_config = conn.execute('''
-                    SELECT is_variety_pack, is_bottle_product, variety_pack_contents, tablets_per_bottle 
+                    SELECT is_variety_pack, is_bottle_product, variety_pack_contents, tablets_per_bottle, bottles_per_display
                     FROM product_details WHERE product_name = ?
                 ''', (product_name,)).fetchone()
                 
@@ -1566,6 +1566,29 @@ def get_submission_details(submission_id):
             cards_made = machine_count * cards_per_turn
             submission_dict['cards_made'] = cards_made  # Add recalculated cards_made
             
+            # For bottle submissions, preserve explicit leftover single bottles.
+            # We store this in packs_remaining for bottle records (no schema migration needed).
+            if submission_type == 'bottle':
+                bottles_per_display = 0
+                if product_name:
+                    bottle_config = conn.execute('''
+                        SELECT bottles_per_display
+                        FROM product_details
+                        WHERE product_name = ?
+                    ''', (product_name,)).fetchone()
+                    if bottle_config:
+                        bottles_per_display = dict(bottle_config).get('bottles_per_display') or 0
+
+                explicit_remaining = submission_dict.get('packs_remaining')
+                if explicit_remaining is not None and explicit_remaining >= 0:
+                    submission_dict['bottles_remaining'] = explicit_remaining
+                else:
+                    submission_dict['bottles_remaining'] = max(
+                        0,
+                        (submission_dict.get('bottles_made') or 0) -
+                        ((submission_dict.get('displays_made') or 0) * bottles_per_display)
+                    )
+
             # Calculate total tablets based on submission type
             # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
             tablets_per_package = (submission_dict.get('tablets_per_package_final') or 
@@ -1792,6 +1815,7 @@ def edit_submission(submission_id):
             submission = conn.execute('''
                 SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
                        loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
+                       bottles_made,
                        COALESCE(submission_type, 'packaged') as submission_type
                 FROM warehouse_submissions
                 WHERE id = ?
@@ -1843,7 +1867,7 @@ def edit_submission(submission_id):
             # Get product details for calculations
             # Make this more resilient - try multiple approaches
             product = conn.execute('''
-                SELECT pd.packages_per_display, pd.tablets_per_package
+                SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display
                 FROM product_details pd
                 JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE pd.product_name = ?
@@ -1852,7 +1876,7 @@ def edit_submission(submission_id):
             if not product:
                 # Fallback: try to get product details without the JOIN
                 product = conn.execute('''
-                    SELECT packages_per_display, tablets_per_package
+                    SELECT packages_per_display, tablets_per_package, tablets_per_bottle, bottles_per_display
                     FROM product_details
                     WHERE product_name = ?
                 ''', (product_name_to_use,)).fetchone()
@@ -1860,7 +1884,7 @@ def edit_submission(submission_id):
             if not product:
                 # Last resort: get from existing submission or use defaults
                 existing_config = conn.execute('''
-                    SELECT pd.packages_per_display, pd.tablets_per_package
+                    SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                     WHERE ws.id = ?
@@ -1874,30 +1898,56 @@ def edit_submission(submission_id):
                 else:
                     # Use defaults to allow edit (admin can fix product config later)
                     current_app.logger.warning(f"Product configuration not found for {product_name_to_use}, using defaults")
-                    product = {'packages_per_display': 1, 'tablets_per_package': 1}
+                    product = {
+                        'packages_per_display': 1,
+                        'tablets_per_package': 1,
+                        'tablets_per_bottle': 0,
+                        'bottles_per_display': 0
+                    }
             
             # Convert Row to dict for safe access
             if not isinstance(product, dict):
                 product = dict(product)
             
-            # Validate product configuration values
+            # Validate and normalize product configuration values
             packages_per_display = product.get('packages_per_display')
             tablets_per_package = product.get('tablets_per_package')
-            
-            if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
+            tablets_per_bottle = product.get('tablets_per_bottle') or 0
+            bottles_per_display = product.get('bottles_per_display') or 0
+
+            submission_type = submission.get('submission_type', 'packaged')
+            if submission_type in ['packaged', 'bag'] and (
+                packages_per_display is None or tablets_per_package is None or
+                packages_per_display == 0 or tablets_per_package == 0
+            ):
                 return jsonify({'success': False, 'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
+            if submission_type == 'bottle' and (bottles_per_display is None or bottles_per_display == 0):
+                return jsonify({'success': False, 'error': 'Bottle product configuration incomplete: bottles_per_display must be greater than 0'}), 400
             
             # Convert to int after validation
             try:
                 packages_per_display = int(packages_per_display)
                 tablets_per_package = int(tablets_per_package)
+                tablets_per_bottle = int(tablets_per_bottle or 0)
+                bottles_per_display = int(bottles_per_display or 0)
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for product configuration'}), 400
             
             # Calculate old totals to subtract based on submission type
-            submission_type = submission.get('submission_type', 'packaged')
             if submission_type == 'machine':
                 old_good = submission.get('tablets_pressed_into_cards', 0) or 0
+            elif submission_type == 'bottle':
+                old_deductions = conn.execute(
+                    'SELECT COALESCE(SUM(tablets_deducted), 0) as total FROM submission_bag_deductions WHERE submission_id = ?',
+                    (submission_id,)
+                ).fetchone()
+                if old_deductions and old_deductions['total']:
+                    old_good = old_deductions['total']
+                else:
+                    old_bottles = submission.get('bottles_made')
+                    if old_bottles is None:
+                        old_bottles = ((submission.get('displays_made') or 0) * bottles_per_display) + (submission.get('packs_remaining') or 0)
+                    old_good = (old_bottles or 0) * tablets_per_bottle
             else:
                 old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
                            submission['packs_remaining'] * tablets_per_package +
@@ -1908,8 +1958,8 @@ def edit_submission(submission_id):
             try:
                 displays_made = int(data.get('displays_made', 0) or 0)
                 packs_remaining = int(data.get('packs_remaining', 0) or 0)
-                loose_tablets = int(data.get('loose_tablets', 0) or 0)
-                damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+                loose_tablets = int(data.get('loose_tablets', 0) or 0) if submission_type not in ['machine', 'bottle'] else 0
+                damaged_tablets = int(data.get('damaged_tablets', 0) or 0) if submission_type != 'bottle' else 0
                 tablets_pressed_into_cards = int(data.get('tablets_pressed_into_cards', 0) or 0) if submission_type == 'machine' else 0
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
@@ -1917,6 +1967,16 @@ def edit_submission(submission_id):
             # Calculate new totals based on submission type
             if submission_type == 'machine':
                 new_good = tablets_pressed_into_cards
+            elif submission_type == 'bottle':
+                new_bottles_made = (displays_made * bottles_per_display) + packs_remaining
+                deduction_totals = conn.execute(
+                    'SELECT COALESCE(SUM(tablets_deducted), 0) as total FROM submission_bag_deductions WHERE submission_id = ?',
+                    (submission_id,)
+                ).fetchone()
+                if deduction_totals and deduction_totals['total']:
+                    new_good = deduction_totals['total']
+                else:
+                    new_good = new_bottles_made * tablets_per_bottle
             else:
                 new_good = (displays_made * packages_per_display * tablets_per_package +
                            packs_remaining * tablets_per_package +
@@ -1960,6 +2020,18 @@ def edit_submission(submission_id):
                 ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
                       damaged_tablets, new_box_number, new_bag_number, new_bag_id,
                       data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
+                      product_name_to_use, inventory_item_id, submission_id))
+            elif submission_type == 'bottle':
+                bottles_made = (displays_made * bottles_per_display) + packs_remaining
+                conn.execute('''
+                    UPDATE warehouse_submissions
+                    SET displays_made = ?, packs_remaining = ?, bottles_made = ?, loose_tablets = 0,
+                        damaged_tablets = 0, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
+                    WHERE id = ?
+                ''', (displays_made, packs_remaining, bottles_made,
+                      new_box_number, new_bag_number, new_bag_id,
+                      data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
                       product_name_to_use, inventory_item_id, submission_id))
             else:
                 conn.execute('''

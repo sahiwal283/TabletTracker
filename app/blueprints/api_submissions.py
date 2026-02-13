@@ -66,7 +66,7 @@ def get_bag_submissions(bag_id):
                 if product_name:
                     # Try exact match first
                     config = conn.execute('''
-                        SELECT packages_per_display, tablets_per_package, tablets_per_bottle
+                        SELECT packages_per_display, tablets_per_package, tablets_per_bottle, bottles_per_display
                         FROM product_details
                         WHERE product_name = ?
                     ''', (product_name,)).fetchone()
@@ -74,7 +74,7 @@ def get_bag_submissions(bag_id):
                     # If no match, try case-insensitive with trimmed spaces
                     if not config:
                         config = conn.execute('''
-                            SELECT packages_per_display, tablets_per_package, tablets_per_bottle
+                            SELECT packages_per_display, tablets_per_package, tablets_per_bottle, bottles_per_display
                             FROM product_details
                             WHERE TRIM(LOWER(product_name)) = TRIM(LOWER(?))
                         ''', (product_name,)).fetchone()
@@ -82,7 +82,7 @@ def get_bag_submissions(bag_id):
                 # Fallback to inventory_item_id if product_name lookup fails
                 if not config and sub.get('inventory_item_id'):
                     config = conn.execute('''
-                        SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle
+                        SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display
                         FROM tablet_types tt
                         LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                         WHERE tt.inventory_item_id = ?
@@ -97,11 +97,13 @@ def get_bag_submissions(bag_id):
                 ppd = 0
                 tpp = 0
                 tpb = 0
+                bpd = 0
                 if config:
                     config = dict(config)
                     ppd = config.get('packages_per_display') or 0
                     tpp = config.get('tablets_per_package') or 0
                     tpb = config.get('tablets_per_bottle') or 0
+                    bpd = config.get('bottles_per_display') or 0
                 
                 # Calculate total based on submission type
                 if submission_type == 'packaged':
@@ -121,6 +123,11 @@ def get_bag_submissions(bag_id):
                     else:
                         bottles = sub.get('bottles_made') or 0
                         total = bottles * tpb
+                    explicit_bottles_remaining = sub.get('packs_remaining')
+                    if explicit_bottles_remaining is not None and explicit_bottles_remaining >= 0:
+                        sub['bottles_remaining'] = explicit_bottles_remaining
+                    else:
+                        sub['bottles_remaining'] = max(0, (sub.get('bottles_made') or 0) - ((sub.get('displays_made') or 0) * bpd))
                 else:
                     total = 0
                 

@@ -972,11 +972,11 @@ def submit_bottles():
                 conn.execute('''
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
-                     submission_date, receipt_number, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
+                     packs_remaining, submission_date, receipt_number, admin_notes, submission_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), bottles_made, displays_made,
-                      submission_date, receipt_number, admin_notes))
+                      bottles_remaining, submission_date, receipt_number, admin_notes))
                 
                 # Get the submission ID we just created
                 submission_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -1071,12 +1071,12 @@ def submit_bottles():
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, box_number, bag_number,
                      bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
-                     submission_date, receipt_number, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
+                     packs_remaining, submission_date, receipt_number, admin_notes, submission_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), submission_box_number, bag_number,
                       bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
-                      submission_date, receipt_number, admin_notes))
+                      bottles_remaining, submission_date, receipt_number, admin_notes))
             
             total_tablets = bottles_made * tablets_per_bottle if tablets_per_bottle else sum(d['tablets_deducted'] for d in deduction_details)
             

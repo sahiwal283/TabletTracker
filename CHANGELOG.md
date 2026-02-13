@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.5] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Preserve and Edit Bottle Singles (`bottles_remaining`)
+- **Issue**: Bottle submissions only surfaced `displays_made` and `bottles_made`, so leftover single bottles were not visible/editable in submission details and edit modal.
+- **Fix**:
+  - Persist bottle singles using `warehouse_submissions.packs_remaining` for bottle records (no schema change).
+  - Add bottle-specific fields in edit modal: `Displays Made` + `Single Bottles Remaining`.
+  - Update edit API logic for `submission_type='bottle'` to recalculate and save `bottles_made = displays * bottles_per_display + bottles_remaining`.
+  - Expose `bottles_remaining` in submission detail/submission list payloads (with safe fallback for legacy rows).
+  - Show `Single Bottles Remaining` in bottle submission cards and submission details UI.
+- **Files Updated**:
+  - `app/blueprints/production.py`
+  - `app/blueprints/api.py`
+  - `app/blueprints/api_submissions.py`
+  - `templates/base.html`
+  - `templates/receiving.html`
+  - `templates/dashboard.html`
+
+---
+
 ## [2.42.4] - 2026-02-05
 
 ### 🐛 Bug Fix
