@@ -281,22 +281,23 @@ async function toggleBagReservation(bagId, currentlyReserved, productName, bagNu
             const scrollContainer = document.getElementById('receive-modal-content');
             const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
             
-            // Refresh modal
-            await viewReceiveDetails(receiveId, receiveName, boxNumber, bagId);
+            // Refresh modal without target auto-scroll so user's position is preserved
+            await viewReceiveDetails(receiveId, receiveName);
             
             // Restore filter and scroll after refresh
-            setTimeout(() => {
+            const restoreState = () => {
                 const newFilterInput = document.getElementById('bag-search-filter');
                 if (newFilterInput && currentFilter) {
                     newFilterInput.value = currentFilter;
                     filterReceiveBags(currentFilter);
                 }
-                
+
                 const newScrollContainer = document.getElementById('receive-modal-content');
                 if (newScrollContainer && currentScroll) {
                     newScrollContainer.scrollTop = currentScroll;
                 }
-            }, 100);
+            };
+            requestAnimationFrame(() => requestAnimationFrame(restoreState));
         } else {
             alert('Error: ' + (data.error || 'Failed to update reservation'));
         }
@@ -344,22 +345,23 @@ async function toggleBagClosed(bagId, currentlyClosed, productName, bagNumber, b
             const scrollContainer = document.getElementById('receive-modal-content');
             const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
             
-            // Refresh modal
-            await viewReceiveDetails(receiveId, receiveName, boxNumber, bagId);
+            // Refresh modal without target auto-scroll so user's position is preserved
+            await viewReceiveDetails(receiveId, receiveName);
             
             // Restore filter and scroll after refresh
-            setTimeout(() => {
+            const restoreState = () => {
                 const newFilterInput = document.getElementById('bag-search-filter');
                 if (newFilterInput && currentFilter) {
                     newFilterInput.value = currentFilter;
                     filterReceiveBags(currentFilter);
                 }
-                
+
                 const newScrollContainer = document.getElementById('receive-modal-content');
                 if (newScrollContainer && currentScroll) {
                     newScrollContainer.scrollTop = currentScroll;
                 }
-            }, 100);
+            };
+            requestAnimationFrame(() => requestAnimationFrame(restoreState));
         } else {
             alert('Error: ' + (data.error || 'Failed to update bag status'));
         }

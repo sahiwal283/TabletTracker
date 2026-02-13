@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.10] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Preserve Receive Modal Scroll Position After Bag Close/Reserve Refresh
+- **Issue**: After closing a bag, Receive Details could jump back to the top instead of staying where the user was.
+- **Fix**:
+  - Stop passing target box/bag auto-scroll parameters during close/reserve modal refresh.
+  - Restore filter + scroll with double `requestAnimationFrame` after modal rebuild (more reliable than fixed timeout).
+- **Result**: Receive Details stays at the same scroll position after close/reserve actions.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.42.9] - 2026-02-05
 
 ### 🐛 Bug Fix
