@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.8] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Fix Box Jump No-Op When Same Box Is Already Selected
+- **Issue**: `Jump to Box` could appear to do nothing when the dropdown already had the same selected value.
+- **Fix**:
+  - Add robust box-jump handlers that re-trigger jump even when clicking/selecting the currently selected box.
+  - Add explicit `Go` button beside the dropdown to force jump for current selection.
+  - Preserve dropdown last-value metadata on state restore.
+- **Result**: Box jump responds reliably on first attempt, including repeated jumps to the same box.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.42.7] - 2026-02-05
 
 ### 🐛 Bug Fix
