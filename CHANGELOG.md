@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.7] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Harden Receive Details Filter Persistence Across Rerenders
+- **Issue**: Receive Details filter/jump still intermittently reset immediately in some workflows.
+- **Fix**:
+  - Capture live search/jump values from the current receive modal before rerender.
+  - Persist receive modal state in both in-memory state and `sessionStorage`.
+  - Re-apply persisted state after modal rebuild and keep it synchronized on every filter/jump update.
+- **Result**: Search filter and `Jump to Box` persist reliably through modal refresh/rerender flows.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.42.6] - 2026-02-05
 
 ### 🐛 Bug Fix

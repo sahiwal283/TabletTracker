@@ -2622,13 +2622,51 @@ function closeSubmissionDetailsModal(event) {
     window.submissionDetailsParentModal = null;
 }
 
+function getReceiveDetailsState(receiveId) {
+    const key = `receiveDetailsState_${receiveId}`;
+    try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function setReceiveDetailsState(receiveId, partialState) {
+    if (!receiveId) return;
+    const key = `receiveDetailsState_${receiveId}`;
+    const current = getReceiveDetailsState(receiveId);
+    const next = { ...current, ...partialState };
+    try {
+        sessionStorage.setItem(key, JSON.stringify(next));
+    } catch (error) {
+        // Ignore storage quota/security errors; in-memory fallback still applies.
+    }
+}
+
 // Global receive details modal functions (available on all pages)
 // Parameters: receiveId, receiveName, optional targetBoxNumber (to scroll to), optional targetBagId (to highlight)
 async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null, targetBagId = null) {
     try {
         // Persist filter/jump state per receive so modal rerenders don't clear user input.
         window.receiveDetailsModalState = window.receiveDetailsModalState || {};
-        const receiveState = window.receiveDetailsModalState[String(receiveId)] || {};
+        const stateKey = String(receiveId);
+        let receiveState = {
+            ...getReceiveDetailsState(receiveId),
+            ...(window.receiveDetailsModalState[stateKey] || {})
+        };
+
+        // If the same receive modal is currently open, capture the latest live UI state first.
+        const existingModal = document.getElementById('receive-details-modal');
+        if (existingModal && existingModal.getAttribute('data-receive-id') === stateKey) {
+            const liveSearch = document.getElementById('bag-search-filter')?.value || '';
+            const liveBox = document.getElementById('box-jump-dropdown')?.value || '';
+            receiveState = { ...receiveState, searchTerm: liveSearch, boxNumber: liveBox };
+            window.receiveDetailsModalState[stateKey] = receiveState;
+            setReceiveDetailsState(receiveId, receiveState);
+        }
 
         // Check user role for showing close buttons
         const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
@@ -2918,7 +2956,6 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         `;
         
         // Remove existing modal if present
-        const existingModal = document.getElementById('receive-details-modal');
         if (existingModal) {
             existingModal.remove();
         }
@@ -2940,6 +2977,9 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         if (jumpDropdown && receiveState.boxNumber) {
             jumpDropdown.value = String(receiveState.boxNumber);
         }
+        // Persist merged state so subsequent rerenders keep it.
+        window.receiveDetailsModalState[stateKey] = receiveState;
+        setReceiveDetailsState(receiveId, receiveState);
         
         // Auto-scroll to target box/bag if specified
         if (targetBoxNumber !== null || targetBagId !== null) {
@@ -3011,6 +3051,7 @@ function jumpToBox(boxNumber, skipStateSave = false) {
                 ...(window.receiveDetailsModalState[receiveId] || {}),
                 boxNumber: String(boxNumber)
             };
+            setReceiveDetailsState(receiveId, { boxNumber: String(boxNumber) });
         }
     }
     
@@ -3045,6 +3086,7 @@ function filterReceiveBags(searchTerm, skipStateSave = false) {
                 ...(window.receiveDetailsModalState[receiveId] || {}),
                 searchTerm: searchTerm || ''
             };
+            setReceiveDetailsState(receiveId, { searchTerm: searchTerm || '' });
         }
     }
 
