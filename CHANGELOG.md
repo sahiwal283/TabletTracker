@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.9] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Stop Empty Receive Form from Spamming Autosave "Saved 1 bags"
+- **Issue**: Autosave logged `Saved 1 bags` even when no bag/flavor was actively being entered.
+- **Root Cause**: Autosave counted bag field keys, not actual selected tablet/flavor values.
+- **Fix**:
+  - Add shared helpers to count only bags with real tablet type selections.
+  - Only autosave when draft data is meaningful (selected bag flavors or PO selected).
+  - Clear stale draft when no meaningful data is present.
+- **Result**: Idle/default receive page no longer repeatedly logs autosave saves for phantom bags.
+- **Files Updated**:
+  - `templates/receiving.html`
+
+---
+
 ## [2.42.8] - 2026-02-05
 
 ### 🐛 Bug Fix

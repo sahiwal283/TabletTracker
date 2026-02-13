@@ -722,6 +722,22 @@ const AUTOSAVE_KEY = 'tabletTracker_receiveFormDraft';
 const AUTOSAVE_INTERVAL = 30000; // 30 seconds
 let autosaveTimer = null;
 
+function countAutosaveBagsWithData(data) {
+    if (!data || !data.fields) return 0;
+    return Object.keys(data.fields).filter(k => {
+        const match = k.match(/^box_\d+_bag_\d+_tablet_type$/);
+        if (!match) return false;
+        const value = data.fields[k];
+        return value && value !== '' && value !== 'null';
+    }).length;
+}
+
+function hasMeaningfulAutosaveData(data) {
+    if (!data) return false;
+    const bagsWithData = countAutosaveBagsWithData(data);
+    return bagsWithData > 0 || (data.po_id && data.po_id !== '');
+}
+
 function getFormDataForAutosave() {
     // Sync all two-level dropdowns first
     const allItemSelects = document.querySelectorAll('select[id$="_item"]');
@@ -760,12 +776,15 @@ function getFormDataForAutosave() {
 function autosaveToLocalStorage() {
     try {
         const data = getFormDataForAutosave();
-        const boxCount = Object.keys(data.fields).filter(k => k.match(/^box_\d+_bag_\d+_tablet_type$/)).length;
+        const boxCount = countAutosaveBagsWithData(data);
         
-        // Only save if there's actual data
-        if (boxCount > 0) {
+        // Only save if there's meaningful data (selected bag flavors or PO chosen)
+        if (hasMeaningfulAutosaveData(data)) {
             localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
             console.log(`[Autosave] Saved ${boxCount} bags at ${new Date().toLocaleTimeString()}`);
+        } else {
+            // Prevent stale drafts from appearing when user is idle/not editing.
+            localStorage.removeItem(AUTOSAVE_KEY);
         }
     } catch (e) {
         console.error('[Autosave] Error saving:', e);
@@ -834,19 +853,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const savedTime = new Date(savedDraft.timestamp);
         const timeDiff = (Date.now() - savedTime.getTime()) / 1000 / 60; // minutes
         
-        // Count bags that have ACTUAL DATA (not just empty fields)
-        const bagsWithData = Object.keys(savedDraft.fields).filter(k => {
-            const match = k.match(/^box_\d+_bag_\d+_tablet_type$/);
-            if (match) {
-                const value = savedDraft.fields[k];
-                // Only count if the tablet_type field has a non-empty value
-                return value && value !== '' && value !== 'null';
-            }
-            return false;
-        }).length;
-        
-        // Check if there's meaningful data: bags with tablet types OR a PO selected
-        const hasMeaningfulData = bagsWithData > 0 || (savedDraft.po_id && savedDraft.po_id !== '');
+        const bagsWithData = countAutosaveBagsWithData(savedDraft);
+        const hasMeaningfulData = hasMeaningfulAutosaveData(savedDraft);
         
         if (hasMeaningfulData && timeDiff < 480) { // Less than 8 hours old
             const restore = confirm(
