@@ -2912,11 +2912,11 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                     <div class="bg-gray-100 px-4 py-2 border-b flex flex-wrap items-center gap-3">
                         <!-- View Toggle -->
                         <div class="flex items-center bg-white rounded-lg border shadow-sm">
-                            <button id="view-box-btn" onclick="switchReceiveView('box')" 
+                            <button id="view-box-btn" type="button" onclick="switchReceiveView('box')" 
                                     class="px-3 py-1.5 text-sm font-medium rounded-l-lg transition-colors ${savedView === 'box' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
                                 📦 By Box
                             </button>
-                            <button id="view-flavor-btn" onclick="switchReceiveView('flavor')" 
+                            <button id="view-flavor-btn" type="button" onclick="switchReceiveView('flavor')" 
                                     class="px-3 py-1.5 text-sm font-medium rounded-r-lg border-l transition-colors ${savedView === 'flavor' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
                                 🧪 By Flavor
                             </button>
@@ -2973,6 +2973,16 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         modalDiv.innerHTML = modalContent;
         document.body.appendChild(modalDiv);
 
+        // Bind listeners directly as a fallback in case inline handlers are not executed.
+        const viewBoxBtn = document.getElementById('view-box-btn');
+        const viewFlavorBtn = document.getElementById('view-flavor-btn');
+        if (viewBoxBtn) {
+            viewBoxBtn.addEventListener('click', () => switchReceiveView('box'));
+        }
+        if (viewFlavorBtn) {
+            viewFlavorBtn.addEventListener('click', () => switchReceiveView('flavor'));
+        }
+
         // Re-apply saved search/jump state after modal rebuild.
         const searchInput = document.getElementById('bag-search-filter');
         const jumpDropdown = document.getElementById('box-jump-dropdown');
@@ -2984,6 +2994,8 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
             jumpDropdown.value = String(receiveState.boxNumber);
             jumpDropdown.dataset.lastValue = String(receiveState.boxNumber);
         }
+        // Enforce active view state after modal render.
+        switchReceiveView(savedView === 'flavor' ? 'flavor' : 'box');
         // Persist merged state so subsequent rerenders keep it.
         window.receiveDetailsModalState[stateKey] = receiveState;
         setReceiveDetailsState(receiveId, receiveState);
@@ -3024,10 +3036,15 @@ function switchReceiveView(viewMode) {
     const flavorView = document.getElementById('flavor-view-content');
     const boxBtn = document.getElementById('view-box-btn');
     const flavorBtn = document.getElementById('view-flavor-btn');
+    if (!boxView || !flavorView || !boxBtn || !flavorBtn) {
+        return;
+    }
     
     if (viewMode === 'box') {
         boxView.classList.remove('hidden');
         flavorView.classList.add('hidden');
+        boxView.style.display = '';
+        flavorView.style.display = 'none';
         boxBtn.classList.add('bg-teal-600', 'text-white');
         boxBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
         flavorBtn.classList.remove('bg-teal-600', 'text-white');
@@ -3035,6 +3052,8 @@ function switchReceiveView(viewMode) {
     } else {
         flavorView.classList.remove('hidden');
         boxView.classList.add('hidden');
+        flavorView.style.display = '';
+        boxView.style.display = 'none';
         flavorBtn.classList.add('bg-teal-600', 'text-white');
         flavorBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
         boxBtn.classList.remove('bg-teal-600', 'text-white');

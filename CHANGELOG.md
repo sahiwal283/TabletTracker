@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.11] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Fix Receive Details View Toggle (`By Box` / `By Flavor`) Not Switching
+- **Issue**: Clicking `By Flavor` could fail to switch view in Receive Details.
+- **Fix**:
+  - Add explicit `type="button"` on view toggle buttons.
+  - Bind direct click listeners after modal render as a fallback to inline handlers.
+  - Enforce active view state after render and hard-toggle both class + `style.display`.
+  - Add guard checks in `switchReceiveView` for missing DOM nodes.
+- **Result**: View toggle now switches reliably between box and flavor layouts.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.42.10] - 2026-02-05
 
 ### 🐛 Bug Fix
