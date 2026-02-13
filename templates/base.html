@@ -2626,6 +2626,10 @@ function closeSubmissionDetailsModal(event) {
 // Parameters: receiveId, receiveName, optional targetBoxNumber (to scroll to), optional targetBagId (to highlight)
 async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null, targetBagId = null) {
     try {
+        // Persist filter/jump state per receive so modal rerenders don't clear user input.
+        window.receiveDetailsModalState = window.receiveDetailsModalState || {};
+        const receiveState = window.receiveDetailsModalState[String(receiveId)] || {};
+
         // Check user role for showing close buttons
         const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
         const isAdmin = userRole === 'admin';
@@ -2922,8 +2926,20 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         // Add modal to page
         const modalDiv = document.createElement('div');
         modalDiv.id = 'receive-details-modal';
+        modalDiv.setAttribute('data-receive-id', String(receiveId));
         modalDiv.innerHTML = modalContent;
         document.body.appendChild(modalDiv);
+
+        // Re-apply saved search/jump state after modal rebuild.
+        const searchInput = document.getElementById('bag-search-filter');
+        const jumpDropdown = document.getElementById('box-jump-dropdown');
+        if (searchInput && receiveState.searchTerm) {
+            searchInput.value = receiveState.searchTerm;
+            filterReceiveBags(receiveState.searchTerm, true);
+        }
+        if (jumpDropdown && receiveState.boxNumber) {
+            jumpDropdown.value = String(receiveState.boxNumber);
+        }
         
         // Auto-scroll to target box/bag if specified
         if (targetBoxNumber !== null || targetBagId !== null) {
@@ -2983,8 +2999,20 @@ function switchReceiveView(viewMode) {
 }
 
 // Jump to a specific box
-function jumpToBox(boxNumber) {
+function jumpToBox(boxNumber, skipStateSave = false) {
     if (!boxNumber) return;
+
+    if (!skipStateSave) {
+        const modal = document.getElementById('receive-details-modal');
+        const receiveId = modal ? modal.getAttribute('data-receive-id') : null;
+        if (receiveId) {
+            window.receiveDetailsModalState = window.receiveDetailsModalState || {};
+            window.receiveDetailsModalState[receiveId] = {
+                ...(window.receiveDetailsModalState[receiveId] || {}),
+                boxNumber: String(boxNumber)
+            };
+        }
+    }
     
     const currentView = localStorage.getItem('receiveDetailsViewMode') || 'box';
     let targetElement = null;
@@ -3004,13 +3032,22 @@ function jumpToBox(boxNumber) {
             targetElement.classList.remove('ring-2', 'ring-teal-400');
         }, 1500);
     }
-    
-    // Reset dropdown
-    document.getElementById('box-jump-dropdown').value = '';
 }
 
 // Filter bags by search term
-function filterReceiveBags(searchTerm) {
+function filterReceiveBags(searchTerm, skipStateSave = false) {
+    if (!skipStateSave) {
+        const modal = document.getElementById('receive-details-modal');
+        const receiveId = modal ? modal.getAttribute('data-receive-id') : null;
+        if (receiveId) {
+            window.receiveDetailsModalState = window.receiveDetailsModalState || {};
+            window.receiveDetailsModalState[receiveId] = {
+                ...(window.receiveDetailsModalState[receiveId] || {}),
+                searchTerm: searchTerm || ''
+            };
+        }
+    }
+
     const term = searchTerm.toLowerCase().trim();
     const allBagCards = document.querySelectorAll('#receive-modal-content .bag-card');
     const allBoxSections = document.querySelectorAll('#receive-modal-content .box-section, #receive-modal-content .box-subsection');
@@ -3058,7 +3095,7 @@ function clearReceiveFilter() {
     const searchInput = document.getElementById('bag-search-filter');
     if (searchInput) {
         searchInput.value = '';
-        filterReceiveBags('');
+        filterReceiveBags('', false);
     }
 }
 

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.42.6] - 2026-02-05
+
+### 🐛 Bug Fix
+
+#### Fix Receive Details Filter/Jump Requiring Double Action
+- **Issue**: In Receive Details, `Jump to Box` and search filtering could appear to clear/reset right after first use.
+- **Fix**:
+  - Stop clearing the `Jump to Box` dropdown value immediately after navigation.
+  - Persist search/jump state per receive in modal memory and re-apply after modal rerenders.
+  - Keep search term state synchronized from filter input and clear action.
+- **Result**: First jump/filter action now sticks and does not require repeating.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.42.5] - 2026-02-05
 
 ### 🐛 Bug Fix
