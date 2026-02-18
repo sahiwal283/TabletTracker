@@ -1,13 +1,15 @@
 """
 TabletTracker application factory
 """
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for, flash
+import time
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, flash, g
 from datetime import timedelta
 from flask_babel import Babel
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from config import Config
+from app.utils.perf_utils import log_request_duration, add_server_timing_header
 
 
 def create_app(config_class=Config):
@@ -134,6 +136,11 @@ def create_app(config_class=Config):
             return render_template('base.html'), 500
         return str(error), 500
     
+    # Request timing for performance baseline (dashboard + API)
+    @app.before_request
+    def _perf_start():
+        g.perf_start = time.perf_counter()
+
     # Security headers (apply to all environments)
     @app.after_request
     def after_request(response):
@@ -157,7 +164,13 @@ def create_app(config_class=Config):
         # Additional production-only headers
         if config_class.ENV == 'production':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
-        
+
+        # Performance baseline: log and Server-Timing for tracked paths
+        if hasattr(g, 'perf_start'):
+            duration_ms = (time.perf_counter() - g.perf_start) * 1000
+            log_request_duration(request.path, duration_ms, app)
+            add_server_timing_header(response, request.path, duration_ms, app)
+
         return response
     
     # Register Blueprints

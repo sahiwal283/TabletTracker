@@ -109,14 +109,12 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.8.0 (Security Enhanced)
-- **NEW**: CSRF protection & rate limiting
-- **NEW**: Comprehensive security utilities
-- **NEW**: Enhanced input validation & error handling
-- 99.7% reduction in main app file
-- Modular blueprint architecture
-- Comprehensive test coverage
-- Production-ready
+Current: v2.43.2 (Performance refactor)
+- Performance instrumentation (request/query timing, Server-Timing header)
+- Frontend: dashboard reports module with debounce and request cancellation (AbortController)
+- API/database: performance indexes; 30s cache for report PO summary and receives list
+- Modal manager: apiCall + escapeHtml for PO/Receive details
+- PATCH release: feature parity preserved
 
 ## 🔐 Security
 

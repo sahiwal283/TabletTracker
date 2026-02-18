@@ -6,8 +6,12 @@ from datetime import datetime
 import traceback
 from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
+from app.utils.cache_utils import get, set as cache_set
 from app.services.report_service import ProductionReportGenerator
 from config import Config
+
+PO_SUMMARY_CACHE_KEY = 'api_reports_po_summary'
+PO_SUMMARY_CACHE_TTL = 30.0
 
 bp = Blueprint('api_reports', __name__)
 
@@ -83,7 +87,10 @@ def generate_production_report():
 @bp.route('/api/reports/po-summary')
 @role_required('dashboard')
 def get_po_summary_for_reports():
-    """Get summary of POs available for reporting"""
+    """Get summary of POs available for reporting (cached 30s)."""
+    cached = get(PO_SUMMARY_CACHE_KEY)
+    if cached is not None:
+        return jsonify(cached)
     try:
         with db_read_only() as conn:
             po_count_row = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
@@ -147,12 +154,14 @@ def get_po_summary_for_reports():
                     'pack_time_days': pack_time,
                     'tracking_status': po.get('tracking_status')
                 })
-            
-            return jsonify({
+
+            payload = {
                 'success': True,
                 'pos': po_list,
                 'total_count': len(po_list)
-            })
+            }
+            cache_set(PO_SUMMARY_CACHE_KEY, payload, PO_SUMMARY_CACHE_TTL)
+            return jsonify(payload)
     except Exception as e:
         error_trace = traceback.format_exc()
         current_app.logger.error(f"Error in get_po_summary_for_reports: {e}\n{error_trace}")

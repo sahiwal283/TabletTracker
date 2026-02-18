@@ -1,15 +1,36 @@
 /**
  * API Client - Centralized API call handling
- * Provides consistent error handling and response formatting
+ * Provides consistent error handling, AbortController support, and request deduplication
  */
 
+const _requestAbortControllers = {};
+
 /**
- * Make an API call with error handling
+ * Abort any in-flight request for the given key (if any). Call before starting a new request with the same key.
+ * @param {string} requestKey - Key used when starting the request (e.g. 'po-summary', 'receives-list')
+ */
+function abortPreviousRequest(requestKey) {
+    if (_requestAbortControllers[requestKey]) {
+        try { _requestAbortControllers[requestKey].abort(); } catch (_) { /* ignore */ }
+        _requestAbortControllers[requestKey] = null;
+    }
+}
+
+/**
+ * Make an API call with error handling and optional abort support.
  * @param {string} url - The API endpoint
- * @param {object} options - Fetch options
- * @returns {Promise} Response data or throws error
+ * @param {object} options - Fetch options. Optional: signal (AbortSignal), requestKey (string; aborts previous call with same key)
+ * @returns {Promise} Response data or throws error (including AbortError if cancelled)
  */
 async function apiCall(url, options = {}) {
+    const requestKey = options.requestKey;
+    if (requestKey) {
+        abortPreviousRequest(requestKey);
+        const controller = new AbortController();
+        _requestAbortControllers[requestKey] = controller;
+        options.signal = controller.signal;
+        delete options.requestKey;
+    }
     try {
         const response = await fetch(url, {
             headers: {
@@ -18,14 +39,17 @@ async function apiCall(url, options = {}) {
             },
             ...options
         });
-        
+        if (requestKey) _requestAbortControllers[requestKey] = null;
+
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Request failed' }));
             throw new Error(error.error || `HTTP ${response.status}`);
         }
-        
+
         return await response.json();
     } catch (error) {
+        if (requestKey) _requestAbortControllers[requestKey] = null;
+        if (error.name === 'AbortError') throw error;
         console.error(`API call failed: ${url}`, error);
         throw error;
     }

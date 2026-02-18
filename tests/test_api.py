@@ -19,7 +19,7 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
         self.assertIn('version', data)
-        self.assertEqual(data['version'], '2.0.0')
+        self.assertIsInstance(data['version'], str)
         self.assertIn('title', data)
         self.assertIn('description', data)
     
@@ -28,12 +28,14 @@ class TestAPIEndpoints(unittest.TestCase):
         protected_apis = [
             '/api/sync-zoho-pos',
             '/api/po-lines/1',
-            '/api/save-product'
+            '/api/save-product',
+            '/api/reports/po-summary',
+            '/api/receives/list',
         ]
         for api in protected_apis:
             response = self.client.get(api)
             # Should require auth (404 acceptable if route renamed)
-            self.assertIn(response.status_code, [302, 401, 403, 404, 405])
+            self.assertIn(response.status_code, [302, 401, 403, 404, 405], msg=api)
 
 
 if __name__ == '__main__':

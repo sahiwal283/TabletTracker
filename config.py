@@ -59,6 +59,9 @@ class Config:
     # Production settings
     ENV = os.environ.get('FLASK_ENV', 'development')
     TESTING = False
+
+    # Performance baseline logging (request/query timing). Default: same as DEBUG.
+    PERF_LOGGING = os.environ.get('PERF_LOGGING', '').lower() in ('1', 'true', 'yes') or os.environ.get('FLASK_ENV') == 'development'
     
     # Rate limiting (for future implementation)
     RATELIMIT_STORAGE_URL = "memory://"

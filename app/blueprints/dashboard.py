@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, flash, current_app
 import traceback
 from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
+from app.utils.perf_utils import query_timer
 
 bp = Blueprint('dashboard', __name__)
 
@@ -15,6 +16,9 @@ def dashboard_view():
     """Desktop dashboard for managers/admins"""
     try:
         with db_read_only() as conn:
+            def _log_query(label: str, ms: float) -> None:
+                current_app.logger.info("perf_query dashboard %s %.2f ms", label, ms)
+
             # Get active POs that have submissions assigned (last 10) - for PO section
             active_pos_query = '''
             SELECT po.*, 
@@ -32,8 +36,9 @@ def dashboard_view():
             ORDER BY po.po_number DESC
             LIMIT 10
         '''
-            active_pos = conn.execute(active_pos_query).fetchall()
-            
+            with query_timer("active_pos", _log_query):
+                active_pos = conn.execute(active_pos_query).fetchall()
+
             # Get active receives that have submissions assigned (last 2)
             active_receives_query = '''
             SELECT r.*,
@@ -95,7 +100,8 @@ def dashboard_view():
             LIMIT 2
             '''
             try:
-                active_receives = conn.execute(active_receives_query).fetchall()
+                with query_timer("active_receives", _log_query):
+                    active_receives = conn.execute(active_receives_query).fetchall()
             except Exception as e:
                 current_app.logger.error(f"Error loading active receives: {e}")
                 traceback.print_exc()
@@ -105,8 +111,9 @@ def dashboard_view():
             closed_pos = []
             
             # Get tablet types for report filters
-            tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
-            
+            with query_timer("tablet_types", _log_query):
+                tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
+
             # Get recent submissions (last 10 most recent, no date filter) with calculated totals
             # Show the most recent submissions regardless of date
             submissions_query = '''
@@ -156,14 +163,16 @@ def dashboard_view():
                    END as calculated_total
             FROM warehouse_submissions ws
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name            LEFT JOIN bags b ON ws.bag_id = b.id
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
             WHERE ws.created_at IS NOT NULL
             ORDER BY ws.created_at DESC, ws.id DESC
             LIMIT 10
         '''
-            submissions_raw = conn.execute(submissions_query).fetchall()
+            with query_timer("submissions_recent", _log_query):
+                submissions_raw = conn.execute(submissions_query).fetchall()
             current_app.logger.info(f"📊 Dashboard: Found {len(submissions_raw)} recent submissions (query returned {len(submissions_raw)} rows)")
             
             # Calculate running totals by bag PER PO (each PO has its own physical bags)
@@ -279,7 +288,8 @@ def dashboard_view():
             submissions = submissions_processed
             
             # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
-            stats = conn.execute('''
+            with query_timer("stats", _log_query):
+                stats = conn.execute('''
             SELECT 
                 COUNT(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
                 COUNT(CASE WHEN closed = TRUE AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
@@ -288,18 +298,19 @@ def dashboard_view():
                     (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
             FROM purchase_orders
             ''').fetchone()
-            
+
             # Count ALL submissions needing verification (not verified yet)
-            verification_count = conn.execute('''
+            with query_timer("verification_count", _log_query):
+                verification_count = conn.execute('''
             SELECT COUNT(*) as count
             FROM warehouse_submissions
             WHERE COALESCE(po_assignment_verified, 0) = 0
             ''').fetchone()['count']
-            
+
             # Find submissions that need review (ambiguous submissions)
-            # These are submissions where flavor + box + bag match multiple receives
             # They have needs_review=TRUE and bag_id=NULL (not yet assigned)
-            submissions_needing_review = conn.execute('''
+            with query_timer("submissions_needing_review", _log_query):
+                submissions_needing_review = conn.execute('''
             SELECT ws.*, 
                    tt.tablet_type_name,
                    (
@@ -324,7 +335,8 @@ def dashboard_view():
                    ) as calculated_total
             FROM warehouse_submissions ws
             LEFT JOIN tablet_types tt ON ws.inventory_item_id = tt.inventory_item_id
-            LEFT JOIN product_details pd ON ws.product_name = pd.product_name            WHERE COALESCE(ws.needs_review, 0) = 1
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE COALESCE(ws.needs_review, 0) = 1
             ORDER BY ws.created_at DESC
             ''').fetchall()
             

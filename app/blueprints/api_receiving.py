@@ -1803,10 +1803,18 @@ def get_po_receives(po_id):
         return jsonify({'error': str(e)}), 500
 
 
+RECEIVES_LIST_CACHE_KEY = 'api_receives_list'
+RECEIVES_LIST_CACHE_TTL = 30.0
+
+
 @bp.route('/api/receives/list', methods=['GET'])
 @role_required('dashboard')
 def get_receives_list():
-    """Get list of all receives for reporting"""
+    """Get list of all receives for reporting (cached 30s)."""
+    from app.utils.cache_utils import get as cache_get, set as cache_set
+    cached = cache_get(RECEIVES_LIST_CACHE_KEY)
+    if cached is not None:
+        return jsonify(cached)
     try:
         with db_read_only() as conn:
             receives = conn.execute('''
@@ -1820,7 +1828,7 @@ def get_receives_list():
                 ORDER BY COALESCE(r.received_date, r.created_at) DESC, r.id DESC
                 LIMIT 100
             ''').fetchall()
-            
+
             receives_list = []
             for r in receives:
                 receive_dict = dict(r)
@@ -1828,18 +1836,17 @@ def get_receives_list():
                     receive_number_result = conn.execute('''
                         SELECT COUNT(*) + 1 as receive_number
                         FROM receiving r2
-                        WHERE r2.po_id = r.po_id
-                        AND (r2.received_date < r.received_date 
-                             OR (r2.received_date = r.received_date AND r2.id < r.id))
-                    ''', (receive_dict['po_id'],)).fetchone()
+                        WHERE r2.po_id = ?
+                        AND (r2.received_date < ?
+                             OR (r2.received_date = ? AND r2.id < ?))
+                    ''', (receive_dict['po_id'], receive_dict.get('received_date'), receive_dict.get('received_date'), receive_dict.get('id'))).fetchone()
                     receive_number = receive_number_result['receive_number'] if receive_number_result else 1
                     receive_dict['receive_name'] = f"{receive_dict['po_number']}-{receive_number}"
                 receives_list.append(receive_dict)
-            
-            return jsonify({
-                'success': True,
-                'receives': receives_list
-            })
+
+            payload = {'success': True, 'receives': receives_list}
+            cache_set(RECEIVES_LIST_CACHE_KEY, payload, RECEIVES_LIST_CACHE_TTL)
+            return jsonify(payload)
     except Exception as e:
         current_app.logger.error(f"Error getting receives list: {str(e)}")
         traceback.print_exc()
