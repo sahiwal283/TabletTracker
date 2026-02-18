@@ -1865,6 +1865,73 @@ def get_possible_receives_for_submission(submission_id):
             submission_dict = dict(submission)
             submission_type = submission_dict.get('submission_type', 'packaged')
             exclude_closed_bags = (submission_type != 'packaged')
+
+            # Variety/bottle submissions may not have direct box/bag on warehouse_submissions.
+            # If bag deductions exist, derive assignable receives from those linked bags.
+            if submission_type == 'bottle':
+                deduction_receives = conn.execute('''
+                    SELECT
+                        r.id as receive_id,
+                        r.receive_name as stored_receive_name,
+                        r.received_date,
+                        po.id as po_id,
+                        po.po_number,
+                        MIN(b.id) as bag_id,
+                        MIN(sb.box_number) as box_number,
+                        MIN(b.bag_number) as bag_number,
+                        MIN(b.bag_label_count) as bag_label_count,
+                        COUNT(DISTINCT b.id) as bags_used,
+                        COALESCE(SUM(sbd.tablets_deducted), 0) as tablets_deducted
+                    FROM submission_bag_deductions sbd
+                    JOIN bags b ON sbd.bag_id = b.id
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    JOIN purchase_orders po ON r.po_id = po.id
+                    WHERE sbd.submission_id = ?
+                    AND (r.closed IS NULL OR r.closed = FALSE)
+                    AND (po.closed IS NULL OR po.closed = 0)
+                    GROUP BY r.id, r.receive_name, r.received_date, po.id, po.po_number
+                    ORDER BY r.received_date DESC, r.id DESC
+                ''', (submission_id,)).fetchall()
+
+                if deduction_receives:
+                    receives = []
+                    for row in deduction_receives:
+                        rec = dict(row)
+                        stored_receive_name = rec.get('stored_receive_name')
+                        if stored_receive_name:
+                            receive_name = stored_receive_name
+                        else:
+                            receive_number = conn.execute('''
+                                SELECT COUNT(*) + 1
+                                FROM receiving r2
+                                WHERE r2.po_id = ?
+                                AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
+                                     OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?)
+                                         AND r2.id < ?))
+                            ''', (rec['po_id'], rec['receive_id'], rec['receive_id'], rec['receive_id'])).fetchone()[0]
+                            receive_name = f"{rec['po_number']}-{receive_number}"
+
+                        receives.append({
+                            'bag_id': rec['bag_id'],
+                            'receive_id': rec['receive_id'],
+                            'receive_name': receive_name,
+                            'po_number': rec['po_number'],
+                            'received_date': rec['received_date'],
+                            'box_number': rec['box_number'],
+                            'bag_number': rec['bag_number'],
+                            'bag_label_count': rec['bag_label_count'],
+                            'tablet_type_name': submission_dict.get('product_name') or 'Variety Pack',
+                            'bags_used': rec.get('bags_used', 0),
+                            'tablets_deducted': rec.get('tablets_deducted', 0)
+                        })
+
+                    return jsonify({
+                        'success': True,
+                        'submission': submission_dict,
+                        'possible_receives': receives,
+                        'warning': 'Using bag deductions to determine possible receives for this bottle/variety submission.'
+                    })
             
             # Ensure tablet_type_id is populated - try fallback lookup if missing
             # This handles cases where LEFT JOIN didn't match but inventory_item_id exists

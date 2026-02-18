@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.43.1] - 2026-02-18
+
+### 🐛 Bug Fix
+
+#### Allow Assigning Variety Pack Submissions Using Deduction Bags
+- **Issue**: Variety pack submissions with no direct box/bag on `warehouse_submissions` showed as unassigned and had no assignable receive options.
+- **Fix**:
+  - In `possible-receives`, derive receive candidates from `submission_bag_deductions` joins.
+  - Return one assignable candidate per receive (with representative bag, PO, receive metadata, bags used, and tablets deducted).
+  - Keep existing matching flow for non-variety/non-bottle submissions unchanged.
+- **Result**: Reassign modal now shows valid receive options for variety pack submissions so they can be assigned.
+- **Files Updated**:
+  - `app/blueprints/api_receiving.py`
+
+---
+
 ## [2.43.0] - 2026-02-18
 
 ### ✨ Features
