@@ -12,9 +12,52 @@
             </h1>
             <p class="text-gray-600 mt-2">Complete history of all warehouse submissions</p>
         </div>
-        <a href="/dashboard" class="btn-secondary px-6 py-3">
-            ← Back to Dashboard
-        </a>
+        <div class="flex items-center gap-3">
+            {% if archived_count > 0 %}
+            <a href="/submissions{% if active_tab != 'packaged_machine' %}?tab={{ active_tab }}{% endif %}{% if show_archived %}?{% if active_tab != 'packaged_machine' %}tab={{ active_tab }}&{% endif %}show_archived=false{% else %}?{% if active_tab != 'packaged_machine' %}tab={{ active_tab }}&{% endif %}show_archived=true{% endif %}" 
+               class="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
+                {% if show_archived %}
+                    <span>✓</span> Show Active ({{ pagination.total }} archived)
+                {% else %}
+                    <span>📦</span> Show Archived ({{ archived_count }})
+                {% endif %}
+            </a>
+            {% endif %}
+            <a href="/dashboard" class="btn-secondary px-6 py-3">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="mb-6">
+    <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            {% set base_url = '/submissions' %}
+            {% set query_params = [] %}
+            {% if show_archived %}{% set _ = query_params.append('show_archived=true') %}{% endif %}
+            {% if filter_info.po_id %}{% set _ = query_params.append('po_id=' + filter_info.po_id|string) %}{% endif %}
+            {% if filter_info.item_id %}{% set _ = query_params.append('item_id=' + filter_info.item_id) %}{% endif %}
+            {% if filter_date_from %}{% set _ = query_params.append('date_from=' + filter_date_from) %}{% endif %}
+            {% if filter_date_to %}{% set _ = query_params.append('date_to=' + filter_date_to) %}{% endif %}
+            {% if filter_tablet_type_id %}{% set _ = query_params.append('tablet_type_id=' + filter_tablet_type_id|string) %}{% endif %}
+            {% if filter_receipt_number %}{% set _ = query_params.append('receipt_number=' + filter_receipt_number) %}{% endif %}
+            {% set query_string = '?' + query_params|join('&') if query_params else '' %}
+            
+            <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=packaged_machine" 
+               class="{% if active_tab == 'packaged_machine' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                📦 Packaged & Machine
+            </a>
+            <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=bottles" 
+               class="{% if active_tab == 'bottles' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                🍶 Bottles
+            </a>
+            <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=bag" 
+               class="{% if active_tab == 'bag' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                📋 Bag Count
+            </a>
+        </nav>
     </div>
 </div>
 
@@ -34,6 +77,12 @@
             {% endif %}
             {% if filter_info.item_id %}
             <input type="hidden" name="item_id" value="{{ filter_info.item_id }}">
+            {% endif %}
+            {% if show_archived %}
+            <input type="hidden" name="show_archived" value="true">
+            {% endif %}
+            {% if active_tab %}
+            <input type="hidden" name="tab" value="{{ active_tab }}">
             {% endif %}
             
             <!-- Date From -->
@@ -186,7 +235,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <a href="/submissions/export{% if filter_info.po_id or filter_info.item_id or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_id or filter_submission_type or filter_receipt_number or sort_by %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}{% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}{% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}{% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}{% if filter_receipt_number %}{% set _ = query_parts.append('receipt_number=' + filter_receipt_number) %}{% endif %}{% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}{% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
+                <a href="/submissions/export{% if filter_info.po_id or filter_info.item_id or filter_info.date_from or filter_info.date_to or filter_info.tablet_type_id or filter_submission_type or filter_receipt_number or sort_by or show_archived or active_tab %}?{% set query_parts = [] %}{% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}{% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}{% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}{% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}{% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}{% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}{% if filter_receipt_number %}{% set _ = query_parts.append('receipt_number=' + filter_receipt_number) %}{% endif %}{% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}{% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}{% if show_archived %}{% set _ = query_parts.append('show_archived=true') %}{% endif %}{% if active_tab %}{% set _ = query_parts.append('tab=' + active_tab) %}{% endif %}{{ query_parts|join('&') }}{% endif %}" 
                    class="btn-primary px-4 py-2 text-sm flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -208,6 +257,8 @@
                     {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
                     {% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}
                     {% if filter_receipt_number %}{% set _ = query_parts.append('receipt_number=' + filter_receipt_number) %}{% endif %}
+                    {% if show_archived %}{% set _ = query_parts.append('show_archived=true') %}{% endif %}
+                    {% if active_tab %}{% set _ = query_parts.append('tab=' + active_tab) %}{% endif %}
                     {% set filter_query = query_parts|join('&') %}
                     
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
@@ -240,6 +291,7 @@
                             {% endif %}
                         </a>
                     </th>
+                    {% if active_tab == 'packaged_machine' %}
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Displays
                     </th>
@@ -247,8 +299,20 @@
                         Turns
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Cards<br><span class="text-xs font-normal normal-case">(made / remaining)</span>
+                        Cards<br><span class="text-xs font-normal normal-case">(remaining)</span>
                     </th>
+                    {% elif active_tab == 'bottles' %}
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Displays Made
+                    </th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Bottles Remaining
+                    </th>
+                    {% elif active_tab == 'bag' %}
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Loose Tablets
+                    </th>
+                    {% endif %}
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=total&sort_order={% if sort_by == 'total' and sort_order == 'desc' %}asc{% else %}desc{% endif %}" 
                            class="flex items-center gap-1 hover:text-gray-700">
@@ -274,7 +338,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for sub in submissions %}
-                <tr class="hover:bg-gray-50 cursor-pointer" onclick="viewSubmissionDetails({{ sub.id }})">
+                <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" onclick="viewSubmissionDetails({{ sub.id }})">
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.created_at|to_est if sub.created_at else 'N/A' }}
                     </td>
@@ -313,6 +377,7 @@
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.product_name }}
                     </td>
+                    {% if active_tab == 'packaged_machine' %}
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {% if sub.submission_type != 'machine' %}
                             {{ sub.displays_made if sub.displays_made else '' }}
@@ -326,6 +391,18 @@
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.packs_remaining if sub.packs_remaining else '' }}
                     </td>
+                    {% elif active_tab == 'bottles' %}
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.displays_made if sub.displays_made else '' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.packs_remaining if sub.packs_remaining else '' }}
+                    </td>
+                    {% elif active_tab == 'bag' %}
+                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
+                        {{ sub.loose_tablets if sub.loose_tablets else '' }}
+                    </td>
+                    {% endif %}
                     <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-gray-900">
                         {{ sub.individual_calc }}
                     </td>
@@ -335,7 +412,7 @@
                     <td class="px-6 py-4 whitespace-nowrap text-base">
                         {% if sub.receive_name %}
                             <div class="flex items-center gap-2">
-                                <span class="font-medium text-blue-600">{{ sub.receive_name }}</span>
+                                <span class="font-medium {% if sub.po_closed %}text-gray-500{% else %}text-blue-600{% endif %}">{{ sub.receive_name }}</span>
                                 {% if sub.po_closed %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
                                         🔒 Closed
@@ -401,6 +478,8 @@
                 {% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}
                 {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
                 {% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}
+                {% if show_archived %}{% set _ = query_parts.append('show_archived=true') %}{% endif %}
+                {% if active_tab %}{% set _ = query_parts.append('tab=' + active_tab) %}{% endif %}
                 {% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}
                 {% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}
                 {% set filter_query = query_parts|join('&') %}

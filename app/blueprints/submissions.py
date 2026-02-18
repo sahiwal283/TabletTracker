@@ -118,6 +118,10 @@ def submissions_list():
             filter_submission_type = request.args.get('submission_type', type=str)
             filter_receipt_number = request.args.get('receipt_number', type=str)
             
+            # Get archive and tab parameters
+            show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
+            active_tab = request.args.get('tab', 'packaged_machine', type=str)
+            
             # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
             sort_order = request.args.get('sort_order', 'desc')  # Default descending
@@ -228,6 +232,23 @@ def submissions_list():
             if filter_receipt_number:
                 query += ' AND ws.receipt_number LIKE ?'
                 params.append(f'%{filter_receipt_number}%')
+            
+            # Apply archive filter - exclude archived submissions by default
+            if not show_archived:
+                # Show only active submissions (PO not closed or no PO assigned)
+                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+            else:
+                # Show only archived submissions (PO is closed)
+                query += ' AND po.closed = TRUE'
+            
+            # Apply tab filter for submission types
+            if active_tab == 'packaged_machine':
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\')'
+            elif active_tab == 'bottles':
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
+            elif active_tab == 'bag':
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
+            # 'all' tab shows all types (no additional filter)
             
             # Get submissions ordered by created_at ASC for running total calculation
             # Always use created_at ASC for running totals regardless of user's sort preference
@@ -445,6 +466,18 @@ def submissions_list():
             if filter_submission_type:
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
                 unverified_params.append(filter_submission_type)
+            # Apply archive filter to unverified count
+            if not show_archived:
+                unverified_query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+            else:
+                unverified_query += ' AND po.closed = TRUE'
+            # Apply tab filter to unverified count
+            if active_tab == 'packaged_machine':
+                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\')'
+            elif active_tab == 'bottles':
+                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
+            elif active_tab == 'bag':
+                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
             
             unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
             
@@ -493,9 +526,18 @@ def submissions_list():
             # Get all tablet types for the filter dropdown
             tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
             
+            # Count archived submissions for display
+            archived_count_query = '''
+                SELECT COUNT(*) as count
+                FROM warehouse_submissions ws
+                LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+                WHERE po.closed = TRUE
+            '''
+            archived_count = conn.execute(archived_count_query).fetchone()['count']
+            
             return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
                                  filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
-                                 sort_by=sort_by, sort_order=sort_order)
+                                 sort_by=sort_by, sort_order=sort_order, show_archived=show_archived, active_tab=active_tab, archived_count=archived_count)
     except Exception as e:
         current_app.logger.error(f"Error in all_submissions: {e}")
         traceback.print_exc()
@@ -516,6 +558,10 @@ def export_submissions_csv():
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
             filter_receipt_number = request.args.get('receipt_number', type=str)
+            
+            # Get archive and tab parameters
+            show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
+            active_tab = request.args.get('tab', 'packaged_machine', type=str)
             
             # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')
@@ -614,6 +660,23 @@ def export_submissions_csv():
                 query += ' AND ws.receipt_number LIKE ?'
                 params.append(f'%{filter_receipt_number}%')
             
+            # Apply archive filter - exclude archived submissions by default
+            if not show_archived:
+                # Show only active submissions (PO not closed or no PO assigned)
+                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+            else:
+                # Show only archived submissions (PO is closed)
+                query += ' AND po.closed = TRUE'
+            
+            # Apply tab filter for submission types
+            if active_tab == 'packaged_machine':
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\')'
+            elif active_tab == 'bottles':
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
+            elif active_tab == 'bag':
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
+            # 'all' tab shows all types (no additional filter)
+            
             # Apply sorting
             allowed_sort_columns = {
                 'created_at': 'ws.created_at',
@@ -690,8 +753,10 @@ def export_submissions_csv():
             'Created At',
             'Employee Name',
             'Product Name',
+            'Submission Type',
             'Tablet Type',
             'PO Number',
+            'PO Closed',
             'Box Number',
             'Bag Number',
             'Displays Made',
@@ -702,8 +767,8 @@ def export_submissions_csv():
             'Running Total (Bag)',
             'Bag Label Count',
             'Count Status',
-                'PO Assignment Verified',
-                'Admin Notes'
+            'PO Assignment Verified',
+            'Admin Notes'
             ])
             
             # Write data rows (respecting sort order)
@@ -723,8 +788,10 @@ def export_submissions_csv():
                     created_at,
                     sub.get('employee_name', ''),
                     sub.get('product_name', ''),
+                    sub.get('submission_type', 'packaged'),
                     sub.get('tablet_type_name', ''),
                     sub.get('po_number', ''),
+                    'Yes' if sub.get('po_closed') else 'No',
                     sub.get('box_number', ''),
                     sub.get('bag_number', ''),
                     sub.get('displays_made', 0),

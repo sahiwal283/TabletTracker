@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.43.0] - 2026-02-18
+
+### ✨ Features
+
+#### Submissions Page Overhaul - Archive System and Tabbed Interface
+- **Archive System**: Implemented archive functionality for submissions belonging to closed POs
+  - Submissions from closed POs are automatically hidden from default view
+  - Added "Show Archived" toggle button to view archived submissions
+  - Archive status persists in URL query parameters
+  - Archived submissions are visually indicated (grayed out) when shown
+- **Tabbed Interface**: Separated submission types into distinct tabs to reduce confusion
+  - **Packaged & Machine** tab (default): Shows packaged and machine submissions together
+  - **Bottles** tab: Shows only bottle submissions with relevant columns
+  - **Bag Count** tab: Shows only bag count submissions with relevant columns
+- **Dynamic Columns**: Table columns now adapt based on active tab
+  - Packaged & Machine: Shows Displays, Turns, Cards (remaining)
+  - Bottles: Shows Displays Made, Bottles Remaining (hides irrelevant columns)
+  - Bag Count: Shows Loose Tablets (hides irrelevant columns)
+- **Improved Column Labels**: Updated "Cards" column header to clarify it shows "remaining" cards
+- **CSV Export Enhancement**: CSV export now respects archive and tab filters, includes submission type and PO closed status
+
+### 🔧 Technical Changes
+- Added `show_archived` and `tab` query parameters to submissions route
+- Modified SQL queries to filter by archive status and submission type
+- Updated pagination and filter forms to preserve tab and archive state
+- Created migration script `scripts/backfill_archive_submissions.py` to archive existing closed PO submissions
+
+### 📝 Migration Required
+Run the following script to backfill archived status for existing submissions:
+```bash
+python scripts/backfill_archive_submissions.py
+```
+
+---
+
 ## [2.42.11] - 2026-02-05
 
 ### 🐛 Bug Fix
