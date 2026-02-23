@@ -2712,6 +2712,8 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
             const packagedCount = bag.packaged_count || 0;
             const totalCounted = machineCount + packagedCount;
             const remaining = receivedCount - packagedCount;
+            const batchNumber = bag.batch_number || '';
+            const batchSource = (bag.batch_source || '').replace(/_/g, ' ');
             const percentComplete = receivedCount > 0 
                 ? Math.round((totalCounted / receivedCount) * 100) 
                 : 0;
@@ -2776,6 +2778,11 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                 </button>
                             ` : ''}
                         </div>
+                    </div>
+                    <div class="mb-2 text-xs text-gray-600">
+                        ${batchNumber
+                            ? `🧾 Batch: <span class="font-semibold text-gray-800">${batchNumber}</span> <span class="text-gray-500">(${batchSource || 'unknown'})</span>`
+                            : '<span class="text-amber-700">🧾 Batch: Not set</span>'}
                     </div>
                     
                     <!-- Progress Bar -->
