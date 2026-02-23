@@ -28,18 +28,20 @@ from config import Config
 bp = Blueprint('api_receiving', __name__)
 
 
-BATCH_ALPHANUMERIC_PATTERN = re.compile(r'^[A-Za-z0-9]+$')
+BATCH_VALUE_PATTERN = re.compile(r'^[A-Za-z0-9-]+$')
 
 
 def normalize_batch_number(value):
-    """Normalize and validate alphanumeric batch number values."""
+    """Normalize and validate batch values (letters, numbers, hyphen)."""
     if value is None:
         return None
     text = str(value).strip()
     if not text:
         return None
-    if not BATCH_ALPHANUMERIC_PATTERN.fullmatch(text):
-        raise ValueError(f"Invalid batch number '{text}'. Batch numbers must be alphanumeric.")
+    if not BATCH_VALUE_PATTERN.fullmatch(text):
+        raise ValueError(
+            f"Invalid batch number '{text}'. Batch numbers may contain letters, numbers, and hyphens."
+        )
     return text
 
 

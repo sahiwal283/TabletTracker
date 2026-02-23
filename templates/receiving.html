@@ -701,7 +701,7 @@ function addShipmentBatchDefaultRow(existing = {}) {
             <input type="text"
                    name="shipment_batch_default_${rowId}_batch_number"
                    class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm"
-                   placeholder="Alphanumeric batch"
+                   placeholder="Letters, numbers, dash (-)"
                    autocomplete="off">
         </div>
         <div class="md:text-right">
@@ -1244,7 +1244,7 @@ function addBox() {
             <input type="text"
                    name="box_${boxNumber}_batch_number"
                    class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                   placeholder="Alphanumeric batch for all bags in this box"
+                   placeholder="Letters, numbers, dash (-) for this box"
                    autocomplete="off">
         </div>
         <div id="box-${boxNumber}-bags" class="space-y-4">
@@ -1348,7 +1348,7 @@ function addBag(boxNumber) {
                 <input type="text"
                        name="box_${boxNumber}_bag_${bagSequence}_bag_specific_batch_number"
                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                       placeholder="Alphanumeric batch"
+                       placeholder="Letters, numbers, dash (-)"
                        autocomplete="off">
             </div>
         </div>
