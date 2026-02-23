@@ -217,7 +217,7 @@ def get_receiving_details(receive_id):
                 # Build bag data entry with all fields needed for both views
                 bag_entry = {
                     'bag_id': bag_id,
-                    'tablet_type_id': tt_id,
+                    'tablet_type_id': bag.get('tablet_type_id'),
                     'bag_number': bag_number,
                     'box_number': box_number,
                     'tablet_type_name': tablet_type_name,
