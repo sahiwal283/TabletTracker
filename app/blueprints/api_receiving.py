@@ -8,6 +8,7 @@ from datetime import datetime
 import traceback
 import os
 import json
+import re
 from werkzeug.utils import secure_filename
 from app.utils.db_utils import db_read_only, db_transaction, ReceivingRepository, BagRepository
 from app.utils.auth_utils import admin_required, role_required, employee_required
@@ -25,6 +26,21 @@ from app.services.chart_service import generate_bag_chart_image
 from config import Config
 
 bp = Blueprint('api_receiving', __name__)
+
+
+BATCH_ALPHANUMERIC_PATTERN = re.compile(r'^[A-Za-z0-9]+$')
+
+
+def normalize_batch_number(value):
+    """Normalize and validate alphanumeric batch number values."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if not BATCH_ALPHANUMERIC_PATTERN.fullmatch(text):
+        raise ValueError(f"Invalid batch number '{text}'. Batch numbers must be alphanumeric.")
+    return text
 
 
 @bp.route('/api/receive/<int:receive_id>/details', methods=['GET'])
@@ -212,7 +228,9 @@ def get_receiving_details(receive_id):
                     'bag_count': dict(bag_count)['total_bag'] if bag_count else 0,
                     'zoho_receive_pushed': bool(bag.get('zoho_receive_pushed', False)),
                     'zoho_receive_id': bag.get('zoho_receive_id'),
-                    'reserved_for_bottles': bool(bag.get('reserved_for_bottles', False))
+                    'reserved_for_bottles': bool(bag.get('reserved_for_bottles', False)),
+                    'batch_number': bag.get('batch_number'),
+                    'batch_source': bag.get('batch_source')
                 }
                 products[inventory_item_id]['boxes'][box_number][bag_number] = bag_entry
             
@@ -999,6 +1017,8 @@ def push_bag_to_zoho(bag_id):
             bag_number=bag_number,
             bag_label_count=bag_label_count,
             packaged_count=packaged_count,
+            batch_number=bag.get('batch_number'),
+            batch_source=bag.get('batch_source'),
             custom_notes=custom_notes
         )
         
@@ -1336,7 +1356,7 @@ def get_receive_editable(receiving_id):
             
             # Get boxes with bags
             boxes = conn.execute('''
-                SELECT sb.id, sb.box_number, sb.total_bags
+                SELECT sb.id, sb.box_number, sb.total_bags, sb.batch_number_default
                 FROM small_boxes sb
                 WHERE sb.receiving_id = ?
                 ORDER BY sb.box_number
@@ -1346,7 +1366,8 @@ def get_receive_editable(receiving_id):
             for box in boxes:
                 # Get bags for this box
                 bags = conn.execute('''
-                    SELECT b.id, b.bag_number, b.bag_label_count, b.tablet_type_id, b.status
+                    SELECT b.id, b.bag_number, b.bag_label_count, b.tablet_type_id, b.status,
+                           b.batch_number, b.batch_source
                     FROM bags b
                     WHERE b.small_box_id = ?
                     ORDER BY b.bag_number
@@ -1354,13 +1375,22 @@ def get_receive_editable(receiving_id):
                 
                 boxes_data.append({
                     'box_number': box['box_number'],
+                    'batch_number_default': box['batch_number_default'],
                     'bags': [dict(bag) for bag in bags]
                 })
+
+            shipment_batch_defaults = conn.execute('''
+                SELECT tablet_type_id, batch_number
+                FROM receiving_flavor_batches
+                WHERE receiving_id = ?
+                ORDER BY tablet_type_id
+            ''', (receiving_id,)).fetchall()
             
             return jsonify({
                 'success': True,
                 'receive': dict(receive),
-                'boxes': boxes_data
+                'boxes': boxes_data,
+                'shipment_batch_defaults': [dict(row) for row in shipment_batch_defaults]
             })
     except Exception as e:
         current_app.logger.error(f"Error getting editable receive: {str(e)}")
@@ -1375,6 +1405,7 @@ def save_receives():
     try:
         data = request.get_json()
         boxes_data = data.get('boxes', [])
+        shipment_batch_defaults_raw = data.get('shipment_batch_defaults', [])
         po_id = data.get('po_id')
         status = data.get('status', 'published')  # Default to published for backward compatibility
         receiving_id = data.get('receiving_id')  # If provided, update existing receive
@@ -1385,6 +1416,19 @@ def save_receives():
         
         if not boxes_data:
             return jsonify({'success': False, 'error': 'No boxes data provided'}), 400
+
+        shipment_batch_defaults = {}
+        if shipment_batch_defaults_raw:
+            if not isinstance(shipment_batch_defaults_raw, list):
+                return jsonify({'success': False, 'error': 'shipment_batch_defaults must be a list'}), 400
+            for entry in shipment_batch_defaults_raw:
+                if not isinstance(entry, dict):
+                    continue
+                tablet_type_id = entry.get('tablet_type_id')
+                batch_number = normalize_batch_number(entry.get('batch_number'))
+                if not tablet_type_id or not batch_number:
+                    continue
+                shipment_batch_defaults[int(tablet_type_id)] = batch_number
         
         user_role = session.get('employee_role')
         if po_id and user_role not in ['manager', 'admin']:
@@ -1446,6 +1490,7 @@ def save_receives():
                 ''', (receiving_id,))
                 
                 conn.execute('DELETE FROM small_boxes WHERE receiving_id = ?', (receiving_id,))
+                conn.execute('DELETE FROM receiving_flavor_batches WHERE receiving_id = ?', (receiving_id,))
                 
                 # Update receiving record
                 conn.execute('''
@@ -1461,6 +1506,12 @@ def save_receives():
                 ''', (po_id if po_id else None, received_by, len(boxes_data), f'Recorded {len(boxes_data)} box(es)', status))
                 
                 receiving_id = receiving_cursor.lastrowid
+
+            for tablet_type_id, batch_number in shipment_batch_defaults.items():
+                conn.execute('''
+                    INSERT OR REPLACE INTO receiving_flavor_batches (receiving_id, tablet_type_id, batch_number)
+                    VALUES (?, ?, ?)
+                ''', (receiving_id, tablet_type_id, batch_number))
             
             total_bags = 0
             
@@ -1468,14 +1519,15 @@ def save_receives():
             for box_data in boxes_data:
                 box_number = box_data.get('box_number')
                 bags = box_data.get('bags', [])
+                box_batch_number_default = normalize_batch_number(box_data.get('box_batch_number'))
                 
                 if not bags:
                     continue
                 
                 box_cursor = conn.execute('''
-                    INSERT INTO small_boxes (receiving_id, box_number, total_bags)
-                    VALUES (?, ?, ?)
-                ''', (receiving_id, box_number, len(bags)))
+                    INSERT INTO small_boxes (receiving_id, box_number, total_bags, batch_number_default)
+                    VALUES (?, ?, ?, ?)
+                ''', (receiving_id, box_number, len(bags), box_batch_number_default))
                 
                 small_box_id = box_cursor.lastrowid
                 
@@ -1483,14 +1535,32 @@ def save_receives():
                     tablet_type_id = bag.get('tablet_type_id')
                     bag_count = bag.get('bag_count', 0)
                     bag_number = bag.get('bag_number')
+                    bag_specific_batch_number = normalize_batch_number(bag.get('bag_specific_batch_number'))
                     
                     if not tablet_type_id or not bag_number:
                         continue
+
+                    tablet_type_id_int = int(tablet_type_id)
+                    effective_batch_number = None
+                    batch_source = None
+                    if bag_specific_batch_number:
+                        effective_batch_number = bag_specific_batch_number
+                        batch_source = 'bag_specific'
+                    elif box_batch_number_default:
+                        effective_batch_number = box_batch_number_default
+                        batch_source = 'box_default'
+                    elif shipment_batch_defaults.get(tablet_type_id_int):
+                        effective_batch_number = shipment_batch_defaults[tablet_type_id_int]
+                        batch_source = 'shipment_default'
                     
                     conn.execute('''
-                        INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status)
-                        VALUES (?, ?, ?, ?, 'Available')
-                    ''', (small_box_id, bag_number, bag_count, tablet_type_id))
+                        INSERT INTO bags (
+                            small_box_id, bag_number, bag_label_count, tablet_type_id, status, batch_number, batch_source
+                        )
+                        VALUES (?, ?, ?, ?, 'Available', ?, ?)
+                    ''', (
+                        small_box_id, bag_number, bag_count, tablet_type_id_int, effective_batch_number, batch_source
+                    ))
                     total_bags += 1
             
             conn.execute('''
@@ -1512,6 +1582,8 @@ def save_receives():
                 'receiving_id': receiving_id,
                 'status': status
             })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"Error saving receives: {str(e)}")
         traceback.print_exc()

@@ -25,6 +25,8 @@ class MigrationRunner:
         self._migrate_bags()
         self._migrate_tablet_type_categories()
         self._migrate_receiving()
+        self._migrate_receiving_flavor_batches()
+        self._migrate_small_boxes()
         self._migrate_machine_counts()
         self._migrate_submission_bag_deductions()
     
@@ -177,6 +179,8 @@ class MigrationRunner:
         """Migrate bags table"""
         self._add_column_if_not_exists('bags', 'pill_count', 'INTEGER')
         self._add_column_if_not_exists('bags', 'tablet_type_id', 'INTEGER')
+        self._add_column_if_not_exists('bags', 'batch_number', 'TEXT')
+        self._add_column_if_not_exists('bags', 'batch_source', 'TEXT')
         
         # Add Zoho receive push tracking columns (v2.23.0+dev)
         self._add_column_if_not_exists('bags', 'zoho_receive_pushed', 'BOOLEAN DEFAULT 0')
@@ -197,6 +201,26 @@ class MigrationRunner:
         
         # Note: Backfilling is handled by the standalone backfill script
         # This ensures proper sequential numbering per PO
+
+    def _migrate_receiving_flavor_batches(self):
+        """Create receiving_flavor_batches table if not exists."""
+        try:
+            self.c.execute('''CREATE TABLE IF NOT EXISTS receiving_flavor_batches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receiving_id INTEGER NOT NULL,
+                tablet_type_id INTEGER NOT NULL,
+                batch_number TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(receiving_id, tablet_type_id),
+                FOREIGN KEY (receiving_id) REFERENCES receiving (id) ON DELETE CASCADE,
+                FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
+            )''')
+        except Exception as e:
+            logger.warning(f"Could not create receiving_flavor_batches table: {str(e)}")
+
+    def _migrate_small_boxes(self):
+        """Migrate small_boxes table."""
+        self._add_column_if_not_exists('small_boxes', 'batch_number_default', 'TEXT')
     
     def _migrate_machine_counts(self):
         """Migrate machine_counts table - add machine_id column"""

@@ -297,6 +297,8 @@ def build_zoho_receive_notes(
     bag_number: int,
     bag_label_count: int,
     packaged_count: int,
+    batch_number: Optional[str] = None,
+    batch_source: Optional[str] = None,
     custom_notes: Optional[str] = None
 ) -> str:
     """
@@ -314,6 +316,8 @@ def build_zoho_receive_notes(
         bag_number: The bag number
         bag_label_count: Count from bag label
         packaged_count: Calculated packaged count
+        batch_number: Effective batch used for this bag
+        batch_source: Batch source label (shipment default, box default, bag specific)
         custom_notes: Optional additional notes
         
     Returns:
@@ -323,6 +327,10 @@ def build_zoho_receive_notes(
     # Note: Using double newlines for better visibility in Zoho
     notes = f"Shipment {shipment_number} - Box {box_number}, Bag {bag_number}:"
     notes += f"\n\nbag label: {bag_label_count:,} || packaged: {packaged_count:,}"
+
+    if batch_number:
+        source_label = (batch_source or 'unknown').replace('_', ' ').strip()
+        notes += f"\n\nbatch: {batch_number} || source: {source_label}"
     
     if custom_notes and custom_notes.strip():
         notes += f"\n\n{custom_notes.strip()}"

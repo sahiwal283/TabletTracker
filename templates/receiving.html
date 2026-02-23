@@ -469,6 +469,19 @@
                     <p class="text-xs text-red-600 mt-1 font-medium">⚠️ Required: All receives must be linked to a PO (source of truth for submissions)</p>
                 </div>
                 {% endif %}
+
+                <div class="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h4 class="text-sm font-semibold text-indigo-900">Shipment Default Batches (by flavor)</h4>
+                            <p class="text-xs text-indigo-700 mt-1">Used when a bag does not have a bag-specific or box default batch.</p>
+                        </div>
+                        <button type="button" onclick="addShipmentBatchDefaultRow()" class="text-indigo-700 hover:text-indigo-900 text-sm font-medium">
+                            + Add Flavor Default
+                        </button>
+                    </div>
+                    <div id="shipment-batch-defaults-container" class="space-y-2"></div>
+                </div>
                 
                 <div id="boxes-container">
                     <!-- Box 1 will be added automatically -->
@@ -609,6 +622,65 @@ let poSelectListenerAdded = false; // Track if PO select listener has been added
 // Store categories and tablet types from server (converted from Jinja2 to JavaScript)
 const categories = {{ categories | tojson }};
 const tabletTypes = {{ tablet_types | tojson }};
+let shipmentBatchDefaultRowCounter = 0;
+
+function getTabletTypeOptionsHtml() {
+    let options = '<option value="">Select tablet type...</option>';
+    tabletTypes.forEach(tt => {
+        options += `<option value="${tt.id}">${tt.tablet_type_name}</option>`;
+    });
+    return options;
+}
+
+function addShipmentBatchDefaultRow(existing = {}) {
+    shipmentBatchDefaultRowCounter++;
+    const rowId = shipmentBatchDefaultRowCounter;
+    const container = document.getElementById('shipment-batch-defaults-container');
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-1 md:grid-cols-3 gap-2 items-end bg-white border border-indigo-200 rounded p-2';
+    row.id = `shipment-batch-default-row-${rowId}`;
+    row.innerHTML = `
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Tablet Type</label>
+            <select name="shipment_batch_default_${rowId}_tablet_type_id"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm">
+                ${getTabletTypeOptionsHtml()}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Batch Number</label>
+            <input type="text"
+                   name="shipment_batch_default_${rowId}_batch_number"
+                   class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm"
+                   placeholder="Alphanumeric batch"
+                   autocomplete="off">
+        </div>
+        <div class="md:text-right">
+            <button type="button"
+                    onclick="removeShipmentBatchDefaultRow(${rowId})"
+                    class="text-red-600 hover:text-red-800 text-sm">
+                Remove
+            </button>
+        </div>
+    `;
+    container.appendChild(row);
+
+    const tabletTypeSelect = row.querySelector(`select[name="shipment_batch_default_${rowId}_tablet_type_id"]`);
+    const batchInput = row.querySelector(`input[name="shipment_batch_default_${rowId}_batch_number"]`);
+    if (tabletTypeSelect && existing.tablet_type_id) {
+        tabletTypeSelect.value = existing.tablet_type_id;
+    }
+    if (batchInput && existing.batch_number) {
+        batchInput.value = existing.batch_number;
+    }
+}
+
+function removeShipmentBatchDefaultRow(rowId) {
+    const row = document.getElementById(`shipment-batch-default-row-${rowId}`);
+    if (row) row.remove();
+}
 
 // Function to build tablet type dropdown HTML dynamically
 function buildTabletTypeDropdown(boxNumber, bagNumber) {
@@ -934,11 +1006,38 @@ async function restoreSavedDraft(savedDraft) {
             poSelect.value = savedDraft.po_id;
         }
     }
+
+    // Restore shipment-level flavor defaults
+    const shipmentDefaultsContainer = document.getElementById('shipment-batch-defaults-container');
+    if (shipmentDefaultsContainer) {
+        shipmentDefaultsContainer.innerHTML = '';
+    }
+    shipmentBatchDefaultRowCounter = 0;
+    const shipmentRows = {};
+    for (const [key, value] of Object.entries(savedDraft.fields)) {
+        const match = key.match(/^shipment_batch_default_(\d+)_(tablet_type_id|batch_number)$/);
+        if (!match) continue;
+        const rowIdx = match[1];
+        const fieldName = match[2];
+        if (!shipmentRows[rowIdx]) {
+            shipmentRows[rowIdx] = {};
+        }
+        shipmentRows[rowIdx][fieldName] = value;
+    }
+    Object.keys(shipmentRows).sort((a, b) => parseInt(a) - parseInt(b)).forEach(rowIdx => {
+        const rowData = shipmentRows[rowIdx];
+        if (rowData.tablet_type_id || rowData.batch_number) {
+            addShipmentBatchDefaultRow({
+                tablet_type_id: rowData.tablet_type_id || '',
+                batch_number: rowData.batch_number || ''
+            });
+        }
+    });
     
     // Parse saved fields to reconstruct boxes
     const boxData = {};
     for (const [key, value] of Object.entries(savedDraft.fields)) {
-        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number)$/);
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number|bag_specific_batch_number)$/);
         if (match) {
             const boxNum = parseInt(match[1]);
             const bagNum = parseInt(match[2]);
@@ -956,6 +1055,11 @@ async function restoreSavedDraft(savedDraft) {
     for (const boxNum of sortedBoxes) {
         addBox();
         const currentBoxNum = boxCounter;
+        const boxBatchInput = document.querySelector(`input[name="box_${currentBoxNum}_batch_number"]`);
+        const savedBoxBatch = savedDraft.fields[`box_${boxNum}_batch_number`];
+        if (boxBatchInput && savedBoxBatch) {
+            boxBatchInput.value = savedBoxBatch;
+        }
         
         const sortedBags = Object.keys(boxData[boxNum]).map(n => parseInt(n)).sort((a, b) => a - b);
         
@@ -997,6 +1101,10 @@ async function restoreSavedDraft(savedDraft) {
                 const flavorInput = document.getElementById(`box_${currentBoxNum}_bag_${currentBagSeq}_flavor_bag_number`);
                 if (flavorInput) flavorInput.value = bagData.flavor_bag_number;
             }
+            if (bagData.bag_specific_batch_number) {
+                const specificBatchInput = document.querySelector(`input[name="box_${currentBoxNum}_bag_${currentBagSeq}_bag_specific_batch_number"]`);
+                if (specificBatchInput) specificBatchInput.value = bagData.bag_specific_batch_number;
+            }
         }
     }
     
@@ -1011,6 +1119,11 @@ async function openAddReceivesModal() {
     flavorBagCounter = {}; // Reset flavor-based counters
     bagFlavorAssignments = {}; // Reset flavor assignments
     document.getElementById('boxes-container').innerHTML = '';
+    const shipmentDefaultsContainer = document.getElementById('shipment-batch-defaults-container');
+    if (shipmentDefaultsContainer) {
+        shipmentDefaultsContainer.innerHTML = '';
+    }
+    shipmentBatchDefaultRowCounter = 0;
     
     // Add first box
     addBox();
@@ -1075,6 +1188,14 @@ function addBox() {
                     </button>
                 ` : ''}
             </div>
+        </div>
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Box Default Batch (optional)</label>
+            <input type="text"
+                   name="box_${boxNumber}_batch_number"
+                   class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                   placeholder="Alphanumeric batch for all bags in this box"
+                   autocomplete="off">
         </div>
         <div id="box-${boxNumber}-bags" class="space-y-4">
             <!-- Bags will be added here -->
@@ -1149,7 +1270,7 @@ function addBag(boxNumber) {
                 ` : ''}
             </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type <span class="text-xs text-gray-500">(determines bag number)</span></label>
                 <select id="box_${boxNumber}_bag_${bagSequence}_tablet_type"
@@ -1170,6 +1291,14 @@ function addBag(boxNumber) {
                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                        placeholder="Enter bag count"
                        required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Bag Specific Batch (optional)</label>
+                <input type="text"
+                       name="box_${boxNumber}_bag_${bagSequence}_bag_specific_batch_number"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="Alphanumeric batch"
+                       autocomplete="off">
             </div>
         </div>
     `;
@@ -1521,31 +1650,63 @@ async function submitReceivesWithStatus(event, status = 'published') {
     const boxes = {};
     
     // Collect all form fields
+    const shipmentBatchDefaults = [];
+    const shipmentBatchRows = {};
     for (const [key, value] of formData.entries()) {
+        const shipmentMatch = key.match(/^shipment_batch_default_(\d+)_(tablet_type_id|batch_number)$/);
+        if (shipmentMatch) {
+            const rowIdx = shipmentMatch[1];
+            const fieldName = shipmentMatch[2];
+            if (!shipmentBatchRows[rowIdx]) {
+                shipmentBatchRows[rowIdx] = {};
+            }
+            shipmentBatchRows[rowIdx][fieldName] = value;
+            continue;
+        }
+
         // Match pattern: box_{boxNum}_bag_{bagSeq}_{fieldType}
-        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number)$/);
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number|bag_specific_batch_number)$/);
         if (match) {
             const boxNum = match[1];
             const bagSeq = match[2];
-            const fieldType = match[3]; // 'tablet_type', 'bag_count', or 'flavor_bag_number'
+            const fieldType = match[3];
             
             if (!boxes[boxNum]) {
-                boxes[boxNum] = {};
+                boxes[boxNum] = { bags: {}, box_batch_number: '' };
             }
-            if (!boxes[boxNum][bagSeq]) {
-                boxes[boxNum][bagSeq] = {};
+            if (!boxes[boxNum].bags[bagSeq]) {
+                boxes[boxNum].bags[bagSeq] = {};
             }
             
-            boxes[boxNum][bagSeq][fieldType] = value;
+            boxes[boxNum].bags[bagSeq][fieldType] = value;
+            continue;
+        }
+
+        const boxBatchMatch = key.match(/^box_(\d+)_batch_number$/);
+        if (boxBatchMatch) {
+            const boxNum = boxBatchMatch[1];
+            if (!boxes[boxNum]) {
+                boxes[boxNum] = { bags: {}, box_batch_number: '' };
+            }
+            boxes[boxNum].box_batch_number = value;
         }
     }
+
+    Object.values(shipmentBatchRows).forEach(row => {
+        if (row.tablet_type_id && row.batch_number) {
+            shipmentBatchDefaults.push({
+                tablet_type_id: parseInt(row.tablet_type_id),
+                batch_number: row.batch_number.trim()
+            });
+        }
+    });
     
     // Convert to array format - NOW using flavor-based bag numbers
     const boxesArray = [];
     for (const boxNum in boxes) {
         const bagsArray = [];
-        for (const bagSeq in boxes[boxNum]) {
-            const bag = boxes[boxNum][bagSeq];
+        for (const bagSeq in boxes[boxNum].bags) {
+            const bag = boxes[boxNum].bags[bagSeq];
             
             // Log each bag to see what's missing
             console.log(`[Submit] Box ${boxNum} Bag ${bagSeq}:`, {
@@ -1558,7 +1719,8 @@ async function submitReceivesWithStatus(event, status = 'published') {
                 bagsArray.push({
                     tablet_type_id: parseInt(bag.tablet_type),
                     bag_count: parseInt(bag.bag_count),
-                    bag_number: parseInt(bag.flavor_bag_number) // NEW: Use flavor-based bag number
+                    bag_number: parseInt(bag.flavor_bag_number), // NEW: Use flavor-based bag number
+                    bag_specific_batch_number: (bag.bag_specific_batch_number || '').trim()
                 });
             } else {
                 console.warn(`[Submit] SKIPPED Box ${boxNum} Bag ${bagSeq} - missing required data`);
@@ -1567,6 +1729,7 @@ async function submitReceivesWithStatus(event, status = 'published') {
         if (bagsArray.length > 0) {
             boxesArray.push({
                 box_number: parseInt(boxNum),
+                box_batch_number: (boxes[boxNum].box_batch_number || '').trim(),
                 bags: bagsArray
             });
         }
@@ -1621,6 +1784,7 @@ async function submitReceivesWithStatus(event, status = 'published') {
         
         console.log('[Submit] Sending to server:', {
             boxes: boxesArray,
+            shipment_batch_defaults: shipmentBatchDefaults,
             po_id: poId,
             status: status,
             receiving_id: window.editingReceiveId || null
@@ -1633,6 +1797,7 @@ async function submitReceivesWithStatus(event, status = 'published') {
             },
             body: JSON.stringify({
                 boxes: boxesArray,
+                shipment_batch_defaults: shipmentBatchDefaults,
                 po_id: poId ? parseInt(poId) : null,
                 status: status,
                 receiving_id: window.editingReceiveId || null
@@ -1810,6 +1975,20 @@ async function editReceive(receivingId) {
             // Load max bag numbers for this PO
             await loadMaxBagNumbersForPO();
         }
+
+        // Restore shipment-level flavor defaults
+        const shipmentDefaultsContainer = document.getElementById('shipment-batch-defaults-container');
+        if (shipmentDefaultsContainer) {
+            shipmentDefaultsContainer.innerHTML = '';
+        }
+        shipmentBatchDefaultRowCounter = 0;
+        const shipmentDefaults = Array.isArray(data.shipment_batch_defaults) ? data.shipment_batch_defaults : [];
+        shipmentDefaults.forEach(defaultRow => {
+            addShipmentBatchDefaultRow({
+                tablet_type_id: defaultRow.tablet_type_id,
+                batch_number: defaultRow.batch_number
+            });
+        });
         
         // Re-create each box with its bags
         let loadedBoxCount = 0;
@@ -1828,6 +2007,11 @@ async function editReceive(receivingId) {
             addBox();
             const currentBoxNumber = boxCounter;
             loadedBoxCount++;
+
+            const boxBatchInput = document.querySelector(`input[name="box_${currentBoxNumber}_batch_number"]`);
+            if (boxBatchInput && boxData.batch_number_default) {
+                boxBatchInput.value = boxData.batch_number_default;
+            }
             
             // Wait longer for box to be added to DOM
             await new Promise(resolve => setTimeout(resolve, 300));
@@ -1872,10 +2056,14 @@ async function editReceive(receivingId) {
                 const tabletTypeSelect = document.getElementById(`box_${currentBoxNumber}_bag_${currentBagSequence}_tablet_type`);
                 const bagCountInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_count"]`);
                 const flavorBagNumberInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_flavor_bag_number"]`);
+                const specificBatchInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_specific_batch_number"]`);
                 
                 if (tabletTypeSelect && bagCountInput && flavorBagNumberInput) {
                     tabletTypeSelect.value = bagData.tablet_type_id;
                     bagCountInput.value = bagData.bag_label_count;
+                    if (specificBatchInput) {
+                        specificBatchInput.value = bagData.batch_source === 'bag_specific' ? (bagData.batch_number || '') : '';
+                    }
                     
                     // CRITICAL: Set the flavor bag number from database (required for form collection)
                     flavorBagNumberInput.value = bagData.bag_number;
