@@ -2943,6 +2943,12 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         <button onclick="clearReceiveFilter()" class="text-xs text-gray-500 hover:text-gray-700 underline">
                             Clear
                         </button>
+                        ${(isAdmin || isManager) ? `
+                            <button onclick="openEditBatchInfoModal(${receiveId}, '${receiveName.replace(/'/g, "\\'").replace(/"/g, '\\"')}')"
+                                    class="px-2 py-1.5 text-xs border rounded-lg bg-white shadow-sm hover:bg-gray-50 text-indigo-700">
+                                🧾 Edit Batch Info
+                            </button>
+                        ` : ''}
                     </div>
                     
                     <!-- Content Area -->
@@ -3399,6 +3405,217 @@ function closeReceivesModal(event) {
         if (modal) {
             modal.remove();
         }
+    }
+}
+
+function escapeBatchEditorHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function openEditBatchInfoModal(receiveId, receiveName) {
+    try {
+        const response = await fetch(`/api/receive/${receiveId}/details`);
+        const data = await response.json();
+        if (!data.success) {
+            alert('Error loading receive details for batch edit: ' + (data.error || 'Unknown error'));
+            return;
+        }
+
+        const existingModal = document.getElementById('edit-batch-info-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const shipmentDefaultsMap = {};
+        (data.shipment_batch_defaults || []).forEach(row => {
+            if (row && row.tablet_type_id) {
+                shipmentDefaultsMap[String(row.tablet_type_id)] = row.batch_number || '';
+            }
+        });
+
+        const flavorMap = {};
+        (data.boxes_view || []).forEach(box => {
+            (box.bags || []).forEach(bag => {
+                if (bag.tablet_type_id && !flavorMap[String(bag.tablet_type_id)]) {
+                    flavorMap[String(bag.tablet_type_id)] = bag.tablet_type_name || `Tablet ${bag.tablet_type_id}`;
+                }
+            });
+        });
+        const flavors = Object.keys(flavorMap).sort((a, b) => flavorMap[a].localeCompare(flavorMap[b]));
+
+        let shipmentDefaultsHtml = '';
+        if (flavors.length === 0) {
+            shipmentDefaultsHtml = '<p class="text-sm text-gray-500">No flavor rows available for this receive.</p>';
+        } else {
+            shipmentDefaultsHtml = '<div class="space-y-2">';
+            flavors.forEach(tabletTypeId => {
+                const flavorName = escapeBatchEditorHtml(flavorMap[tabletTypeId]);
+                const currentBatch = escapeBatchEditorHtml(shipmentDefaultsMap[tabletTypeId] || '');
+                shipmentDefaultsHtml += `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 items-center">
+                        <div class="text-sm text-gray-700">${flavorName}</div>
+                        <input type="text"
+                               data-shipment-tablet-type-id="${tabletTypeId}"
+                               value="${currentBatch}"
+                               placeholder="Shipment default batch"
+                               class="batch-input w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                               autocomplete="off">
+                    </div>
+                `;
+            });
+            shipmentDefaultsHtml += '</div>';
+        }
+
+        let boxSectionsHtml = '';
+        (data.boxes_view || []).forEach(box => {
+            const boxDefault = escapeBatchEditorHtml(box.box_batch_number || '');
+            let bagRowsHtml = '';
+            (box.bags || []).forEach(bag => {
+                const bagSpecificValue = bag.batch_source === 'bag_specific' ? (bag.batch_number || '') : '';
+                bagRowsHtml += `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-center border border-gray-100 rounded p-2">
+                        <div class="text-sm text-gray-700">${escapeBatchEditorHtml(bag.tablet_type_name)} Bag ${bag.bag_number}</div>
+                        <div class="text-xs text-gray-500">Effective: ${escapeBatchEditorHtml(bag.batch_number || 'None')} (${escapeBatchEditorHtml((bag.batch_source || 'none').replace(/_/g, ' '))})</div>
+                        <input type="text"
+                               data-bag-specific-id="${bag.bag_id}"
+                               value="${escapeBatchEditorHtml(bagSpecificValue)}"
+                               placeholder="Bag specific batch"
+                               class="batch-input w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                               autocomplete="off">
+                    </div>
+                `;
+            });
+
+            boxSectionsHtml += `
+                <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <div class="text-sm font-semibold text-gray-800">Box ${box.box_number}</div>
+                        <input type="text"
+                               data-box-number="${box.box_number}"
+                               value="${boxDefault}"
+                               placeholder="Box default batch"
+                               class="batch-input px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
+                               autocomplete="off">
+                    </div>
+                    <div class="space-y-2">${bagRowsHtml}</div>
+                </div>
+            `;
+        });
+
+        const safeReceiveName = escapeBatchEditorHtml(receiveName || `Receive ${receiveId}`);
+        const modalHtml = `
+            <div id="edit-batch-info-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onclick="closeEditBatchInfoModal(event)">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">🧾 Edit Batch Info - ${safeReceiveName}</h3>
+                        <button onclick="closeEditBatchInfoModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+                    </div>
+                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-130px)] space-y-6">
+                        <section>
+                            <h4 class="text-sm font-semibold text-indigo-900 mb-2">Shipment Defaults By Flavor</h4>
+                            ${shipmentDefaultsHtml}
+                        </section>
+                        <section>
+                            <h4 class="text-sm font-semibold text-gray-900 mb-2">Box Defaults And Bag Specific Batches</h4>
+                            <div class="space-y-3">${boxSectionsHtml || '<p class="text-sm text-gray-500">No boxes found.</p>'}</div>
+                        </section>
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                        <button onclick="closeEditBatchInfoModal()" class="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button id="save-batch-info-btn"
+                                onclick="saveEditBatchInfo(${receiveId}, '${(receiveName || '').replace(/'/g, "\\'").replace(/"/g, '\\"')}')"
+                                class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                            Save Batch Info
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    } catch (error) {
+        console.error('Error opening batch info modal:', error);
+        alert('Failed to open batch editor: ' + error.message);
+    }
+}
+
+function closeEditBatchInfoModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('edit-batch-info-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+}
+
+async function saveEditBatchInfo(receiveId, receiveName) {
+    const saveButton = document.getElementById('save-batch-info-btn');
+    if (!saveButton) return;
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+
+    const shipmentRows = document.querySelectorAll('#edit-batch-info-modal [data-shipment-tablet-type-id]');
+    const boxRows = document.querySelectorAll('#edit-batch-info-modal [data-box-number]');
+    const bagRows = document.querySelectorAll('#edit-batch-info-modal [data-bag-specific-id]');
+
+    const shipment_batch_defaults = [];
+    shipmentRows.forEach(input => {
+        const tabletTypeId = parseInt(input.getAttribute('data-shipment-tablet-type-id') || '0');
+        if (!tabletTypeId) return;
+        shipment_batch_defaults.push({
+            tablet_type_id: tabletTypeId,
+            batch_number: (input.value || '').trim()
+        });
+    });
+
+    const box_defaults = [];
+    boxRows.forEach(input => {
+        const boxNumber = parseInt(input.getAttribute('data-box-number') || '0');
+        if (!boxNumber) return;
+        box_defaults.push({
+            box_number: boxNumber,
+            batch_number_default: (input.value || '').trim()
+        });
+    });
+
+    const bag_specific_batches = [];
+    bagRows.forEach(input => {
+        const bagId = parseInt(input.getAttribute('data-bag-specific-id') || '0');
+        if (!bagId) return;
+        bag_specific_batches.push({
+            bag_id: bagId,
+            batch_number: (input.value || '').trim()
+        });
+    });
+
+    try {
+        const response = await csrfFetch(`/api/receiving/${receiveId}/batch_info`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shipment_batch_defaults,
+                box_defaults,
+                bag_specific_batches
+            })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to update batch info');
+        }
+
+        closeEditBatchInfoModal();
+        await viewReceiveDetails(receiveId, receiveName);
+    } catch (error) {
+        console.error('Error saving batch info:', error);
+        alert('Failed to save batch info: ' + error.message);
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Batch Info';
     }
 }
 
