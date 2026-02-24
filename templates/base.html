@@ -3028,7 +3028,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                 
                 if (targetBagId !== null) {
                     // Scroll to specific bag
-                    targetElement = document.getElementById(`bag-card-${targetBagId}`);
+                    targetElement = getVisibleBagCardById(targetBagId);
                 } else if (targetBoxNumber !== null) {
                     // Scroll to box section (in box view)
                     targetElement = document.getElementById(`box-section-${targetBoxNumber}`);
@@ -3083,6 +3083,16 @@ function switchReceiveView(viewMode) {
     
     // Save preference
     localStorage.setItem('receiveDetailsViewMode', viewMode);
+}
+
+function getVisibleBagCardById(bagId) {
+    const boxView = document.getElementById('box-view-content');
+    const flavorView = document.getElementById('flavor-view-content');
+    const activeView = (boxView && !boxView.classList.contains('hidden')) ? boxView : flavorView;
+    if (activeView) {
+        return activeView.querySelector(`.bag-card[data-bag-id="${bagId}"]`);
+    }
+    return document.querySelector(`#receive-modal-content .bag-card[data-bag-id="${bagId}"]`);
 }
 
 // Jump to a specific box
@@ -3773,7 +3783,7 @@ async function saveQuickBagBatch(bagId, receiveId, receiveName) {
                 newScrollContainer.scrollTop = currentScroll;
             }
 
-            const targetBag = document.getElementById(`bag-card-${bagId}`);
+            const targetBag = getVisibleBagCardById(bagId);
             if (targetBag) {
                 targetBag.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 targetBag.classList.add('ring-4', 'ring-yellow-400', 'ring-opacity-75');
