@@ -3728,6 +3728,11 @@ async function saveQuickBagBatch(bagId, receiveId, receiveName) {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
 
+    const filterInput = document.getElementById('bag-search-filter');
+    const currentFilter = filterInput ? filterInput.value : '';
+    const scrollContainer = document.getElementById('receive-modal-content');
+    const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+
     try {
         const response = await csrfFetch(`/api/bag/${bagId}/batch`, {
             method: 'POST',
@@ -3743,6 +3748,29 @@ async function saveQuickBagBatch(bagId, receiveId, receiveName) {
 
         closeQuickBagBatchModal();
         await viewReceiveDetails(receiveId, receiveName, null, bagId);
+
+        const restoreState = () => {
+            const newFilterInput = document.getElementById('bag-search-filter');
+            if (newFilterInput && currentFilter) {
+                newFilterInput.value = currentFilter;
+                filterReceiveBags(currentFilter);
+            }
+
+            const newScrollContainer = document.getElementById('receive-modal-content');
+            if (newScrollContainer && currentScroll) {
+                newScrollContainer.scrollTop = currentScroll;
+            }
+
+            const targetBag = document.getElementById(`bag-card-${bagId}`);
+            if (targetBag) {
+                targetBag.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetBag.classList.add('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                setTimeout(() => {
+                    targetBag.classList.remove('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                }, 2000);
+            }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(restoreState));
     } catch (error) {
         console.error('Error saving quick bag batch:', error);
         alert('Failed to update bag batch: ' + error.message);
