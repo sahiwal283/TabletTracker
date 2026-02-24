@@ -29,6 +29,7 @@ class SchemaManager:
             self._create_warehouse_submissions_table(c)
             self._create_shipments_table(c)
             self._create_receiving_table(c)
+            self._create_receiving_flavor_batches_table(c)
             self._create_small_boxes_table(c)
             self._create_bags_table(c)
             self._create_machine_counts_table(c)
@@ -186,6 +187,7 @@ class SchemaManager:
             receiving_id INTEGER,
             box_number INTEGER,
             total_bags INTEGER DEFAULT 0,
+            batch_number_default TEXT,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (receiving_id) REFERENCES receiving (id)
@@ -201,10 +203,25 @@ class SchemaManager:
             pill_count INTEGER,
             tablet_type_id INTEGER,
             status TEXT DEFAULT 'Available',
+            batch_number TEXT,
+            batch_source TEXT,
             receive_name TEXT,
             reserved_for_bottles BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (small_box_id) REFERENCES small_boxes (id)
+        )''')
+
+    def _create_receiving_flavor_batches_table(self, c):
+        """Create receiving_flavor_batches table for shipment-level flavor defaults"""
+        c.execute('''CREATE TABLE IF NOT EXISTS receiving_flavor_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receiving_id INTEGER NOT NULL,
+            tablet_type_id INTEGER NOT NULL,
+            batch_number TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(receiving_id, tablet_type_id),
+            FOREIGN KEY (receiving_id) REFERENCES receiving (id) ON DELETE CASCADE,
+            FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
     
     def _create_machine_counts_table(self, c):
