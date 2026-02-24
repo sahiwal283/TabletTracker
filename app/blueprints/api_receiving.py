@@ -748,6 +748,79 @@ def close_bag(bag_id):
         return jsonify({'success': False, 'error': f'Failed to close bag: {str(e)}'}), 500
 
 
+@bp.route('/api/bag/<int:bag_id>/batch', methods=['POST'])
+@role_required('dashboard')
+def update_bag_batch(bag_id):
+    """Quick-update bag-specific batch and recompute effective batch/source."""
+    try:
+        user_role = session.get('employee_role')
+        is_admin = session.get('admin_authenticated')
+        if user_role not in ['manager', 'admin'] and not is_admin:
+            return jsonify({'success': False, 'error': 'Only managers and admins can edit bag batch'}), 403
+
+        data = request.get_json() or {}
+        bag_specific_batch_number = normalize_batch_number(data.get('bag_specific_batch_number'))
+
+        with db_transaction() as conn:
+            bag_row = conn.execute('''
+                SELECT b.id, b.bag_number, b.tablet_type_id, sb.box_number, sb.batch_number_default, sb.receiving_id,
+                       tt.tablet_type_name
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE b.id = ?
+            ''', (bag_id,)).fetchone()
+
+            if not bag_row:
+                return jsonify({'success': False, 'error': 'Bag not found'}), 404
+
+            bag = dict(bag_row)
+            shipment_default_row = conn.execute('''
+                SELECT batch_number
+                FROM receiving_flavor_batches
+                WHERE receiving_id = ? AND tablet_type_id = ?
+                LIMIT 1
+            ''', (bag['receiving_id'], bag['tablet_type_id'])).fetchone()
+
+            shipment_default_batch = shipment_default_row['batch_number'] if shipment_default_row else None
+            box_default_batch = bag.get('batch_number_default')
+
+            effective_batch = None
+            batch_source = None
+            if bag_specific_batch_number:
+                effective_batch = bag_specific_batch_number
+                batch_source = 'bag_specific'
+            elif box_default_batch:
+                effective_batch = box_default_batch
+                batch_source = 'box_default'
+            elif shipment_default_batch:
+                effective_batch = shipment_default_batch
+                batch_source = 'shipment_default'
+
+            conn.execute('''
+                UPDATE bags
+                SET batch_number = ?, batch_source = ?
+                WHERE id = ?
+            ''', (effective_batch, batch_source, bag_id))
+
+            return jsonify({
+                'success': True,
+                'message': 'Bag batch updated successfully.',
+                'bag_id': bag_id,
+                'bag_number': bag.get('bag_number'),
+                'box_number': bag.get('box_number'),
+                'tablet_type_name': bag.get('tablet_type_name'),
+                'effective_batch_number': effective_batch,
+                'effective_batch_source': batch_source
+            })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"Error updating bag batch for bag {bag_id}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to update bag batch: {str(e)}'}), 500
+
+
 @bp.route('/api/bag/<int:bag_id>/reserve-bottles', methods=['POST'])
 @role_required('dashboard')
 def reserve_bag_for_bottles(bag_id):
