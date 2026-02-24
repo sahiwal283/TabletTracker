@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.5] - 2026-02-18
+
+### 🐛 Bug Fix
+
+#### Fix Receive Details Box Jump Not Navigating
+- **Issue**: Selecting a box in the receive modal dropdown (or clicking `Go`) could fail to scroll to the target box.
+- **Fix**:
+  - Set the `Go` button to `type="button"` so it never triggers form submission behavior.
+  - Make box jump resolution use the currently visible view first (box/flavor), then fallback selectors.
+  - Add robust box-number matching for both exact string and numeric-equivalent values.
+  - Keep jump state persistence intact while using normalized box values.
+- **Result**: Dropdown selection and `Go` now reliably navigate to the chosen box.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.43.1] - 2026-02-18
 
 ### 🐛 Bug Fix

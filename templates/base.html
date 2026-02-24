@@ -2942,7 +2942,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                 class="px-2 py-1.5 text-sm border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                             ${boxDropdownOptions}
                         </select>
-                        <button onclick="jumpToBox(document.getElementById('box-jump-dropdown')?.value || '')"
+                        <button type="button" onclick="jumpToBox(document.getElementById('box-jump-dropdown')?.value || '')"
                                 class="px-2 py-1.5 text-xs border rounded-lg bg-white shadow-sm hover:bg-gray-50 text-gray-700">
                             Go
                         </button>
@@ -3087,7 +3087,8 @@ function switchReceiveView(viewMode) {
 
 // Jump to a specific box
 function jumpToBox(boxNumber, skipStateSave = false) {
-    if (!boxNumber) return;
+    const normalizedBox = String(boxNumber || '').trim();
+    if (!normalizedBox) return;
 
     if (!skipStateSave) {
         const modal = document.getElementById('receive-details-modal');
@@ -3096,22 +3097,45 @@ function jumpToBox(boxNumber, skipStateSave = false) {
             window.receiveDetailsModalState = window.receiveDetailsModalState || {};
             window.receiveDetailsModalState[receiveId] = {
                 ...(window.receiveDetailsModalState[receiveId] || {}),
-                boxNumber: String(boxNumber)
+                boxNumber: normalizedBox
             };
-            setReceiveDetailsState(receiveId, { boxNumber: String(boxNumber) });
+            setReceiveDetailsState(receiveId, { boxNumber: normalizedBox });
         }
     }
-    
-    const currentView = localStorage.getItem('receiveDetailsViewMode') || 'box';
+
+    const boxView = document.getElementById('box-view-content');
+    const flavorView = document.getElementById('flavor-view-content');
+    const boxViewVisible = !!boxView && !boxView.classList.contains('hidden') && boxView.style.display !== 'none';
+    const flavorViewVisible = !!flavorView && !flavorView.classList.contains('hidden') && flavorView.style.display !== 'none';
+
+    const findByBoxNumber = (selector) => {
+        const exact = document.querySelector(`${selector}[data-box-number="${normalizedBox}"]`);
+        if (exact) return exact;
+        const targetNum = parseInt(normalizedBox, 10);
+        if (Number.isNaN(targetNum)) return null;
+        const candidates = document.querySelectorAll(selector);
+        for (const el of candidates) {
+            const raw = el.getAttribute('data-box-number');
+            const num = parseInt(raw || '', 10);
+            if (!Number.isNaN(num) && num === targetNum) return el;
+        }
+        return null;
+    };
+
     let targetElement = null;
-    
-    if (currentView === 'box') {
-        targetElement = document.getElementById(`box-section-${boxNumber}`);
-    } else {
-        // In flavor view, find first box subsection with this number
-        targetElement = document.querySelector(`.box-subsection[data-box-number="${boxNumber}"]`);
+    if (boxViewVisible) {
+        targetElement = document.getElementById(`box-section-${normalizedBox}`) || findByBoxNumber('.box-section');
     }
-    
+    if (!targetElement && flavorViewVisible) {
+        targetElement = findByBoxNumber('.box-subsection');
+    }
+    // Fallback to both views in case persisted view state and rendered view diverge.
+    if (!targetElement) {
+        targetElement = document.getElementById(`box-section-${normalizedBox}`) ||
+                        findByBoxNumber('.box-section') ||
+                        findByBoxNumber('.box-subsection');
+    }
+
     if (targetElement) {
         targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         // Brief highlight
