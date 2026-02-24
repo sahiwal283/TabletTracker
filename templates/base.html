@@ -3087,7 +3087,11 @@ function switchReceiveView(viewMode) {
 
 // Jump to a specific box
 function jumpToBox(boxNumber, skipStateSave = false) {
-    const normalizedBox = String(boxNumber || '').trim();
+    const rawBoxValue = String(boxNumber || '').trim();
+    if (!rawBoxValue) return;
+    // Accept values like "41", "041", or "Box 41 (5 bags)".
+    const extractedMatch = rawBoxValue.match(/\d+/);
+    const normalizedBox = extractedMatch ? String(parseInt(extractedMatch[0], 10)) : rawBoxValue;
     if (!normalizedBox) return;
 
     if (!skipStateSave) {
@@ -3137,7 +3141,15 @@ function jumpToBox(boxNumber, skipStateSave = false) {
     }
 
     if (targetElement) {
-        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const scrollContainer = document.getElementById('receive-modal-content');
+        if (scrollContainer) {
+            const targetTop = targetElement.offsetTop;
+            const containerTop = scrollContainer.offsetTop;
+            const desiredTop = Math.max(0, targetTop - containerTop - 8);
+            scrollContainer.scrollTo({ top: desiredTop, behavior: 'smooth' });
+        } else {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
         // Brief highlight
         targetElement.classList.add('ring-2', 'ring-teal-400');
         setTimeout(() => {

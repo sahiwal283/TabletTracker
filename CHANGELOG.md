@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.7] - 2026-02-18
+
+### 🐛 Bug Fix
+
+#### Make Receive Modal Box Jump Deterministic
+- **Issue**: Selecting a box and clicking `Go` could still fail to navigate in some sessions.
+- **Fix**:
+  - Normalize/parse dropdown values defensively (supports raw numeric or labeled values).
+  - Scroll the modal content container directly to the target section instead of relying only on `scrollIntoView`.
+  - Keep previous selector fallback logic and highlight behavior.
+- **Result**: Box jump now reliably moves to the chosen box section.
+- **Files Updated**:
+  - `templates/base.html`
+
+---
+
 ## [2.44.5] - 2026-02-18
 
 ### 🐛 Bug Fix
