@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.9] - 2026-02-18
+
+### 🐛 Bug Fix
+
+#### Preserve Receipt Filter Across Submissions Pagination
+- **Issue**: On `/submissions`, applying `receipt_number` filter worked on page 1 but clicking next page dropped the filter and showed unfiltered results.
+- **Fix**:
+  - Include `receipt_number` in pagination query parameter construction so all page links retain active filter state.
+- **Result**: `Next`/page-number navigation now keeps receipt filtering active across pages.
+- **Files Updated**:
+  - `templates/submissions.html`
+
+---
+
 ## [2.44.7] - 2026-02-18
 
 ### 🐛 Bug Fix
