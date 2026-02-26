@@ -471,20 +471,16 @@
             </div>
             
             <div class="flex items-center gap-2">
+                {# Build pagination query from current request args (except page).
+                   This guarantees all active filters persist across pages. #}
                 {% set query_parts = [] %}
-                {% if filter_info.po_id %}{% set _ = query_parts.append('po_id=' + filter_info.po_id|string) %}{% endif %}
-                {% if filter_info.item_id %}{% set _ = query_parts.append('item_id=' + filter_info.item_id) %}{% endif %}
-                {% if filter_info.date_from %}{% set _ = query_parts.append('date_from=' + filter_info.date_from) %}{% endif %}
-                {% if filter_info.date_to %}{% set _ = query_parts.append('date_to=' + filter_info.date_to) %}{% endif %}
-                {% if filter_info.tablet_type_id %}{% set _ = query_parts.append('tablet_type_id=' + filter_info.tablet_type_id|string) %}{% endif %}
-                {% if filter_submission_type %}{% set _ = query_parts.append('submission_type=' + filter_submission_type) %}{% endif %}
-                {% if filter_receipt_number %}{% set _ = query_parts.append('receipt_number=' + filter_receipt_number) %}{% endif %}
-                {% if show_archived %}{% set _ = query_parts.append('show_archived=true') %}{% endif %}
-                {% if active_tab %}{% set _ = query_parts.append('tab=' + active_tab) %}{% endif %}
-                {% if sort_by %}{% set _ = query_parts.append('sort_by=' + sort_by) %}{% endif %}
-                {% if sort_order %}{% set _ = query_parts.append('sort_order=' + sort_order) %}{% endif %}
+                {% for key, value in request.args.items() %}
+                    {% if key != 'page' and value is not none and value != '' %}
+                        {% set _ = query_parts.append(key ~ '=' ~ ((value|string)|urlencode)) %}
+                    {% endif %}
+                {% endfor %}
                 {% set filter_query = query_parts|join('&') %}
-                {% set page_prefix = '?' + filter_query + '&' if filter_query else '?' %}
+                {% set page_prefix = '?' ~ filter_query ~ ('&' if filter_query else '') %}
                 
                 <!-- Previous Button -->
                 {% if pagination.has_prev %}

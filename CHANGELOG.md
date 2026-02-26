@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.10] - 2026-02-18
+
+### 🐛 Bug Fix
+
+#### Make Submissions Pagination Filter Persistence Generic
+- **Issue**: Filter persistence regressions could recur when new filters are added but not manually appended to pagination links.
+- **Fix**:
+  - Build pagination query params from `request.args` dynamically (excluding only `page`), instead of manually enumerating each filter.
+- **Result**: Pagination now automatically preserves all active filters, including future filter fields, without extra template updates.
+- **Files Updated**:
+  - `templates/submissions.html`
+
+---
+
 ## [2.44.9] - 2026-02-18
 
 ### 🐛 Bug Fix
