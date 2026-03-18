@@ -1553,11 +1553,11 @@ async function convertToTwoLevelDropdown(selectElement) {
                 
                 <!-- Admin Notes (Editable) -->
                 <div id="admin-notes-section" class="mt-4">
-                    <label class="block text-sm font-medium text-purple-800 mb-1">🔒 Admin Notes (Optional)</label>
+                    <label class="block text-sm font-medium text-purple-800 mb-1">Notes (Optional)</label>
                     <textarea id="edit-admin-notes" rows="3"
                               class="w-full px-3 py-2 border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-purple-50 text-sm text-gray-700"
-                              placeholder="Add internal notes visible to admins and managers..."></textarea>
-                    <p class="text-xs text-purple-600 mt-1">These notes are visible to administrators and managers</p>
+                              placeholder="Add internal notes..."></textarea>
+                    <p class="text-xs text-purple-600 mt-1">These notes are visible to all users</p>
                 </div>
                 
                 <!-- Admin Change PO Section (Only for verified submissions) -->
@@ -1601,12 +1601,12 @@ async function convertToTwoLevelDropdown(selectElement) {
     </div>
 </div>
 
-<!-- Admin Notes View Modal (Read-only) -->
+<!-- Notes View Modal (Read-only) -->
 <div id="admin-notes-view-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[70]" onclick="closeAdminNotesModal(event)">
     <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4" onclick="event.stopPropagation()">
         <div class="p-6">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-gray-900">Admin Notes</h3>
+                <h3 class="text-xl font-bold text-gray-900">Notes</h3>
                 <button onclick="event.stopPropagation(); closeAdminNotesModal(event)" class="text-gray-400 hover:text-gray-600">
                     <span class="text-2xl">&times;</span>
                 </button>
@@ -2526,10 +2526,10 @@ async function viewSubmissionDetails(submissionId) {
                             </div>
                         </div>
                         
-                        <!-- Admin Notes -->
+                        <!-- Notes -->
                         ${sub.admin_notes ? `
                         <div class="mb-6">
-                            <h4 class="text-lg font-semibold text-gray-900 mb-4">Admin Notes</h4>
+                            <h4 class="text-lg font-semibold text-gray-900 mb-4">Notes</h4>
                             <div class="bg-purple-50 rounded-lg p-4">
                                 <p class="text-gray-900 whitespace-pre-wrap">${sub.admin_notes}</p>
                             </div>

@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.13] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Notes Visible to All Users (Submissions/Dashboard)
+- **Enhancement**: Removed admin/manager-only gating for viewing notes on `/submissions` and the dashboard, and renamed “Admin Notes” wording to “Notes” in shared modals.
+- **Files Updated**:
+  - `templates/submissions.html`
+  - `templates/dashboard.html`
+  - `templates/base.html`
+
+---
+
 ## [2.44.11] - 2026-03-18
 
 ### ✨ Enhancement
