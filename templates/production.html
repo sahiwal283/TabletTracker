@@ -33,12 +33,38 @@
             <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
                 <p class="text-green-800 font-semibold flex items-center justify-center text-base sm:text-lg">
                     <span class="text-xl sm:text-2xl mr-2 sm:mr-3">👷</span>
-                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                    {{ gettext('Employee') }}: <span id="machine-employee-name-display">{{ employee.full_name }}</span>
                 </p>
             </div>
             {% endif %}
+            <div class="mt-3 sm:mt-0">
+                <label for="machine_employee_name" class="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+                    Employee Name *
+                </label>
+                <input type="text"
+                       id="machine_employee_name"
+                       name="employee_name"
+                       required
+                       class="form-input text-base"
+                       placeholder="Type your name (e.g., John Smith)"
+                       value="{{ employee.full_name if employee else '' }}">
+                <p class="text-xs text-gray-500 mt-1">This name will be recorded under the Employee field for this submission.</p>
+            </div>
             <p class="text-sm sm:text-base text-gray-600">Enter the counter number on the machine for that particular flavor</p>
         </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('machine_employee_name');
+            const display = document.getElementById('machine-employee-name-display');
+            if (!input || !display) return;
+            const sync = () => {
+                display.textContent = (input.value || '').trim() || '—';
+            };
+            input.addEventListener('input', sync);
+            sync();
+        });
+    </script>
         
         <form id="machine-count-form-submit" class="space-y-4">
             <!-- Product Selection -->

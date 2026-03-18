@@ -380,18 +380,31 @@ def submit_count():
             return jsonify({'error': 'Tablet type is required'}), 400
         
         with db_transaction() as conn:
-            # Get employee name from session (logged-in user)
-            if session.get('admin_authenticated'):
-                employee_name = 'Admin'
+            # Prefer explicit employee name entered on the form (for shared production-room accounts).
+            submitted_employee_name = data.get('employee_name')
+            if isinstance(submitted_employee_name, str):
+                submitted_employee_name = submitted_employee_name.strip()
             else:
-                employee = conn.execute('''
-                    SELECT full_name FROM employees WHERE id = ?
-                ''', (session.get('employee_id'),)).fetchone()
-                
-                if not employee:
-                    return jsonify({'error': 'Employee not found'}), 400
-                
-                employee_name = employee['full_name']
+                submitted_employee_name = None
+
+            if submitted_employee_name:
+                employee_name = submitted_employee_name
+            else:
+                # Fallback to employee name from session
+                if session.get('admin_authenticated'):
+                    employee_name = 'Admin'
+                else:
+                    employee = conn.execute('''
+                        SELECT full_name FROM employees WHERE id = ?
+                    ''', (session.get('employee_id'),)).fetchone()
+                    
+                    if not employee:
+                        return jsonify({'error': 'Employee not found'}), 400
+                    
+                    employee_name = employee['full_name']
+
+            if not employee_name:
+                return jsonify({'error': 'Employee name is required'}), 400
             
             # Get tablet type details
             tablet_type = conn.execute('''
@@ -495,18 +508,31 @@ def submit_machine_count():
             return jsonify({'error': 'Date is required'}), 400
         
         with db_transaction() as conn:
-            # Get employee name from session (logged-in user)
-            if session.get('admin_authenticated'):
-                employee_name = 'Admin'
+            # Prefer explicit employee name entered on the form (shared production-room accounts).
+            submitted_employee_name = data.get('employee_name')
+            if isinstance(submitted_employee_name, str):
+                submitted_employee_name = submitted_employee_name.strip()
             else:
-                employee = conn.execute('''
-                    SELECT full_name FROM employees WHERE id = ?
-                ''', (session.get('employee_id'),)).fetchone()
-                
-                if not employee:
-                    return jsonify({'error': 'Employee not found'}), 400
-                
-                employee_name = employee['full_name']
+                submitted_employee_name = None
+
+            if submitted_employee_name:
+                employee_name = submitted_employee_name
+            else:
+                # Fallback to employee name from session
+                if session.get('admin_authenticated'):
+                    employee_name = 'Admin'
+                else:
+                    employee = conn.execute('''
+                        SELECT full_name FROM employees WHERE id = ?
+                    ''', (session.get('employee_id'),)).fetchone()
+                    
+                    if not employee:
+                        return jsonify({'error': 'Employee not found'}), 400
+                    
+                    employee_name = employee['full_name']
+
+            if not employee_name:
+                return jsonify({'error': 'Employee name is required'}), 400
         
             # Get product details and derive tablet type
             product = conn.execute('''

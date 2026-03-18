@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.11] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Add Employee Name to Machine Count Form
+- **Enhancement**: Added an "Employee Name" input to the Machine Count form so shared production-room accounts can record the actual staff name.
+- **Result**: Saved `employee_name` on machine count submissions matches what staff type into the form.
+- **Files Updated**:
+  - `templates/production.html`
+  - `app/blueprints/production.py`
+
+---
+
 ## [2.44.10] - 2026-02-18
 
 ### 🐛 Bug Fix
