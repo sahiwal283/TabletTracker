@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.12] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Notes Available for All Users (Production Forms)
+- **Enhancement**: Changed the production form “Admin Notes” fields to plain “Notes” and made note-saving available for all users (non-admin notes are no longer dropped).
+- **Files Updated**:
+  - `templates/production.html`
+  - `app/blueprints/production.py`
+
+---
+
 ## [2.44.11] - 2026-03-18
 
 ### ✨ Enhancement

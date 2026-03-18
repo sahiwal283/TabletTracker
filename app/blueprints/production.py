@@ -182,14 +182,13 @@ def submit_warehouse():
             # Get submission_date (defaults to today if not provided)
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
         
-            # Get admin_notes if user is admin or manager
+            # Notes are optional and available to all users.
             admin_notes = None
-            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
-                admin_notes_raw = data.get('admin_notes', '')
-                if admin_notes_raw and isinstance(admin_notes_raw, str):
-                    admin_notes = admin_notes_raw.strip() or None
-                elif admin_notes_raw:
-                    admin_notes = str(admin_notes_raw).strip() or None
+            admin_notes_raw = data.get('admin_notes', '')
+            if isinstance(admin_notes_raw, str):
+                admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                admin_notes = str(admin_notes_raw).strip() or None
         
             # Insert submission record using logged-in employee name WITH inventory_item_id
             inventory_item_id = product.get('inventory_item_id')
@@ -433,14 +432,13 @@ def submit_count():
             # Get submission_date (defaults to today if not provided)
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
             
-            # Get admin_notes if user is admin or manager
+            # Notes are optional and available to all users.
             admin_notes = None
-            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
-                admin_notes_raw = data.get('admin_notes', '')
-                if admin_notes_raw and isinstance(admin_notes_raw, str):
-                    admin_notes = admin_notes_raw.strip() or None
-                elif admin_notes_raw:
-                    admin_notes = str(admin_notes_raw).strip() or None
+            admin_notes_raw = data.get('admin_notes', '')
+            if isinstance(admin_notes_raw, str):
+                admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                admin_notes = str(admin_notes_raw).strip() or None
             
             # RECEIVE-BASED TRACKING: Find matching bag in receives
             # NEW: Pass bag_number first, box_number as optional parameter
@@ -619,15 +617,14 @@ def submit_machine_count():
             box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
             bag_number = data.get('bag_number')
         
-            # Get admin_notes if user is admin or manager
+            # Notes are optional and available to all users.
             admin_notes = None
-            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
-                admin_notes_raw = data.get('admin_notes', '')
-                if admin_notes_raw and isinstance(admin_notes_raw, str):
-                    admin_notes = admin_notes_raw.strip() or None
-                elif admin_notes_raw:
-                    # Handle non-string values (shouldn't happen, but be safe)
-                    admin_notes = str(admin_notes_raw).strip() or None
+            admin_notes_raw = data.get('admin_notes', '')
+            if isinstance(admin_notes_raw, str):
+                admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                # Handle non-string values (shouldn't happen, but be safe)
+                admin_notes = str(admin_notes_raw).strip() or None
         
             # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
             bag = None
@@ -885,10 +882,11 @@ def submit_bottles():
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
             receipt_number = (data.get('receipt_number') or '').strip() or None
             admin_notes = None
-            if session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']:
-                admin_notes_raw = data.get('admin_notes', '')
-                if admin_notes_raw and isinstance(admin_notes_raw, str):
-                    admin_notes = admin_notes_raw.strip() or None
+            admin_notes_raw = data.get('admin_notes', '')
+            if isinstance(admin_notes_raw, str):
+                admin_notes = admin_notes_raw.strip() or None
+            elif admin_notes_raw:
+                admin_notes = str(admin_notes_raw).strip() or None
             
             deduction_details = []
             
