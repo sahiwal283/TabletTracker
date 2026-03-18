@@ -55,14 +55,42 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const input = document.getElementById('machine_employee_name');
-            const display = document.getElementById('machine-employee-name-display');
-            if (!input || !display) return;
-            const sync = () => {
-                display.textContent = (input.value || '').trim() || '—';
+            const employeeInputs = [
+                document.getElementById('machine_employee_name'),
+                document.getElementById('packaged_employee_name'),
+                document.getElementById('bag_employee_name'),
+                document.getElementById('bottles_employee_name')
+            ].filter(Boolean);
+            const employeeDisplays = [
+                document.getElementById('machine-employee-name-display'),
+                document.getElementById('packaged-employee-name-display'),
+                document.getElementById('bag-employee-name-display'),
+                document.getElementById('bottles-employee-name-display')
+            ].filter(Boolean);
+
+            if (employeeInputs.length === 0) return;
+
+            const applyName = (rawName, sourceInput = null) => {
+                const normalized = (rawName || '').trim();
+                employeeDisplays.forEach(display => {
+                    display.textContent = normalized || '—';
+                });
+                employeeInputs.forEach(input => {
+                    if (sourceInput && input === sourceInput) return;
+                    input.value = normalized;
+                });
             };
-            input.addEventListener('input', sync);
-            sync();
+
+            const initialName = employeeInputs
+                .map(input => (input.value || '').trim())
+                .find(Boolean) || '';
+
+            applyName(initialName);
+
+            employeeInputs.forEach(input => {
+                input.addEventListener('input', () => applyName(input.value, input));
+                input.addEventListener('change', () => applyName(input.value, input));
+            });
         });
     </script>
         
@@ -175,7 +203,7 @@
             <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
                 <p class="text-green-800 font-semibold flex items-center justify-center">
                     <span class="text-2xl mr-3">👷</span>
-                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                    {{ gettext('Employee') }}: <span id="packaged-employee-name-display">{{ employee.full_name }}</span>
                 </p>
             </div>
             {% endif %}
@@ -191,6 +219,16 @@
         </div>
         
         <form id="warehouse-form" class="space-y-4">
+            <div>
+                <label for="packaged_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Employee Name *
+                </label>
+                <input type="text" id="packaged_employee_name" name="employee_name" required
+                       class="form-input" placeholder="Type your name (e.g., John Smith)"
+                       value="{{ employee.full_name if employee else '' }}">
+                <p class="text-xs text-gray-500 mt-1">This name will be recorded under the Employee field for this submission.</p>
+            </div>
+            
             
             <!-- Receipt Number (Primary Identifier) -->
             <div>
@@ -330,7 +368,7 @@
             <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
                 <p class="text-green-800 font-semibold flex items-center justify-center">
                     <span class="text-2xl mr-3">👷</span>
-                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                    {{ gettext('Employee') }}: <span id="bag-employee-name-display">{{ employee.full_name }}</span>
                 </p>
             </div>
             {% endif %}
@@ -338,6 +376,16 @@
         </div>
         
         <form id="count-form" class="space-y-4">
+            <div>
+                <label for="bag_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Employee Name *
+                </label>
+                <input type="text" id="bag_employee_name" name="employee_name" required
+                       class="form-input" placeholder="Type your name (e.g., John Smith)"
+                       value="{{ employee.full_name if employee else '' }}">
+                <p class="text-xs text-gray-500 mt-1">This name will be recorded under the Employee field for this submission.</p>
+            </div>
+            
             <!-- Tablet Type Selection (Raw Material) -->
             <div>
                 <label for="bag_count_tablet_type" class="block text-sm font-medium text-gray-700 mb-1">
@@ -435,7 +483,7 @@
             <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
                 <p class="text-green-800 font-semibold flex items-center justify-center text-base sm:text-lg">
                     <span class="text-xl sm:text-2xl mr-2 sm:mr-3">👷</span>
-                    {{ gettext('Logged in as') }}: {{ employee.full_name }}
+                    {{ gettext('Employee') }}: <span id="bottles-employee-name-display">{{ employee.full_name }}</span>
                 </p>
             </div>
             {% endif %}
@@ -443,6 +491,16 @@
         </div>
         
         <form id="bottles-form-submit" class="space-y-4">
+            <div>
+                <label for="bottles_employee_name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Employee Name *
+                </label>
+                <input type="text" id="bottles_employee_name" name="employee_name" required
+                       class="form-input" placeholder="Type your name (e.g., John Smith)"
+                       value="{{ employee.full_name if employee else '' }}">
+                <p class="text-xs text-gray-500 mt-1">This name will be recorded under the Employee field for this submission.</p>
+            </div>
+            
             <!-- Product Selection -->
             <div>
                 <label for="bottles_product" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.14] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Employee Name Override Across All Production Forms
+- **Enhancement**: Added `Employee Name` fields and live employee header syncing for Packaged, Bag Count, and Bottles forms (matching Machine Count behavior).
+- **Enhancement**: Updated packaged and bottle submission handlers to persist `employee_name` from form input (with session fallback).
+- **Files Updated**:
+  - `templates/production.html`
+  - `app/blueprints/production.py`
+
+---
+
 ## [2.44.12] - 2026-03-18
 
 ### ✨ Enhancement

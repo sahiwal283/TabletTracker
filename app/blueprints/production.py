@@ -99,20 +99,32 @@ def submit_warehouse():
         # Ensure submission_type column exists
         ensure_submission_type_column()
         
-        # Get employee name from session
         with db_transaction() as conn:
-            # Handle admin users (they don't have employee_id in session)
-            if session.get('admin_authenticated'):
-                employee_name = 'Admin'
+            # Prefer explicit employee name from the form (shared production-room accounts).
+            submitted_employee_name = data.get('employee_name')
+            if isinstance(submitted_employee_name, str):
+                submitted_employee_name = submitted_employee_name.strip()
             else:
-                employee = conn.execute('''
-                    SELECT full_name FROM employees WHERE id = ?
-                ''', (session.get('employee_id'),)).fetchone()
-                
-                if not employee:
-                    return jsonify({'error': 'Employee not found'}), 400
-                
-                employee_name = employee['full_name']
+                submitted_employee_name = None
+
+            if submitted_employee_name:
+                employee_name = submitted_employee_name
+            else:
+                # Fallback to authenticated session employee
+                if session.get('admin_authenticated'):
+                    employee_name = 'Admin'
+                else:
+                    employee = conn.execute('''
+                        SELECT full_name FROM employees WHERE id = ?
+                    ''', (session.get('employee_id'),)).fetchone()
+                    
+                    if not employee:
+                        return jsonify({'error': 'Employee not found'}), 400
+                    
+                    employee_name = employee['full_name']
+
+            if not employee_name:
+                return jsonify({'error': 'Employee name is required'}), 400
             
             # Get product details
             product_name = data.get('product_name', '').strip()
@@ -842,18 +854,31 @@ def submit_bottles():
             return jsonify({'error': 'Product is required'}), 400
         
         with db_transaction() as conn:
-            # Get employee name from session
-            if session.get('admin_authenticated'):
-                employee_name = 'Admin'
+            # Prefer explicit employee name from the form (shared production-room accounts).
+            submitted_employee_name = data.get('employee_name')
+            if isinstance(submitted_employee_name, str):
+                submitted_employee_name = submitted_employee_name.strip()
             else:
-                employee = conn.execute('''
-                    SELECT full_name FROM employees WHERE id = ?
-                ''', (session.get('employee_id'),)).fetchone()
-                
-                if not employee:
-                    return jsonify({'error': 'Employee not found'}), 400
-                
-                employee_name = employee['full_name']
+                submitted_employee_name = None
+
+            if submitted_employee_name:
+                employee_name = submitted_employee_name
+            else:
+                # Fallback to authenticated session employee
+                if session.get('admin_authenticated'):
+                    employee_name = 'Admin'
+                else:
+                    employee = conn.execute('''
+                        SELECT full_name FROM employees WHERE id = ?
+                    ''', (session.get('employee_id'),)).fetchone()
+                    
+                    if not employee:
+                        return jsonify({'error': 'Employee not found'}), 400
+                    
+                    employee_name = employee['full_name']
+
+            if not employee_name:
+                return jsonify({'error': 'Employee name is required'}), 400
             
             # Get product details (now from product_details table)
             product = conn.execute('''
