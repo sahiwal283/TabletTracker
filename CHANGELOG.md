@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.15] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Reorder Machine Count Form Fields
+- **Enhancement**: Reordered Machine Count fields to follow production workflow order: Employee Name, Product, Bag Number, Box Number, Machine, Machine Count, Receipt, and Notes.
+- **Files Updated**:
+  - `templates/production.html`
+
+---
+
 ## [2.44.14] - 2026-03-18
 
 ### ✨ Enhancement
