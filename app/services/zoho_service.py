@@ -430,6 +430,8 @@ class ZohoInventoryAPI:
             
             # Get PO creation date from Zoho (they use 'date' field for PO date)
             po_date = po.get('date', '') or po.get('created_time', '') or po.get('purchaseorder_date', '')
+            vendor_id = po.get('vendor_id') or po.get('contact_id') or None
+            vendor_name = po.get('vendor_name') or po.get('contact_name') or None
             
             # Detect parent PO for overs POs (e.g., PO-00127-OVERS -> PO-00127)
             parent_po_number = None
@@ -476,16 +478,22 @@ class ZohoInventoryAPI:
                 if po_date and po_date != existing.get('created_at', '')[:10]:
                     db_conn.execute('''
                         UPDATE purchase_orders 
-                        SET po_number = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
+                        SET po_number = ?, vendor_id = ?, vendor_name = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
-                    ''', (po['purchaseorder_number'], zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date, po['purchaseorder_id']))
+                    ''', (
+                        po['purchaseorder_number'], vendor_id, vendor_name,
+                        zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date, po['purchaseorder_id']
+                    ))
                 else:
                     # Always update closed status and internal status - this is critical for preventing assignments
                     db_conn.execute('''
                         UPDATE purchase_orders 
-                        SET po_number = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, updated_at = CURRENT_TIMESTAMP
+                        SET po_number = ?, vendor_id = ?, vendor_name = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
-                    ''', (po['purchaseorder_number'], zoho_status, is_now_closed, new_internal_status, parent_po_number, po['purchaseorder_id']))
+                    ''', (
+                        po['purchaseorder_number'], vendor_id, vendor_name,
+                        zoho_status, is_now_closed, new_internal_status, parent_po_number, po['purchaseorder_id']
+                    ))
                 
                 # Log status changes
                 if (was_closed != is_now_closed) or (was_cancelled != is_cancelled):
@@ -514,16 +522,20 @@ class ZohoInventoryAPI:
                 
                 if po_date:
                     cursor = db_conn.execute('''
-                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, internal_status, parent_po_number, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                          zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date))
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, vendor_id, vendor_name, zoho_status, closed, internal_status, parent_po_number, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        po['purchaseorder_number'], po['purchaseorder_id'], vendor_id, vendor_name,
+                        zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date
+                    ))
                 else:
                     cursor = db_conn.execute('''
-                        INSERT INTO purchase_orders (po_number, zoho_po_id, zoho_status, closed, internal_status, parent_po_number)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (po['purchaseorder_number'], po['purchaseorder_id'], 
-                          zoho_status, is_now_closed, new_internal_status, parent_po_number))
+                        INSERT INTO purchase_orders (po_number, zoho_po_id, vendor_id, vendor_name, zoho_status, closed, internal_status, parent_po_number)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        po['purchaseorder_number'], po['purchaseorder_id'], vendor_id, vendor_name,
+                        zoho_status, is_now_closed, new_internal_status, parent_po_number
+                    ))
                 po_id = cursor.lastrowid
             
             # Determine actual tablet type from line items  

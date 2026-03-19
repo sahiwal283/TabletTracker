@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.18] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Persist and Display PO Vendor Names
+- **Enhancement**: Added `vendor_id`/`vendor_name` migration support for `purchase_orders`.
+- **Enhancement**: Updated Zoho PO sync to store and refresh vendor metadata on insert/update.
+- **Enhancement**: Added vendor name display on the All Purchase Orders page under each PO number.
+- **Result**: Receiving PO dropdowns can show `PO Number — Vendor Name` once vendor fields are populated by sync.
+- **Files Updated**:
+  - `app/models/migrations.py`
+  - `app/models/schema.py`
+  - `app/services/zoho_service.py`
+  - `templates/purchase_orders.html`
+
+---
+
 ## [2.44.17] - 2026-03-18
 
 ### 🐛 Bug Fix

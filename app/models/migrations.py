@@ -40,6 +40,10 @@ class MigrationRunner:
         
         # Add parent_po_number column
         self._add_column_if_not_exists('purchase_orders', 'parent_po_number', 'TEXT')
+
+        # Add vendor metadata columns (used for PO selectors and reporting context)
+        self._add_column_if_not_exists('purchase_orders', 'vendor_id', 'TEXT')
+        self._add_column_if_not_exists('purchase_orders', 'vendor_name', 'TEXT')
         
         # Add machine count columns
         self._add_column_if_not_exists('purchase_orders', 'machine_good_count', 'INTEGER DEFAULT 0')

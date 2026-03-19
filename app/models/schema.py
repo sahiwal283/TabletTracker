@@ -64,6 +64,8 @@ class SchemaManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             po_number TEXT UNIQUE NOT NULL,
             zoho_po_id TEXT UNIQUE,
+            vendor_id TEXT,
+            vendor_name TEXT,
             tablet_type TEXT,
             zoho_status TEXT,
             ordered_quantity INTEGER DEFAULT 0,
