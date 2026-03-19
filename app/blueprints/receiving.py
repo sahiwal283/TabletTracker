@@ -29,8 +29,11 @@ def receiving_list():
             # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
             purchase_orders = []
             if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
-                po_rows = conn.execute('''
-                SELECT id, po_number, vendor_name, closed, internal_status, zoho_status
+                po_columns = [row['name'] for row in conn.execute("PRAGMA table_info(purchase_orders)").fetchall()]
+                has_vendor_name = 'vendor_name' in po_columns
+                vendor_select = 'vendor_name' if has_vendor_name else "NULL as vendor_name"
+                po_rows = conn.execute(f'''
+                SELECT id, po_number, {vendor_select}, closed, internal_status, zoho_status
                 FROM purchase_orders
                 WHERE closed = FALSE
                 AND COALESCE(internal_status, '') != 'Cancelled'

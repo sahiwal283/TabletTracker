@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.17] - 2026-03-18
+
+### 🐛 Bug Fix
+
+#### Handle Missing `vendor_name` Column in Receiving PO Query
+- **Issue**: Receiving page crashed on environments where `purchase_orders.vendor_name` does not exist (`sqlite3.OperationalError: no such column: vendor_name`).
+- **Fix**: Added schema-aware fallback in receiving PO query: select `vendor_name` when present, otherwise select `NULL as vendor_name`.
+- **Result**: Receiving page loads correctly across databases with or without `vendor_name` column.
+- **Files Updated**:
+  - `app/blueprints/receiving.py`
+
+---
+
 ## [2.44.16] - 2026-03-18
 
 ### ✨ Enhancement
