@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.16] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Show Vendor Name in Receiving PO Dropdown
+- **Enhancement**: Updated receiving PO selectors to show `PO Number — Vendor Name` for easier PO identification while recording/assigning receives.
+- **Files Updated**:
+  - `app/blueprints/receiving.py`
+  - `templates/receiving.html`
+
+---
+
 ## [2.44.15] - 2026-03-18
 
 ### ✨ Enhancement

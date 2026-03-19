@@ -463,7 +463,7 @@
                             class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">Select a PO...</option>
                         {% for po in purchase_orders %}
-                        <option value="{{ po.id }}">{{ po.po_number }}</option>
+                        <option value="{{ po.id }}">{{ po.po_number }}{% if po.vendor_name %} — {{ po.vendor_name }}{% endif %}</option>
                         {% endfor %}
                     </select>
                     <p class="text-xs text-red-600 mt-1 font-medium">⚠️ Required: All receives must be linked to a PO (source of truth for submissions)</p>
@@ -593,7 +593,7 @@
                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="">No PO assigned</option>
                 {% for po in purchase_orders %}
-                <option value="{{ po.id }}">{{ po.po_number }}</option>
+                <option value="{{ po.id }}">{{ po.po_number }}{% if po.vendor_name %} — {{ po.vendor_name }}{% endif %}</option>
                 {% endfor %}
             </select>
             <div class="mt-6 flex justify-end gap-3">

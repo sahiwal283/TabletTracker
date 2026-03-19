@@ -30,7 +30,7 @@ def receiving_list():
             purchase_orders = []
             if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
                 po_rows = conn.execute('''
-                SELECT id, po_number, closed, internal_status, zoho_status
+                SELECT id, po_number, vendor_name, closed, internal_status, zoho_status
                 FROM purchase_orders
                 WHERE closed = FALSE
                 AND COALESCE(internal_status, '') != 'Cancelled'
