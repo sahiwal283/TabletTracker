@@ -236,11 +236,13 @@ def submit_warehouse():
             box_number_raw = data.get('box_number')
             box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
             bag_number = data.get('bag_number')
+            confirm_reserved_override = bool(data.get('confirm_reserved_override'))
             bag_id = None
             assigned_po_id = None
             bag_label_count = None
             needs_review = False
             error_message = None  # Initialize error_message for all code paths
+            matched_bag = None
         
             # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
             # This is much more reliable than looking up box/bag and re-matching
@@ -269,8 +271,13 @@ def submit_warehouse():
                 
                     # Get bag_label_count if bag_id exists
                     if bag_id:
-                        bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (bag_id,)).fetchone()
+                        bag_row = conn.execute('''
+                            SELECT id, bag_label_count, reserved_for_bottles
+                            FROM bags
+                            WHERE id = ?
+                        ''', (bag_id,)).fetchone()
                         if bag_row:
+                            matched_bag = dict(bag_row)
                             bag_label_count = bag_row['bag_label_count']
                         current_app.logger.info(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
                     else:
@@ -288,6 +295,7 @@ def submit_warehouse():
                 
                 if bag:
                     # Exact match found - auto-assign
+                    matched_bag = bag
                     bag_id = bag['id']
                     assigned_po_id = bag['po_id']
                     bag_label_count = bag.get('bag_label_count', 0)
@@ -302,6 +310,20 @@ def submit_warehouse():
                     current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
                 elif error_message:
                     return jsonify({'error': error_message}), 400
+
+            # For packaged submissions, allow override if bag is reserved for variety/bottle workflows.
+            # Require explicit confirmation from the UI before proceeding.
+            if matched_bag and int(matched_bag.get('reserved_for_bottles') or 0) == 1 and not confirm_reserved_override:
+                return jsonify({
+                    'error': (
+                        f'Bag #{bag_number} (Box #{box_number}) is currently reserved for variety pack/bottle use. '
+                        'Do you want to continue with a regular packaged submission on this bag?'
+                    ),
+                    'requires_reserved_override': True,
+                    'bag_id': bag_id,
+                    'box_number': box_number,
+                    'bag_number': bag_number
+                }), 409
         
             # Verify inventory_item_id column exists before inserting
             try:
@@ -644,6 +666,7 @@ def submit_machine_count():
             error_message = None
             assigned_po_id = None
             bag_id = None
+            confirm_reserved_override = bool(data.get('confirm_reserved_override'))
         
             if bag_number:
                 # NEW: Pass bag_number first, box_number as optional parameter
@@ -666,6 +689,19 @@ def submit_machine_count():
             elif error_message:
                 # No match found
                 current_app.logger.error(f"❌ {error_message}")
+
+            # For machine submissions, reserved bags can still be used with explicit confirmation.
+            if bag and int(bag.get('reserved_for_bottles') or 0) == 1 and not confirm_reserved_override:
+                return jsonify({
+                    'error': (
+                        f'Bag #{bag_number} (Box #{box_number}) is currently reserved for variety pack/bottle use. '
+                        'Do you want to continue with this machine submission on the reserved bag?'
+                    ),
+                    'requires_reserved_override': True,
+                    'bag_id': bag_id,
+                    'box_number': box_number,
+                    'bag_number': bag_number
+                }), 409
         
         # Get receipt_number from form data
             receipt_number = (data.get('receipt_number') or '').strip() or None

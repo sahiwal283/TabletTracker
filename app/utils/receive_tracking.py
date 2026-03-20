@@ -18,9 +18,11 @@ def find_bag_for_submission(
     - If provided: Uses old box-based matching (flavor + box + bag)
     - If None: Uses new flavor-based matching (flavor + bag only)
     
-    Submission type determines bag closure rules:
+    Submission type determines matching rules:
     - 'packaged': Can match closed bags (bags may be closed after production but still need packaging submissions)
     - Other types (machine, bag): Only matches open bags (closed bags should not accept new machine counts)
+    - 'packaged' and 'machine': Can match bags reserved for bottles (caller may require confirmation before submit)
+    - 'bag': Still excludes bags reserved for bottles
     
     Always excludes closed receives (receives should remain closed).
     
@@ -35,13 +37,16 @@ def find_bag_for_submission(
     # But machine counts should only go to open bags
     allow_closed_bags = (submission_type == 'packaged')
     
+    # Allow reserved bags for machine/packaged workflows (confirmation handled by caller).
+    allow_reserved_bags = submission_type in ('packaged', 'machine')
+
     # Build query based on whether box_number is provided
     if box_number is not None:
         # Old-style: match with box number (for grandfathered receives)
         if allow_closed_bags:
-            # For packaging: allow closed bags and allow bags reserved for bottles.
-            # Packaging still needs to deduct from these bags in mixed workflows.
-            matching_bags = conn.execute('''
+            # For packaging: allow closed bags.
+            reserved_filter = '' if allow_reserved_bags else "AND COALESCE(b.reserved_for_bottles, 0) = 0"
+            matching_bags = conn.execute(f'''
                 SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
@@ -51,11 +56,13 @@ def find_bag_for_submission(
                 AND b.bag_number = ?
                 AND COALESCE(r.closed, 0) = 0
                 AND COALESCE(r.status, 'published') = 'published'
+                {reserved_filter}
                 ORDER BY r.received_date DESC
                 ''', (tablet_type_id, box_number, bag_number)).fetchall()
         else:
-            # For other submission types (machine, etc): exclude closed bags, draft receives, and reserved bags
-            matching_bags = conn.execute('''
+            # For non-packaging: exclude closed bags and draft receives.
+            reserved_filter = '' if allow_reserved_bags else "AND COALESCE(b.reserved_for_bottles, 0) = 0"
+            matching_bags = conn.execute(f'''
                 SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
@@ -66,7 +73,7 @@ def find_bag_for_submission(
                 AND COALESCE(b.status, 'Available') != 'Closed'
                 AND COALESCE(r.closed, 0) = 0
                 AND COALESCE(r.status, 'published') = 'published'
-                AND COALESCE(b.reserved_for_bottles, 0) = 0
+                {reserved_filter}
                 ORDER BY r.received_date DESC
             ''', (tablet_type_id, box_number, bag_number)).fetchall()
         
@@ -78,9 +85,9 @@ def find_bag_for_submission(
     else:
         # New flavor-based: match without box number (flavor + bag only)
         if allow_closed_bags:
-            # For packaging: allow closed bags and allow bags reserved for bottles.
-            # Packaging still needs to deduct from these bags in mixed workflows.
-            matching_bags = conn.execute('''
+            # For packaging: allow closed bags.
+            reserved_filter = '' if allow_reserved_bags else "AND COALESCE(b.reserved_for_bottles, 0) = 0"
+            matching_bags = conn.execute(f'''
                 SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
@@ -89,11 +96,13 @@ def find_bag_for_submission(
                 AND b.bag_number = ?
                 AND COALESCE(r.closed, 0) = 0
                 AND COALESCE(r.status, 'published') = 'published'
+                {reserved_filter}
                 ORDER BY r.received_date DESC
                 ''', (tablet_type_id, bag_number)).fetchall()
         else:
-            # For other submission types (machine, etc): exclude closed bags, draft receives, and reserved bags
-            matching_bags = conn.execute('''
+            # For non-packaging: exclude closed bags and draft receives.
+            reserved_filter = '' if allow_reserved_bags else "AND COALESCE(b.reserved_for_bottles, 0) = 0"
+            matching_bags = conn.execute(f'''
                 SELECT b.*, sb.box_number, sb.receiving_id, r.po_id, r.received_date
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
@@ -103,7 +112,7 @@ def find_bag_for_submission(
                 AND COALESCE(b.status, 'Available') != 'Closed'
                 AND COALESCE(r.closed, 0) = 0
                 AND COALESCE(r.status, 'published') = 'published'
-                AND COALESCE(b.reserved_for_bottles, 0) = 0
+                {reserved_filter}
                 ORDER BY r.received_date DESC
             ''', (tablet_type_id, bag_number)).fetchall()
         

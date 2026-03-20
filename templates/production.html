@@ -1221,14 +1221,30 @@ document.addEventListener('DOMContentLoaded', async function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await csrfFetch('/api/submissions/packaged', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            
-            const result = await response.json();
-            
+            const sendPackagedSubmission = async (payload) => {
+                const response = await csrfFetch('/api/submissions/packaged', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                return { response, result };
+            };
+
+            let { response, result } = await sendPackagedSubmission(data);
+            if (response.status === 409 && result?.requires_reserved_override) {
+                const confirmed = window.confirm(
+                    result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
+                );
+                if (confirmed) {
+                    data.confirm_reserved_override = true;
+                    ({ response, result } = await sendPackagedSubmission(data));
+                } else {
+                    showError('Submission cancelled.');
+                    return;
+                }
+            }
+
             if (response.ok) {
                 showSuccess(result.message || 'Packaged count submitted successfully!');
                 warehouseForm.reset();
@@ -1360,14 +1376,30 @@ document.addEventListener('DOMContentLoaded', async function() {
         submitBtn.textContent = 'Submitting...';
         
         try {
-            const response = await csrfFetch('/submit_machine_count', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            
-            const result = await response.json();
-            
+            const sendMachineSubmission = async (payload) => {
+                const response = await csrfFetch('/submit_machine_count', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                return { response, result };
+            };
+
+            let { response, result } = await sendMachineSubmission(data);
+            if (response.status === 409 && result?.requires_reserved_override) {
+                const confirmed = window.confirm(
+                    result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
+                );
+                if (confirmed) {
+                    data.confirm_reserved_override = true;
+                    ({ response, result } = await sendMachineSubmission(data));
+                } else {
+                    showError('Submission cancelled.');
+                    return;
+                }
+            }
+
             if (response.ok) {
                 showSuccess(result.message || 'Machine count submitted successfully!');
                 machineCountForm.reset();

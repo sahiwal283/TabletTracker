@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.20] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Confirm Override for Reserved Bags on Card Workflows
+- **Enhancement**: Machine and Packaged submissions can now target bags reserved for variety/bottle workflows, but require explicit user confirmation first.
+- **Fix**: Removed hard exclusion of `reserved_for_bottles` in card submission bag matching for `machine`/`packaged` routes.
+- **UX**: Added confirmation popup in production forms; if user confirms, submission is retried with override flag and saved.
+- **Files Updated**:
+  - `app/utils/receive_tracking.py`
+  - `app/blueprints/production.py`
+  - `templates/production.html`
+
+---
+
 ## [2.44.19] - 2026-03-18
 
 ### 🐛 Bug Fix
