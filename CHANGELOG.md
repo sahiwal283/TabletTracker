@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.21] - 2026-03-18
+
+### ✨ Enhancement
+
+#### Confirm Before Saving Unassigned Box/Bag Submissions
+- **Enhancement**: Machine and Packaged submissions now prompt users to confirm before saving when the entered box/bag combination cannot be matched to a receive.
+- **UX**: Added confirmation flow with "submit anyway" behavior to keep current unassigned-save logic, or cancel so users can edit potential box/bag swaps.
+- **Hardening**: Override confirmation flags now parse strict boolean-like values (`true/1/yes/on`) to avoid accidental truthy handling of string values.
+- **Files Updated**:
+  - `app/blueprints/production.py`
+  - `templates/production.html`
+
+---
+
 ## [2.44.20] - 2026-03-18
 
 ### ✨ Enhancement

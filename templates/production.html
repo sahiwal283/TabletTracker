@@ -1232,17 +1232,34 @@ document.addEventListener('DOMContentLoaded', async function() {
             };
 
             let { response, result } = await sendPackagedSubmission(data);
-            if (response.status === 409 && result?.requires_reserved_override) {
-                const confirmed = window.confirm(
-                    result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
-                );
-                if (confirmed) {
-                    data.confirm_reserved_override = true;
-                    ({ response, result } = await sendPackagedSubmission(data));
-                } else {
+            while (response.status === 409) {
+                if (result?.requires_reserved_override) {
+                    const confirmed = window.confirm(
+                        result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
+                    );
+                    if (confirmed) {
+                        data.confirm_reserved_override = true;
+                        ({ response, result } = await sendPackagedSubmission(data));
+                        continue;
+                    }
                     showError('Submission cancelled.');
                     return;
                 }
+
+                if (result?.requires_unassigned_confirmation) {
+                    const confirmed = window.confirm(
+                        result.error || 'Bag not found. Please double check bag information. Submit anyway?'
+                    );
+                    if (confirmed) {
+                        data.confirm_unassigned_submit = true;
+                        ({ response, result } = await sendPackagedSubmission(data));
+                        continue;
+                    }
+                    showError('Submission cancelled. Please review box/bag details.');
+                    return;
+                }
+
+                break;
             }
 
             if (response.ok) {
@@ -1387,17 +1404,34 @@ document.addEventListener('DOMContentLoaded', async function() {
             };
 
             let { response, result } = await sendMachineSubmission(data);
-            if (response.status === 409 && result?.requires_reserved_override) {
-                const confirmed = window.confirm(
-                    result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
-                );
-                if (confirmed) {
-                    data.confirm_reserved_override = true;
-                    ({ response, result } = await sendMachineSubmission(data));
-                } else {
+            while (response.status === 409) {
+                if (result?.requires_reserved_override) {
+                    const confirmed = window.confirm(
+                        result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
+                    );
+                    if (confirmed) {
+                        data.confirm_reserved_override = true;
+                        ({ response, result } = await sendMachineSubmission(data));
+                        continue;
+                    }
                     showError('Submission cancelled.');
                     return;
                 }
+
+                if (result?.requires_unassigned_confirmation) {
+                    const confirmed = window.confirm(
+                        result.error || 'Bag not found. Please double check bag information. Submit anyway?'
+                    );
+                    if (confirmed) {
+                        data.confirm_unassigned_submit = true;
+                        ({ response, result } = await sendMachineSubmission(data));
+                        continue;
+                    }
+                    showError('Submission cancelled. Please review box/bag details.');
+                    return;
+                }
+
+                break;
             }
 
             if (response.ok) {

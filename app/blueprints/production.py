@@ -236,7 +236,8 @@ def submit_warehouse():
             box_number_raw = data.get('box_number')
             box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
             bag_number = data.get('bag_number')
-            confirm_reserved_override = bool(data.get('confirm_reserved_override'))
+            confirm_reserved_override = str(data.get('confirm_reserved_override', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+            confirm_unassigned_submit = str(data.get('confirm_unassigned_submit', '')).strip().lower() in ('1', 'true', 'yes', 'on')
             bag_id = None
             assigned_po_id = None
             bag_label_count = None
@@ -308,8 +309,16 @@ def submit_warehouse():
                     # Multiple matches - needs manual review
                     box_ref = f" Box {box_number}," if box_number else ""
                     current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
-                elif error_message:
-                    return jsonify({'error': error_message}), 400
+                elif error_message and not confirm_unassigned_submit:
+                    return jsonify({
+                        'error': (
+                            f'Bag not found for Box #{box_number}, Bag #{bag_number}. '
+                            'Please double check bag information. Submit anyway?'
+                        ),
+                        'requires_unassigned_confirmation': True,
+                        'box_number': box_number,
+                        'bag_number': bag_number
+                    }), 409
 
             # For packaged submissions, allow override if bag is reserved for variety/bottle workflows.
             # Require explicit confirmation from the UI before proceeding.
@@ -666,7 +675,8 @@ def submit_machine_count():
             error_message = None
             assigned_po_id = None
             bag_id = None
-            confirm_reserved_override = bool(data.get('confirm_reserved_override'))
+            confirm_reserved_override = str(data.get('confirm_reserved_override', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+            confirm_unassigned_submit = str(data.get('confirm_unassigned_submit', '')).strip().lower() in ('1', 'true', 'yes', 'on')
         
             if bag_number:
                 # NEW: Pass bag_number first, box_number as optional parameter
@@ -689,6 +699,17 @@ def submit_machine_count():
             elif error_message:
                 # No match found
                 current_app.logger.error(f"❌ {error_message}")
+
+            if bag_number and not bag and error_message and not confirm_unassigned_submit:
+                return jsonify({
+                    'error': (
+                        f'Bag not found for Box #{box_number}, Bag #{bag_number}. '
+                        'Please double check bag information. Submit anyway?'
+                    ),
+                    'requires_unassigned_confirmation': True,
+                    'box_number': box_number,
+                    'bag_number': bag_number
+                }), 409
 
             # For machine submissions, reserved bags can still be used with explicit confirmation.
             if bag and int(bag.get('reserved_for_bottles') or 0) == 1 and not confirm_reserved_override:
