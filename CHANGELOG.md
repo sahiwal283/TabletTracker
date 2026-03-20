@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.19] - 2026-03-18
+
+### 🐛 Bug Fix
+
+#### Allow Packaged Submissions on Bags Reserved for Bottles
+- **Issue**: Packaged submissions could fail with "No open receive found..." when bag matched flavor/box/bag but had `reserved_for_bottles=1`.
+- **Fix**: Updated receive matching logic so `submission_type='packaged'` no longer excludes `reserved_for_bottles` bags.
+- **Result**: Packaging submissions can be recorded against eligible bags even if they were reserved for bottle workflows.
+- **Files Updated**:
+  - `app/utils/receive_tracking.py`
+
+---
+
 ## [2.44.18] - 2026-03-18
 
 ### ✨ Enhancement
