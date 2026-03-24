@@ -404,6 +404,20 @@ function closeEditSubmissionModal(event) {
     if (modal) {
         modal.classList.add('hidden');
     }
+    const adminPoSection = document.getElementById('admin-change-po-section');
+    const confirmCb = document.getElementById('edit-admin-confirm-checkbox');
+    const posSection = document.getElementById('edit-admin-pos-section');
+    if (confirmCb) {
+        confirmCb.checked = false;
+        confirmCb.onchange = null;
+    }
+    if (posSection) {
+        posSection.classList.add('hidden');
+        posSection.innerHTML = '';
+    }
+    if (adminPoSection) {
+        adminPoSection.classList.add('hidden');
+    }
     // Prevent event propagation if event exists
     if (event) {
         event.stopPropagation();
@@ -697,6 +711,37 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 });
         }
         
+        // Admin: PO override when PO is closed and/or assignment is verified (edit was previously hidden in details UI)
+        const adminPoSection = document.getElementById('admin-change-po-section');
+        const confirmCb = document.getElementById('edit-admin-confirm-checkbox');
+        const posSection = document.getElementById('edit-admin-pos-section');
+        if (adminPoSection && confirmCb && posSection) {
+            confirmCb.checked = false;
+            posSection.classList.add('hidden');
+            posSection.innerHTML = '';
+            const truthy = (v) => v === 1 || v === true || v === '1' || v === 'true';
+            const poClosed = truthy(sub.po_closed);
+            const poVerified = truthy(sub.po_verified) || truthy(sub.po_assignment_verified);
+            if (sub.assigned_po_id && (poClosed || poVerified)) {
+                adminPoSection.classList.remove('hidden');
+                const currentPoEl = document.getElementById('edit-current-po-display');
+                if (currentPoEl) {
+                    currentPoEl.textContent = sub.po_number ? String(sub.po_number) : ('ID ' + sub.assigned_po_id);
+                }
+                confirmCb.onchange = function () {
+                    if (confirmCb.checked) {
+                        loadEditAdminPOs(sub.id, sub.product_name);
+                    } else {
+                        posSection.classList.add('hidden');
+                        posSection.innerHTML = '';
+                    }
+                };
+            } else {
+                adminPoSection.classList.add('hidden');
+                confirmCb.onchange = null;
+            }
+        }
+
         // Show modal
         const modal = document.getElementById('edit-submission-modal');
         if (modal) {
@@ -1564,7 +1609,8 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <div id="admin-change-po-section" class="mt-4 hidden border-t pt-4">
                     <div class="mb-3 bg-red-50 border-l-4 border-red-400 p-3 rounded">
                         <p class="text-sm text-red-800 font-semibold mb-1">⚠️ ADMIN OVERRIDE - Change PO</p>
-                        <p class="text-sm text-red-700">This submission is verified and locked. Changing the PO requires admin override.</p>
+                        <p class="text-sm text-red-700">Use this when the submission is on the <strong>wrong PO</strong>, including when the PO is <strong>closed</strong> or the assignment is <strong>verified</strong>. Counts are moved between PO lines automatically.</p>
+                        <p class="text-sm text-red-700 mt-1">After changing PO, confirm box/bag below still match a bag on the new PO; save if you adjust them.</p>
                         <p class="text-sm text-red-700 mt-1"><strong>Current PO:</strong> <span id="edit-current-po-display"></span></p>
                     </div>
                     
@@ -2552,7 +2598,7 @@ async function viewSubmissionDetails(submissionId) {
                             <button onclick="closeSubmissionDetailsModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">
                                 Close
                             </button>
-                            ${isAdmin && (!sub.assigned_po_id || !sub.po_closed) ? `
+                            ${isAdmin ? `
                             <button onclick="event.stopPropagation(); closeSubmissionDetailsModal(); openEditSubmissionModal(${sub.id})" 
                                     class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
                                 ✏️ Edit Submission
