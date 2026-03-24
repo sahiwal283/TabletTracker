@@ -23,6 +23,11 @@ from app.utils.db_utils import get_db, db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, role_required, employee_required
 from app.utils.route_helpers import get_setting, ensure_app_settings_table, ensure_submission_type_column
 from app.utils.receive_tracking import find_bag_for_submission
+from app.services.submission_calculator import calculate_repack_output_good
+from app.services.repack_allocation_service import (
+    allocate_repack_tablets,
+    allocation_payload_to_json,
+)
 
 bp = Blueprint('api', __name__)
 
@@ -938,13 +943,19 @@ def reassign_submission_to_po(submission_id):
             submission_type = submission.get('submission_type', 'packaged')
             if submission_type == 'machine':
                 good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+            elif submission_type == 'repack':
+                packages_per_display = submission['packages_per_display'] or 0
+                tablets_per_package = submission['tablets_per_package'] or 0
+                good_tablets = calculate_repack_output_good(
+                    dict(submission), packages_per_display, tablets_per_package
+                )
             else:
                 packages_per_display = submission['packages_per_display'] or 0
                 tablets_per_package = submission['tablets_per_package'] or 0
                 good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
                                submission['packs_remaining'] * tablets_per_package + 
                                submission['loose_tablets'])
-            damaged_tablets = submission['damaged_tablets']
+            damaged_tablets = 0 if submission_type == 'repack' else submission['damaged_tablets']
             
             # Remove counts from old PO if assigned
             if old_po_id:
@@ -1131,13 +1142,19 @@ def reassign_all_submissions():
                     submission_type = submission.get('submission_type', 'packaged')
                     if submission_type == 'machine':
                         good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+                    elif submission_type == 'repack':
+                        packages_per_display = product.get('packages_per_display') or 0
+                        tablets_per_package = product.get('tablets_per_package') or 0
+                        good_tablets = calculate_repack_output_good(
+                            submission, packages_per_display, tablets_per_package
+                        )
                     else:
                         packages_per_display = product.get('packages_per_display') or 0
                         tablets_per_package = product.get('tablets_per_package') or 0
                         good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
                                       submission.get('packs_remaining', 0) * tablets_per_package + 
                                       submission.get('loose_tablets', 0))
-                    damaged_tablets = submission.get('damaged_tablets', 0)
+                    damaged_tablets = 0 if submission_type == 'repack' else submission.get('damaged_tablets', 0)
                     
                     # Find the first PO that hasn't reached its ordered quantity yet
                     # This allows sequential filling: complete PO-127, then PO-131, then PO-135, etc.
@@ -1298,6 +1315,13 @@ def recalculate_po_counts():
                     submission_type = sub.get('submission_type', 'packaged')
                     if submission_type == 'machine':
                         good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
+                    elif submission_type == 'repack':
+                        packages_per_display = sub['packages_per_display'] or 0
+                        tablets_per_package = sub['tablets_per_package'] or 0
+                        good_tablets = (
+                            (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                            (sub['packs_remaining'] or 0) * tablets_per_package
+                        )
                     else:
                         packages_per_display = sub['packages_per_display'] or 0
                         tablets_per_package = sub['tablets_per_package'] or 0
@@ -1321,6 +1345,15 @@ def recalculate_po_counts():
                 submission_type = sub.get('submission_type', 'packaged')
                 if submission_type == 'machine':
                     good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
+                    damaged_tablets = sub['damaged_tablets'] or 0
+                elif submission_type == 'repack':
+                    packages_per_display = sub['packages_per_display'] or 0
+                    tablets_per_package = sub['tablets_per_package'] or 0
+                    good_tablets = (
+                        (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
+                        (sub['packs_remaining'] or 0) * tablets_per_package
+                    )
+                    damaged_tablets = 0
                 else:
                     packages_per_display = sub['packages_per_display'] or 0
                     tablets_per_package = sub['tablets_per_package'] or 0
@@ -1329,7 +1362,7 @@ def recalculate_po_counts():
                         (sub['packs_remaining'] or 0) * tablets_per_package +
                         (sub['loose_tablets'] or 0)
                     )
-                damaged_tablets = sub['damaged_tablets'] or 0
+                    damaged_tablets = sub['damaged_tablets'] or 0
                 
                 # Add to running total for this PO line
                 key = (po_id, inventory_item_id)
@@ -1464,11 +1497,13 @@ def get_submission_details(submission_id):
             # If submission_type is already 'bottle' in the database, use it
             if db_submission_type == 'bottle':
                 submission_type = 'bottle'
+            if db_submission_type == 'repack':
+                submission_type = 'repack'
             
             # Also check product config to determine if this is a bottle/variety pack submission
             # This handles legacy submissions where submission_type might not be set correctly
             product_name = submission_dict.get('product_name')
-            if product_name:
+            if product_name and submission_type != 'repack':
                 product_config = conn.execute('''
                     SELECT is_variety_pack, is_bottle_product, variety_pack_contents, tablets_per_bottle, bottles_per_display
                     FROM product_details WHERE product_name = ?
@@ -1624,6 +1659,13 @@ def get_submission_details(submission_id):
                 submission_dict['machine_name'] = machine_name
                 # Use recalculated cards_made instead of packs_remaining (which may have wrong value)
                 submission_dict['packs_remaining'] = cards_made
+            elif submission_type == 'repack':
+                packages_per_display = submission_dict.get('packages_per_display', 0) or 0
+                out = calculate_repack_output_good(
+                    submission_dict, packages_per_display, tablets_per_package
+                )
+                submission_dict['individual_calc'] = out
+                submission_dict['total_tablets'] = out
             else:
                 # For packaged/bag submissions: calculate from displays and packs
                 packages_per_display = submission_dict.get('packages_per_display', 0) or 0
@@ -1816,7 +1858,8 @@ def edit_submission(submission_id):
                 SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
                        loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
                        bottles_made, machine_id,
-                       COALESCE(submission_type, 'packaged') as submission_type
+                       COALESCE(submission_type, 'packaged') as submission_type,
+                       repack_vendor_return_notes
                 FROM warehouse_submissions
                 WHERE id = ?
             ''', (submission_id,)).fetchone()
@@ -1916,7 +1959,7 @@ def edit_submission(submission_id):
             bottles_per_display = product.get('bottles_per_display') or 0
 
             submission_type = submission.get('submission_type', 'packaged')
-            if submission_type in ['packaged', 'bag'] and (
+            if submission_type in ['packaged', 'bag', 'repack'] and (
                 packages_per_display is None or tablets_per_package is None or
                 packages_per_display == 0 or tablets_per_package == 0
             ):
@@ -1948,18 +1991,22 @@ def edit_submission(submission_id):
                     if old_bottles is None:
                         old_bottles = ((submission.get('displays_made') or 0) * bottles_per_display) + (submission.get('packs_remaining') or 0)
                     old_good = (old_bottles or 0) * tablets_per_bottle
+            elif submission_type == 'repack':
+                old_good = calculate_repack_output_good(
+                    submission, packages_per_display, tablets_per_package
+                )
             else:
                 old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
                            submission['packs_remaining'] * tablets_per_package +
                            submission['loose_tablets'])
-            old_damaged = submission['damaged_tablets']
+            old_damaged = 0 if submission_type == 'repack' else submission['damaged_tablets']
             
             # Validate and convert input data
             try:
                 displays_made = int(data.get('displays_made', 0) or 0)
                 packs_remaining = int(data.get('packs_remaining', 0) or 0)
-                loose_tablets = int(data.get('loose_tablets', 0) or 0) if submission_type not in ['machine', 'bottle'] else 0
-                damaged_tablets = int(data.get('damaged_tablets', 0) or 0) if submission_type != 'bottle' else 0
+                loose_tablets = int(data.get('loose_tablets', 0) or 0) if submission_type not in ['machine', 'bottle', 'repack'] else 0
+                damaged_tablets = int(data.get('damaged_tablets', 0) or 0) if submission_type not in ('bottle', 'repack') else 0
                 tablets_pressed_into_cards = int(data.get('tablets_pressed_into_cards', 0) or 0) if submission_type == 'machine' else 0
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
@@ -2003,11 +2050,20 @@ def edit_submission(submission_id):
                     new_good = deduction_totals['total']
                 else:
                     new_good = new_bottles_made * tablets_per_bottle
+            elif submission_type == 'repack':
+                new_good = calculate_repack_output_good(
+                    {
+                        'displays_made': displays_made,
+                        'packs_remaining': packs_remaining,
+                    },
+                    packages_per_display,
+                    tablets_per_package,
+                )
             else:
                 new_good = (displays_made * packages_per_display * tablets_per_package +
                            packs_remaining * tablets_per_package +
                            loose_tablets)
-            new_damaged = damaged_tablets
+            new_damaged = 0 if submission_type == 'repack' else damaged_tablets
             
             # Get receipt_number from form data
             receipt_number = (data.get('receipt_number') or '').strip() or None
@@ -2060,6 +2116,53 @@ def edit_submission(submission_id):
                       new_box_number, new_bag_number, new_bag_id,
                       data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
                       product_name_to_use, inventory_item_id, submission_id))
+            elif submission_type == 'repack':
+                tt_row = conn.execute(
+                    'SELECT tablet_type_id FROM product_details WHERE product_name = ?',
+                    (product_name_to_use,),
+                ).fetchone()
+                tablet_type_id = tt_row['tablet_type_id'] if tt_row else None
+                alloc_json = None
+                nr_flag = False
+                first_bag_id = None
+                if old_po_id and tablet_type_id is not None:
+                    ap, nr_flag = allocate_repack_tablets(conn, old_po_id, tablet_type_id, max(0, new_good))
+                    alloc_json = allocation_payload_to_json(ap)
+                    for a in ap.get('allocations') or []:
+                        if a.get('bag_id') is not None and not a.get('overflow'):
+                            first_bag_id = a['bag_id']
+                            break
+                vn = data.get('repack_vendor_return_notes')
+                if vn is None:
+                    vn = submission.get('repack_vendor_return_notes')
+                elif isinstance(vn, str):
+                    vn = vn.strip() or None
+                else:
+                    vn = None
+                conn.execute(
+                    '''
+                    UPDATE warehouse_submissions
+                    SET displays_made = ?, packs_remaining = ?, loose_tablets = 0, damaged_tablets = 0,
+                        bag_id = ?, needs_review = ?,
+                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                        repack_bag_allocations = ?, repack_vendor_return_notes = ?
+                    WHERE id = ?
+                    ''',
+                    (
+                        displays_made,
+                        packs_remaining,
+                        first_bag_id,
+                        nr_flag,
+                        submission_date,
+                        data.get('admin_notes'),
+                        receipt_number,
+                        product_name_to_use,
+                        inventory_item_id,
+                        alloc_json,
+                        vn,
+                        submission_id,
+                    ),
+                )
             else:
                 conn.execute('''
                     UPDATE warehouse_submissions
@@ -2186,6 +2289,15 @@ def delete_submission(submission_id):
                     good_tablets = 0
             elif submission_type == 'machine':
                 good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+            elif submission_type == 'repack':
+                if not product:
+                    return jsonify({'success': False, 'error': 'Product configuration not found'}), 400
+                product = dict(product)
+                good_tablets = calculate_repack_output_good(
+                    submission,
+                    product.get('packages_per_display'),
+                    product.get('tablets_per_package'),
+                )
             else:
                 # Packaged submissions require product config
                 if not product:
@@ -2195,7 +2307,7 @@ def delete_submission(submission_id):
                                submission['packs_remaining'] * (product.get('tablets_per_package') or 0) +
                                submission['loose_tablets'])
             
-            damaged_tablets = submission.get('damaged_tablets', 0) or 0
+            damaged_tablets = 0 if submission_type == 'repack' else (submission.get('damaged_tablets', 0) or 0)
             
             # Remove counts from PO line if assigned
             if old_po_id and inventory_item_id:
@@ -2381,13 +2493,21 @@ def resync_unassigned_submissions():
                 submission_type = submission.get('submission_type', 'packaged')
                 if submission_type == 'machine':
                     good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+                    damaged_tablets = submission.get('damaged_tablets', 0) or 0
+                elif submission_type == 'repack':
+                    packages_per_display = product.get('packages_per_display') or 0
+                    tablets_per_package = product.get('tablets_per_package') or 0
+                    good_tablets = calculate_repack_output_good(
+                        submission, packages_per_display, tablets_per_package
+                    )
+                    damaged_tablets = 0
                 else:
                     packages_per_display = product.get('packages_per_display') or 0
                     tablets_per_package = product.get('tablets_per_package') or 0
                     good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
                                   submission.get('packs_remaining', 0) * tablets_per_package + 
                                   submission.get('loose_tablets', 0))
-                    damaged_tablets = submission.get('damaged_tablets', 0)
+                    damaged_tablets = submission.get('damaged_tablets', 0) or 0
                 
                 # Assign to first available PO
                 assigned_po_id = po_lines[0]['po_id']
@@ -2611,6 +2731,7 @@ def get_po_submissions(po_id):
             machine_total = 0
             packaged_total = 0
             bag_total = 0
+            repack_total = 0
             
             for sub in submissions_raw:
                 sub_dict = dict(sub)
@@ -2623,6 +2744,12 @@ def get_po_submissions(po_id):
                                    sub_dict.get('loose_tablets') or
                                    ((sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)) or
                                    0)
+                elif submission_type == 'repack':
+                    total_tablets = calculate_repack_output_good(
+                        sub_dict,
+                        sub_dict.get('packages_per_display'),
+                        sub_dict.get('tablets_per_package'),
+                    )
                 else:
                     # For other submissions: calculate from displays, packs, loose, and damaged
                     displays_tablets = (sub_dict.get('displays_made', 0) or 0) * (sub_dict.get('packages_per_display', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)
@@ -2640,6 +2767,8 @@ def get_po_submissions(po_id):
                     packaged_total += total_tablets
                 elif submission_type == 'bag':
                     bag_total += total_tablets
+                elif submission_type == 'repack':
+                    repack_total += total_tablets
                 # Bag counts are separate from packaged counts - they're just inventory counts, not production
                 
                 # Calculate running total by bag PER PO (only for packaged submissions, NOT bag counts)
@@ -2669,6 +2798,9 @@ def get_po_submissions(po_id):
                     # Bag counts don't have running totals - they're just inventory counts
                     sub_dict['running_total'] = total_tablets
                     sub_dict['count_status'] = None
+                elif submission_type == 'repack':
+                    sub_dict['running_total'] = total_tablets
+                    sub_dict['count_status'] = 'repack_po'
                 else:
                     # Machine counts don't have bag running totals
                     sub_dict['running_total'] = total_tablets
@@ -2688,7 +2820,8 @@ def get_po_submissions(po_id):
                     'machine': machine_total,
                     'packaged': packaged_total,
                     'bag': bag_total,
-                    'total': machine_total + packaged_total + bag_total
+                    'repack': repack_total,
+                    'total': machine_total + packaged_total + bag_total + repack_total
                 }
             })
     except Exception as e:

@@ -3,8 +3,15 @@ Production routes - warehouse submissions, bag counts, machine counts
 """
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
 from datetime import datetime
+import json
 import traceback
 from app.utils.db_utils import db_read_only, db_transaction
+from app.utils.repack_po import apply_po_line_delta
+from app.services.submission_calculator import calculate_repack_output_good
+from app.services.repack_allocation_service import (
+    allocate_repack_tablets,
+    allocation_payload_to_json,
+)
 from app.utils.auth_utils import employee_required
 from app.utils.route_helpers import (
     get_setting, ensure_submission_type_column,
@@ -1232,6 +1239,374 @@ def get_bottle_products():
             })
     except Exception as e:
         current_app.logger.error(f"Error getting bottle products: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def _repack_lines_from_request(data):
+    """Single product or multi-line batch sharing one receipt."""
+    if not data:
+        return None
+    lines = data.get('lines')
+    if lines and isinstance(lines, list):
+        return lines
+    if data.get('product_name'):
+        return [
+            {
+                'product_name': data.get('product_name'),
+                'displays_made': data.get('displays_made', 0),
+                'packs_remaining': data.get('packs_remaining', 0),
+            }
+        ]
+    return None
+
+
+@bp.route('/api/submissions/repack/preview', methods=['POST'])
+@employee_required
+def repack_preview():
+    """
+    Dry-run bag allocation for one or more repack lines (same PO). Does not write to the database.
+    """
+    try:
+        ensure_submission_type_column()
+        data = request.get_json() if request.is_json else None
+        if not data:
+            return jsonify({'error': 'JSON body required'}), 400
+        po_id = data.get('po_id')
+        if not po_id:
+            return jsonify({'error': 'po_id is required'}), 400
+        try:
+            po_id = int(po_id)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'po_id must be an integer'}), 400
+
+        lines = _repack_lines_from_request(data)
+        if not lines:
+            return jsonify({'error': 'Provide product_name or lines[] with repack rows'}), 400
+
+        previews = []
+        with db_read_only() as conn:
+            po_row = conn.execute(
+                'SELECT id, closed FROM purchase_orders WHERE id = ?',
+                (po_id,),
+            ).fetchone()
+            if not po_row:
+                return jsonify({'error': 'Purchase order not found'}), 404
+            if po_row['closed']:
+                return jsonify({'error': 'PO is closed'}), 400
+
+            for line in lines:
+                product_name = (line.get('product_name') or '').strip()
+                if not product_name:
+                    return jsonify({'error': 'Each line must include product_name'}), 400
+                try:
+                    displays_made = int(line.get('displays_made', 0) or 0)
+                    packs_remaining = int(line.get('packs_remaining', 0) or 0)
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'Invalid displays_made or packs_remaining'}), 400
+
+                product = conn.execute(
+                    """
+                    SELECT pd.*, tt.inventory_item_id, tt.id AS tablet_type_id, tt.tablet_type_name
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name = ?
+                    """,
+                    (product_name,),
+                ).fetchone()
+                if not product:
+                    return jsonify({'error': f"Product '{product_name}' not found"}), 400
+                product = dict(product)
+                if product.get('is_bottle_product') or product.get('is_variety_pack'):
+                    return jsonify(
+                        {'error': f"Repack is not available for bottle/variety product '{product_name}'"}
+                    ), 400
+
+                ppd = int(product.get('packages_per_display') or 0)
+                tpp = int(product.get('tablets_per_package') or 0)
+                if ppd <= 0 or tpp <= 0:
+                    return jsonify(
+                        {'error': f"Product '{product_name}' needs packages_per_display and tablets_per_package"}
+                    ), 400
+
+                inventory_item_id = product.get('inventory_item_id')
+                tablet_type_id = product.get('tablet_type_id')
+                if not inventory_item_id or not tablet_type_id:
+                    return jsonify({'error': 'Product missing inventory_item_id or tablet_type'}), 400
+
+                line_check = conn.execute(
+                    """
+                    SELECT 1 FROM po_lines pl
+                    WHERE pl.po_id = ? AND pl.inventory_item_id = ?
+                    LIMIT 1
+                    """,
+                    (po_id, inventory_item_id),
+                ).fetchone()
+                if not line_check:
+                    return jsonify(
+                        {'error': f"PO does not include line item for product '{product_name}'"}
+                    ), 400
+
+                sub = {'displays_made': displays_made, 'packs_remaining': packs_remaining}
+                output_good = calculate_repack_output_good(sub, ppd, tpp)
+                alloc_payload, alloc_needs_review = allocate_repack_tablets(
+                    conn, po_id, tablet_type_id, output_good
+                )
+                previews.append(
+                    {
+                        'product_name': product_name,
+                        'output_tablets': output_good,
+                        'needs_review': bool(alloc_needs_review),
+                        'allocation': json.loads(allocation_payload_to_json(alloc_payload)),
+                    }
+                )
+
+        return jsonify({'success': True, 'previews': previews})
+    except Exception as e:
+        current_app.logger.error(f"repack_preview: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/submissions/repack/eligible-pos', methods=['GET'])
+@employee_required
+def repack_eligible_pos():
+    """Open POs for repack PO selector (excludes Draft)."""
+    try:
+        with db_read_only() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, po_number, internal_status
+                FROM purchase_orders
+                WHERE closed = FALSE AND COALESCE(internal_status, '') != 'Draft'
+                ORDER BY po_number DESC
+                """
+            ).fetchall()
+            return jsonify({'success': True, 'pos': [dict(r) for r in rows]})
+    except Exception as e:
+        current_app.logger.error(f"repack_eligible_pos: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/submissions/repack', methods=['POST'])
+@employee_required
+def submit_repack():
+    """
+    Tablet search / repack: credits finished displays and partial cards to PO good_count only.
+    One receipt may have multiple rows (one per flavor) via `lines` array.
+    """
+    try:
+        ensure_submission_type_column()
+        data = request.get_json() if request.is_json else request.form
+        if not data:
+            return jsonify({'error': 'JSON body required'}), 400
+
+        po_id = data.get('po_id')
+        receipt_number = (data.get('receipt_number') or '').strip()
+        if not po_id:
+            return jsonify({'error': 'po_id is required'}), 400
+        try:
+            po_id = int(po_id)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'po_id must be an integer'}), 400
+        if not receipt_number:
+            return jsonify({'error': 'receipt_number is required'}), 400
+
+        lines = _repack_lines_from_request(data)
+        if not lines:
+            return jsonify({'error': 'Provide product_name or lines[] with repack rows'}), 400
+
+        submitted_employee_name = data.get('employee_name')
+        if isinstance(submitted_employee_name, str):
+            submitted_employee_name = submitted_employee_name.strip()
+        else:
+            submitted_employee_name = None
+        if submitted_employee_name:
+            employee_name = submitted_employee_name
+        elif session.get('admin_authenticated'):
+            employee_name = 'Admin'
+        else:
+            emp = None
+            with db_read_only() as c2:
+                emp = c2.execute(
+                    'SELECT full_name FROM employees WHERE id = ?',
+                    (session.get('employee_id'),),
+                ).fetchone()
+            if not emp:
+                return jsonify({'error': 'Employee not found'}), 400
+            employee_name = emp['full_name']
+        if not employee_name:
+            return jsonify({'error': 'employee_name is required'}), 400
+
+        vendor_notes = data.get('repack_vendor_return_notes') or data.get('vendor_return_notes')
+        if isinstance(vendor_notes, str):
+            vendor_notes = vendor_notes.strip() or None
+        else:
+            vendor_notes = None
+
+        submission_date = data.get('submission_date', datetime.now().date().isoformat())
+        admin_notes = data.get('admin_notes')
+        if isinstance(admin_notes, str):
+            admin_notes = admin_notes.strip() or None
+        else:
+            admin_notes = None
+
+        created = []
+        with db_transaction() as conn:
+            po_row = conn.execute(
+                'SELECT id, closed FROM purchase_orders WHERE id = ?',
+                (po_id,),
+            ).fetchone()
+            if not po_row:
+                return jsonify({'error': 'Purchase order not found'}), 404
+            if po_row['closed']:
+                return jsonify({'error': 'Cannot add repack to a closed PO'}), 400
+
+            for line in lines:
+                product_name = (line.get('product_name') or '').strip()
+                if not product_name:
+                    return jsonify({'error': 'Each line must include product_name'}), 400
+                try:
+                    displays_made = int(line.get('displays_made', 0) or 0)
+                    packs_remaining = int(line.get('packs_remaining', 0) or 0)
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'Invalid displays_made or packs_remaining'}), 400
+
+                product = conn.execute(
+                    """
+                    SELECT pd.*, tt.inventory_item_id, tt.id AS tablet_type_id, tt.tablet_type_name
+                    FROM product_details pd
+                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE pd.product_name = ?
+                    """,
+                    (product_name,),
+                ).fetchone()
+                if not product:
+                    return jsonify({'error': f"Product '{product_name}' not found"}), 400
+                product = dict(product)
+                if product.get('is_bottle_product') or product.get('is_variety_pack'):
+                    return jsonify(
+                        {'error': f"Repack is not available for bottle/variety product '{product_name}'"}
+                    ), 400
+
+                ppd = int(product.get('packages_per_display') or 0)
+                tpp = int(product.get('tablets_per_package') or 0)
+                if ppd <= 0 or tpp <= 0:
+                    return jsonify(
+                        {'error': f"Product '{product_name}' needs packages_per_display and tablets_per_package"}
+                    ), 400
+
+                inventory_item_id = product.get('inventory_item_id')
+                tablet_type_id = product.get('tablet_type_id')
+                if not inventory_item_id or not tablet_type_id:
+                    return jsonify({'error': 'Product missing inventory_item_id or tablet_type'}), 400
+
+                line_check = conn.execute(
+                    """
+                    SELECT 1 FROM po_lines pl
+                    WHERE pl.po_id = ? AND pl.inventory_item_id = ?
+                    LIMIT 1
+                    """,
+                    (po_id, inventory_item_id),
+                ).fetchone()
+                if not line_check:
+                    return jsonify(
+                        {'error': f"PO does not include line item for product '{product_name}'"}
+                    ), 400
+
+                dup = conn.execute(
+                    """
+                    SELECT id FROM warehouse_submissions
+                    WHERE receipt_number = ? AND submission_type = 'repack'
+                    AND inventory_item_id = ?
+                    LIMIT 1
+                    """,
+                    (receipt_number, inventory_item_id),
+                ).fetchone()
+                if dup:
+                    return jsonify(
+                        {
+                            'error': (
+                                f"Receipt {receipt_number} already used for repack of this product "
+                                f"(submission id {dup['id']})."
+                            )
+                        }
+                    ), 400
+
+                sub = {
+                    'displays_made': displays_made,
+                    'packs_remaining': packs_remaining,
+                }
+                output_good = calculate_repack_output_good(sub, ppd, tpp)
+                if output_good <= 0:
+                    return jsonify(
+                        {'error': f"No finished output for '{product_name}' (displays/packs are zero)"}
+                    ), 400
+
+                alloc_payload, alloc_needs_review = allocate_repack_tablets(
+                    conn, po_id, tablet_type_id, output_good
+                )
+                alloc_json = allocation_payload_to_json(alloc_payload)
+                needs_review = bool(alloc_needs_review)
+
+                first_bag_id = None
+                for a in alloc_payload.get('allocations') or []:
+                    if a.get('bag_id') is not None and not a.get('overflow'):
+                        first_bag_id = a['bag_id']
+                        break
+
+                conn.execute(
+                    """
+                    INSERT INTO warehouse_submissions
+                    (employee_name, product_name, inventory_item_id, box_number, bag_number,
+                     displays_made, packs_remaining, loose_tablets, damaged_tablets,
+                     submission_date, admin_notes, submission_type,
+                     bag_id, assigned_po_id, needs_review, receipt_number,
+                     repack_bag_allocations, repack_vendor_return_notes, repack_allocation_version)
+                    VALUES (?, ?, ?, NULL, NULL, ?, ?, 0, 0, ?, ?, 'repack',
+                            ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        employee_name,
+                        product_name,
+                        inventory_item_id,
+                        displays_made,
+                        packs_remaining,
+                        submission_date,
+                        admin_notes,
+                        first_bag_id,
+                        po_id,
+                        needs_review,
+                        receipt_number,
+                        alloc_json,
+                        vendor_notes,
+                        alloc_payload.get('version', 1),
+                    ),
+                )
+                new_id = conn.execute('SELECT last_insert_rowid() AS id').fetchone()['id']
+
+                if not apply_po_line_delta(conn, po_id, inventory_item_id, output_good, 0):
+                    raise RuntimeError(f"Failed to update PO line for {product_name}")
+
+                created.append(
+                    {
+                        'submission_id': new_id,
+                        'product_name': product_name,
+                        'output_tablets': output_good,
+                        'needs_review': needs_review,
+                        'allocation': json.loads(alloc_json),
+                    }
+                )
+
+        return jsonify(
+            {
+                'success': True,
+                'message': f"Recorded {len(created)} repack submission(s)",
+                'created': created,
+            }
+        )
+    except Exception as e:
+        current_app.logger.error(f"submit_repack: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 

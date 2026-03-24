@@ -166,6 +166,11 @@ class MigrationRunner:
         
         # Add bottles_made column for bottle-based submissions (v2.24.0+dev)
         self._add_column_if_not_exists('warehouse_submissions', 'bottles_made', 'INTEGER DEFAULT 0')
+        
+        # Repack (tablet search) — end-of-PO mixed-bag output; bag splits stored as JSON
+        self._add_column_if_not_exists('warehouse_submissions', 'repack_bag_allocations', 'TEXT')
+        self._add_column_if_not_exists('warehouse_submissions', 'repack_vendor_return_notes', 'TEXT')
+        self._add_column_if_not_exists('warehouse_submissions', 'repack_allocation_version', 'INTEGER DEFAULT 1')
     
     def _migrate_shipments(self):
         """Migrate shipments table"""

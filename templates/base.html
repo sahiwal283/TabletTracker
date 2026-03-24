@@ -2332,6 +2332,26 @@ async function viewSubmissionDetails(submissionId) {
         // Get bag deductions for bottle submissions
         const bagDeductions = data.bag_deductions || [];
         
+        let repackRecvHtml = '';
+        if (sub.submission_type === 'repack' && sub.repack_bag_allocations) {
+            try {
+                const ra = typeof sub.repack_bag_allocations === 'string'
+                    ? JSON.parse(sub.repack_bag_allocations)
+                    : sub.repack_bag_allocations;
+                const rows = (ra.allocations || []).filter(a => (a.tablets || 0) > 0);
+                if (rows.length) {
+                    repackRecvHtml = '<div class="mt-4 pt-4 border-t border-gray-200"><h5 class="text-sm font-semibold text-gray-800 mb-2">Repack → bag allocation</h5><ul class="text-sm text-gray-700 space-y-1 list-disc list-inside">' +
+                        rows.map(a => '<li>Box ' + (a.box_number ?? '—') + ', Bag ' + (a.bag_number ?? '—') +
+                            (a.receive_name ? ' <span class="text-gray-500">(' + a.receive_name + ')</span>' : '') +
+                            ': <strong>' + (a.tablets || 0).toLocaleString() + '</strong> tablets' +
+                            (a.overflow ? ' <span class="text-amber-700">(overflow)</span>' : '') + '</li>').join('') + '</ul>' +
+                            (ra.needs_review ? '<p class="text-amber-700 text-sm mt-2">Flagged for review (overflow or capacity).</p>' : '') + '</div>';
+                }
+            } catch (e) {
+                repackRecvHtml = '<pre class="text-xs mt-2 bg-gray-50 p-2 rounded">' + String(sub.repack_bag_allocations) + '</pre>';
+            }
+        }
+        
         // Auto-detect bottle submission
         const isBottleSubmission = sub.submission_type === 'bottle' || 
                                    bagDeductions.length > 0 || 
@@ -2343,6 +2363,8 @@ async function viewSubmissionDetails(submissionId) {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
         } else if (sub.submission_type === 'bag') {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+        } else if (sub.submission_type === 'repack') {
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-900">🔁 Repack</span>';
         } else if (isBottleSubmission) {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">🍾 Bottle</span>';
         } else {
@@ -2463,6 +2485,23 @@ async function viewSubmissionDetails(submissionId) {
                                     })()}</span>
                                 </div>
                             </div>
+                            ` : sub.submission_type === 'repack' ? `
+                            <!-- Repack -->
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div class="bg-orange-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Displays</label>
+                                    <div class="mt-1 text-2xl font-bold text-orange-700">${sub.displays_made || 0}</div>
+                                </div>
+                                <div class="bg-orange-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Cards (not on display)</label>
+                                    <div class="mt-1 text-2xl font-bold text-orange-700">${sub.packs_remaining || 0}</div>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Output tablets (PO good)</label>
+                                    <div class="mt-1 text-2xl font-bold text-gray-900">${(sub.individual_calc || sub.total_tablets || 0).toLocaleString()}</div>
+                                </div>
+                            </div>
+                            ${sub.repack_vendor_return_notes ? `<p class="text-sm text-gray-600 mt-3"><span class="font-medium">Vendor return note:</span> ${sub.repack_vendor_return_notes}</p>` : ''}
                             ` : isBottleSubmission ? `
                             <!-- Bottle Submission -->
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -2560,6 +2599,7 @@ async function viewSubmissionDetails(submissionId) {
                                         <div class="mt-1 text-gray-900">${sub.bag_label_count != null ? sub.bag_label_count : 'N/A'}</div>
                                     </div>
                                 </div>
+                                ${repackRecvHtml}
                                 
                                 <!-- Bag Check Running Totals -->
                                 <div class="mt-4 pt-4 border-t border-gray-200">

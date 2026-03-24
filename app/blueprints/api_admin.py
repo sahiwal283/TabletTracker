@@ -8,6 +8,7 @@ import json
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, role_required, hash_password, verify_password
 from app.utils.route_helpers import ensure_app_settings_table
+from app.services.submission_calculator import calculate_repack_output_good
 
 bp = Blueprint('api_admin', __name__)
 

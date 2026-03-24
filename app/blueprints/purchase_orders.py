@@ -43,7 +43,7 @@ def purchase_orders_list():
                        FROM warehouse_submissions ws
                        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                        WHERE ws.assigned_po_id = po.id 
-                       AND ws.submission_type IN ('packaged', 'bag')
+                       AND ws.submission_type IN ('packaged', 'bag', 'repack')
                    ), 0) as packaged_count,
                    -- Calculate received count (from bags)
                    COALESCE((
