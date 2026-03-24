@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.23] - 2026-03-24
+
+### ✨ Enhancement
+
+#### Edit and Reassign Submissions on Closed POs
+- **Issue**: Submission details hid **Edit** when the assigned PO was closed, so wrong PO/receive could not be corrected from the UI.
+- **Enhancement**: Admins/managers always see **Edit Submission** in the details modal. When the PO is **closed** or the assignment is **verified**, the edit modal shows the **ADMIN OVERRIDE - Change PO** block (confirm checkbox, then pick a new PO). Counts move between PO lines via the existing admin reassign API.
+- **Enhancement**: After admin PO change, **bag/receive** is re-linked when the same box+bag exists on the new PO; otherwise `bag_id` is cleared so you can set box/bag in the form and save.
+- **Fix**: Admin PO reassignment now handles **bottle** submissions for correct tablet totals when moving counts.
+- **Files Updated**:
+  - `templates/base.html`
+  - `app/blueprints/api_admin.py`
+  - `__version__.py`
+
+---
+
 ## [2.44.21] - 2026-03-18
 
 ### ✨ Enhancement

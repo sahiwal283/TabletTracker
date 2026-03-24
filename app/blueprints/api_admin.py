@@ -287,7 +287,9 @@ def admin_reassign_verified_submission(submission_id):
         
         with db_transaction() as conn:
             submission = conn.execute('''
-                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id,
+                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package,
+                       pd.tablets_per_bottle, pd.bottles_per_display,
+                       tt.inventory_item_id,
                        COALESCE(ws.submission_type, 'packaged') as submission_type
                 FROM warehouse_submissions ws
                 LEFT JOIN product_details pd ON ws.product_name = pd.product_name
@@ -319,13 +321,27 @@ def admin_reassign_verified_submission(submission_id):
                 good_tablets = calculate_repack_output_good(
                     dict(submission), packages_per_display, tablets_per_package
                 )
+            elif submission_type == 'bottle':
+                deduction_totals = conn.execute(
+                    'SELECT COALESCE(SUM(tablets_deducted), 0) AS total FROM submission_bag_deductions WHERE submission_id = ?',
+                    (submission_id,),
+                ).fetchone()
+                if deduction_totals and deduction_totals['total']:
+                    good_tablets = deduction_totals['total']
+                else:
+                    tpb = submission.get('tablets_per_bottle') or 0
+                    bpd = submission.get('bottles_per_display') or 0
+                    bm = submission.get('bottles_made')
+                    if bm is None:
+                        bm = ((submission.get('displays_made') or 0) * bpd) + (submission.get('packs_remaining') or 0)
+                    good_tablets = (bm or 0) * tpb
             else:
                 packages_per_display = submission['packages_per_display'] or 0
                 tablets_per_package = submission['tablets_per_package'] or 0
                 good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
                                submission['packs_remaining'] * tablets_per_package + 
                                submission['loose_tablets'])
-            damaged_tablets = 0 if submission_type == 'repack' else submission['damaged_tablets']
+            damaged_tablets = 0 if submission_type in ('repack', 'bottle') else submission['damaged_tablets']
             
             if old_po_id:
                 old_line = conn.execute('''
@@ -400,12 +416,46 @@ def admin_reassign_verified_submission(submission_id):
                 ''', (new_totals['total_ordered'], new_totals['total_good'], 
                       new_totals['total_damaged'], remaining, new_po_id))
             
-            conn.execute('''
-                UPDATE warehouse_submissions 
-                SET assigned_po_id = ?
-                WHERE id = ?
-            ''', (new_po_id, submission_id))
-            
+            # Re-link receive/bag on the new PO when box+bag match a bag there; otherwise clear bag_id.
+            box_n = submission.get('box_number')
+            bag_n = submission.get('bag_number')
+            new_bag_id = None
+            new_bag_label = None
+            if box_n is not None and bag_n is not None:
+                bag_match = conn.execute(
+                    '''
+                    SELECT b.id, b.bag_label_count
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    JOIN receiving r ON sb.receiving_id = r.id
+                    WHERE r.po_id = ? AND sb.box_number = ? AND b.bag_number = ?
+                    LIMIT 1
+                    ''',
+                    (new_po_id, box_n, bag_n),
+                ).fetchone()
+                if bag_match:
+                    new_bag_id = bag_match['id']
+                    new_bag_label = bag_match['bag_label_count']
+
+            if new_bag_id is not None:
+                conn.execute(
+                    '''
+                    UPDATE warehouse_submissions
+                    SET assigned_po_id = ?, bag_id = ?, bag_label_count = COALESCE(?, bag_label_count)
+                    WHERE id = ?
+                    ''',
+                    (new_po_id, new_bag_id, new_bag_label, submission_id),
+                )
+            else:
+                conn.execute(
+                    '''
+                    UPDATE warehouse_submissions
+                    SET assigned_po_id = ?, bag_id = NULL
+                    WHERE id = ?
+                    ''',
+                    (new_po_id, submission_id),
+                )
+
             new_po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (new_po_id,)).fetchone()
             
             return jsonify({
