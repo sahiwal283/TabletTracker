@@ -116,7 +116,7 @@ def submissions_list():
             filter_date_to = request.args.get('date_to', type=str)
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
-            filter_receipt_number = request.args.get('receipt_number', type=str)
+            filter_receipt_number = (request.args.get('receipt_number', type=str) or '').strip() or None
             
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
@@ -168,6 +168,22 @@ def submissions_list():
                        WHEN 'bottle' THEN COALESCE(
                            (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                       )
+                       WHEN 'repack' THEN (
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)) +
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0))
                        )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
@@ -233,17 +249,17 @@ def submissions_list():
                 query += ' AND ws.receipt_number LIKE ?'
                 params.append(f'%{filter_receipt_number}%')
             
-            # Apply archive filter - exclude archived submissions by default
-            if not show_archived:
-                # Show only active submissions (PO not closed or no PO assigned)
-                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-            else:
-                # Show only archived submissions (PO is closed)
-                query += ' AND po.closed = TRUE'
+            # Archive filter hides rows tied to closed POs. Duplicate checks do not use this filter,
+            # so searching by receipt must still surface those rows.
+            if not filter_receipt_number:
+                if not show_archived:
+                    query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+                else:
+                    query += ' AND po.closed = TRUE'
             
             # Apply tab filter for submission types
             if active_tab == 'packaged_machine':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\')'
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
             elif active_tab == 'bottles':
                 query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
             elif active_tab == 'bag':
@@ -293,7 +309,9 @@ def submissions_list():
                     bag_running_totals_bag[bag_key] += bag_count_value
                 elif submission_type == 'machine':
                     bag_running_totals_machine[bag_key] += individual_calc
-                else:  # 'packaged'
+                elif submission_type == 'repack':
+                    pass
+                elif submission_type == 'packaged':
                     bag_running_totals_packaged[bag_key] += individual_calc
                 
                 # Update total running total (only packaged counts - machine counts are consumed, not in bag)
@@ -324,7 +342,11 @@ def submissions_list():
                 else:
                     sub_dict['count_status'] = 'over'
                 
-                sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+                if submission_type == 'repack':
+                    sub_dict['count_status'] = 'repack_po'
+                    sub_dict['has_discrepancy'] = 0
+                else:
+                    sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
                 
                 # Build receive name using stored receive_name from database
                 # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2) or PO-receive-bag for flavor-based
@@ -466,14 +488,18 @@ def submissions_list():
             if filter_submission_type:
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
                 unverified_params.append(filter_submission_type)
-            # Apply archive filter to unverified count
-            if not show_archived:
-                unverified_query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-            else:
-                unverified_query += ' AND po.closed = TRUE'
+            if filter_receipt_number:
+                unverified_query += ' AND ws.receipt_number LIKE ?'
+                unverified_params.append(f'%{filter_receipt_number}%')
+            # Match archive behavior of main list (skip when searching by receipt)
+            if not filter_receipt_number:
+                if not show_archived:
+                    unverified_query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+                else:
+                    unverified_query += ' AND po.closed = TRUE'
             # Apply tab filter to unverified count
             if active_tab == 'packaged_machine':
-                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\')'
+                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
             elif active_tab == 'bottles':
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
             elif active_tab == 'bag':
@@ -557,7 +583,7 @@ def export_submissions_csv():
             filter_date_to = request.args.get('date_to', type=str)
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
-            filter_receipt_number = request.args.get('receipt_number', type=str)
+            filter_receipt_number = (request.args.get('receipt_number', type=str) or '').strip() or None
             
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
@@ -598,6 +624,22 @@ def export_submissions_csv():
                        WHEN 'bottle' THEN COALESCE(
                            (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+                       )
+                       WHEN 'repack' THEN (
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0)) +
+                           (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           ), 0))
                        )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
@@ -660,17 +702,15 @@ def export_submissions_csv():
                 query += ' AND ws.receipt_number LIKE ?'
                 params.append(f'%{filter_receipt_number}%')
             
-            # Apply archive filter - exclude archived submissions by default
-            if not show_archived:
-                # Show only active submissions (PO not closed or no PO assigned)
-                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-            else:
-                # Show only archived submissions (PO is closed)
-                query += ' AND po.closed = TRUE'
+            if not filter_receipt_number:
+                if not show_archived:
+                    query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+                else:
+                    query += ' AND po.closed = TRUE'
             
             # Apply tab filter for submission types
             if active_tab == 'packaged_machine':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\')'
+                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
             elif active_tab == 'bottles':
                 query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
             elif active_tab == 'bag':
@@ -721,6 +761,7 @@ def export_submissions_csv():
                     bag_running_totals[bag_key] = 0
                 if submission_type == 'packaged':
                     bag_running_totals[bag_key] += individual_calc
+                # repack: PO-level only; do not affect per-bag running totals (matches list view)
                 
                 sub_dict['individual_calc'] = individual_calc
                 sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
@@ -737,6 +778,9 @@ def export_submissions_csv():
                     sub_dict['count_status'] = 'Under'
                 else:
                     sub_dict['count_status'] = 'Over'
+                
+                if submission_type == 'repack':
+                    sub_dict['count_status'] = 'Repack PO'
                 
                 submissions_processed.append(sub_dict)
             

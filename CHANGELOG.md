@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.22] - 2026-03-24
+
+### 🐛 Bug Fix
+
+#### Receipt Search on Submissions List vs Duplicate Receipt Validation
+- **Issue**: Submissions could exist and block re-use of a receipt number, while `/submissions` showed no rows for that receipt because the default list hid rows tied to closed POs.
+- **Fix**: When filtering by receipt number, skip the closed-PO archive filter so receipt lookups return matching rows. Trim receipt filter input for consistent matching.
+- **Fix**: Unverified count query now applies the same receipt filter as the main list.
+- **Files Updated**:
+  - `app/blueprints/submissions.py`
+  - `__version__.py`
+
+---
+
 ## [2.44.21] - 2026-03-18
 
 ### ✨ Enhancement
