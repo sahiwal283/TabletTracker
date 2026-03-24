@@ -116,7 +116,7 @@ def submissions_list():
             filter_date_to = request.args.get('date_to', type=str)
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
-            filter_receipt_number = (request.args.get('receipt_number', type=str) or '').strip() or None
+            filter_receipt_number = request.args.get('receipt_number', type=str)
             
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
@@ -249,13 +249,13 @@ def submissions_list():
                 query += ' AND ws.receipt_number LIKE ?'
                 params.append(f'%{filter_receipt_number}%')
             
-            # Archive filter hides rows tied to closed POs. Duplicate checks do not use this filter,
-            # so searching by receipt must still surface those rows.
-            if not filter_receipt_number:
-                if not show_archived:
-                    query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-                else:
-                    query += ' AND po.closed = TRUE'
+            # Apply archive filter - exclude archived submissions by default
+            if not show_archived:
+                # Show only active submissions (PO not closed or no PO assigned)
+                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+            else:
+                # Show only archived submissions (PO is closed)
+                query += ' AND po.closed = TRUE'
             
             # Apply tab filter for submission types
             if active_tab == 'packaged_machine':
@@ -488,15 +488,11 @@ def submissions_list():
             if filter_submission_type:
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
                 unverified_params.append(filter_submission_type)
-            if filter_receipt_number:
-                unverified_query += ' AND ws.receipt_number LIKE ?'
-                unverified_params.append(f'%{filter_receipt_number}%')
-            # Match archive behavior of main list (skip when searching by receipt)
-            if not filter_receipt_number:
-                if not show_archived:
-                    unverified_query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-                else:
-                    unverified_query += ' AND po.closed = TRUE'
+            # Apply archive filter to unverified count
+            if not show_archived:
+                unverified_query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+            else:
+                unverified_query += ' AND po.closed = TRUE'
             # Apply tab filter to unverified count
             if active_tab == 'packaged_machine':
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
@@ -583,7 +579,7 @@ def export_submissions_csv():
             filter_date_to = request.args.get('date_to', type=str)
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
-            filter_receipt_number = (request.args.get('receipt_number', type=str) or '').strip() or None
+            filter_receipt_number = request.args.get('receipt_number', type=str)
             
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
@@ -702,11 +698,13 @@ def export_submissions_csv():
                 query += ' AND ws.receipt_number LIKE ?'
                 params.append(f'%{filter_receipt_number}%')
             
-            if not filter_receipt_number:
-                if not show_archived:
-                    query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-                else:
-                    query += ' AND po.closed = TRUE'
+            # Apply archive filter - exclude archived submissions by default
+            if not show_archived:
+                # Show only active submissions (PO not closed or no PO assigned)
+                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+            else:
+                # Show only archived submissions (PO is closed)
+                query += ' AND po.closed = TRUE'
             
             # Apply tab filter for submission types
             if active_tab == 'packaged_machine':
