@@ -143,6 +143,22 @@ def dashboard_view():
                            )), 0)),
                            0
                        )
+                       WHEN 'repack' THEN (
+                           (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )), 0)) +
+                           (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, (
+                               SELECT pd2.tablets_per_package 
+                               FROM product_details pd2
+                               JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                               WHERE tt2.inventory_item_id = ws.inventory_item_id
+                               LIMIT 1
+                           )), 0))
+                       )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, (
                                SELECT pd2.tablets_per_package 
@@ -209,11 +225,14 @@ def dashboard_view():
                     bag_running_totals_bag[bag_key] += individual_calc
                 elif submission_type == 'machine':
                     bag_running_totals_machine[bag_key] += individual_calc
-                else:  # 'packaged'
+                elif submission_type == 'repack':
+                    pass
+                elif submission_type == 'packaged':
                     bag_running_totals_packaged[bag_key] += individual_calc
                 
                 # Update total running total (only packaged counts - machine counts are consumed, not in bag)
                 # Bag counts are also separate inventory counts, not added to total
+                # Repack is PO-level / allocation-based; do not add to per-bag packaged running totals
                 if submission_type == 'packaged':
                     bag_running_totals[bag_key] += individual_calc
                 
@@ -239,7 +258,11 @@ def dashboard_view():
                 else:
                     sub_dict['count_status'] = 'over'
                 
-                sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
+                if submission_type == 'repack':
+                    sub_dict['count_status'] = 'repack_po'
+                    sub_dict['has_discrepancy'] = 0
+                else:
+                    sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
                 
                 # Build receive name using stored receive_name from database
                 # If bag_id exists, we should always be able to build a receive_name

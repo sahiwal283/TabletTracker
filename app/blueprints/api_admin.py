@@ -8,6 +8,7 @@ import json
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, role_required, hash_password, verify_password
 from app.utils.route_helpers import ensure_app_settings_table
+from app.services.submission_calculator import calculate_repack_output_good
 
 bp = Blueprint('api_admin', __name__)
 
@@ -312,13 +313,19 @@ def admin_reassign_verified_submission(submission_id):
             submission_type = submission.get('submission_type', 'packaged')
             if submission_type == 'machine':
                 good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
+            elif submission_type == 'repack':
+                packages_per_display = submission['packages_per_display'] or 0
+                tablets_per_package = submission['tablets_per_package'] or 0
+                good_tablets = calculate_repack_output_good(
+                    dict(submission), packages_per_display, tablets_per_package
+                )
             else:
                 packages_per_display = submission['packages_per_display'] or 0
                 tablets_per_package = submission['tablets_per_package'] or 0
                 good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
                                submission['packs_remaining'] * tablets_per_package + 
                                submission['loose_tablets'])
-            damaged_tablets = submission['damaged_tablets']
+            damaged_tablets = 0 if submission_type == 'repack' else submission['damaged_tablets']
             
             if old_po_id:
                 old_line = conn.execute('''

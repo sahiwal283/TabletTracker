@@ -45,6 +45,24 @@ def calculate_packaged_submission_total(
     return displays_total + packs_total + loose_tablets + damaged_tablets
 
 
+def calculate_repack_output_good(
+    submission: Dict[str, Any],
+    packages_per_display: Optional[int] = None,
+    tablets_per_package: Optional[int] = None,
+) -> int:
+    """
+    Tablets credited to PO good_count from a repack submission.
+    Uses finished displays/partial cards only (no loose; damaged does not affect PO).
+    """
+    displays_made = submission.get('displays_made', 0) or 0
+    packs_remaining = submission.get('packs_remaining', 0) or 0
+    packages_per_display = packages_per_display or 0
+    tablets_per_package = tablets_per_package or 0
+    displays_total = displays_made * packages_per_display * tablets_per_package
+    packs_total = packs_remaining * tablets_per_package
+    return displays_total + packs_total
+
+
 def calculate_bag_submission_total(submission: Dict[str, Any]) -> int:
     """
     Calculate total tablets for a bag count submission.
@@ -136,6 +154,10 @@ def calculate_submission_total(
         # Use fallback if provided, otherwise use primary
         tablets_per_pkg = fallback_tablets_per_package or tablets_per_package
         return calculate_machine_submission_total(submission, tablets_per_pkg)
+    elif submission_type == 'repack':
+        return calculate_repack_output_good(
+            submission, packages_per_display, tablets_per_package
+        )
     elif submission_type == 'bag':
         return calculate_bag_submission_total(submission)
     else:  # 'packaged' or default

@@ -5,22 +5,26 @@
 {% block content %}
 <div class="max-w-md mx-auto px-3 sm:px-0">
     <!-- Form Toggle Buttons -->
-    <div class="flex justify-center mb-4 sm:mb-6 gap-1 sm:gap-2">
-        <button id="toggle-machine-count" onclick="switchForm('machine-count')" 
-                class="flex-1 px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:shadow-xl">
+    <div class="flex flex-wrap justify-center mb-4 sm:mb-6 gap-1 sm:gap-2">
+        <button id="toggle-machine-count" onclick="switchForm('machine-count')" type="button"
+                class="flex-1 min-w-[4.5rem] px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:shadow-xl">
             Machine
         </button>
-        <button id="toggle-production-submission" onclick="switchForm('submission')" 
-                class="flex-1 px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+        <button id="toggle-production-submission" onclick="switchForm('submission')" type="button"
+                class="flex-1 min-w-[4.5rem] px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
             Packaged
         </button>
-        <button id="toggle-bag-count" onclick="switchForm('bag-count')" 
-                class="flex-1 px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+        <button id="toggle-bag-count" onclick="switchForm('bag-count')" type="button"
+                class="flex-1 min-w-[4.5rem] px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
             Bag Count
         </button>
-        <button id="toggle-bottles" onclick="switchForm('bottles')" 
-                class="flex-1 px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+        <button id="toggle-bottles" onclick="switchForm('bottles')" type="button"
+                class="flex-1 min-w-[4.5rem] px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
             Bottles
+        </button>
+        <button id="toggle-repack" onclick="switchForm('repack')" type="button"
+                class="flex-1 min-w-[4.5rem] px-2 sm:px-4 py-3 sm:py-3 rounded-lg font-semibold text-xs sm:text-base transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300">
+            Repack
         </button>
     </div>
 
@@ -59,13 +63,15 @@
                 document.getElementById('machine_employee_name'),
                 document.getElementById('packaged_employee_name'),
                 document.getElementById('bag_employee_name'),
-                document.getElementById('bottles_employee_name')
+                document.getElementById('bottles_employee_name'),
+                document.getElementById('repack_employee_name')
             ].filter(Boolean);
             const employeeDisplays = [
                 document.getElementById('machine-employee-name-display'),
                 document.getElementById('packaged-employee-name-display'),
                 document.getElementById('bag-employee-name-display'),
-                document.getElementById('bottles-employee-name-display')
+                document.getElementById('bottles-employee-name-display'),
+                document.getElementById('repack-employee-name-display')
             ].filter(Boolean);
 
             if (employeeInputs.length === 0) return;
@@ -613,6 +619,66 @@
         <div id="bottles-form-messages" class="mt-4"></div>
     </div>
 
+    <!-- Tablet search / Repack (end of PO) -->
+    <div id="repack-form" class="card hover-lift p-4 sm:p-8 hidden">
+        <div class="text-center mb-6 sm:mb-8">
+            <h2 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent mb-2">Repack / tablet search</h2>
+            {% if employee %}
+            <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
+                <p class="text-amber-900 font-semibold flex items-center justify-center text-base sm:text-lg">
+                    <span class="text-xl sm:text-2xl mr-2 sm:mr-3">📦</span>
+                    {{ gettext('Employee') }}: <span id="repack-employee-name-display">{{ employee.full_name }}</span>
+                </p>
+            </div>
+            {% endif %}
+            <p class="text-sm sm:text-base text-gray-600">Finished displays and cards from end-of-PO tablet search. Same receipt # can be submitted again for another flavor.</p>
+        </div>
+        <form id="repack-form-submit" class="space-y-4">
+            <div>
+                <label for="repack_employee_name" class="block text-sm font-medium text-gray-700 mb-1">Employee name *</label>
+                <input type="text" id="repack_employee_name" name="employee_name" required class="form-input"
+                       value="{{ employee.full_name if employee else '' }}">
+            </div>
+            <div>
+                <label for="repack_po_id" class="block text-sm font-medium text-gray-700 mb-1">Purchase order *</label>
+                <select id="repack_po_id" name="po_id" required class="form-input">
+                    <option value="">Loading POs…</option>
+                </select>
+            </div>
+            <div>
+                <label for="repack_receipt_number" class="block text-sm font-medium text-gray-700 mb-1">Receipt # *</label>
+                <input type="text" id="repack_receipt_number" name="receipt_number" required class="form-input"
+                       placeholder="Shared receipt for this batch">
+            </div>
+            <div>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span class="block text-sm font-medium text-gray-700">Flavors (one row per product on this receipt)</span>
+                    <button type="button" id="repack-add-line" class="text-sm px-3 py-1 rounded-lg border border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100">
+                        + Add flavor
+                    </button>
+                </div>
+                <div id="repack-lines" class="space-y-3"></div>
+                <p class="text-xs text-gray-500 mt-2">Submit once to record every row; same receipt # can be reused later for other flavors.</p>
+            </div>
+            <div>
+                <label for="repack_vendor_return_notes" class="block text-sm font-medium text-gray-700 mb-1">Vendor return (optional)</label>
+                <textarea id="repack_vendor_return_notes" name="repack_vendor_return_notes" rows="2" class="form-input w-full"
+                          placeholder="Unusable tablets set aside — not counted"></textarea>
+            </div>
+            <div>
+                <label for="repack_submission_date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input type="date" id="repack_submission_date" name="submission_date" class="form-input" value="{{ today_date }}">
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <button type="button" id="repack-preview-btn" class="w-full sm:w-auto py-3 px-6 text-base font-semibold rounded-lg border-2 border-amber-400 text-amber-900 bg-white hover:bg-amber-50">
+                    Preview allocation
+                </button>
+                <button type="submit" class="flex-1 py-3 sm:py-4 px-6 text-base font-bold btn-primary rounded-lg">Submit repack</button>
+            </div>
+        </form>
+        <div id="repack-form-messages" class="mt-4"></div>
+    </div>
+
 </div>
 
 <script>
@@ -622,19 +688,22 @@ function switchForm(formType) {
     const bagCountForm = document.getElementById('bag-count-form');
     const machineCountForm = document.getElementById('machine-count-form');
     const bottlesForm = document.getElementById('bottles-form');
+    const repackForm = document.getElementById('repack-form');
     const submissionBtn = document.getElementById('toggle-production-submission');
     const bagCountBtn = document.getElementById('toggle-bag-count');
     const machineCountBtn = document.getElementById('toggle-machine-count');
     const bottlesBtn = document.getElementById('toggle-bottles');
+    const repackBtn = document.getElementById('toggle-repack');
     
     // Hide all forms
     submissionForm.classList.add('hidden');
     bagCountForm.classList.add('hidden');
     machineCountForm.classList.add('hidden');
     bottlesForm.classList.add('hidden');
+    repackForm.classList.add('hidden');
     
     // Reset all buttons
-    [submissionBtn, bagCountBtn, machineCountBtn, bottlesBtn].forEach(btn => {
+    [submissionBtn, bagCountBtn, machineCountBtn, bottlesBtn, repackBtn].forEach(btn => {
         btn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
         btn.classList.add('bg-gray-200', 'text-gray-700');
     });
@@ -658,6 +727,10 @@ function switchForm(formType) {
         bottlesBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
         // Load bottle products when tab is shown
         loadBottleProducts();
+    } else if (formType === 'repack') {
+        repackForm.classList.remove('hidden');
+        repackBtn.classList.remove('bg-gray-200', 'text-gray-700');
+        repackBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
     }
 }
 
@@ -1742,6 +1815,210 @@ document.addEventListener('DOMContentLoaded', async function() {
             <span class="text-xl mr-2">❌</span> ${message}
         </div>`;
         setTimeout(() => msgDiv.innerHTML = '', 8000);
+    }
+
+    // Repack: load open POs
+    const repackPoSelect = document.getElementById('repack_po_id');
+    if (repackPoSelect) {
+        fetch('/api/submissions/repack/eligible-pos')
+            .then(r => r.json())
+            .then(data => {
+                repackPoSelect.innerHTML = '<option value="">Select PO…</option>';
+                (data.pos || []).forEach(p => {
+                    const o = document.createElement('option');
+                    o.value = p.id;
+                    o.textContent = p.po_number + (p.internal_status ? ' — ' + p.internal_status : '');
+                    repackPoSelect.appendChild(o);
+                });
+            })
+            .catch(() => {
+                repackPoSelect.innerHTML = '<option value="">Could not load POs</option>';
+            });
+    }
+
+    const repackFormEl = document.getElementById('repack-form-submit');
+    const repackLinesEl = document.getElementById('repack-lines');
+    const repackProductOptionsHtml = `{% for product in products %}<option value="{{ product.product_name|e }}">{{ product.product_name|e }}</option>{% endfor %}`;
+
+    function buildRepackLineRow() {
+        const wrap = document.createElement('div');
+        wrap.className = 'repack-line border border-amber-100 rounded-lg p-3 space-y-2 bg-amber-50/40';
+        wrap.innerHTML = `
+            <div class="flex justify-between items-center gap-2">
+                <span class="text-sm font-medium text-gray-700">Product *</span>
+                <button type="button" class="repack-remove-line text-xs text-red-700 hover:underline">Remove</button>
+            </div>
+            <select class="form-input repack-line-product w-full">
+                <option value="">Select product…</option>
+            </select>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-gray-600 block mb-1">Displays</label>
+                    <input type="number" class="form-input repack-line-displays w-full" min="0" value="0">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-600 block mb-1">Cards (partial)</label>
+                    <input type="number" class="form-input repack-line-packs w-full" min="0" value="0">
+                </div>
+            </div>
+        `;
+        const sel = wrap.querySelector('select');
+        sel.insertAdjacentHTML('beforeend', repackProductOptionsHtml);
+        return wrap;
+    }
+
+    function refreshRepackRemoveButtons() {
+        if (!repackLinesEl) return;
+        const lines = repackLinesEl.querySelectorAll('.repack-line');
+        lines.forEach((line) => {
+            const btn = line.querySelector('.repack-remove-line');
+            if (!btn) return;
+            btn.hidden = lines.length <= 1;
+            btn.onclick = () => {
+                if (repackLinesEl.querySelectorAll('.repack-line').length <= 1) return;
+                line.remove();
+                refreshRepackRemoveButtons();
+            };
+        });
+    }
+
+    function resetRepackLines() {
+        if (!repackLinesEl) return;
+        repackLinesEl.innerHTML = '';
+        repackLinesEl.appendChild(buildRepackLineRow());
+        refreshRepackRemoveButtons();
+    }
+
+    function collectRepackLines() {
+        const out = [];
+        if (!repackLinesEl) return out;
+        repackLinesEl.querySelectorAll('.repack-line').forEach((line) => {
+            const product_name = (line.querySelector('.repack-line-product') || {}).value?.trim();
+            const displays_made = parseInt((line.querySelector('.repack-line-displays') || {}).value || '0', 10);
+            const packs_remaining = parseInt((line.querySelector('.repack-line-packs') || {}).value || '0', 10);
+            if (!product_name) return;
+            if (displays_made === 0 && packs_remaining === 0) return;
+            out.push({ product_name, displays_made, packs_remaining });
+        });
+        return out;
+    }
+
+    if (repackLinesEl) {
+        resetRepackLines();
+        const addBtn = document.getElementById('repack-add-line');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                repackLinesEl.appendChild(buildRepackLineRow());
+                refreshRepackRemoveButtons();
+            });
+        }
+    }
+
+    const repackPreviewBtn = document.getElementById('repack-preview-btn');
+    if (repackPreviewBtn && repackFormEl) {
+        repackPreviewBtn.addEventListener('click', async function() {
+            const msgDiv = document.getElementById('repack-form-messages');
+            const fd = new FormData(repackFormEl);
+            const po_id = parseInt(fd.get('po_id'), 10);
+            const lines = collectRepackLines();
+            if (!po_id) {
+                msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Select a PO</div>';
+                return;
+            }
+            if (!lines.length) {
+                msgDiv.innerHTML = '<div class="bg-yellow-50 border border-yellow-300 text-yellow-900 px-4 py-3 rounded">Add at least one row with product and displays or cards.</div>';
+                return;
+            }
+            repackPreviewBtn.disabled = true;
+            const origP = repackPreviewBtn.textContent;
+            repackPreviewBtn.textContent = 'Loading…';
+            try {
+                const response = await csrfFetch('/api/submissions/repack/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ po_id, lines })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    let html = '<div class="bg-amber-50 border border-amber-300 text-amber-950 px-4 py-3 rounded text-sm"><strong>Allocation preview</strong> (not saved)</div>';
+                    (result.previews || []).forEach((p) => {
+                        html += '<pre class="mt-2 p-3 bg-gray-900 text-gray-100 rounded text-xs overflow-x-auto">' +
+                            (p.product_name || '') + ': ' + (p.output_tablets || 0) + ' tablets → ' +
+                            JSON.stringify(p.allocation || {}, null, 2) +
+                            (p.needs_review ? '\n⚠️ needs_review' : '') +
+                            '</pre>';
+                    });
+                    msgDiv.innerHTML = html;
+                } else {
+                    msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">' + (result.error || 'Preview failed') + '</div>';
+                }
+            } catch (err) {
+                msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Network error</div>';
+            } finally {
+                repackPreviewBtn.disabled = false;
+                repackPreviewBtn.textContent = origP;
+            }
+        });
+    }
+
+    if (repackFormEl) {
+        repackFormEl.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const msgDiv = document.getElementById('repack-form-messages');
+            const fd = new FormData(repackFormEl);
+            const lines = collectRepackLines();
+            const payload = {
+                employee_name: (fd.get('employee_name') || '').trim(),
+                po_id: parseInt(fd.get('po_id'), 10),
+                receipt_number: (fd.get('receipt_number') || '').trim(),
+                lines,
+                submission_date: fd.get('submission_date') || new Date().toISOString().split('T')[0],
+                repack_vendor_return_notes: (fd.get('repack_vendor_return_notes') || '').trim() || null
+            };
+            if (!payload.po_id) {
+                msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Select a PO</div>';
+                return;
+            }
+            if (!payload.receipt_number) {
+                msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Receipt # is required</div>';
+                return;
+            }
+            if (!lines.length) {
+                msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Add at least one flavor with product and displays or cards &gt; 0</div>';
+                return;
+            }
+            const btn = repackFormEl.querySelector('button[type="submit"]');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = 'Submitting…';
+            try {
+                const response = await csrfFetch('/api/submissions/repack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    let html = '<div class="bg-green-100 border border-green-400 text-green-800 px-4 py-3 rounded">' + (result.message || 'Saved') + '</div>';
+                    (result.created || []).forEach(c => {
+                        if (c.needs_review) {
+                            html += '<div class="bg-yellow-50 border border-yellow-300 text-yellow-900 px-3 py-2 rounded mt-2 text-sm">Needs review: overflow or missing bag capacity for ' + (c.product_name || '') + '</div>';
+                        }
+                    });
+                    msgDiv.innerHTML = html;
+                    repackFormEl.reset();
+                    document.getElementById('repack_submission_date').value = '{{ today_date }}';
+                    resetRepackLines();
+                } else {
+                    msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">' + (result.error || 'Failed') + '</div>';
+                }
+            } catch (err) {
+                msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Network error</div>';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        });
     }
 });
 </script>
