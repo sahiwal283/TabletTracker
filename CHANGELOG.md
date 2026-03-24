@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.45.0] - 2026-03-24
+
+### 📌 Versioning (Semantic Versioning)
+
+- **Policy**: **MINOR** (`2.Y.0`) increases for backward-compatible **new features** and meaningful **enhancements**. **PATCH** (`2.x.Z`) increases for **bug fixes** only. **MAJOR** increases for breaking or incompatible behavior changes.
+- **This release**: Bumps **minor** from `2.44.x` → `2.45.0` so the version matches SemVer for recent feature work (e.g. submission editing improvements). Codebase is unchanged from **2.44.24**; deploys on `2.44.24` are equivalent functionally.
+- **Files Updated**: `__version__.py`, `CHANGELOG.md`
+
+---
+
 ## [2.44.24] - 2026-03-24
 
 ### ✨ Enhancement
