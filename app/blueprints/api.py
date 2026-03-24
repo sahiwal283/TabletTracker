@@ -1815,7 +1815,7 @@ def edit_submission(submission_id):
             submission = conn.execute('''
                 SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
                        loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
-                       bottles_made,
+                       bottles_made, machine_id,
                        COALESCE(submission_type, 'packaged') as submission_type
                 FROM warehouse_submissions
                 WHERE id = ?
@@ -1964,6 +1964,32 @@ def edit_submission(submission_id):
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
             
+            new_machine_id = None
+            if submission_type == 'machine':
+                mid_raw = data.get('machine_id')
+                if mid_raw is None or str(mid_raw).strip() == '':
+                    return jsonify({'success': False, 'error': 'Machine is required for machine submissions'}), 400
+                try:
+                    new_machine_id = int(mid_raw)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'error': 'Invalid machine_id'}), 400
+                machine_row = conn.execute(
+                    '''
+                    SELECT id, COALESCE(cards_per_turn, 0) AS cards_per_turn
+                    FROM machines
+                    WHERE id = ? AND COALESCE(is_active, 1) = 1
+                    ''',
+                    (new_machine_id,),
+                ).fetchone()
+                if not machine_row:
+                    return jsonify({'success': False, 'error': 'Invalid or inactive machine selected'}), 400
+                cpt = int(machine_row['cards_per_turn'] or 0)
+                if cpt <= 0:
+                    return jsonify({'success': False, 'error': 'Selected machine has no valid cards-per-turn configured'}), 400
+                # Match production semantics: tablets = turns × cards_per_turn; packs_remaining holds card count
+                tablets_pressed_into_cards = displays_made * cpt
+                packs_remaining = tablets_pressed_into_cards
+            
             # Calculate new totals based on submission type
             if submission_type == 'machine':
                 new_good = tablets_pressed_into_cards
@@ -2015,12 +2041,13 @@ def edit_submission(submission_id):
                     UPDATE warehouse_submissions
                     SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
                         damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
+                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                        machine_id = ?
                     WHERE id = ?
                 ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
                       damaged_tablets, new_box_number, new_bag_number, new_bag_id,
                       data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
-                      product_name_to_use, inventory_item_id, submission_id))
+                      product_name_to_use, inventory_item_id, new_machine_id, submission_id))
             elif submission_type == 'bottle':
                 bottles_made = (displays_made * bottles_per_display) + packs_remaining
                 conn.execute('''

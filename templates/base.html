@@ -397,6 +397,50 @@ function closeAdminNotesModal(event) {
     }
 }
 
+// Keep machine submission cards/tablets in sync with turns × cards_per_turn (edit modal)
+function wireEditMachineDerivedSync() {
+    const sel = document.getElementById('edit-machine-id');
+    const cnt = document.getElementById('edit-machine-count');
+    const tabs = document.getElementById('edit-tablets-pressed');
+    if (!sel || !cnt || !tabs) return;
+    function sync() {
+        const turns = parseInt(cnt.value, 10) || 0;
+        const opt = sel.options[sel.selectedIndex];
+        const cpt = opt && opt.value ? parseInt(opt.getAttribute('data-cards-per-turn') || '0', 10) : 0;
+        tabs.value = (turns && cpt) ? String(turns * cpt) : '0';
+    }
+    sel.onchange = sync;
+    cnt.oninput = sync;
+    cnt.onchange = sync;
+    sync();
+}
+
+async function populateEditMachineDropdown(submission) {
+    const sel = document.getElementById('edit-machine-id');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select machine…</option>';
+    try {
+        const response = await fetch('/api/machines');
+        const data = await response.json();
+        if (data.success && data.machines && data.machines.length) {
+            data.machines.forEach((m) => {
+                const opt = document.createElement('option');
+                opt.value = String(m.id);
+                opt.textContent = m.machine_name || ('Machine ' + m.id);
+                opt.setAttribute('data-cards-per-turn', m.cards_per_turn != null ? String(m.cards_per_turn) : '0');
+                sel.appendChild(opt);
+            });
+        }
+        if (submission && submission.machine_id != null && submission.machine_id !== '') {
+            sel.value = String(submission.machine_id);
+        }
+    } catch (e) {
+        console.error('Failed to load machines for edit modal', e);
+        sel.innerHTML = '<option value="">Could not load machines</option>';
+    }
+    wireEditMachineDerivedSync();
+}
+
 // Close edit submission modal - defined early
 function closeEditSubmissionModal(event) {
     // Always close the modal when called (whether from button click or backdrop click)
@@ -448,10 +492,21 @@ async function saveSubmissionEdit() {
     
     // Add type-specific fields
     if (isMachineSubmission) {
-        // Machine count: displays_made stores machine_count, tablets_pressed_into_cards stores calculated total
+        // Machine count: displays_made stores machine_count; server recomputes tablets from machine cards_per_turn
         formData.displays_made = parseInt(document.getElementById('edit-machine-count').value) || 0;
         formData.tablets_pressed_into_cards = parseInt(document.getElementById('edit-tablets-pressed').value) || 0;
-        formData.packs_remaining = 0;  // Not used for machine
+        const midEl = document.getElementById('edit-machine-id');
+        const midVal = midEl && midEl.value ? parseInt(midEl.value, 10) : NaN;
+        if (!midEl || !midEl.value || Number.isNaN(midVal)) {
+            if (typeof showError === 'function') {
+                showError('Please select a machine.');
+            } else {
+                alert('Please select a machine.');
+            }
+            return;
+        }
+        formData.machine_id = midVal;
+        formData.packs_remaining = 0;  // Server sets from recomputed card count
         formData.loose_tablets = 0;    // Not used for machine
         formData.damaged_tablets = 0;  // Not used for machine
     } else if (isBottleSubmission) {
@@ -583,6 +638,7 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 const submissionDate = sub.submission_date || (sub.created_at ? sub.created_at.split(' ')[0] : '');
                 editDate.value = submissionDate;
             }
+            await populateEditMachineDropdown(sub);
         } else if (submissionType === 'bottle') {
             const editBottleDisplays = document.getElementById('edit-bottle-displays');
             const editBottleRemaining = document.getElementById('edit-bottle-remaining');
@@ -1490,6 +1546,14 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <!-- Machine Count Fields (only for machine submissions) -->
                 <div id="machine-fields" class="hidden space-y-4">
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Machine</label>
+                        <select id="edit-machine-id"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Loading machines…</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Changing machine recalculates cards and total tablets as turns × this machine&rsquo;s cards per turn.</p>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Machine Counter Reading</label>
                         <input type="number" id="edit-machine-count" min="0" 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -1499,7 +1563,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Total Tablets Pressed</label>
                         <input type="number" id="edit-tablets-pressed" min="0" readonly
                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
-                        <p class="text-xs text-gray-500 mt-1">Read-only: Calculated from machine count</p>
+                        <p class="text-xs text-gray-500 mt-1">Read-only: turns × selected machine&rsquo;s cards per turn (saved totals use this)</p>
                     </div>
                 </div>
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.44.24] - 2026-03-24
+
+### ✨ Enhancement
+
+#### Change Machine on Edit Submission (Machine Counts)
+- **Enhancement**: Edit Submission modal for **machine** rows now includes a **Machine** dropdown (loaded from `/api/machines`). Saving updates `warehouse_submissions.machine_id`.
+- **Behavior**: **Total tablets** and **cards** are recomputed as **turns × selected machine&rsquo;s cards per turn**, matching new machine submissions; `packs_remaining` is kept in sync with card count on save.
+- **Files Updated**:
+  - `templates/base.html`
+  - `app/blueprints/api.py`
+  - `__version__.py`
+
+---
+
 ## [2.44.23] - 2026-03-24
 
 ### ✨ Enhancement
