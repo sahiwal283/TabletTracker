@@ -1859,7 +1859,7 @@ def edit_submission(submission_id):
                        loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
                        bottles_made, machine_id,
                        COALESCE(submission_type, 'packaged') as submission_type,
-                       repack_vendor_return_notes
+                       repack_vendor_return_notes, repack_machine_count
                 FROM warehouse_submissions
                 WHERE id = ?
             ''', (submission_id,)).fetchone()
@@ -2139,13 +2139,21 @@ def edit_submission(submission_id):
                     vn = vn.strip() or None
                 else:
                     vn = None
+                try:
+                    rmc = data.get('repack_machine_count', submission.get('repack_machine_count', 0))
+                    repack_machine_count = int(rmc) if rmc is not None else 0
+                except (TypeError, ValueError):
+                    repack_machine_count = 0
+                if repack_machine_count < 0:
+                    repack_machine_count = 0
                 conn.execute(
                     '''
                     UPDATE warehouse_submissions
                     SET displays_made = ?, packs_remaining = ?, loose_tablets = 0, damaged_tablets = 0,
                         bag_id = ?, needs_review = ?,
                         submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
-                        repack_bag_allocations = ?, repack_vendor_return_notes = ?
+                        repack_bag_allocations = ?, repack_vendor_return_notes = ?,
+                        repack_machine_count = ?
                     WHERE id = ?
                     ''',
                     (
@@ -2160,6 +2168,7 @@ def edit_submission(submission_id):
                         inventory_item_id,
                         alloc_json,
                         vn,
+                        repack_machine_count,
                         submission_id,
                     ),
                 )

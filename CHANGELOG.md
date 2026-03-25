@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.2] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Repack: optional machine count
+- **Enhancement**: Repack submissions can record an optional **`repack_machine_count`** (machine counter / turns) for operational tracking; values are **not** included in PO `good_count` / output tablet math.
+- **Schema**: `warehouse_submissions.repack_machine_count` (integer, default 0), applied via app migration runner.
+- **UI**: Production repack form field; submission details and edit modal show/store the value.
+- **Versioning**: **PATCH** `2.46.1` → `2.46.2`.
+
+---
+
 ## [2.46.1] - 2026-03-26
 
 ### ✨ Enhancement

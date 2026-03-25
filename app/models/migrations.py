@@ -171,6 +171,9 @@ class MigrationRunner:
         self._add_column_if_not_exists('warehouse_submissions', 'repack_bag_allocations', 'TEXT')
         self._add_column_if_not_exists('warehouse_submissions', 'repack_vendor_return_notes', 'TEXT')
         self._add_column_if_not_exists('warehouse_submissions', 'repack_allocation_version', 'INTEGER DEFAULT 1')
+        self._add_column_if_not_exists(
+            'warehouse_submissions', 'repack_machine_count', 'INTEGER DEFAULT 0'
+        )
     
     def _migrate_shipments(self):
         """Migrate shipments table"""

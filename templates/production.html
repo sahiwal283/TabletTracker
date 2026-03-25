@@ -661,6 +661,11 @@
                 <p class="text-xs text-gray-500 mt-2">Submit once to record every row; same receipt # can be reused later for other flavors.</p>
             </div>
             <div>
+                <label for="repack_machine_count" class="block text-sm font-medium text-gray-700 mb-1">Machine count (optional)</label>
+                <input type="number" id="repack_machine_count" name="repack_machine_count" min="0" step="1" class="form-input" value="0">
+                <p class="text-xs text-gray-500 mt-1">Machine counter / turns for this repack batch — for tracking only; not added to PO good totals.</p>
+            </div>
+            <div>
                 <label for="repack_vendor_return_notes" class="block text-sm font-medium text-gray-700 mb-1">Vendor return (optional)</label>
                 <textarea id="repack_vendor_return_notes" name="repack_vendor_return_notes" rows="2" class="form-input w-full"
                           placeholder="Unusable tablets set aside — not counted"></textarea>
@@ -1982,7 +1987,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                 receipt_number: (fd.get('receipt_number') || '').trim(),
                 lines,
                 submission_date: fd.get('submission_date') || new Date().toISOString().split('T')[0],
-                repack_vendor_return_notes: (fd.get('repack_vendor_return_notes') || '').trim() || null
+                repack_vendor_return_notes: (fd.get('repack_vendor_return_notes') || '').trim() || null,
+                repack_machine_count: parseInt(fd.get('repack_machine_count') || '0', 10) || 0
             };
             if (!payload.po_id) {
                 msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">Select a PO</div>';
@@ -2017,6 +2023,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                     msgDiv.innerHTML = html;
                     repackFormEl.reset();
                     document.getElementById('repack_submission_date').value = '{{ today_date }}';
+                    const rmc = document.getElementById('repack_machine_count');
+                    if (rmc) rmc.value = '0';
                     resetRepackLines();
                 } else {
                     msgDiv.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">' + (result.error || 'Failed') + '</div>';

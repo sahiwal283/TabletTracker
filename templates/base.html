@@ -516,6 +516,14 @@ async function saveSubmissionEdit() {
         formData.loose_tablets = 0;
         formData.damaged_tablets = 0;
         formData.tablets_pressed_into_cards = 0;
+    } else if (document.getElementById('edit-submission-type')?.value === 'repack') {
+        formData.displays_made = parseInt(document.getElementById('edit-displays').value) || 0;
+        formData.packs_remaining = parseInt(document.getElementById('edit-packs').value) || 0;
+        formData.loose_tablets = 0;
+        formData.damaged_tablets = 0;
+        formData.tablets_pressed_into_cards = 0;
+        const rmcEl = document.getElementById('edit-repack-machine-count');
+        formData.repack_machine_count = rmcEl ? (parseInt(rmcEl.value, 10) || 0) : 0;
     } else {
         // Packaging/bag count fields
         formData.displays_made = parseInt(document.getElementById('edit-displays').value) || 0;
@@ -587,6 +595,10 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
         
         const sub = data.submission;
         const submissionType = sub.submission_type || 'packaged';
+        const editSubmissionTypeEl = document.getElementById('edit-submission-type');
+        if (editSubmissionTypeEl) {
+            editSubmissionTypeEl.value = submissionType;
+        }
         
         // Show/hide appropriate fields based on submission type
         const machineFields = document.getElementById('machine-fields');
@@ -682,6 +694,22 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 // Format date properly for date input
                 const submissionDate = sub.submission_date || (sub.created_at ? sub.created_at.split(' ')[0] : '');
                 editDate.value = submissionDate;
+            }
+        }
+
+        const looseDamBlock = document.getElementById('edit-packaging-loose-damaged-block');
+        const repackMcWrap = document.getElementById('edit-repack-machine-count-wrap');
+        const repackMcInput = document.getElementById('edit-repack-machine-count');
+        if (looseDamBlock) looseDamBlock.classList.remove('hidden');
+        if (repackMcWrap) repackMcWrap.classList.add('hidden');
+        if (submissionType === 'repack') {
+            if (looseDamBlock) looseDamBlock.classList.add('hidden');
+            if (repackMcWrap) {
+                repackMcWrap.classList.remove('hidden');
+                if (repackMcInput) {
+                    const v = sub.repack_machine_count;
+                    repackMcInput.value = v != null && v !== '' ? v : 0;
+                }
             }
         }
         
@@ -1537,6 +1565,7 @@ async function convertToTwoLevelDropdown(selectElement) {
         </div>
         
         <input type="hidden" id="edit-submission-id">
+        <input type="hidden" id="edit-submission-type" value="">
         <input type="hidden" id="edit-po-context-po-id">
         <input type="hidden" id="edit-po-context-item-id">
         
@@ -1597,8 +1626,15 @@ async function convertToTwoLevelDropdown(selectElement) {
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
+
+                <div id="edit-repack-machine-count-wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Machine count (optional)</label>
+                    <input type="number" id="edit-repack-machine-count" min="0" step="1"
+                           class="w-full px-3 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400">
+                    <p class="text-xs text-gray-500 mt-1">Machine counter / turns for this repack — for operational tracking only; not added to PO good totals.</p>
+                </div>
                 
-                <div class="grid grid-cols-2 gap-4">
+                <div id="edit-packaging-loose-damaged-block" class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Loose Tablets</label>
                         <input type="number" id="edit-loose" min="0" 
@@ -1608,7 +1644,6 @@ async function convertToTwoLevelDropdown(selectElement) {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Damaged Tablets</label>
                         <input type="number" id="edit-damaged" min="0" 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
-                        </div>
                     </div>
                 </div>
                 
@@ -2487,7 +2522,7 @@ async function viewSubmissionDetails(submissionId) {
                             </div>
                             ` : sub.submission_type === 'repack' ? `
                             <!-- Repack -->
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div class="bg-orange-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Displays</label>
                                     <div class="mt-1 text-2xl font-bold text-orange-700">${sub.displays_made || 0}</div>
@@ -2495,6 +2530,10 @@ async function viewSubmissionDetails(submissionId) {
                                 <div class="bg-orange-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Cards (not on display)</label>
                                     <div class="mt-1 text-2xl font-bold text-orange-700">${sub.packs_remaining || 0}</div>
+                                </div>
+                                <div class="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                                    <label class="text-xs text-gray-500 uppercase">Machine count</label>
+                                    <div class="mt-1 text-2xl font-bold text-amber-900">${(sub.repack_machine_count != null && sub.repack_machine_count !== '') ? Number(sub.repack_machine_count) : '—'}</div>
                                 </div>
                                 <div class="bg-gray-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Output tablets (PO good)</label>

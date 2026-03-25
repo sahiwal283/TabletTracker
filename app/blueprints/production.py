@@ -1414,6 +1414,13 @@ def submit_repack():
         if not receipt_number:
             return jsonify({'error': 'receipt_number is required'}), 400
 
+        try:
+            repack_machine_count = int(data.get('repack_machine_count', 0) or 0)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid repack_machine_count'}), 400
+        if repack_machine_count < 0:
+            repack_machine_count = 0
+
         lines = _repack_lines_from_request(data)
         if not lines:
             return jsonify({'error': 'Provide product_name or lines[] with repack rows'}), 400
@@ -1564,9 +1571,10 @@ def submit_repack():
                      displays_made, packs_remaining, loose_tablets, damaged_tablets,
                      submission_date, admin_notes, submission_type,
                      bag_id, assigned_po_id, needs_review, receipt_number,
-                     repack_bag_allocations, repack_vendor_return_notes, repack_allocation_version)
+                     repack_bag_allocations, repack_vendor_return_notes, repack_allocation_version,
+                     repack_machine_count)
                     VALUES (?, ?, ?, NULL, NULL, ?, ?, 0, 0, ?, ?, 'repack',
-                            ?, ?, ?, ?, ?, ?, ?)
+                            ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         employee_name,
@@ -1583,6 +1591,7 @@ def submit_repack():
                         alloc_json,
                         vendor_notes,
                         alloc_payload.get('version', 1),
+                        repack_machine_count,
                     ),
                 )
                 new_id = conn.execute('SELECT last_insert_rowid() AS id').fetchone()['id']
