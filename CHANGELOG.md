@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.6] - 2026-03-26
+
+### 🐛 Fix
+
+#### Repack submission details: receive + bag check
+- **API**: `GET /api/submission/<id>/details` hydrates **box / bag / bag label count** from the allocated **`bag_id`** for **`submission_type = repack`** (repack INSERT stores `NULL` box/bag on the row).
+- **API**: Bag running-total query matches the same physical bag by **`bag_id` OR `box_number`+`bag_number`**, so repack rows are included in the timeline; **repack** lines contribute **0** to packaged totals (no double-count with PO allocation).
+- **UI**: Submission details note clarifies that packaged running totals are prior packaged work; repack tablets stay under **Repack → bag allocation**.
+
+---
+
 ## [2.46.5] - 2026-03-26
 
 ### ✨ Enhancement

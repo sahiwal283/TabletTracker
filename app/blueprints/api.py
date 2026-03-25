@@ -1682,6 +1682,25 @@ def get_submission_details(submission_id):
                 submission_dict['individual_calc'] = calculated_total
                 submission_dict['total_tablets'] = calculated_total
             
+            # Repack rows store allocated bag_id but INSERT leaves box_number/bag_number NULL on the row.
+            # Hydrate from bags/small_boxes so receive_name and bag running totals match the physical bag.
+            if submission_type == 'repack' and submission_dict.get('bag_id'):
+                bag_loc_row = conn.execute(
+                    """
+                    SELECT b.bag_number, b.bag_label_count, sb.box_number
+                    FROM bags b
+                    JOIN small_boxes sb ON b.small_box_id = sb.id
+                    WHERE b.id = ?
+                    """,
+                    (submission_dict['bag_id'],),
+                ).fetchone()
+                if bag_loc_row:
+                    bag_loc = dict(bag_loc_row)
+                    submission_dict['box_number'] = bag_loc.get('box_number')
+                    submission_dict['bag_number'] = bag_loc.get('bag_number')
+                    if bag_loc.get('bag_label_count') is not None:
+                        submission_dict['bag_label_count'] = bag_loc.get('bag_label_count')
+            
             # Build receive name if we have the necessary information
             receive_name = None
             if submission_dict.get('receive_id') and submission_dict.get('po_number') and submission_dict.get('shipment_number'):
@@ -1691,8 +1710,10 @@ def get_submission_details(submission_id):
             # Calculate bag running totals for this submission
             # Get all submissions to the same bag up to and including this submission (chronological order)
             if submission_dict.get('assigned_po_id') and submission_dict.get('product_name') and submission_dict.get('box_number') is not None and submission_dict.get('bag_number') is not None:
-                bag_identifier = f"{submission_dict.get('box_number')}/{submission_dict.get('bag_number')}"
-                bag_key = (submission_dict.get('assigned_po_id'), submission_dict.get('product_name'), bag_identifier)
+                # Same physical bag: match bag_id (repack + rows that store bag_id) OR legacy box_number+bag_number on row
+                bid = submission_dict.get('bag_id')
+                bx = submission_dict.get('box_number')
+                bn = submission_dict.get('bag_number')
                 
                 # Get all submissions to this bag up to and including this one, in chronological order
                 bag_submissions = conn.execute('''
@@ -1705,17 +1726,20 @@ def get_submission_details(submission_id):
                                LIMIT 1
                            )) as tablets_per_package_final
                     FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name                    WHERE ws.assigned_po_id = ?
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    WHERE ws.assigned_po_id = ?
                     AND ws.product_name = ?
-                    AND ws.box_number = ?
-                    AND ws.bag_number = ?
                     AND ws.created_at <= ?
+                    AND (
+                        (? IS NOT NULL AND ws.bag_id = ?)
+                        OR (ws.box_number IS NOT NULL AND ws.bag_number IS NOT NULL
+                            AND ws.box_number = ? AND ws.bag_number = ?)
+                    )
                     ORDER BY ws.created_at ASC
                 ''', (submission_dict.get('assigned_po_id'),
                       submission_dict.get('product_name'),
-                      submission_dict.get('box_number'),
-                      submission_dict.get('bag_number'),
-                      submission_dict.get('created_at'))).fetchall()
+                      submission_dict.get('created_at'),
+                      bid, bid, bx, bn)).fetchall()
                 
                 # Calculate running totals
                 bag_running_total = 0
@@ -1744,6 +1768,9 @@ def get_submission_details(submission_id):
                         individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
                         bag_running_total += individual_total
                         # Bag counts are NOT added to total - they're just inventory counts
+                    elif bag_sub_type == 'repack':
+                        # Repack credits PO good; physical bag totals stay packaged-only (no double-count)
+                        individual_total = 0
                     else:  # 'packaged'
                         packages_per_display = bag_sub_dict.get('packages_per_display', 0) or 0
                         tablets_per_package = bag_sub_dict.get('tablets_per_package', 0) or 0

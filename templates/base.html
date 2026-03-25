@@ -2661,6 +2661,9 @@ async function viewSubmissionDetails(submissionId) {
                                             <div class="mt-1 text-base font-medium text-gray-900">${(sub.running_total || 0).toLocaleString()}</div>
                                         </div>
                                     </div>
+                                    ${sub.submission_type === 'repack' ? `
+                                    <p class="text-xs text-gray-500 mt-2">Packaged totals reflect prior packaged work on this bag. Repack output is listed under <strong>Repack → bag allocation</strong> above.</p>
+                                    ` : ''}
                                     ${sub.count_status && sub.count_status !== 'no_bag' ? `
                                     <div class="mt-3 pt-3 border-t border-gray-200">
                                         ${sub.count_status === 'match' ? `
