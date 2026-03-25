@@ -1852,19 +1852,94 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     const repackFormEl = document.getElementById('repack-form-submit');
     const repackLinesEl = document.getElementById('repack-lines');
-    const repackProductOptionsHtml = `{% for product in products %}<option value="{{ product.product_name|e }}">{{ product.product_name|e }}</option>{% endfor %}`;
+
+    function populateRepackCategorySelect(selectEl) {
+        selectEl.innerHTML = '<option value="">{{ gettext("Select category…") }}</option>';
+        categoryOrder.forEach((categoryName) => {
+            if (!categoryGroups[categoryName] || categoryGroups[categoryName].length === 0) return;
+            const option = document.createElement('option');
+            option.value = categoryName;
+            option.textContent = categoryName;
+            selectEl.appendChild(option);
+        });
+    }
+
+    function wireRepackLineProductSelectors(wrap) {
+        const cat = wrap.querySelector('.repack-line-category');
+        const baseWrap = wrap.querySelector('.repack-line-base-wrap');
+        const baseSel = wrap.querySelector('.repack-line-base');
+        const varWrap = wrap.querySelector('.repack-line-variant-wrap');
+        const varSel = wrap.querySelector('.repack-line-variant');
+        const hidden = wrap.querySelector('.repack-line-product-name');
+        if (!cat || !baseSel || !varSel || !hidden) return;
+
+        populateRepackCategorySelect(cat);
+
+        cat.addEventListener('change', function () {
+            baseSel.innerHTML = '<option value="">{{ gettext("Select product type…") }}</option>';
+            varSel.innerHTML = '<option value="">{{ gettext("Select count…") }}</option>';
+            hidden.value = '';
+            baseWrap.classList.add('hidden');
+            varWrap.classList.add('hidden');
+            const selectedCategory = this.value;
+            if (!selectedCategory || !categoryGroups[selectedCategory]) return;
+            categoryGroups[selectedCategory]
+                .slice()
+                .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+                .forEach((baseName) => {
+                    const option = document.createElement('option');
+                    option.value = baseName;
+                    option.textContent = baseName;
+                    baseSel.appendChild(option);
+                });
+            baseWrap.classList.remove('hidden');
+        });
+
+        baseSel.addEventListener('change', function () {
+            varSel.innerHTML = '<option value="">{{ gettext("Select count…") }}</option>';
+            hidden.value = '';
+            varWrap.classList.add('hidden');
+            const baseName = this.value;
+            if (!baseName) return;
+            const available = productGroups[baseName] || [];
+            available.sort((a, b) => parseInt(a.count || 0, 10) - parseInt(b.count || 0, 10));
+            available.forEach((product) => {
+                const option = document.createElement('option');
+                option.value = product.name;
+                option.textContent = product.count ? `${product.count}ct` : product.name;
+                varSel.appendChild(option);
+            });
+            varWrap.classList.remove('hidden');
+        });
+
+        varSel.addEventListener('change', function () {
+            hidden.value = (this.value || '').trim();
+        });
+    }
 
     function buildRepackLineRow() {
         const wrap = document.createElement('div');
         wrap.className = 'repack-line border border-amber-100 rounded-lg p-3 space-y-2 bg-amber-50/40';
         wrap.innerHTML = `
             <div class="flex justify-between items-center gap-2">
-                <span class="text-sm font-medium text-gray-700">Product *</span>
+                <span class="text-sm font-medium text-gray-700">{{ gettext("Product") }} *</span>
                 <button type="button" class="repack-remove-line text-xs text-red-700 hover:underline">Remove</button>
             </div>
-            <select class="form-input repack-line-product w-full">
-                <option value="">Select product…</option>
-            </select>
+            <div class="repack-line-product-stack space-y-2">
+                <div>
+                    <label class="text-xs text-gray-600 block mb-1">{{ gettext("Category") }} *</label>
+                    <select class="form-input repack-line-category w-full"></select>
+                </div>
+                <div class="repack-line-base-wrap hidden">
+                    <label class="text-xs text-gray-600 block mb-1">{{ gettext("Product type") }} *</label>
+                    <select class="form-input repack-line-base w-full"></select>
+                </div>
+                <div class="repack-line-variant-wrap hidden">
+                    <label class="text-xs text-gray-600 block mb-1">{{ gettext("Count") }} *</label>
+                    <select class="form-input repack-line-variant w-full"></select>
+                </div>
+                <input type="hidden" class="repack-line-product-name" value="">
+            </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-xs text-gray-600 block mb-1">Displays</label>
@@ -1876,8 +1951,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 </div>
             </div>
         `;
-        const sel = wrap.querySelector('select');
-        sel.insertAdjacentHTML('beforeend', repackProductOptionsHtml);
+        wireRepackLineProductSelectors(wrap);
         return wrap;
     }
 
@@ -1907,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const out = [];
         if (!repackLinesEl) return out;
         repackLinesEl.querySelectorAll('.repack-line').forEach((line) => {
-            const product_name = (line.querySelector('.repack-line-product') || {}).value?.trim();
+            const product_name = (line.querySelector('.repack-line-product-name') || {}).value?.trim();
             const displays_made = parseInt((line.querySelector('.repack-line-displays') || {}).value || '0', 10);
             const packs_remaining = parseInt((line.querySelector('.repack-line-packs') || {}).value || '0', 10);
             if (!product_name) return;

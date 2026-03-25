@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.4] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Repack: category → product → count (like Packaged)
+- **UI**: Repack line **product** uses the same **three-step** flow as Packaged (**category**, **product type**, **count / variant**) instead of one long flat list; submitted `product_name` is unchanged.
+
+---
+
 ## [2.46.3] - 2026-03-26
 
 ### 🐛 Fix
