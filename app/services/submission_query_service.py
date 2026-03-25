@@ -54,8 +54,8 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
                r.id as receive_id,
                r.received_date,
                r.receive_name as stored_receive_name,
-               sb.box_number,
-               b.bag_number
+               COALESCE(sb.box_number, ws.box_number) AS resolved_box_number,
+               COALESCE(b.bag_number, ws.bag_number) AS resolved_bag_number
         FROM warehouse_submissions ws
         LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
@@ -67,6 +67,22 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
         LEFT JOIN receiving r ON sb.receiving_id = r.id
     '''
     return query
+
+
+def apply_resolved_bag_fields(sub_dict: Dict[str, Any]) -> None:
+    """Merge bag coordinates from JOIN onto box_number / bag_number for display.
+
+    Queries use ``SELECT ws.*`` plus ``COALESCE(sb..., ws...)``. Duplicate SQLite
+    column names ``box_number`` / ``bag_number`` resolve to the *first* occurrence
+    (NULL on repack rows that only set ``bag_id``). Use ``resolved_*`` aliases and
+    copy them here after ``dict(row)``.
+    """
+    rb = sub_dict.get("resolved_box_number")
+    rbg = sub_dict.get("resolved_bag_number")
+    if rb is not None:
+        sub_dict["box_number"] = rb
+    if rbg is not None:
+        sub_dict["bag_number"] = rbg
 
 
 def build_submission_filters(

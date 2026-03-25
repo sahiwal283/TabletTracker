@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.7] - 2026-03-26
+
+### 🐛 Fix
+
+#### Submissions RECEIVE column: full PO–receive–box–bag label
+- **Cause**: `SELECT ws.*` plus `COALESCE(sb…, ws…) AS box_number` produced duplicate SQLite column names; `dict(row)` kept **warehouse_submissions** values (often **NULL** on repack), so the RECEIVE column showed only **stored_receive_name** (e.g. `PO-00163-1`) without box/bag.
+- **Fix**: Alias bag coordinates as **`resolved_box_number`** / **`resolved_bag_number`** and merge onto **`box_number`** / **`bag_number`** after each fetch (`apply_resolved_bag_fields` in `submission_query_service.py`). Applied to **dashboard** recent submissions and **submissions** list queries.
+
+---
+
 ## [2.46.6] - 2026-03-26
 
 ### 🐛 Fix

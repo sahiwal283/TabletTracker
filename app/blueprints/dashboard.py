@@ -6,6 +6,7 @@ import traceback
 from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
 from app.utils.perf_utils import query_timer
+from app.services.submission_query_service import apply_resolved_bag_fields
 
 bp = Blueprint('dashboard', __name__)
 
@@ -128,8 +129,8 @@ def dashboard_view():
                    r.id as receive_id,
                    r.received_date,
                    r.receive_name as stored_receive_name,
-                   COALESCE(sb.box_number, ws.box_number) as box_number,
-                   COALESCE(b.bag_number, ws.bag_number) as bag_number,
+                   COALESCE(sb.box_number, ws.box_number) AS resolved_box_number,
+                   COALESCE(b.bag_number, ws.bag_number) AS resolved_bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
@@ -201,6 +202,7 @@ def dashboard_view():
             
             for sub in submissions_raw:
                 sub_dict = dict(sub)
+                apply_resolved_bag_fields(sub_dict)
                 # Create bag identifier from box_number/bag_number
                 bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
                 # Key includes PO ID so each PO tracks its own bag totals independently

@@ -8,6 +8,7 @@ import csv
 import io
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import role_required
+from app.services.submission_query_service import apply_resolved_bag_fields
 
 bp = Blueprint('submissions', __name__)
 
@@ -150,8 +151,8 @@ def submissions_list():
                    r.id as receive_id,
                    r.received_date,
                    r.receive_name as stored_receive_name,
-                   COALESCE(sb.box_number, ws.box_number) as box_number,
-                   COALESCE(b.bag_number, ws.bag_number) as bag_number,
+                   COALESCE(sb.box_number, ws.box_number) AS resolved_box_number,
+                   COALESCE(b.bag_number, ws.bag_number) AS resolved_bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
                        WHEN 'machine' THEN COALESCE(
                            ws.tablets_pressed_into_cards,
@@ -283,6 +284,7 @@ def submissions_list():
             # First pass: Calculate running totals in chronological order (oldest first)
             for sub in submissions_raw_asc:
                 sub_dict = dict(sub)
+                apply_resolved_bag_fields(sub_dict)
                 # Create bag identifier from box_number/bag_number
                 bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
                 # Key includes PO ID so each PO tracks its own bag totals independently
@@ -425,6 +427,7 @@ def submissions_list():
             
             for sub in submissions_raw:
                 sub_dict = dict(sub)
+                apply_resolved_bag_fields(sub_dict)
                 sub_id = sub_dict.get('id')
                 # Get the pre-calculated running totals from the first pass
                 if sub_id in submissions_dict:
