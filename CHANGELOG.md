@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.9] - 2026-03-24
+
+### 🐛 Fix
+
+#### Machine Count: employee name not saved
+- **Cause**: The **Employee name** field lived **outside** `<form id="machine-count-form-submit">`, so it was **not** included in `FormData` on submit. The API fell back to the **session** employee’s `full_name` (e.g. shared login **“Warehouse Staff”**).
+- **Fix**: Associate the input with the submit form using the HTML **`form="machine-count-form-submit"`** attribute so `employee_name` is sent with the JSON body.
+- **Versioning**: **PATCH** `2.46.8` → `2.46.9`.
+
+---
+
 ## [2.46.8] - 2026-03-24
 
 ### 🐛 Fix
