@@ -1015,6 +1015,22 @@ document.addEventListener('DOMContentLoaded', async function() {
             const availableCounts = productGroups[this.value] || [];
             availableCounts.sort((a, b) => parseInt(a.count || 0) - parseInt(b.count || 0));
             
+            if (availableCounts.length === 1) {
+                const product = availableCounts[0];
+                productCountSelect.innerHTML = '';
+                const option = document.createElement('option');
+                option.value = product.name;
+                option.textContent = product.count ? `${product.count}ct` : product.name;
+                option.dataset.ppd = product.ppd;
+                option.dataset.tpp = product.tpp;
+                option.dataset.tabletType = product.tabletType;
+                productCountSelect.appendChild(option);
+                productCountSelect.value = product.name;
+                productNameHidden.value = product.name;
+                countSelection.classList.add('hidden');
+                return;
+            }
+            
             availableCounts.forEach(product => {
                 const option = document.createElement('option');
                 option.value = product.name;
@@ -1133,8 +1149,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                                 baseSelect.dispatchEvent(new Event('change'));
                                 baseSelect.disabled = true;
                                 
-                                // Show count selection
-                                countSelection.classList.remove('hidden');
+                                // Show count step only when more than one variant exists (base change hides it when length === 1)
+                                if (matchingProducts.length > 1) {
+                                    countSelection.classList.remove('hidden');
+                                } else {
+                                    countSelection.classList.add('hidden');
+                                }
                                 
                                 // Try to find the exact product that was used in machine count
                                 const exactMatch = matchingProducts.find(p => p.name === mcProductName);
@@ -1903,6 +1923,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (!baseName) return;
             const available = productGroups[baseName] || [];
             available.sort((a, b) => parseInt(a.count || 0, 10) - parseInt(b.count || 0, 10));
+            if (available.length === 1) {
+                hidden.value = (available[0].name || '').trim();
+                return;
+            }
             available.forEach((product) => {
                 const option = document.createElement('option');
                 option.value = product.name;

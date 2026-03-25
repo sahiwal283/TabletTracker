@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.5] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Single-variant product: skip count step
+- **UI**: When a product base has only **one** variant (one count / SKU), the **Count** step is skipped for **Packaged** and **Repack**; the full product name is set automatically. Receipt lookup stays consistent (count row hidden when only one variant).
+
+---
+
 ## [2.46.4] - 2026-03-26
 
 ### ✨ Enhancement
