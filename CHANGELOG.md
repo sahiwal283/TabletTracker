@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.3] - 2026-03-26
+
+### 🐛 Fix
+
+#### Production repack layout
+- **UI**: **Machine count** moved to sit directly under **Receipt #** (before flavors).
+- **UI**: Tab bar (**Machine**, **Packaged**, **Bag Count**, **Bottles**, **Repack**) uses a **2-column grid** on small screens with `min-h`, centered text, and tighter typography so labels stay inside buttons; **Repack** spans the third row centered; **`sm+`** uses the previous flex row.
+
+---
+
 ## [2.46.2] - 2026-03-26
 
 ### ✨ Enhancement
