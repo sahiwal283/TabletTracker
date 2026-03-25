@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.8] - 2026-03-24
+
+### 🐛 Fix
+
+#### Edit Submission (machine / bottle): restore shared fields
+- **Cause**: **Machine** and **bottle** edit flows hid the entire **`#packaging-fields`** block, which also contained **box / bag / receipt / date / product / notes** and admin PO UI — only machine- or bottle-specific rows stayed visible.
+- **Fix**: Wrap packaging-only counts (**displays/cards**, repack machine count, loose/damaged) in **`#edit-packaging-count-fields`** and hide **only** that wrapper for **machine** and **bottle**; keep **`#packaging-fields`** visible so the full edit form returns.
+- **Versioning**: **PATCH** `2.46.7` → `2.46.8`.
+
+---
+
 ## [2.46.7] - 2026-03-26
 
 ### 🐛 Fix
