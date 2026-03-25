@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.0] - 2026-03-25
+
+### ✨ Feature
+
+#### Repack / tablet search (end-of-PO workflow)
+- **Feature**: New `submission_type` **`repack`** for tablet-search / repack at end of a PO: credits **finished displays** and **partial cards** to PO **`good_count`** only (no loose/damaged toward PO).
+- **Allocation**: Automatic distribution across bags for receiving visibility — sort **damage DESC**, then **remaining capacity DESC**, water-fill; persisted **allocation JSON** on submissions; optional **vendor-return notes** (not counted).
+- **API**: `GET /api/submissions/repack/eligible-pos`, `POST /api/submissions/repack`, `POST /api/submissions/repack/preview` (dry-run allocation).
+- **UI**: Production **Repack** tab (multi-flavor `lines[]`, preview); submissions/dashboard filters and badges for repack; submission details show repack allocation where applicable.
+- **Schema**: Migration adds `repack_bag_allocations`, `repack_vendor_return_notes`, `repack_allocation_version` on `warehouse_submissions` (via app migration runner).
+- **Tests**: `tests/test_repack.py` for repack output and allocator helpers.
+- **Versioning**: **MINOR** bump `2.45.0` → `2.46.0` (backward-compatible new functionality).
+- **Files Updated**: `__version__.py`, `CHANGELOG.md`, plus repack-related modules and templates (see commit history for this release).
+
+---
+
 ## [2.45.0] - 2026-03-24
 
 ### 📌 Versioning (Semantic Versioning)
