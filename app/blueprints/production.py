@@ -1373,9 +1373,12 @@ def repack_eligible_pos():
     """Open POs for repack PO selector (excludes Draft)."""
     try:
         with db_read_only() as conn:
+            po_columns = [row["name"] for row in conn.execute("PRAGMA table_info(purchase_orders)").fetchall()]
+            has_vendor_name = "vendor_name" in po_columns
+            vendor_select = "vendor_name" if has_vendor_name else "NULL AS vendor_name"
             rows = conn.execute(
-                """
-                SELECT id, po_number, internal_status
+                f"""
+                SELECT id, po_number, internal_status, {vendor_select}
                 FROM purchase_orders
                 WHERE closed = FALSE AND COALESCE(internal_status, '') != 'Draft'
                 ORDER BY po_number DESC

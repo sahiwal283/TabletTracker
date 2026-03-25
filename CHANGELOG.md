@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.46.1] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Repack form: PO dropdown shows vendor (like Receiving)
+- **Enhancement**: `GET /api/submissions/repack/eligible-pos` now returns **`vendor_name`** when present on `purchase_orders` (same PRAGMA-safe pattern as the receiving page).
+- **UI**: Production **Repack** PO selector labels use **`PO — vendor — status`** so vendor appears next to the PO number, consistent with receiving assign-PO options.
+- **Versioning**: **PATCH** `2.46.0` → `2.46.1` (backward-compatible UX improvement).
+- **Files Updated**: `app/blueprints/production.py`, `templates/production.html`, `__version__.py`, `CHANGELOG.md`
+
+---
+
 ## [2.46.0] - 2026-03-25
 
 ### ✨ Feature

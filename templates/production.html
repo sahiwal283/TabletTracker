@@ -1827,7 +1827,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                 (data.pos || []).forEach(p => {
                     const o = document.createElement('option');
                     o.value = p.id;
-                    o.textContent = p.po_number + (p.internal_status ? ' — ' + p.internal_status : '');
+                    const vendor = (p.vendor_name && String(p.vendor_name).trim()) ? String(p.vendor_name).trim() : '';
+                    const status = (p.internal_status && String(p.internal_status).trim()) ? String(p.internal_status).trim() : '';
+                    let label = p.po_number || '';
+                    if (vendor) {
+                        label += ' — ' + vendor;
+                    }
+                    if (status) {
+                        label += ' — ' + status;
+                    }
+                    o.textContent = label;
                     repackPoSelect.appendChild(o);
                 });
             })
