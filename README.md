@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.12 (Phase 3 non-backend continuation)
-- Product config template now has delegated handler wiring for core static interactions
-- Reduced inline handler usage for tablet/product/category/machine actions
+Current: v2.47.13 (Phase 3 non-backend continuation)
+- Base template now delegates nav and shared modal close/save actions via `data-*` listeners
+- Product config template delegates core static tablet/product/category/machine interactions
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements

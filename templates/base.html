@@ -1401,7 +1401,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                     
                     <!-- Language Toggle -->
                     <div class="relative ml-4">
-                        <button onclick="toggleLanguageMenu()" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <button data-toggle-language-menu class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                             <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-language" /></svg>
                             <span class="hidden sm:inline">{{ (current_language.language if current_language is not string else current_language) | upper }}</span>
                         </button>
@@ -1418,7 +1418,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                 </div>
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
-                    <button onclick="toggleMobileMenu()" class="text-white hover:text-primary transition-colors duration-300">
+                    <button data-toggle-mobile-menu class="text-white hover:text-primary transition-colors duration-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                         </svg>
@@ -1554,10 +1554,42 @@ async function convertToTwoLevelDropdown(selectElement) {
         // Close language menu when clicking outside
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('language-menu');
-            const button = event.target.closest('button[onclick="toggleLanguageMenu()"]');
+            const button = event.target.closest('[data-toggle-language-menu]');
             
             if (!button && !menu.contains(event.target)) {
                 menu.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('click', function(event) {
+            if (event.target.closest('[data-toggle-language-menu]')) {
+                toggleLanguageMenu();
+                return;
+            }
+            if (event.target.closest('[data-toggle-mobile-menu]')) {
+                toggleMobileMenu();
+                return;
+            }
+            if (event.target.closest('[data-close-edit-submission-modal]')) {
+                closeEditSubmissionModal(event);
+                return;
+            }
+            const editOverlay = event.target.closest('[data-close-edit-submission-overlay]');
+            if (editOverlay && event.target === editOverlay) {
+                closeEditSubmissionModal(event);
+                return;
+            }
+            if (event.target.closest('[data-save-submission-edit]')) {
+                saveSubmissionEdit();
+                return;
+            }
+            if (event.target.closest('[data-close-admin-notes-modal]')) {
+                closeAdminNotesModal(event);
+                return;
+            }
+            const notesOverlay = event.target.closest('[data-close-admin-notes-overlay]');
+            if (notesOverlay && event.target === notesOverlay) {
+                closeAdminNotesModal(event);
             }
         });
 
@@ -1580,13 +1612,13 @@ async function convertToTwoLevelDropdown(selectElement) {
     </script>
 
 <!-- Shared Edit Submission Modal (Available on all pages) -->
-<div id="edit-submission-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[80]" onclick="closeEditSubmissionModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+<div id="edit-submission-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[80]" data-close-edit-submission-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
         <!-- Fixed Header -->
         <div class="flex-shrink-0 p-6 border-b border-gray-200">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold text-gray-900">Edit Submission</h3>
-                <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" class="text-gray-400 hover:text-gray-600 z-10 relative">
+                <button data-close-edit-submission-modal class="text-gray-400 hover:text-gray-600 z-10 relative">
                     <span class="text-2xl">&times;</span>
                 </button>
             </div>
@@ -1763,11 +1795,11 @@ async function convertToTwoLevelDropdown(selectElement) {
         <!-- Fixed Footer -->
         <div class="flex-shrink-0 p-6 border-t border-gray-200 bg-white">
             <div class="flex justify-end gap-3">
-                <button onclick="event.stopPropagation(); closeEditSubmissionModal(event)" 
+                <button data-close-edit-submission-modal 
                         class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
                     Cancel
                 </button>
-                <button onclick="saveSubmissionEdit()" 
+                <button data-save-submission-edit
                         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
                     Save Changes
                 </button>
@@ -1777,12 +1809,12 @@ async function convertToTwoLevelDropdown(selectElement) {
 </div>
 
 <!-- Notes View Modal (Read-only) -->
-<div id="admin-notes-view-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[70]" onclick="closeAdminNotesModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4" onclick="event.stopPropagation()">
+<div id="admin-notes-view-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[70]" data-close-admin-notes-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
         <div class="p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-bold text-gray-900">Notes</h3>
-                <button onclick="event.stopPropagation(); closeAdminNotesModal(event)" class="text-gray-400 hover:text-gray-600">
+                <button data-close-admin-notes-modal class="text-gray-400 hover:text-gray-600">
                     <span class="text-2xl">&times;</span>
                 </button>
             </div>
@@ -1794,7 +1826,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             </div>
             
             <div class="flex justify-end">
-                <button onclick="event.stopPropagation(); closeAdminNotesModal(event)" 
+                <button data-close-admin-notes-modal 
                         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
                     Close
                 </button>

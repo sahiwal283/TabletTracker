@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.13] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (base/shared modal slice)
+- Removed inline handlers from primary nav menu toggles (`language` and `mobile`) in `templates/base.html`.
+- Removed inline close/save handlers from shared edit-submission and admin-notes modal wrappers/buttons and replaced them with delegated `data-*` click handling.
+- Updated language-menu outside-click logic to target the new delegated trigger attribute instead of inline `onclick` selector matching.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.12` → `2.47.13`.
+
+---
+
 ## [2.47.12] - 2026-03-26
 
 ### ✨ Enhancement
