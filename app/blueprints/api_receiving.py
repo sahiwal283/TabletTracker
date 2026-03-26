@@ -1482,7 +1482,8 @@ def save_receives():
                     if conn:
                         try:
                             conn.rollback()
-                        except:
+                        except Exception:
+                            # Keep original migration warning path.
                             pass
                     current_app.logger.warning(f"Could not add tablet_type_id column: {e}")
             

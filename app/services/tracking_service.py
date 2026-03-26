@@ -2,10 +2,12 @@ import time
 import base64
 import sqlite3
 from typing import Optional, Dict, Any
+import logging
 import requests
 from datetime import datetime
 from config import Config
 
+logger = logging.getLogger(__name__)
 
 class UPSTrackingClient:
     """Minimal UPS OAuth2 + Tracking API client."""
@@ -79,8 +81,8 @@ def normalize_ups_response(data: Dict[str, Any]) -> Dict[str, Any]:
         if current_status and "delivered" in current_status.lower():
             delivered_at = shipment.get("deliveryDetails", {}).get("date")
 
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to parse UPS response: %s", exc)
 
     return {
         "tracking_status": status_text,
@@ -165,8 +167,8 @@ def normalize_fedex_response(data: Dict[str, Any]) -> Dict[str, Any]:
                 last_checkpoint = scans[0].get("date")
             if (result.get("latestStatusDetail", {}).get("code") or "").lower() == "dlv":
                 delivered_at = result.get("dateAndTimes", [{}])[0].get("dateTime")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to parse FedEx response: %s", exc)
 
     return {
         "tracking_status": status_text,
@@ -234,7 +236,8 @@ def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> Dict[str
         if conn:
             try:
                 conn.rollback()
-            except:
+            except sqlite3.Error:
+                # Preserve original tracking error response.
                 pass
         return {"success": False, "error": str(e)}
 

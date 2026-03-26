@@ -101,15 +101,15 @@ class MigrationRunner:
                 self.c.execute('ALTER TABLE warehouse_submissions ADD COLUMN submission_date DATE')
                 # Backfill existing records
                 self.c.execute('UPDATE warehouse_submissions SET submission_date = DATE(created_at) WHERE submission_date IS NULL')
-            except:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Could not add/backfill submission_date column: %s", exc)
         
         # Add po_assignment_verified column
         if not self._column_exists('warehouse_submissions', 'po_assignment_verified'):
             try:
                 self.c.execute('ALTER TABLE warehouse_submissions ADD COLUMN po_assignment_verified BOOLEAN DEFAULT FALSE')
-            except:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Could not add po_assignment_verified column: %s", exc)
         
         # Add inventory_item_id column
         if not self._column_exists('warehouse_submissions', 'inventory_item_id'):
@@ -126,8 +126,8 @@ class MigrationRunner:
                     )
                     WHERE inventory_item_id IS NULL
                 ''')
-            except:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Could not add/backfill inventory_item_id column: %s", exc)
         
         # Add admin_notes column
         self._add_column_if_not_exists('warehouse_submissions', 'admin_notes', 'TEXT')
@@ -137,8 +137,8 @@ class MigrationRunner:
             try:
                 self.c.execute('ALTER TABLE warehouse_submissions ADD COLUMN submission_type TEXT DEFAULT "packaged"')
                 self.c.execute('UPDATE warehouse_submissions SET submission_type = "packaged" WHERE submission_type IS NULL')
-            except:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Could not add/backfill submission_type column: %s", exc)
         
         # Add machine_id column for machine submissions
         self._add_column_if_not_exists('warehouse_submissions', 'machine_id', 'INTEGER REFERENCES machines(id)')
@@ -264,7 +264,7 @@ class MigrationRunner:
             self.c.execute(f"PRAGMA table_info({table_name})")
             existing_cols = [row[1] for row in self.c.fetchall()]
             return column_name in existing_cols
-        except:
+        except sqlite3.Error:
             return False
     
     def _add_column_if_not_exists(self, table_name, column_name, column_def):
@@ -272,7 +272,7 @@ class MigrationRunner:
         if not self._column_exists(table_name, column_name):
             try:
                 self.c.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}')
-            except Exception as e:
+            except sqlite3.Error as e:
                 # Column might already exist or table might not exist yet
-                pass
+                logger.debug("Skipping column add %s.%s: %s", table_name, column_name, e)
 

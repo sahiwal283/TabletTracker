@@ -772,7 +772,8 @@ def server_debug_info():
         if conn:
             try:
                 conn.rollback()
-            except:
+            except sqlite3.Error:
+                # Debug endpoint should not mask the original error.
                 pass
         return f"<h2>Server Debug Error</h2><p>{str(e)}</p>"
 
@@ -2480,13 +2481,13 @@ def get_po_submissions(po_id):
             try:
                 conn.execute('SELECT submission_date FROM warehouse_submissions LIMIT 1')
                 has_submission_date = True
-            except:
-                pass
+            except sqlite3.Error:
+                has_submission_date = False
             try:
                 conn.execute('SELECT submission_type FROM warehouse_submissions LIMIT 1')
                 has_submission_type = True
-            except:
-                pass
+            except sqlite3.Error:
+                has_submission_type = False
             
             # For PO-specific views, show ALL submissions for auditing purposes
             

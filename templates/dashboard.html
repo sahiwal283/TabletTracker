@@ -220,7 +220,7 @@
                         {% if received > 0 %}
                             <div class="flex items-center justify-center">
                                 <div class="w-16 bg-gray-200 rounded-full h-1.5 mr-1">
-                                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{ [progress_percent, 100]|min }}%"></div>
+                                    <div class="bg-blue-600 h-1.5 rounded-full" data-progress-bar="{{ progress_percent if progress_percent < 100 else 100 }}"></div>
                                 </div>
                                 <span class="text-xs font-medium text-gray-700 whitespace-nowrap">{{ progress_percent }}%</span>
                             </div>
@@ -252,6 +252,18 @@
             </tbody>
         </table>
     </div>
+    <script>
+        // Keep progress-bar widths out of inline `style` for better IDE linting.
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-progress-bar]').forEach(function (el) {
+                var v = Number(el.dataset.progressBar || 0);
+                if (Number.isFinite(v)) {
+                    var clamped = Math.min(Math.max(v, 0), 100);
+                    el.style.width = clamped + '%';
+                }
+            });
+        });
+    </script>
 </div>
 
 <!-- Submissions Needing Review (only show if there are any) -->
@@ -1532,7 +1544,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                 };
                 
                 // Always allow viewing details, edit only if admin and PO not closed
-                const isAdmin = {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+                const isAdmin = JSON.parse("{{ (session.get('employee_role') == 'admin' or session.get('admin_authenticated')) | tojson | safe }}");
                 const poIsClosed = data.po && data.po.closed === true;
                 const canEdit = isAdmin && !poIsClosed;
                 const clickHandler = `data-view-submission-details-id="${sub.id}" data-view-submission-details-origin-modal="submissions-modal" data-view-submission-details-callback="viewPOSubmissions" data-view-submission-details-po-id="${poId}" data-view-submission-details-po-name="${poName}"`;
@@ -1821,26 +1833,26 @@ function filterSubmissionsInModal(filterType) {
     contentArea.innerHTML = submissionsHTML;
     
     // Update filter button states
-    const buttons = document.querySelectorAll('#submissions-modal button[onclick^="filterSubmissionsInModal"]');
+    const buttons = document.querySelectorAll('#submissions-modal button[data-filter-submissions]');
     buttons.forEach(btn => {
-        const onclick = btn.getAttribute('onclick');
-        if (onclick.includes("'machine'")) {
+        const filter = btn.dataset.filterSubmissions || 'all';
+        if (filter === 'machine') {
             btn.className = filterType === 'machine' 
                 ? 'bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-blue-300'
                 : 'bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'packaged'")) {
+        } else if (filter === 'packaged') {
             btn.className = filterType === 'packaged' 
                 ? 'bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-purple-300'
                 : 'bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'repack'")) {
+        } else if (filter === 'repack') {
             btn.className = filterType === 'repack' 
                 ? 'bg-amber-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-amber-300'
                 : 'bg-amber-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'bag'")) {
+        } else if (filter === 'bag') {
             btn.className = filterType === 'bag' 
                 ? 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-green-300'
                 : 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'all'")) {
+        } else if (filter === 'all') {
             btn.className = filterType === 'all' || !filterType
                 ? 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-green-300'
                 : 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
@@ -2493,7 +2505,7 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
             data.possible_receives.forEach(receive => {
                 const receiveDiv = document.createElement('div');
                 receiveDiv.className = 'border rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors border-gray-300';
-                receiveDiv.onclick = () => assignSubmissionToReceive(submissionId, receive.bag_id);
+                receiveDiv.addEventListener('click', () => assignSubmissionToReceive(submissionId, receive.bag_id));
                 
                 const receiveDate = receive.received_date ? new Date(receive.received_date).toLocaleDateString() : 'N/A';
                 
@@ -2618,7 +2630,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
         modal = document.createElement('div');
         modal.id = 'admin-reassign-modal';
         modal.className = 'hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.onclick = closeAdminReassignModal;
+        modal.addEventListener('click', closeAdminReassignModal);
         modal.innerHTML = `
             <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
                 <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
@@ -2695,7 +2707,7 @@ async function loadAdminReassignPOs(submissionId, productName) {
             
             const poDiv = document.createElement('div');
             poDiv.className = `border rounded-lg p-4 hover:bg-orange-50 cursor-pointer transition-colors ${isCurrent ? 'border-orange-500 bg-orange-50' : 'border-gray-300'}`;
-            poDiv.onclick = () => adminReassignSubmission(submissionId, po.id, po.po_number);
+            poDiv.addEventListener('click', () => adminReassignSubmission(submissionId, po.id, po.po_number));
             
             poDiv.innerHTML = `
                 <div class="flex justify-between items-start">
@@ -2796,7 +2808,7 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
 // Use shared edit modal from base.html - just provide wrapper function
 async function openEditSubmissionFromPO(submissionId, poId, inventoryItemId) {
     // Check if user is admin or manager (admins and managers can edit)
-    const canEdit = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+    const canEdit = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
     
     if (!canEdit) {
         alert('Only administrators and managers can edit submissions.');
@@ -2829,8 +2841,8 @@ if (typeof window.syncZohoPOs === 'undefined') {
 async function viewReceiveDetailsModal(receiveId, receiveName) {
     try {
         // Check user role for showing close buttons
-        const isAdmin = {% if session.get('admin_authenticated') or session.get('employee_role') == 'admin' %}true{% else %}false{% endif %};
-        const isManager = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+        const isAdmin = JSON.parse("{{ (session.get('admin_authenticated') or session.get('employee_role') == 'admin') | tojson | safe }}");
+        const isManager = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
         
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();

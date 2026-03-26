@@ -8,10 +8,33 @@ This module provides:
 """
 import sqlite3
 import traceback
+import logging
 from contextlib import contextmanager
 from typing import Optional, Callable, Any, List, Dict, Tuple, Iterator
 from functools import wraps
 from config import Config
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _safe_rollback(conn: Optional[sqlite3.Connection]) -> None:
+    """Rollback without masking original errors."""
+    if not conn:
+        return
+    try:
+        conn.rollback()
+    except sqlite3.Error as exc:
+        LOGGER.debug("Rollback skipped due to sqlite error: %s", exc)
+
+
+def _safe_close(conn: Optional[sqlite3.Connection]) -> None:
+    """Close connection without masking original errors."""
+    if not conn:
+        return
+    try:
+        conn.close()
+    except sqlite3.Error as exc:
+        LOGGER.debug("Connection close failed: %s", exc)
 
 
 def get_db() -> sqlite3.Connection:
@@ -43,18 +66,10 @@ def db_connection(read_only: bool = False) -> Iterator[sqlite3.Connection]:
         if not read_only:
             conn.commit()  # Auto-commit on success for write operations
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
+        _safe_rollback(conn)
         raise  # Re-raise the exception
     finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        _safe_close(conn)
 
 
 @contextmanager
@@ -74,18 +89,10 @@ def db_transaction() -> Iterator[sqlite3.Connection]:
         yield conn
         conn.commit()
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
+        _safe_rollback(conn)
         raise
     finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        _safe_close(conn)
 
 
 @contextmanager
@@ -103,11 +110,7 @@ def db_read_only() -> Iterator[sqlite3.Connection]:
         conn = get_db()
         yield conn
     finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        _safe_close(conn)
 
 
 def db_query(query: str, params: Optional[Tuple] = None, fetch_one: bool = False) -> Any:
@@ -134,16 +137,11 @@ def db_query(query: str, params: Optional[Tuple] = None, fetch_one: bool = False
             return result.fetchone()
         return result.fetchall()
     except Exception as e:
-        import logging
-        logging.error(f"Database query error: {e}")
+        LOGGER.error("Database query error: %s", e)
         traceback.print_exc()
         raise
     finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        _safe_close(conn)
 
 
 def db_execute(query: str, params: Optional[Tuple] = (), commit: bool = True) -> int:
@@ -166,21 +164,12 @@ def db_execute(query: str, params: Optional[Tuple] = (), commit: bool = True) ->
             conn.commit()
         return cursor.rowcount
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
-        import logging
-        logging.error(f"Database execute error: {e}")
+        _safe_rollback(conn)
+        LOGGER.error("Database execute error: %s", e)
         traceback.print_exc()
         raise
     finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        _safe_close(conn)
 
 
 def db_execute_many(queries: List[Tuple[str, Optional[Tuple]]], commit: bool = True) -> int:
@@ -209,21 +198,12 @@ def db_execute_many(queries: List[Tuple[str, Optional[Tuple]]], commit: bool = T
             conn.commit()
         return total_rows
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
-        import logging
-        logging.error(f"Database execute_many error: {e}")
+        _safe_rollback(conn)
+        LOGGER.error("Database execute_many error: %s", e)
         traceback.print_exc()
         raise
     finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
+        _safe_close(conn)
 
 
 # Repository Pattern Classes

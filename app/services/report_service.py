@@ -5,6 +5,7 @@ Generates comprehensive PO lifecycle reports with detailed production metrics
 """
 
 import sqlite3
+import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from reportlab.lib import colors
@@ -19,6 +20,18 @@ from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics import renderPDF
 import io
 from typing import Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_close(resource, label: str) -> None:
+    """Close IO/connection resources without masking primary errors."""
+    if not resource:
+        return
+    try:
+        resource.close()
+    except Exception as exc:
+        logger.debug("Failed closing %s: %s", label, exc)
 
 class ProductionReportGenerator:
     """Generates comprehensive production cycle reports with detailed metrics"""
@@ -129,11 +142,7 @@ class ProductionReportGenerator:
             return buffer.getvalue()
         except Exception as e:
             # Ensure buffer is closed if it was created
-            if buffer:
-                try:
-                    buffer.close()
-                except:
-                    pass
+            _safe_close(buffer, "production_report_buffer")
             raise Exception(f"Failed to generate production report: {str(e)}")
 
     def _get_report_data(self, start_date: str = None, end_date: str = None, po_numbers: List[str] = None, tablet_type_id: int = None) -> Dict:
@@ -255,11 +264,7 @@ class ProductionReportGenerator:
             
             return report_data
         finally:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
+            _safe_close(conn, "report_db_connection")
 
     def _get_product_breakdown(self, conn: sqlite3.Connection, start_date: str = None, end_date: str = None, po_numbers: List[str] = None, tablet_type_id: int = None) -> List[Dict]:
         """Get breakdown of ordered/produced/damaged by product/tablet type"""
@@ -964,11 +969,7 @@ class ProductionReportGenerator:
             return buffer.getvalue()
         except Exception as e:
             # Ensure buffer is closed if it was created
-            if buffer:
-                try:
-                    buffer.close()
-                except:
-                    pass
+            _safe_close(buffer, "vendor_report_buffer")
             raise Exception(f"Failed to generate vendor report: {str(e)}")
 
 # Example usage and testing
@@ -1143,11 +1144,7 @@ class ProductionReportGenerator:
             return pdf_content
             
         finally:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
+            _safe_close(conn, "receive_report_db_connection")
 
 if __name__ == "__main__":
     generator = ProductionReportGenerator()

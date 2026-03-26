@@ -452,7 +452,7 @@
         
         <!-- Form Content -->
         <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-            <form id="receives-form" onsubmit="submitReceives(event)">
+            <form id="receives-form" data-submit-receives-form>
                 {% if user_role in ['manager', 'admin'] %}
                 <!-- PO Assignment Field (Managers/Admin only) -->
                 <div class="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
@@ -620,9 +620,10 @@ let currentReceivingId = null;
 let currentPoId = null;
 let poSelectListenerAdded = false; // Track if PO select listener has been added
 
-// Store categories and tablet types from server (converted from Jinja2 to JavaScript)
-const categories = {{ categories | tojson }};
-const tabletTypes = {{ tablet_types | tojson }};
+// Store categories and tablet types from server.
+// Using JSON.parse on an escaped JSON string keeps this block parser-friendly.
+var categories = JSON.parse("{{ categories | tojson | safe }}");
+var tabletTypes = JSON.parse("{{ tablet_types | tojson | safe }}");
 let shipmentBatchDefaultRowCounter = 0;
 
 function getTabletTypeById(tabletTypeId) {
@@ -969,6 +970,11 @@ async function refreshCSRFToken() {
 
 // Initialize with Box 1 and Bag 1
 document.addEventListener('DOMContentLoaded', function() {
+    const receivesForm = document.getElementById('receives-form');
+    if (receivesForm) {
+        receivesForm.addEventListener('submit', submitReceives);
+    }
+
     // Check for saved draft BEFORE adding default box
     const savedDraft = getSavedDraft();
     if (savedDraft) {

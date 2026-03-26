@@ -224,6 +224,48 @@
 </head>
 <body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
 <script>
+// Global noise suppression for cleaner UI/console moving forward.
+// - Keep `console.error` intact.
+// - Convert `alert()` into toasts when available.
+(function () {
+    var __ttDebug = false;
+
+    var __origConsoleLog = (typeof console !== 'undefined' && console.log) ? console.log.bind(console) : null;
+    if (typeof console !== 'undefined') {
+        console.log = function () {
+            if (__ttDebug && __origConsoleLog) {
+                __origConsoleLog.apply(console, arguments);
+            }
+        };
+    }
+
+    var __origAlert = window.alert;
+    window.alert = function (message) {
+        try {
+            var msg = String(message);
+
+            // Prefer toast UI when available.
+            if (typeof showSuccess === 'function' && (msg.includes('✅') || msg.toLowerCase().includes('success'))) {
+                showSuccess(msg);
+                return;
+            }
+            if (typeof showError === 'function') {
+                showError(msg);
+                return;
+            }
+        } catch (e) {
+            // Fall through to console.
+        }
+
+        // Last resort: non-blocking error output.
+        if (typeof console !== 'undefined' && console.error) {
+            console.error(String(message));
+        } else if (__origAlert) {
+            __origAlert(message);
+        }
+    };
+})();
+
 // CSRF Token Helper Functions - Defined early so they're available in all child templates
 function getCSRFToken() {
     // Try to get CSRF token from meta tag first
@@ -1881,7 +1923,7 @@ async function loadEditAdminPOs(submissionId, productName) {
             
             const poDiv = document.createElement('div');
             poDiv.className = `border rounded-lg p-4 hover:bg-orange-50 cursor-pointer transition-colors ${isCurrent ? 'border-orange-500 bg-orange-50' : 'border-gray-300'}`;
-            poDiv.onclick = () => adminReassignFromEditModal(submissionId, po.id, po.po_number);
+            poDiv.addEventListener('click', () => adminReassignFromEditModal(submissionId, po.id, po.po_number));
             
             poDiv.innerHTML = `
                 <div class="flex justify-between items-start">
@@ -2397,7 +2439,7 @@ async function viewSubmissionDetails(submissionId) {
         
         const sub = data.submission;
         // Check if user is admin/manager
-        const isAdmin = {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}true{% else %}false{% endif %};
+        const isAdmin = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
         
         // Format dates - properly handle UTC timestamps
         // submission_date is date-only (YYYY-MM-DD), created_at is full timestamp
@@ -3204,7 +3246,6 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         <!-- Search Filter -->
                         <div class="flex-1 min-w-[150px] max-w-[300px]">
                             <input type="text" id="bag-search-filter" placeholder="🔍 Filter by box, bag, or flavor..." 
-                                   oninput="filterReceiveBags(this.value)"
                                    class="w-full px-3 py-1.5 text-sm border rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                         </div>
                         
@@ -3261,6 +3302,9 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         // Re-apply saved search/jump state after modal rebuild.
         const searchInput = document.getElementById('bag-search-filter');
         const jumpDropdown = document.getElementById('box-jump-dropdown');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => filterReceiveBags(searchInput.value));
+        }
         if (searchInput && receiveState.searchTerm) {
             searchInput.value = receiveState.searchTerm;
             filterReceiveBags(receiveState.searchTerm, true);

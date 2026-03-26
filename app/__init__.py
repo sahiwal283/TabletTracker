@@ -1,186 +1,202 @@
-"""
-TabletTracker application factory
-"""
-import time
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for, flash, g
+"""TabletTracker application factory."""
+
 from datetime import timedelta
+import time
+import traceback
+
+from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
 from flask_babel import Babel
-from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFError, CSRFProtect
+
+from app.utils.perf_utils import add_server_timing_header, log_request_duration
 from config import Config
-from app.utils.perf_utils import log_request_duration, add_server_timing_header
 
 
-def create_app(config_class=Config):
-    """Application factory function"""
-    app = Flask(__name__, 
-                template_folder='../templates',
-                static_folder='../static')
-    
-    # Load configuration
+LANGUAGES = {"en": "English", "es": "Español"}
+CSP_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+    "img-src 'self' data: https:; "
+    "font-src 'self' data:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none';"
+)
+
+
+def _configure_app(app, config_class):
+    """Load application config and static defaults."""
     app.config.from_object(config_class)
     app.secret_key = config_class.SECRET_KEY
-    
-    # Configure Babel for internationalization
-    app.config['LANGUAGES'] = {
-        'en': 'English',
-        'es': 'Español'
-    }
-    app.config['BABEL_DEFAULT_LOCALE'] = 'en'
-    app.config['BABEL_DEFAULT_TIMEZONE'] = 'UTC'
-    
-    # Babel locale selector
+    app.config["LANGUAGES"] = LANGUAGES
+    app.config["BABEL_DEFAULT_LOCALE"] = "en"
+    app.config["BABEL_DEFAULT_TIMEZONE"] = "UTC"
+
+
+def _build_locale_selector(app):
+    """Create Babel locale selector with DB/user/session fallback."""
+
     def get_locale():
         from app.utils.db_utils import get_db
-        
-        # 1. Check if user explicitly chose a language
-        if request.args.get('lang'):
-            session['language'] = request.args.get('lang')
-            session['manual_language_override'] = True
-        
-        # 2. Use session language if manually set
-        if (session.get('manual_language_override') and 
-            'language' in session and session['language'] in app.config['LANGUAGES']):
-            return session['language']
-        
-        # 3. Check employee's preferred language from database (if authenticated)
-        if (session.get('employee_authenticated') and session.get('employee_id') and 
-            not session.get('manual_language_override')):
+
+        selected_lang = request.args.get("lang")
+        if selected_lang:
+            session["language"] = selected_lang
+            session["manual_language_override"] = True
+
+        if (
+            session.get("manual_language_override")
+            and "language" in session
+            and session["language"] in app.config["LANGUAGES"]
+        ):
+            return session["language"]
+
+        if (
+            session.get("employee_authenticated")
+            and session.get("employee_id")
+            and not session.get("manual_language_override")
+        ):
             conn = None
             try:
                 conn = get_db()
-                employee = conn.execute('''
+                employee = conn.execute(
+                    """
                     SELECT preferred_language FROM employees WHERE id = ?
-                ''', (session.get('employee_id'),)).fetchone()
-                if employee and employee['preferred_language'] and employee['preferred_language'] in app.config['LANGUAGES']:
-                    session['language'] = employee['preferred_language']
-                    return employee['preferred_language']
-            except Exception as e:
-                pass
+                    """,
+                    (session.get("employee_id"),),
+                ).fetchone()
+                preferred = employee["preferred_language"] if employee else None
+                if preferred and preferred in app.config["LANGUAGES"]:
+                    session["language"] = preferred
+                    return preferred
+            except Exception as exc:
+                app.logger.warning("Locale lookup failed: %s", exc)
             finally:
                 if conn:
                     try:
                         conn.close()
-                    except:
-                        pass
-        
-        # 4. Use session language if available
-        if 'language' in session and session['language'] in app.config['LANGUAGES']:
-            return session['language']
-        
-        # 5. Use browser's preferred language if available
-        fallback_lang = request.accept_languages.best_match(app.config['LANGUAGES'].keys()) or app.config['BABEL_DEFAULT_LOCALE']
-        session['language'] = fallback_lang
+                    except Exception as exc:
+                        app.logger.debug("Failed to close locale DB connection: %s", exc)
+
+        if "language" in session and session["language"] in app.config["LANGUAGES"]:
+            return session["language"]
+
+        fallback_lang = request.accept_languages.best_match(app.config["LANGUAGES"].keys())
+        fallback_lang = fallback_lang or app.config["BABEL_DEFAULT_LOCALE"]
+        session["language"] = fallback_lang
         return fallback_lang
-    
-    # Initialize Babel
+
+    return get_locale
+
+
+def _initialize_extensions(app):
+    """Initialize Flask extensions used by this app."""
     babel = Babel()
-    babel.init_app(app, locale_selector=get_locale)
-    
-    # Initialize CSRF Protection
+    babel.init_app(app, locale_selector=_build_locale_selector(app))
+
     csrf = CSRFProtect()
     csrf.init_app(app)
-    
-    # Custom CSRF error handler to return JSON for API requests
-    @app.errorhandler(CSRFError)
-    def handle_csrf_error(e):
-        # Return JSON for API routes
-        if request.path.startswith('/api/'):
-            return jsonify({'success': False, 'error': f'CSRF validation failed: {e.description}'}), 400
-        # For non-API routes, redirect to login with message instead of crashing
-        # This happens when sessions expire or cookies are cleared
-        session.clear()
-        flash('Your session has expired. Please log in again.', 'error')
-        return redirect(url_for('auth.index'))
-    
-    # Initialize Rate Limiting (disabled for login routes - using failed attempt tracking instead)
-    limiter = Limiter(
+
+    Limiter(
         app=app,
         key_func=get_remote_address,
         default_limits=["1000 per day", "200 per hour"],
         storage_uri="memory://",
-        enabled=False  # Disabled to prevent false positives on first login
+        enabled=False,  # Disabled to prevent false positives on first login
     )
-    
-    # Configure session settings for production security
-    if config_class.ENV == 'production':
-        app.config['SESSION_COOKIE_SECURE'] = True
-        app.config['SESSION_COOKIE_HTTPONLY'] = True
-        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    
-    # Set permanent session lifetime
+
+
+def _configure_session_security(app, config_class):
+    """Configure secure cookie/session behavior."""
+    if config_class.ENV == "production":
+        app.config["SESSION_COOKIE_SECURE"] = True
+        app.config["SESSION_COOKIE_HTTPONLY"] = True
+        app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
     app.permanent_session_lifetime = timedelta(seconds=config_class.PERMANENT_SESSION_LIFETIME)
-    
-    # Production error handling
+
+
+def _register_error_handlers(app, config_class):
+    """Register CSRF and generic HTTP error handlers."""
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(error):
+        if request.path.startswith("/api/"):
+            return jsonify({"success": False, "error": f"CSRF validation failed: {error.description}"}), 400
+
+        session.clear()
+        flash("Your session has expired. Please log in again.", "error")
+        return redirect(url_for("auth.index"))
+
     @app.errorhandler(404)
     def not_found_error(error):
-        # Return JSON for API routes
-        if request.path.startswith('/api/'):
-            return jsonify({'success': False, 'error': 'Resource not found'}), 404
-        if config_class.ENV == 'production':
-            return render_template('base.html'), 404
+        if request.path.startswith("/api/"):
+            return jsonify({"success": False, "error": "Resource not found"}), 404
+        if config_class.ENV == "production":
+            return render_template("base.html"), 404
         return str(error), 404
-    
+
     @app.errorhandler(500)
     def internal_error(error):
-        # Return JSON for API routes
-        if request.path.startswith('/api/'):
-            import traceback
+        if request.path.startswith("/api/"):
             error_msg = str(error)
-            if config_class.ENV != 'production':
-                # Include traceback in development
+            if config_class.ENV != "production":
                 error_msg = f"{error_msg}\n{traceback.format_exc()}"
-            return jsonify({'success': False, 'error': f'Internal server error: {error_msg}'}), 500
-        if config_class.ENV == 'production':
-            return render_template('base.html'), 500
+            return jsonify({"success": False, "error": f"Internal server error: {error_msg}"}), 500
+        if config_class.ENV == "production":
+            return render_template("base.html"), 500
         return str(error), 500
-    
-    # Request timing for performance baseline (dashboard + API)
+
+
+def _register_request_hooks(app, config_class):
+    """Register shared request lifecycle hooks."""
+
     @app.before_request
     def _perf_start():
         g.perf_start = time.perf_counter()
 
-    # Security headers (apply to all environments)
     @app.after_request
-    def after_request(response):
-        # Always apply these security headers
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
-        
-        # Content Security Policy
-        csp = "default-src 'self'; " \
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com; " \
-              "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; " \
-              "img-src 'self' data: https:; " \
-              "font-src 'self' data:; " \
-              "connect-src 'self'; " \
-              "frame-ancestors 'none';"
-        response.headers['Content-Security-Policy'] = csp
-        
-        # Additional production-only headers
-        if config_class.ENV == 'production':
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+    def _after_request(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Content-Security-Policy"] = CSP_POLICY
 
-        # Performance baseline: log and Server-Timing for tracked paths
-        if hasattr(g, 'perf_start'):
+        if config_class.ENV == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
+        if hasattr(g, "perf_start"):
             duration_ms = (time.perf_counter() - g.perf_start) * 1000
             log_request_duration(request.path, duration_ms, app)
             add_server_timing_header(response, request.path, duration_ms, app)
 
         return response
-    
-    # Register Blueprints
+
+
+def _register_blueprints(app):
+    """Import and register all blueprints."""
     from app.blueprints import (
-        auth, admin, dashboard, production, submissions, 
-        purchase_orders, receiving, api as api_bp,
-        api_purchase_orders, api_receiving, api_admin, api_tablet_types,
-        api_machines, api_reports, api_submissions
+        admin,
+        api as api_bp,
+        api_admin,
+        api_machines,
+        api_purchase_orders,
+        api_receiving,
+        api_reports,
+        api_submissions,
+        api_tablet_types,
+        auth,
+        dashboard,
+        production,
+        purchase_orders,
+        receiving,
+        submissions,
     )
-    
+
     app.register_blueprint(auth.bp)
     app.register_blueprint(admin.bp)
     app.register_blueprint(dashboard.bp)
@@ -196,10 +212,26 @@ def create_app(config_class=Config):
     app.register_blueprint(api_machines.bp)
     app.register_blueprint(api_reports.bp)
     app.register_blueprint(api_submissions.bp)
-    
-    # Run database migrations on startup to ensure all columns exist
+
+
+def _initialize_database(app):
+    """Ensure DB schema initialization/migrations run at startup."""
     with app.app_context():
         from app.models.database import init_db
+
         init_db()
-    
+
+
+def create_app(config_class=Config):
+    """Application factory function."""
+    app = Flask(__name__, template_folder="../templates", static_folder="../static")
+
+    _configure_app(app, config_class)
+    _initialize_extensions(app)
+    _configure_session_security(app, config_class)
+    _register_error_handlers(app, config_class)
+    _register_request_hooks(app, config_class)
+    _register_blueprints(app)
+    _initialize_database(app)
+
     return app

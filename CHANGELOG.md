@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.23] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Global noise cleanup (suppress console.log; convert alert to toasts)
+- Added global `console.log` suppression (keeps `console.error` intact) to reduce debug noise.
+- Converted `window.alert()` calls into non-blocking toast notifications (`showSuccess/showError` when available).
+- Improved IDE/templating cleanliness by removing template-generated inline style expressions in progress bars for better CSS lint parsing.
+- **Verification**: `python tests/run_tests.py` passes (`46` tests) and lints are clean for touched templates.
+- **Versioning**: **PATCH** bump `2.47.22` → `2.47.23`.
+
+---
+
+## [2.47.22] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Frontend event-handling cleanup continuation (dashboard/base/purchase-orders)
+- Updated submissions modal filter-state styling in `templates/dashboard.html` to use `data-filter-submissions` attributes instead of string parsing `onclick` values.
+- Replaced additional dynamic click wiring with `addEventListener` in `templates/dashboard.html`, `templates/base.html`, and `templates/purchase_orders.html`.
+- Removed inline receive-details search input handler in `templates/base.html` and bound filtering through JS listener setup after modal render.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.21` → `2.47.22`.
+
+---
+
+## [2.47.21] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Frontend parity hardening (receiving form submit delegation)
+- Removed inline `onsubmit` handler from `templates/receiving.html` receives form and switched to JavaScript-bound submit listener during page initialization.
+- Preserved existing submission behavior (`submitReceives`) while reducing inline event coupling.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.20` → `2.47.21`.
+
+---
+
+## [2.47.20] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Independent refactor + reliability hardening (migrations, tracking, reporting)
+- Hardened migration safety in `app/models/migrations.py` by replacing silent `except: pass` paths with explicit sqlite-aware handling and targeted logging.
+- Improved tracking resilience in `app/services/tracking_service.py` by adding structured parse-failure diagnostics and narrowing rollback failure handling.
+- Refactored report resource cleanup in `app/services/report_service.py` via centralized safe-close helper to prevent duplicated silent cleanup failures.
+- Tightened rollback fallback handling in `app/blueprints/api_receiving.py` for schema-adjustment path.
+- **Verification**: full regression test suite passes (`46` tests) and lints are clean on touched files.
+- **Versioning**: **PATCH** bump `2.47.19` → `2.47.20`.
+
+---
+
+## [2.47.19] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Independent refactor + reliability hardening (app bootstrap and DB safety)
+- Refactored `app/__init__.py` into focused setup helpers for configuration, locale selection, extensions, hooks, error handlers, blueprint registration, and DB initialization while preserving behavior.
+- Hardened `app/utils/db_utils.py` by consolidating connection rollback/close safety paths and replacing silent failure blocks with explicit sqlite-aware handling and structured logging.
+- Removed/limited bare `except: pass` patterns in `app/blueprints/api.py` and `app/blueprints/submissions.py` to reduce hidden runtime failure risk without changing route contracts.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.18` → `2.47.19`.
+
+---
+
 ## [2.47.18] - 2026-03-26
 
 ### ✨ Enhancement

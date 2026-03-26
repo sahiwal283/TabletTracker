@@ -708,13 +708,9 @@ def export_submissions_csv():
             for sub in submissions_processed:
                 submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
                 created_at = sub.get('created_at', '')
-                if created_at:
-                    try:
-                        # Format datetime for CSV
-                        if isinstance(created_at, str):
-                            created_at = created_at[:19]  # Truncate to seconds
-                    except:
-                        pass
+                if isinstance(created_at, str):
+                    # Format datetime for CSV.
+                    created_at = created_at[:19]  # Truncate to seconds
                 
                 writer.writerow([
                     submission_date,
