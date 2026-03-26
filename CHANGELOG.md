@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.2] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Backend refactor phase 2 (routes/services/data hardening)
+- **Query hardening**: Added whitelisted backend sort builder in `app/services/submission_query_service.py` (`build_safe_order_by`) and bounded limit handling for safer query composition.
+- **Transaction ownership**: Removed internal commits from `zoho_service.sync_tablet_pos_to_db` so caller-owned transactions remain atomic.
+- **Data integrity**: Enabled SQLite foreign key enforcement by default in `app/utils/db_utils.py` via `PRAGMA foreign_keys = ON`.
+- **Route/service consolidation**: Moved overs-PO preview and create business logic behind `purchase_order_service` and simplified `api_purchase_orders` route handlers.
+- **Cross-cutting cleanup**: Replaced duplicate helper definitions in `app/blueprints/common.py` with canonical imports from `app/utils/route_helpers.py`.
+- **Safety net tests**: Added unit tests for query safety helper and DB FK enforcement:
+  - `tests/test_submission_query_service.py`
+  - `tests/test_db_utils.py`
+- **Versioning**: **PATCH** bump `2.47.1` → `2.47.2` (backward-compatible backend refactor hardening).
+
+---
+
 ## [2.47.1] - 2026-03-26
 
 ### ✨ Enhancement

@@ -8,6 +8,30 @@ import sqlite3
 from typing import Dict, List, Optional, Tuple, Any
 from app.services.submission_calculator import calculate_submission_total_with_fallback
 
+ALLOWED_ORDER_FIELDS = {
+    'created_at': 'ws.created_at',
+    'submission_date': 'COALESCE(ws.submission_date, DATE(ws.created_at))',
+    'employee_name': 'ws.employee_name',
+    'product_name': 'ws.product_name',
+    'submission_type': 'COALESCE(ws.submission_type, \'packaged\')',
+}
+
+
+def build_safe_order_by(
+    sort_field: Optional[str] = None,
+    sort_direction: Optional[str] = None
+) -> str:
+    """
+    Build a safe ORDER BY clause from a whitelisted field/direction pair.
+
+    Falls back to newest-first ordering for unknown values.
+    """
+    field_key = (sort_field or 'created_at').strip().lower()
+    direction_key = (sort_direction or 'desc').strip().lower()
+    direction_sql = 'ASC' if direction_key == 'asc' else 'DESC'
+    field_sql = ALLOWED_ORDER_FIELDS.get(field_key, ALLOWED_ORDER_FIELDS['created_at'])
+    return f'{field_sql} {direction_sql}'
+
 
 def build_submission_base_query(include_calculated_total: bool = True) -> str:
     """
@@ -182,7 +206,8 @@ def build_submission_filters(
 def get_submissions_with_totals(
     conn: sqlite3.Connection,
     filters: Optional[Dict[str, Any]] = None,
-    order_by: Optional[str] = None,
+    sort_field: Optional[str] = None,
+    sort_direction: Optional[str] = None,
     limit: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
@@ -194,7 +219,8 @@ def get_submissions_with_totals(
     Args:
         conn: Database connection object
         filters: Optional filter dictionary (see build_submission_filters)
-        order_by: Optional ORDER BY clause (e.g., 'ws.created_at DESC')
+        sort_field: Optional field name for sorting
+        sort_direction: Optional direction ('asc' or 'desc')
         limit: Optional LIMIT clause (integer)
     
     Returns:
@@ -206,15 +232,12 @@ def get_submissions_with_totals(
     # Build query
     query, params = build_submission_filters(filters)
     
-    # Add ORDER BY
-    if order_by:
-        query += f' ORDER BY {order_by}'
-    else:
-        query += ' ORDER BY ws.created_at DESC'
+    query += f' ORDER BY {build_safe_order_by(sort_field, sort_direction)}'
     
     # Add LIMIT
     if limit:
-        query += f' LIMIT {limit}'
+        safe_limit = max(1, min(int(limit), 500))
+        query += f' LIMIT {safe_limit}'
     
     # Execute query
     rows = conn.execute(query, params).fetchall()

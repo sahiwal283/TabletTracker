@@ -248,3 +248,53 @@ def create_overs_po(parent_po_id: int) -> Dict[str, Any]:
                 'error': f'Failed to create PO in Zoho: {error_msg}'
             }
 
+
+def get_overs_po_preview(parent_po_id: int) -> Dict[str, Any]:
+    """
+    Build preview information for creating an overs PO.
+    """
+    with db_read_only() as conn:
+        parent_po = conn.execute(
+            '''
+            SELECT po_number, tablet_type, ordered_quantity, current_good_count,
+                   current_damaged_count, remaining_quantity
+            FROM purchase_orders
+            WHERE id = ?
+            ''',
+            (parent_po_id,)
+        ).fetchone()
+        if not parent_po:
+            return {'success': False, 'error': 'Parent PO not found'}
+
+        overs_quantity = abs(min(0, parent_po['remaining_quantity']))
+        lines_with_overs = conn.execute(
+            '''
+            SELECT pl.*,
+                   (pl.quantity_ordered - pl.good_count - pl.damaged_count) as line_remaining
+            FROM po_lines pl
+            WHERE pl.po_id = ?
+            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) < 0
+            ''',
+            (parent_po_id,)
+        ).fetchall()
+
+        overs_line_items = []
+        for line in lines_with_overs:
+            line_overs = abs(line['line_remaining'])
+            overs_line_items.append({
+                'inventory_item_id': line['inventory_item_id'],
+                'line_item_name': line['line_item_name'],
+                'overs_quantity': line_overs,
+                'original_ordered': line['quantity_ordered']
+            })
+
+        return {
+            'success': True,
+            'parent_po_number': parent_po['po_number'],
+            'overs_po_number': f"{parent_po['po_number']}-OVERS",
+            'tablet_type': parent_po['tablet_type'],
+            'total_overs': overs_quantity,
+            'line_items': overs_line_items,
+            'instructions': 'Click "Create in Zoho" to automatically create this overs PO in Zoho, or copy details to create manually.'
+        }
+

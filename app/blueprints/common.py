@@ -25,37 +25,11 @@ from app.utils.auth_utils import admin_required, role_required, employee_require
 from app.models.database import init_db
 from app.models.schema import SchemaManager
 from app.models.migrations import MigrationRunner
-
-# Helper functions from app.py that routes depend on
-def get_setting(setting_key, default_value=None):
-    """Get a setting value from app_settings table"""
-    from app.utils.db_utils import db_query
-    result = db_query(
-        'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-        (setting_key,),
-        fetch_one=True
-    )
-    if result:
-        return result['setting_value']
-    return default_value
-
-def ensure_app_settings_table():
-    """Ensure app_settings table exists"""
-    from app.models.database import init_db
-    init_db()  # This will ensure all tables exist
-
-def ensure_submission_type_column():
-    """Ensure submission_type column exists"""
-    from app.models.database import init_db
-    init_db()  # Migrations handle this
-
-def ensure_machine_counts_table():
-    """Ensure machine_counts table exists"""
-    from app.models.database import init_db
-    init_db()  # Migrations handle this
-
-def ensure_machine_count_columns():
-    """Ensure machine count columns exist"""
-    from app.models.database import init_db
-    init_db()  # Migrations handle this
+from app.utils.route_helpers import (
+    get_setting,
+    ensure_app_settings_table,
+    ensure_submission_type_column,
+    ensure_machine_counts_table,
+    ensure_machine_count_columns,
+)
 

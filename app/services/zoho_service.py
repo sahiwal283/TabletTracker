@@ -690,14 +690,11 @@ class ZohoInventoryAPI:
             )
         ''')
         
-        db_conn.commit()
-        
         # Re-evaluate flagged submissions after PO sync
         # Some submissions may now have only 1 match after POs were closed
         try:
             from app.services.bag_matching_service import reevaluate_flagged_submissions
             auto_assigned = reevaluate_flagged_submissions(db_conn)
-            db_conn.commit()
             if auto_assigned > 0:
                 logger.info(f"Auto-assigned {auto_assigned} previously flagged submissions after PO sync")
         except Exception as e:

@@ -9,6 +9,8 @@ import traceback
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import role_required
 from app.services.zoho_service import zoho_api
+from app.services.purchase_order_service import create_overs_po as create_overs_po_service
+from app.services.purchase_order_service import get_overs_po_preview
 
 bp = Blueprint('api_purchase_orders', __name__)
 
@@ -41,96 +43,20 @@ def sync_zoho_pos():
 @role_required('dashboard')
 def create_overs_po(po_id):
     """Create an overs PO in Zoho for a parent PO"""
-    conn = None
     try:
-        with db_transaction() as conn:
-            # Get parent PO details
-            parent_po = conn.execute('''
-            SELECT po_number, tablet_type, ordered_quantity, current_good_count, 
-                   current_damaged_count, remaining_quantity, zoho_po_id
-            FROM purchase_orders
-            WHERE id = ?
-        ''', (po_id,)).fetchone()
-        
-        if not parent_po:
-            return jsonify({'error': 'Parent PO not found'}), 404
-        
-        # Calculate overs (negative remaining_quantity means overs)
-        overs_quantity = abs(min(0, parent_po['remaining_quantity']))
-        
-        if overs_quantity == 0:
-            return jsonify({'error': 'No overs found for this PO'}), 400
-        
-        # Get line items with overs (negative remaining means overs)
-        lines_with_overs = conn.execute('''
-            SELECT pl.*, 
-                   (pl.quantity_ordered - pl.good_count - pl.damaged_count) as line_remaining
-            FROM po_lines pl
-            WHERE pl.po_id = ? 
-            AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) < 0
-        ''', (po_id,)).fetchall()
-        
-        if not lines_with_overs:
-            return jsonify({'error': 'No line items with overs found'}), 400
-        
-        # Generate overs PO number
-        overs_po_number = f"{parent_po['po_number']}-OVERS"
-        
-        # Get parent PO details from Zoho to use as template
-        parent_zoho_po = None
-        if parent_po['zoho_po_id']:
-            parent_zoho_po = zoho_api.get_purchase_order_details(parent_po['zoho_po_id'])
-        
-        # Build line items for overs PO
-        line_items = []
-        for line in lines_with_overs:
-            line_overs = abs(line['line_remaining'])
-            line_items.append({
-                'item_id': line['inventory_item_id'],
-                'name': line['line_item_name'],
-                'quantity': line_overs,
-                'rate': 0  # Free/overs items typically have $0 rate
-            })
-        
-        # Build PO data for Zoho
-        po_data = {
-            'purchaseorder_number': overs_po_number,
-            'date': datetime.now().date().isoformat(),
-            'line_items': line_items,
-            'cf_tablets': True,  # Mark as tablet PO
-            'notes': f'Overs PO for {parent_po["po_number"]} - {overs_quantity:,} tablets',
-            'status': 'draft'  # Create as draft so it can be reviewed
-        }
-        
-        # Copy vendor and other details from parent PO if available
-        if parent_zoho_po and 'purchaseorder' in parent_zoho_po:
-            parent_data = parent_zoho_po['purchaseorder']
-            if 'vendor_id' in parent_data:
-                po_data['vendor_id'] = parent_data['vendor_id']
-            if 'vendor_name' in parent_data:
-                po_data['vendor_name'] = parent_data['vendor_name']
-            if 'currency_code' in parent_data:
-                po_data['currency_code'] = parent_data['currency_code']
-        
-        # Create PO in Zoho
-        result = zoho_api.create_purchase_order(po_data)
-        
-        if result and 'purchaseorder' in result:
-            created_po = result['purchaseorder']
+        result = create_overs_po_service(po_id)
+        if result.get('success'):
             return jsonify({
                 'success': True,
-                'message': f'Overs PO "{overs_po_number}" created successfully in Zoho!',
-                'overs_po_number': overs_po_number,
-                'zoho_po_id': created_po.get('purchaseorder_id'),
-                'total_overs': overs_quantity,
+                'message': f'Overs PO "{result["overs_po_number"]}" created successfully in Zoho!',
+                'overs_po_number': result['overs_po_number'],
+                'zoho_po_id': result.get('zoho_po_id'),
+                'total_overs': result.get('total_overs', 0),
                 'instructions': 'The overs PO has been created in Zoho. You can now sync POs to import it into the app.'
             })
-        else:
-            error_msg = result.get('message', 'Unknown error') if result else 'No response from Zoho API'
-            return jsonify({
-                'success': False,
-                'error': f'Failed to create PO in Zoho: {error_msg}'
-            }), 500
+        error = result.get('error', 'Failed to create overs PO')
+        status_code = 404 if error == 'Parent PO not found' else 400 if 'No overs found' in error or 'No line items with overs found' in error else 500
+        return jsonify({'success': False, 'error': error}), status_code
     except Exception as e:
         current_app.logger.error(f"Error creating overs PO: {str(e)}")
         traceback.print_exc()
@@ -142,55 +68,10 @@ def create_overs_po(po_id):
 def get_overs_po_info(po_id):
     """Get information needed to create an overs PO for a parent PO (for preview)"""
     try:
-        with db_read_only() as conn:
-            # Get parent PO details
-            parent_po = conn.execute('''
-                SELECT po_number, tablet_type, ordered_quantity, current_good_count, 
-                       current_damaged_count, remaining_quantity
-                FROM purchase_orders
-                WHERE id = ?
-            ''', (po_id,)).fetchone()
-            
-            if not parent_po:
-                return jsonify({'error': 'Parent PO not found'}), 404
-            
-            # Calculate overs (negative remaining_quantity means overs)
-            overs_quantity = abs(min(0, parent_po['remaining_quantity']))
-            
-            # Get line items with overs (negative remaining means overs)
-            lines_with_overs = conn.execute('''
-                SELECT pl.*, 
-                       (pl.quantity_ordered - pl.good_count - pl.damaged_count) as line_remaining
-                FROM po_lines pl
-                WHERE pl.po_id = ? 
-                AND (pl.quantity_ordered - pl.good_count - pl.damaged_count) < 0
-            ''', (po_id,)).fetchall()
-            
-            # Generate overs PO number
-            overs_po_number = f"{parent_po['po_number']}-OVERS"
-            
-            # Prepare line items for overs PO
-            overs_line_items = []
-            total_overs = 0
-            for line in lines_with_overs:
-                line_overs = abs(line['line_remaining'])
-                total_overs += line_overs
-                overs_line_items.append({
-                    'inventory_item_id': line['inventory_item_id'],
-                    'line_item_name': line['line_item_name'],
-                    'overs_quantity': line_overs,
-                    'original_ordered': line['quantity_ordered']
-                })
-            
-            return jsonify({
-                'success': True,
-                'parent_po_number': parent_po['po_number'],
-                'overs_po_number': overs_po_number,
-                'tablet_type': parent_po['tablet_type'],
-                'total_overs': overs_quantity,
-                'line_items': overs_line_items,
-                'instructions': f'Click "Create in Zoho" to automatically create this overs PO in Zoho, or copy details to create manually.'
-            })
+        preview = get_overs_po_preview(po_id)
+        if not preview.get('success'):
+            return jsonify({'error': preview.get('error', 'Failed to load preview')}), 404
+        return jsonify(preview)
     except Exception as e:
         current_app.logger.error(f"Error getting overs PO info: {str(e)}")
         return jsonify({'error': str(e)}), 500
