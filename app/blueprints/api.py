@@ -28,6 +28,10 @@ from app.services.repack_allocation_service import (
     allocate_repack_tablets,
     allocation_payload_to_json,
 )
+from app.services.submission_assignment_service import (
+    approve_submission_assignment as approve_submission_assignment_service,
+    reassign_submission_to_po as reassign_submission_to_po_service,
+)
 
 bp = Blueprint('api', __name__)
 
@@ -865,33 +869,10 @@ def approve_submission_assignment(submission_id):
     """Approve and lock the current PO assignment for a submission"""
     try:
         with db_transaction() as conn:
-            # Check if submission exists and isn't already verified
-            submission = conn.execute('''
-                SELECT id, assigned_po_id, po_assignment_verified
-                FROM warehouse_submissions
-                WHERE id = ?
-            ''', (submission_id,)).fetchone()
-            
-            if not submission:
-                return jsonify({'error': 'Submission not found'}), 404
-            
-            if submission['po_assignment_verified']:
-                return jsonify({'error': 'Submission already verified and locked'}), 400
-            
-            if not submission['assigned_po_id']:
-                return jsonify({'error': 'Cannot approve unassigned submission'}), 400
-            
-            # Mark as verified/locked
-            conn.execute('''
-                UPDATE warehouse_submissions 
-                SET po_assignment_verified = TRUE
-                WHERE id = ?
-            ''', (submission_id,))
-            
-            return jsonify({
-                'success': True,
-                'message': 'PO assignment approved and locked'
-            })
+            result = approve_submission_assignment_service(conn, submission_id)
+            if not result.get('success'):
+                return jsonify({'error': result.get('error', 'Approval failed')}), result.get('status_code', 400)
+            return jsonify({'success': True, 'message': result['message']})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -902,155 +883,20 @@ def approve_submission_assignment(submission_id):
 def reassign_submission_to_po(submission_id):
     """Reassign a submission to a different PO (manager verification/correction)"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         new_po_id = data.get('new_po_id')
-        
         if not new_po_id:
             return jsonify({'error': 'Missing new_po_id'}), 400
-        
+        try:
+            new_po_id = int(new_po_id)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid new_po_id'}), 400
+
         with db_transaction() as conn:
-            # Get submission details
-            submission = conn.execute('''
-                SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id,
-                       COALESCE(ws.submission_type, 'packaged') as submission_type
-                FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE ws.id = ?
-            ''', (submission_id,)).fetchone()
-            
-            if not submission:
-                return jsonify({'error': 'Submission not found'}), 404
-            
-            # Check if already verified/locked
-            if submission['po_assignment_verified']:
-                return jsonify({'error': 'Cannot reassign: PO assignment is already verified and locked'}), 403
-            
-            old_po_id = submission['assigned_po_id']
-            inventory_item_id = submission['inventory_item_id']
-            
-            # Verify new PO has this product
-            new_po_check = conn.execute('''
-                SELECT COUNT(*) as count
-                FROM po_lines pl
-                WHERE pl.po_id = ? AND pl.inventory_item_id = ?
-            ''', (new_po_id, inventory_item_id)).fetchone()
-            
-            if new_po_check['count'] == 0:
-                return jsonify({'error': 'Selected PO does not have this product'}), 400
-            
-            # Calculate counts based on submission type
-            submission_type = submission.get('submission_type', 'packaged')
-            if submission_type == 'machine':
-                good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
-            elif submission_type == 'repack':
-                packages_per_display = submission['packages_per_display'] or 0
-                tablets_per_package = submission['tablets_per_package'] or 0
-                good_tablets = calculate_repack_output_good(
-                    dict(submission), packages_per_display, tablets_per_package
-                )
-            else:
-                packages_per_display = submission['packages_per_display'] or 0
-                tablets_per_package = submission['tablets_per_package'] or 0
-                good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                               submission['packs_remaining'] * tablets_per_package + 
-                               submission['loose_tablets'])
-            damaged_tablets = 0 if submission_type == 'repack' else submission['damaged_tablets']
-            
-            # Remove counts from old PO if assigned
-            if old_po_id:
-                # Remove from old PO line
-                old_line = conn.execute('''
-                    SELECT id FROM po_lines 
-                    WHERE po_id = ? AND inventory_item_id = ?
-                    LIMIT 1
-                ''', (old_po_id, inventory_item_id)).fetchone()
-                
-                if old_line:
-                    # Get current counts first to calculate new values
-                    current_line = conn.execute('''
-                        SELECT good_count, damaged_count FROM po_lines WHERE id = ?
-                    ''', (old_line['id'],)).fetchone()
-                    
-                    new_good = max(0, (current_line['good_count'] or 0) - good_tablets)
-                    new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_tablets)
-                    
-                    conn.execute('''
-                        UPDATE po_lines 
-                        SET good_count = ?, 
-                            damaged_count = ?
-                        WHERE id = ?
-                    ''', (new_good, new_damaged, old_line['id']))
-                    
-                    # Update old PO header
-                    old_totals = conn.execute('''
-                        SELECT 
-                            COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                            COALESCE(SUM(good_count), 0) as total_good,
-                            COALESCE(SUM(damaged_count), 0) as total_damaged
-                        FROM po_lines 
-                        WHERE po_id = ?
-                    ''', (old_po_id,)).fetchone()
-                    
-                    remaining = old_totals['total_ordered'] - old_totals['total_good'] - old_totals['total_damaged']
-                    conn.execute('''
-                        UPDATE purchase_orders 
-                        SET ordered_quantity = ?, current_good_count = ?, 
-                            current_damaged_count = ?, remaining_quantity = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    ''', (old_totals['total_ordered'], old_totals['total_good'], 
-                          old_totals['total_damaged'], remaining, old_po_id))
-            
-            # Add counts to new PO line
-            new_line = conn.execute('''
-                SELECT id FROM po_lines 
-                WHERE po_id = ? AND inventory_item_id = ?
-                LIMIT 1
-            ''', (new_po_id, inventory_item_id)).fetchone()
-            
-            if new_line:
-                conn.execute('''
-                    UPDATE po_lines 
-                    SET good_count = good_count + ?, damaged_count = damaged_count + ?
-                    WHERE id = ?
-                ''', (good_tablets, damaged_tablets, new_line['id']))
-                
-                # Update new PO header
-                new_totals = conn.execute('''
-                    SELECT 
-                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                        COALESCE(SUM(good_count), 0) as total_good,
-                        COALESCE(SUM(damaged_count), 0) as total_damaged
-                    FROM po_lines 
-                    WHERE po_id = ?
-                ''', (new_po_id,)).fetchone()
-                
-                remaining = new_totals['total_ordered'] - new_totals['total_good'] - new_totals['total_damaged']
-                conn.execute('''
-                    UPDATE purchase_orders 
-                    SET ordered_quantity = ?, current_good_count = ?, 
-                        current_damaged_count = ?, remaining_quantity = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ''', (new_totals['total_ordered'], new_totals['total_good'], 
-                      new_totals['total_damaged'], remaining, new_po_id))
-            
-            # Update submission assignment and mark as verified (locked)
-            conn.execute('''
-                UPDATE warehouse_submissions 
-                SET assigned_po_id = ?, po_assignment_verified = TRUE
-                WHERE id = ?
-            ''', (new_po_id, submission_id))
-            
-            # Get new PO number for response
-            new_po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (new_po_id,)).fetchone()
-            
-            return jsonify({
-                'success': True,
-                'message': f'Submission reassigned to PO-{new_po["po_number"]} and locked',
-                'new_po_number': new_po['po_number']
-            })
+            result = reassign_submission_to_po_service(conn, submission_id, new_po_id)
+            if not result.get('success'):
+                return jsonify({'error': result.get('error', 'Reassignment failed')}), result.get('status_code', 400)
+            return jsonify({'success': True, 'message': result['message'], 'new_po_number': result.get('new_po_number')})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
