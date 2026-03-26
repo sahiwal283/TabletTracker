@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.14] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (receiving static controls slice)
+- Replaced a large static set of inline handlers in `templates/receiving.html` with delegated `data-*` click routing.
+- Covered PO/shipment expand-collapse toggles, receive-card detail navigation, management actions (edit/publish/unpublish/assign PO/close/delete), and primary modal open/close/save controls for add-receives, delete-shipment, and assign-PO modals.
+- Preserved existing behavior while leaving dynamic template-string-generated modal handlers for a subsequent cleanup slice.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.13` → `2.47.14`.
+
+---
+
 ## [2.47.13] - 2026-03-26
 
 ### ✨ Enhancement

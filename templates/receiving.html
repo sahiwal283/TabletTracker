@@ -50,7 +50,7 @@
                     📋 {{ po_group.po_number }}
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
                 </h2>
-                <button onclick="togglePOCollapse('po-{{ po_group.po_number }}')" 
+                <button data-toggle-po-collapse="po-{{ po_group.po_number }}" 
                         class="text-gray-600 hover:text-gray-900 transition-colors"
                         aria-label="Toggle collapse">
                     <svg id="icon-po-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,12 +63,12 @@
         <!-- Receives for this PO (oldest at bottom) -->
         <div id="po-{{ po_group.po_number }}" class="space-y-4 ml-4 hidden">
         {% for shipment in po_group.receives %}
-        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" data-view-receive-id="{{ shipment.receiving.id }}" data-view-receive-name="{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
-                            <button onclick="event.stopPropagation(); toggleShipmentCollapse('shipment-{{ shipment.receiving.id }}')" 
+                            <button data-toggle-shipment-collapse="shipment-{{ shipment.receiving.id }}" 
                                     class="text-gray-600 hover:text-gray-900 transition-colors mr-2"
                                     aria-label="Toggle shipment collapse">
                                 <svg id="icon-shipment-{{ shipment.receiving.id }}" class="w-5 h-5 transform transition-transform {% if shipment.receiving.closed %}rotate-0{% else %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,29 +120,29 @@
                         {% if user_role in ['manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
                             {% if shipment.receiving.status == 'draft' %}
-                            <button onclick="event.stopPropagation(); editReceive({{ shipment.receiving.id }})" 
+                            <button data-edit-receive-id="{{ shipment.receiving.id }}" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline font-semibold">
                                 ✏️ Edit
                             </button>
-                            <button onclick="event.stopPropagation(); publishReceive({{ shipment.receiving.id }})" 
+                            <button data-publish-receive-id="{{ shipment.receiving.id }}" 
                                     class="text-xs text-green-600 hover:text-green-800 underline font-semibold">
                                 ✓ Publish (Make Live)
                             </button>
                             {% elif shipment.receiving.status == 'published' and not shipment.receiving.closed %}
-                            <button onclick="event.stopPropagation(); unpublishReceive({{ shipment.receiving.id }})" 
+                            <button data-unpublish-receive-id="{{ shipment.receiving.id }}" 
                                     class="text-xs text-yellow-600 hover:text-yellow-800 underline">
                                 📝 Move to Draft
                             </button>
                             {% endif %}
-                            <button onclick="event.stopPropagation(); openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
+                            <button data-open-assign-po-receiving-id="{{ shipment.receiving.id }}" data-open-assign-po-current-po-id="{{ shipment.receiving.po_id or '' }}" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
                                 {% if shipment.receiving.po_number %}Change PO{% else %}Assign PO{% endif %}
                             </button>
-                            <button onclick="event.stopPropagation(); toggleReceiveClosed({{ shipment.receiving.id }}, {{ 'true' if shipment.receiving.closed else 'false' }})" 
+                            <button data-toggle-receive-closed-id="{{ shipment.receiving.id }}" data-toggle-receive-closed-state="{{ 'true' if shipment.receiving.closed else 'false' }}" 
                                     class="text-xs {% if shipment.receiving.closed %}text-green-600 hover:text-green-800{% else %}text-orange-600 hover:text-orange-800{% endif %} underline">
                                 {% if shipment.receiving.closed %}🔓 Reopen{% else %}🔒 Close{% endif %}
                             </button>
-                            <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', '{{ shipment.receiving.po_number or 'No PO' }}')" 
+                            <button data-open-delete-shipment-id="{{ shipment.receiving.id }}" data-open-delete-shipment-date="{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}" data-open-delete-shipment-po="{{ shipment.receiving.po_number or 'No PO' }}" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
                                 Delete
                             </button>
@@ -162,7 +162,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
                             <div class="bg-white border border-gray-200 rounded p-2 text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow transition-all"
-                                 onclick="event.stopPropagation(); viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else 1 }}', {{ box_data.box.box_number }}, {{ bag.id }})"
+                                 data-view-receive-id="{{ shipment.receiving.id }}" data-view-receive-name="{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else 1 }}" data-view-receive-box-number="{{ box_data.box.box_number }}" data-view-receive-bag-id="{{ bag.id }}"
                                  title="Click to view details for this bag">
                                 <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
@@ -194,7 +194,7 @@
                     📦 Unassigned Receives
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ shipments_without_po|length }} receive{{ 's' if shipments_without_po|length != 1 else '' }})</span>
                 </h2>
-                <button onclick="togglePOCollapse('unassigned-receives')" 
+                <button data-toggle-po-collapse="unassigned-receives" 
                         class="text-gray-600 hover:text-gray-900 transition-colors"
                         aria-label="Toggle collapse">
                     <svg id="icon-unassigned-receives" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,12 +205,12 @@
         </div>
         <div id="unassigned-receives" class="space-y-4 ml-4 hidden">
         {% for shipment in shipments_without_po %}
-        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}')">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" data-view-receive-id="{{ shipment.receiving.id }}" data-view-receive-name="Unassigned-{{ shipment.receiving.id }}">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
-                            <button onclick="event.stopPropagation(); toggleShipmentCollapse('shipment-{{ shipment.receiving.id }}')" 
+                            <button data-toggle-shipment-collapse="shipment-{{ shipment.receiving.id }}" 
                                     class="text-gray-600 hover:text-gray-900 transition-colors mr-2"
                                     aria-label="Toggle shipment collapse">
                                 <svg id="icon-shipment-{{ shipment.receiving.id }}" class="w-5 h-5 transform transition-transform {% if shipment.receiving.closed %}rotate-0{% else %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,15 +251,15 @@
                         </div>
                         {% if user_role in ['manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
-                            <button onclick="event.stopPropagation(); openAssignPOModal({{ shipment.receiving.id }}, {{ shipment.receiving.po_id or 'null' }})" 
+                            <button data-open-assign-po-receiving-id="{{ shipment.receiving.id }}" data-open-assign-po-current-po-id="{{ shipment.receiving.po_id or '' }}" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
                                 Assign PO
                             </button>
-                            <button onclick="event.stopPropagation(); toggleReceiveClosed({{ shipment.receiving.id }}, {{ 'true' if shipment.receiving.closed else 'false' }})" 
+                            <button data-toggle-receive-closed-id="{{ shipment.receiving.id }}" data-toggle-receive-closed-state="{{ 'true' if shipment.receiving.closed else 'false' }}" 
                                     class="text-xs {% if shipment.receiving.closed %}text-green-600 hover:text-green-800{% else %}text-orange-600 hover:text-orange-800{% endif %} underline">
                                 {% if shipment.receiving.closed %}🔓 Reopen{% else %}🔒 Close{% endif %}
                             </button>
-                            <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', 'No PO')" 
+                            <button data-open-delete-shipment-id="{{ shipment.receiving.id }}" data-open-delete-shipment-date="{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}" data-open-delete-shipment-po="No PO" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
                                 Delete
                             </button>
@@ -279,7 +279,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
                             <div class="bg-white border border-gray-200 rounded p-2 text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow transition-all"
-                                 onclick="event.stopPropagation(); viewReceiveDetails({{ shipment.receiving.id }}, 'Unassigned-{{ shipment.receiving.id }}', {{ box_data.box.box_number }}, {{ bag.id }})"
+                                 data-view-receive-id="{{ shipment.receiving.id }}" data-view-receive-name="Unassigned-{{ shipment.receiving.id }}" data-view-receive-box-number="{{ box_data.box.box_number }}" data-view-receive-bag-id="{{ bag.id }}"
                                  title="Click to view details for this bag">
                                 <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
@@ -315,7 +315,7 @@
                     <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed</span>
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
                 </h2>
-                <button onclick="togglePOCollapse('po-closed-{{ po_group.po_number }}')" 
+                <button data-toggle-po-collapse="po-closed-{{ po_group.po_number }}" 
                         class="text-gray-600 hover:text-gray-900 transition-colors"
                         aria-label="Toggle collapse">
                     <svg id="icon-po-closed-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,12 +328,12 @@
         <!-- Receives for this PO (oldest at bottom) -->
         <div id="po-closed-{{ po_group.po_number }}" class="space-y-4 ml-4 hidden">
         {% for shipment in po_group.receives %}
-        <div class="card cursor-pointer hover:shadow-lg transition-shadow" onclick="viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}')">
+        <div class="card cursor-pointer hover:shadow-lg transition-shadow" data-view-receive-id="{{ shipment.receiving.id }}" data-view-receive-name="{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else '' }}">
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
-                            <button onclick="event.stopPropagation(); toggleShipmentCollapse('shipment-{{ shipment.receiving.id }}')" 
+                            <button data-toggle-shipment-collapse="shipment-{{ shipment.receiving.id }}" 
                                     class="text-gray-600 hover:text-gray-900 transition-colors mr-2"
                                     aria-label="Toggle shipment collapse">
                                 <svg id="icon-shipment-{{ shipment.receiving.id }}" class="w-5 h-5 transform transition-transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -372,7 +372,7 @@
                         </div>
                         {% if user_role in ['manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
-                            <button onclick="event.stopPropagation(); openDeleteShipmentModal({{ shipment.receiving.id }}, '{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}', '{{ shipment.receiving.po_number or 'No PO' }}')" 
+                            <button data-open-delete-shipment-id="{{ shipment.receiving.id }}" data-open-delete-shipment-date="{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}" data-open-delete-shipment-po="{{ shipment.receiving.po_number or 'No PO' }}" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
                                 Delete
                             </button>
@@ -392,7 +392,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {% for bag in box_data.bags %}
                             <div class="bg-white border border-gray-200 rounded p-2 text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-300 hover:shadow transition-all"
-                                 onclick="event.stopPropagation(); viewReceiveDetails({{ shipment.receiving.id }}, '{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else 1 }}', {{ box_data.box.box_number }}, {{ bag.id }})"
+                                 data-view-receive-id="{{ shipment.receiving.id }}" data-view-receive-name="{{ shipment.receiving.po_number }}-{{ shipment.receiving.shipment_number if shipment.receiving.shipment_number else 1 }}" data-view-receive-box-number="{{ box_data.box.box_number }}" data-view-receive-bag-id="{{ bag.id }}"
                                  title="Click to view details for this bag">
                                 <div class="font-medium text-blue-600">
                                     {% if bag.tablet_type_name %}
@@ -423,7 +423,7 @@
                 <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" aria-hidden="true"><use href="#icon-box" /></svg>
                 <h3 class="text-lg font-medium text-gray-900 mb-2">No shipments recorded yet</h3>
                 <p class="text-gray-600 mb-6">Click "Add Receives" to record a new shipment</p>
-                <button onclick="openAddReceivesModal()" 
+                <button data-open-add-receives-modal 
                         class="btn-primary px-6 py-3 text-lg">
                     <svg class="w-5 h-5 mr-2 inline" aria-hidden="true"><use href="#icon-plus" /></svg>
                     Add Receives
@@ -435,8 +435,8 @@
 </div>
 
 <!-- Add Receives Modal -->
-<div id="add-receives-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto" onclick="closeAddReceivesModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+<div id="add-receives-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto" data-close-add-receives-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden">
         <!-- Header -->
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
             <div class="flex justify-between items-center">
@@ -444,7 +444,7 @@
                     <h3 class="text-xl font-bold">📦 Record Shipment Received</h3>
                     <p class="text-sm text-blue-100 mt-1">Enter box and bag details for the received shipment</p>
                 </div>
-                <button onclick="closeAddReceivesModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                <button data-close-add-receives-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                     ✕
                 </button>
             </div>
@@ -476,7 +476,7 @@
                             <h4 class="text-sm font-semibold text-indigo-900">Shipment Default Batches (by flavor)</h4>
                             <p class="text-xs text-indigo-700 mt-1">Used when a bag does not have a bag-specific or box default batch.</p>
                         </div>
-                        <button type="button" onclick="addShipmentBatchDefaultRow()" class="text-indigo-700 hover:text-indigo-900 text-sm font-medium">
+                        <button type="button" data-add-shipment-batch-default-row class="text-indigo-700 hover:text-indigo-900 text-sm font-medium">
                             + Add Flavor Default
                         </button>
                     </div>
@@ -489,7 +489,7 @@
                 
                 <!-- Add Box Button -->
                 <div class="mt-4 flex justify-center">
-                    <button type="button" onclick="addBox()" 
+                    <button type="button" data-add-box 
                             class="btn-secondary px-4 py-2 flex items-center">
                         <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plus" /></svg>
                         Add Another Box
@@ -504,11 +504,11 @@
                         </div>
                     </div>
                     <div class="flex justify-end gap-3">
-                        <button type="button" onclick="closeAddReceivesModal()" 
+                        <button type="button" data-close-add-receives-modal 
                                 class="btn-secondary px-4 py-2">
                             Cancel
                         </button>
-                        <button type="button" onclick="saveReceivesDraft()" 
+                        <button type="button" data-save-receives-draft 
                                 class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
                             📝 Save as Draft
                         </button>
@@ -524,12 +524,12 @@
 </div>
 
 <!-- Delete Shipment Modal -->
-<div id="delete-shipment-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeDeleteShipmentModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+<div id="delete-shipment-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-delete-shipment-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
         <div class="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-4">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Delete Shipment</h3>
-                <button onclick="closeDeleteShipmentModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                <button data-close-delete-shipment-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                     ✕
                 </button>
             </div>
@@ -559,11 +559,11 @@
                 </label>
             </div>
             <div class="flex justify-end gap-3">
-                <button onclick="closeDeleteShipmentModal()" 
+                <button data-close-delete-shipment-modal 
                         class="btn-secondary px-4 py-2">
                     Cancel
                 </button>
-                <button onclick="confirmDeleteShipment()" 
+                <button data-confirm-delete-shipment 
                         id="confirm-delete-btn"
                         class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled>
@@ -575,12 +575,12 @@
 </div>
 
 <!-- Assign PO Modal -->
-<div id="assign-po-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeAssignPOModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+<div id="assign-po-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-assign-po-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Assign Purchase Order</h3>
-                <button onclick="closeAssignPOModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                <button data-close-assign-po-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                     ✕
                 </button>
             </div>
@@ -597,11 +597,11 @@
                 {% endfor %}
             </select>
             <div class="mt-6 flex justify-end gap-3">
-                <button type="button" onclick="closeAssignPOModal()" 
+                <button type="button" data-close-assign-po-modal 
                         class="btn-secondary px-4 py-2">
                     Cancel
                 </button>
-                <button type="button" onclick="savePOAssignment()" 
+                <button type="button" data-save-po-assignment 
                         class="btn-primary px-4 py-2">
                     Save
                 </button>
@@ -2843,5 +2843,134 @@ function toggleShipmentCollapse(shipmentId) {
         iconSvg.classList.add('rotate-0');
     }
 }
+
+document.addEventListener('click', function (event) {
+    const poToggle = event.target.closest('[data-toggle-po-collapse]');
+    if (poToggle) {
+        event.stopPropagation();
+        togglePOCollapse(poToggle.dataset.togglePoCollapse);
+        return;
+    }
+
+    const shipmentToggle = event.target.closest('[data-toggle-shipment-collapse]');
+    if (shipmentToggle) {
+        event.stopPropagation();
+        toggleShipmentCollapse(shipmentToggle.dataset.toggleShipmentCollapse);
+        return;
+    }
+
+    const viewReceiveTarget = event.target.closest('[data-view-receive-id]');
+    if (viewReceiveTarget) {
+        const receiveId = parseInt(viewReceiveTarget.dataset.viewReceiveId, 10);
+        const receiveName = viewReceiveTarget.dataset.viewReceiveName || '';
+        const boxNumber = viewReceiveTarget.dataset.viewReceiveBoxNumber;
+        const bagId = viewReceiveTarget.dataset.viewReceiveBagId;
+        if (boxNumber && bagId) {
+            viewReceiveDetails(receiveId, receiveName, parseInt(boxNumber, 10), parseInt(bagId, 10));
+        } else {
+            viewReceiveDetails(receiveId, receiveName);
+        }
+        return;
+    }
+
+    const editReceiveBtn = event.target.closest('[data-edit-receive-id]');
+    if (editReceiveBtn) {
+        event.stopPropagation();
+        editReceive(parseInt(editReceiveBtn.dataset.editReceiveId, 10));
+        return;
+    }
+    const publishReceiveBtn = event.target.closest('[data-publish-receive-id]');
+    if (publishReceiveBtn) {
+        event.stopPropagation();
+        publishReceive(parseInt(publishReceiveBtn.dataset.publishReceiveId, 10));
+        return;
+    }
+    const unpublishReceiveBtn = event.target.closest('[data-unpublish-receive-id]');
+    if (unpublishReceiveBtn) {
+        event.stopPropagation();
+        unpublishReceive(parseInt(unpublishReceiveBtn.dataset.unpublishReceiveId, 10));
+        return;
+    }
+    const openAssignPoBtn = event.target.closest('[data-open-assign-po-receiving-id]');
+    if (openAssignPoBtn) {
+        event.stopPropagation();
+        const receivingId = parseInt(openAssignPoBtn.dataset.openAssignPoReceivingId, 10);
+        const poIdRaw = openAssignPoBtn.dataset.openAssignPoCurrentPoId;
+        openAssignPOModal(receivingId, poIdRaw ? parseInt(poIdRaw, 10) : null);
+        return;
+    }
+    const toggleClosedBtn = event.target.closest('[data-toggle-receive-closed-id]');
+    if (toggleClosedBtn) {
+        event.stopPropagation();
+        toggleReceiveClosed(
+            parseInt(toggleClosedBtn.dataset.toggleReceiveClosedId, 10),
+            toggleClosedBtn.dataset.toggleReceiveClosedState === 'true'
+        );
+        return;
+    }
+    const deleteShipmentBtn = event.target.closest('[data-open-delete-shipment-id]');
+    if (deleteShipmentBtn) {
+        event.stopPropagation();
+        openDeleteShipmentModal(
+            parseInt(deleteShipmentBtn.dataset.openDeleteShipmentId, 10),
+            deleteShipmentBtn.dataset.openDeleteShipmentDate || 'Unknown',
+            deleteShipmentBtn.dataset.openDeleteShipmentPo || 'No PO'
+        );
+        return;
+    }
+
+    if (event.target.closest('[data-open-add-receives-modal]')) {
+        openAddReceivesModal();
+        return;
+    }
+    const addReceivesOverlay = event.target.closest('[data-close-add-receives-overlay]');
+    if (addReceivesOverlay && event.target === addReceivesOverlay) {
+        closeAddReceivesModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-add-receives-modal]')) {
+        closeAddReceivesModal();
+        return;
+    }
+    if (event.target.closest('[data-add-shipment-batch-default-row]')) {
+        addShipmentBatchDefaultRow();
+        return;
+    }
+    if (event.target.closest('[data-add-box]')) {
+        addBox();
+        return;
+    }
+    if (event.target.closest('[data-save-receives-draft]')) {
+        saveReceivesDraft();
+        return;
+    }
+
+    const deleteOverlay = event.target.closest('[data-close-delete-shipment-overlay]');
+    if (deleteOverlay && event.target === deleteOverlay) {
+        closeDeleteShipmentModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-delete-shipment-modal]')) {
+        closeDeleteShipmentModal();
+        return;
+    }
+    if (event.target.closest('[data-confirm-delete-shipment]')) {
+        confirmDeleteShipment();
+        return;
+    }
+
+    const assignOverlay = event.target.closest('[data-close-assign-po-overlay]');
+    if (assignOverlay && event.target === assignOverlay) {
+        closeAssignPOModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-assign-po-modal]')) {
+        closeAssignPOModal();
+        return;
+    }
+    if (event.target.closest('[data-save-po-assignment]')) {
+        savePOAssignment();
+    }
+});
 </script>
 {% endblock %}
