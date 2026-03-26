@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.16] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (cross-template completion slice)
+- Fully removed remaining inline handlers from `templates/product_config.html`, `templates/receiving.html`, and `templates/purchase_orders.html` (including dynamic modal/template-string-rendered actions).
+- Expanded delegated click/change routing to cover edit/open/close/save flows, filter actions, copy/remove helpers, and modal overlay interactions for those templates.
+- Kept behavior and API contracts unchanged while reducing inline event coupling and string-bound selector logic.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.15` → `2.47.16`.
+
+---
+
 ## [2.47.15] - 2026-03-26
 
 ### ✨ Enhancement
