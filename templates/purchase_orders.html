@@ -207,6 +207,86 @@ document.addEventListener('DOMContentLoaded', function() {
     filterPOs('open');
 });
 
+document.addEventListener('click', function (event) {
+    const closePoOverlay = event.target.closest('[data-close-po-details-overlay]');
+    if (closePoOverlay && event.target === closePoOverlay) {
+        closePODetailsModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-po-details-modal]')) {
+        closePODetailsModal();
+        return;
+    }
+    const viewParentPoBtn = event.target.closest('[data-view-parent-po-id]');
+    if (viewParentPoBtn) {
+        closePODetailsModal();
+        setTimeout(() => viewPODetailsModal(parseInt(viewParentPoBtn.dataset.viewParentPoId, 10), viewParentPoBtn.dataset.viewParentPoNumber || ''), 100);
+        return;
+    }
+    const viewOversPoBtn = event.target.closest('[data-view-overs-po-id]');
+    if (viewOversPoBtn) {
+        closePODetailsModal();
+        setTimeout(() => viewPODetailsModal(parseInt(viewOversPoBtn.dataset.viewOversPoId, 10), viewOversPoBtn.dataset.viewOversPoNumber || ''), 100);
+        return;
+    }
+    const oversInfoBtn = event.target.closest('[data-show-overs-po-info-id]');
+    if (oversInfoBtn) {
+        showOversPOCreationInfo(parseInt(oversInfoBtn.dataset.showOversPoInfoId, 10), oversInfoBtn.dataset.showOversPoInfoNumber || '');
+        return;
+    }
+    const receivesForProduct = event.target.closest('[data-view-po-receives-product-po-id]');
+    if (receivesForProduct) {
+        viewPOReceivesForProduct(
+            parseInt(receivesForProduct.dataset.viewPoReceivesProductPoId, 10),
+            receivesForProduct.dataset.viewPoReceivesProductPoNumber || '',
+            receivesForProduct.dataset.viewPoReceivesProductItemId || '',
+            receivesForProduct.dataset.viewPoReceivesProductName || ''
+        );
+        return;
+    }
+    const viewPoSubmissionsBtn = event.target.closest('[data-view-po-submissions-id]');
+    if (viewPoSubmissionsBtn) {
+        if (document.getElementById('po-details-modal')) {
+            closePODetailsModal();
+        }
+        if (document.getElementById('submissions-modal')) {
+            closeSubmissionsModal();
+        }
+        viewPOSubmissions(parseInt(viewPoSubmissionsBtn.dataset.viewPoSubmissionsId, 10), viewPoSubmissionsBtn.dataset.viewPoSubmissionsNumber || '', null);
+        return;
+    }
+    const viewPoReceivesBtn = event.target.closest('[data-view-po-receives-id]');
+    if (viewPoReceivesBtn) {
+        viewPOReceives(parseInt(viewPoReceivesBtn.dataset.viewPoReceivesId, 10), viewPoReceivesBtn.dataset.viewPoReceivesNumber || '');
+        return;
+    }
+
+    const closeSubOverlay = event.target.closest('[data-close-submissions-overlay]');
+    if (closeSubOverlay && event.target === closeSubOverlay) {
+        closeSubmissionsModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-submissions-modal]')) {
+        closeSubmissionsModal();
+        return;
+    }
+    const backToPoDetailsBtn = event.target.closest('[data-back-to-po-details-id]');
+    if (backToPoDetailsBtn) {
+        closeSubmissionsModal();
+        viewPODetailsModal(parseInt(backToPoDetailsBtn.dataset.backToPoDetailsId, 10), backToPoDetailsBtn.dataset.backToPoDetailsNumber || '');
+        return;
+    }
+    const filterSubmissionsBtn = event.target.closest('[data-filter-submissions]');
+    if (filterSubmissionsBtn) {
+        filterSubmissionsInModal(filterSubmissionsBtn.dataset.filterSubmissions || 'all');
+        return;
+    }
+    const submissionDetailsBtn = event.target.closest('[data-view-submission-details-id]');
+    if (submissionDetailsBtn) {
+        viewSubmissionDetails(parseInt(submissionDetailsBtn.dataset.viewSubmissionDetailsId, 10));
+    }
+});
+
 // Modal functions (from dashboard)
 async function viewPODetailsModal(poId, poNumber) {
     try {
@@ -236,8 +316,8 @@ async function viewPODetailsModal(poId, poNumber) {
         
         // Build modal content
         let modalContent = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closePODetailsModal(event)">
-                <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-po-details-overlay>
+                <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
@@ -252,25 +332,25 @@ async function viewPODetailsModal(poId, poNumber) {
                             </div>
                             <div class="flex items-center gap-2">
                                 ${data.parent_po ? `
-                                    <button onclick="closePODetailsModal(); setTimeout(() => viewPODetailsModal(${data.parent_po.id}, '${data.parent_po.po_number}'), 100);" 
+                                    <button data-view-parent-po-id="${data.parent_po.id}" data-view-parent-po-number="${data.parent_po.po_number}" 
                                             class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                                             title="Back to parent PO">
                                         ← Back to Parent PO
                                     </button>
                                 ` : ''}
                                 ${data.overs_po ? `
-                                    <button onclick="closePODetailsModal(); setTimeout(() => viewPODetailsModal(${data.overs_po.id}, '${data.overs_po.po_number}'), 100);" 
+                                    <button data-view-overs-po-id="${data.overs_po.id}" data-view-overs-po-number="${data.overs_po.po_number}" 
                                             class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                                             title="View linked overs PO">
                                         📦 View Overs PO
                                     </button>
                                 ` : ''}
-                                <button onclick="showOversPOCreationInfo(${poId}, '${poNumber}')" 
+                                <button data-show-overs-po-info-id="${poId}" data-show-overs-po-info-number="${poNumber}" 
                                         class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                                         title="Get info to create overs PO">
                                     📋 Create Overs PO
                                 </button>
-                                <button onclick="closePODetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                                <button data-close-po-details-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                                     ✕
                                 </button>
                             </div>
@@ -305,7 +385,7 @@ async function viewPODetailsModal(poId, poNumber) {
                 
                 modalContent += `
                     <div class="border border-gray-200 rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors duration-200" 
-                         onclick="event.stopPropagation(); viewPOReceivesForProduct(${poId}, '${poNumber}', '${line.inventory_item_id}', '${line.line_item_name}');"
+                         data-view-po-receives-product-po-id="${poId}" data-view-po-receives-product-po-number="${poNumber}" data-view-po-receives-product-item-id="${line.inventory_item_id}" data-view-po-receives-product-name="${line.line_item_name}"
                          title="Click to view receives for this product">
                         <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                             <div class="flex-1">
@@ -370,11 +450,11 @@ async function viewPODetailsModal(poId, poNumber) {
         // Add "View All Submissions" and "View Receives" buttons at the bottom
         modalContent += `
             <div class="mt-6 flex justify-center gap-3 border-t pt-4">
-                <button onclick="event.stopPropagation(); closePODetailsModal(); viewPOSubmissions(${poId}, '${poNumber}', null);" 
+                <button data-view-po-submissions-id="${poId}" data-view-po-submissions-number="${poNumber}" 
                         class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-colors">
                     📋 View All Submissions
                 </button>
-                <button onclick="event.stopPropagation(); viewPOReceives(${poId}, '${poNumber}');" 
+                <button data-view-po-receives-id="${poId}" data-view-po-receives-number="${poNumber}" 
                         class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-colors">
                     📦 View Receives
                 </button>
@@ -465,12 +545,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
         
         // Build modal content
         let modalContent = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeSubmissionsModal(event)">
-                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-submissions-overlay>
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
                     <!-- Header -->
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
-                                <button onclick="closeSubmissionsModal(); viewPODetailsModal(${poId}, '${data.po.po_number}');" 
+                                <button data-back-to-po-details-id="${poId}" data-back-to-po-details-number="${data.po.po_number}" 
                                         class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                                         title="Back to PO details">
                                     ← Back
@@ -483,17 +563,17 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                                 </p>
                                 ${data.totals ? `
                                     <div class="mt-2 flex justify-center gap-4 flex-wrap">
-                                        <button onclick="filterSubmissionsInModal('machine')" 
+                                        <button data-filter-submissions="machine" 
                                                 class="bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'machine' ? 'ring-2 ring-blue-300' : ''}">
                                             <span class="text-xs text-blue-200">⚙️ Machine:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${data.totals.machine.toLocaleString()}</span>
                                         </button>
-                                        <button onclick="filterSubmissionsInModal('packaged_bag')" 
+                                        <button data-filter-submissions="packaged_bag" 
                                                 class="bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${typeFilter === 'packaged_bag' ? 'ring-2 ring-purple-300' : ''}">
                                             <span class="text-xs text-purple-200">📦 Packaged+Bag:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${data.totals.packaged_bag.toLocaleString()}</span>
                                         </button>
-                                        <button onclick="filterSubmissionsInModal('all')" 
+                                        <button data-filter-submissions="all" 
                                                 class="bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ${!typeFilter || typeFilter === 'all' ? 'ring-2 ring-green-300' : ''}">
                                             <span class="text-xs text-green-200">📊 Total:</span>
                                             <span class="text-sm font-semibold text-white ml-1">${filteredSubmissions.length} submissions</span>
@@ -501,7 +581,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                                     </div>
                                 ` : ''}
                             </div>
-                            <button onclick="closeSubmissionsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                            <button data-close-submissions-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                                 ✕
                             </button>
                         </div>
@@ -555,7 +635,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                 const poIsClosed = data.po && data.po.closed === true;
                 const canEdit = isAdmin && !poIsClosed;
                 // Always allow viewing details, edit only if admin and PO not closed
-                const viewDetailsHandler = `onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})"`;
+                const viewDetailsHandler = `data-view-submission-details-id="${sub.id}"`;
                 const cursorClass = 'cursor-pointer';
                 const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
                 
@@ -664,7 +744,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
         if (inventoryItemId && data.submissions.length > filteredSubmissions.length) {
             modalContent += `
                 <div class="mt-6 flex justify-center border-t pt-4">
-                    <button onclick="closeSubmissionsModal(); viewPOSubmissions(${poId}, '${poName}', null);" 
+                    <button data-view-po-submissions-id="${poId}" data-view-po-submissions-number="${poName}" 
                             class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-lg transition-colors">
                         📋 View All Submissions for this PO (${data.submissions.length} total)
                     </button>
@@ -778,7 +858,7 @@ function filterSubmissionsInModal(filterType) {
         const poIsClosed = data.po && data.po.closed === true;
         const canEdit = isAdmin && !poIsClosed;
         // Always allow viewing details, edit only if admin and PO not closed
-        const viewDetailsHandler = `onclick="event.stopPropagation(); viewSubmissionDetails(${sub.id})"`;
+        const viewDetailsHandler = `data-view-submission-details-id="${sub.id}"`;
         const cursorClass = 'cursor-pointer';
         const editHint = canEdit ? '<div class="text-xs text-purple-600 mt-2 flex items-center gap-1"><span>✏️</span> <span>Click to edit (Admin)</span></div>' : '';
         
@@ -866,18 +946,18 @@ function filterSubmissionsInModal(filterType) {
     contentArea.innerHTML = submissionsHTML;
     
     // Update filter button states
-    const buttons = document.querySelectorAll('#submissions-modal button[onclick^="filterSubmissionsInModal"]');
+    const buttons = document.querySelectorAll('#submissions-modal button[data-filter-submissions]');
     buttons.forEach(btn => {
-        const onclick = btn.getAttribute('onclick');
-        if (onclick.includes("'machine'")) {
+        const filterValue = btn.dataset.filterSubmissions || '';
+        if (filterValue === 'machine') {
             btn.className = filterType === 'machine' 
                 ? 'bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-blue-300'
                 : 'bg-blue-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'packaged_bag'")) {
+        } else if (filterValue === 'packaged_bag') {
             btn.className = filterType === 'packaged_bag'
                 ? 'bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-purple-300'
                 : 'bg-purple-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';
-        } else if (onclick.includes("'all'")) {
+        } else if (filterValue === 'all') {
             btn.className = filterType === 'all' || !filterType
                 ? 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all ring-2 ring-green-300'
                 : 'bg-green-800 bg-opacity-50 hover:bg-opacity-70 px-3 py-1 rounded cursor-pointer transition-all';

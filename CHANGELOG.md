@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.15] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (purchase orders dynamic modal slice)
+- Refactored core dynamic PO/submissions modal actions in `templates/purchase_orders.html` from inline `onclick` wiring to delegated `data-*` action attributes.
+- Added centralized click delegation for PO modal navigation/actions, submissions modal close/back/filter/detail actions, and PO submissions/receives action buttons rendered in template strings.
+- Updated submissions filter-button state logic to use `data-filter-submissions` selectors instead of `onclick` string matching.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.14` → `2.47.15`.
+
+---
+
 ## [2.47.14] - 2026-03-26
 
 ### ✨ Enhancement
