@@ -109,11 +109,11 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.6 (Backend refactor phase 2 continuation)
-- Submission detail aggregation extracted from API route to service layer
-- Thinner bag-submissions API handler with stable response contract
-- Added service tests covering bag payload and per-type tablet total behavior
-- Full regression suite green (`43` tests)
+Current: v2.47.7 (Backend refactor phase 2 continuation)
+- Submissions list/export query composition consolidated into shared service helpers
+- Reduced duplicated filter and sort SQL assembly in submissions blueprint routes
+- Added service tests for common filter, archive/tab, and sort query helpers
+- Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements
 
 ## 🔐 Security

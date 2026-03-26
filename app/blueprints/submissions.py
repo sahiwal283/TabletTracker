@@ -9,6 +9,11 @@ import io
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import role_required
 from app.services.submission_query_service import apply_resolved_bag_fields
+from app.services.submissions_view_service import (
+    append_submission_common_filters,
+    append_submission_archive_tab_filters,
+    append_submission_sort,
+)
 
 bp = Blueprint('submissions', __name__)
 
@@ -216,56 +221,20 @@ def submissions_list():
             
             params = []
             
-            # Apply PO filter if provided
-            if filter_po_id:
-                query += ' AND ws.assigned_po_id = ?'
-                params.append(filter_po_id)
-            
-            # Apply item filter if provided
-            if filter_item_id:
-                query += ' AND tt.inventory_item_id = ?'
-                params.append(filter_item_id)
-            
-            # Apply date range filters
-            if filter_date_from:
-                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
-                params.append(filter_date_from)
-            
-            if filter_date_to:
-                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
-                params.append(filter_date_to)
-            
-            # Apply tablet type filter if provided
-            if filter_tablet_type_id:
-                query += ' AND tt.id = ?'
-                params.append(filter_tablet_type_id)
-            
-            # Apply submission type filter if provided
-            if filter_submission_type:
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
-                params.append(filter_submission_type)
-            
-            # Apply receipt number filter if provided (partial match)
-            if filter_receipt_number:
-                query += ' AND ws.receipt_number LIKE ?'
-                params.append(f'%{filter_receipt_number}%')
-            
-            # Apply archive filter - exclude archived submissions by default
-            if not show_archived:
-                # Show only active submissions (PO not closed or no PO assigned)
-                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-            else:
-                # Show only archived submissions (PO is closed)
-                query += ' AND po.closed = TRUE'
-            
-            # Apply tab filter for submission types
-            if active_tab == 'packaged_machine':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
-            elif active_tab == 'bottles':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
-            elif active_tab == 'bag':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
-            # 'all' tab shows all types (no additional filter)
+            query, params = append_submission_common_filters(
+                query,
+                params,
+                {
+                    'po_id': filter_po_id,
+                    'item_id': filter_item_id,
+                    'date_from': filter_date_from,
+                    'date_to': filter_date_to,
+                    'tablet_type_id': filter_tablet_type_id,
+                    'submission_type': filter_submission_type,
+                    'receipt_number': filter_receipt_number,
+                },
+            )
+            query = append_submission_archive_tab_filters(query, show_archived, active_tab)
             
             # Get submissions ordered by created_at ASC for running total calculation
             # Always use created_at ASC for running totals regardless of user's sort preference
@@ -398,29 +367,7 @@ def submissions_list():
                 submissions_dict[sub_dict.get('id')] = sub_dict
             
             # Second pass: Get submissions in display order (based on user's sort preference) and apply pre-calculated running totals
-            # Validate sort column to prevent SQL injection
-            allowed_sort_columns = {
-                'created_at': 'ws.created_at',
-                'receipt_number': 'ws.receipt_number',
-                'employee_name': 'ws.employee_name',
-                'product_name': 'ws.product_name',
-                'total': 'calculated_total'
-            }
-            
-            sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
-            sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
-            
-            # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
-            if sort_by == 'receipt_number':
-                # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
-                # Split by dash and cast both parts to integers for proper numeric comparison
-                query += f''' ORDER BY 
-                    CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
-                    CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, \'-\') - 1) AS INTEGER) {sort_direction},
-                    CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, \'-\') + 1) AS INTEGER) {sort_direction}
-                '''
-            else:
-                query += f' ORDER BY {sort_column} {sort_direction}'
+            query = append_submission_sort(query, sort_by, sort_order)
             
             submissions_raw = conn.execute(query, params).fetchall()
             submissions_processed = []
@@ -667,80 +614,21 @@ def export_submissions_csv():
             
             params = []
             
-            # Apply PO filter if provided
-            if filter_po_id:
-                query += ' AND ws.assigned_po_id = ?'
-                params.append(filter_po_id)
-            
-            # Apply item filter if provided
-            if filter_item_id:
-                query += ' AND tt.inventory_item_id = ?'
-                params.append(filter_item_id)
-            
-            # Apply date range filters
-            if filter_date_from:
-                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?'
-                params.append(filter_date_from)
-            
-            if filter_date_to:
-                query += ' AND COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?'
-                params.append(filter_date_to)
-            
-            # Apply tablet type filter if provided
-            if filter_tablet_type_id:
-                query += ' AND tt.id = ?'
-                params.append(filter_tablet_type_id)
-            
-            # Apply submission type filter if provided
-            if filter_submission_type:
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') = ?'
-                params.append(filter_submission_type)
-            
-            # Apply receipt number filter if provided (partial match)
-            if filter_receipt_number:
-                query += ' AND ws.receipt_number LIKE ?'
-                params.append(f'%{filter_receipt_number}%')
-            
-            # Apply archive filter - exclude archived submissions by default
-            if not show_archived:
-                # Show only active submissions (PO not closed or no PO assigned)
-                query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-            else:
-                # Show only archived submissions (PO is closed)
-                query += ' AND po.closed = TRUE'
-            
-            # Apply tab filter for submission types
-            if active_tab == 'packaged_machine':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
-            elif active_tab == 'bottles':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
-            elif active_tab == 'bag':
-                query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
-            # 'all' tab shows all types (no additional filter)
-            
-            # Apply sorting
-            allowed_sort_columns = {
-                'created_at': 'ws.created_at',
-                'receipt_number': 'ws.receipt_number',
-                'employee_name': 'ws.employee_name',
-                'product_name': 'ws.product_name',
-                'total': 'calculated_total'
-            }
-            
-            sort_column = allowed_sort_columns.get(sort_by, 'ws.created_at')
-            sort_direction = 'ASC' if sort_order.lower() == 'asc' else 'DESC'
-            
-            # Handle NULL receipt_numbers by sorting them last, and sort numerically (not alphabetically)
-            if sort_by == 'receipt_number':
-                # Extract numeric parts for proper numerical sorting (e.g., "2786-13" should come after "2786-9")
-                # Split by dash and cast both parts to integers for proper numeric comparison
-                query += f''' ORDER BY 
-                    CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END,
-                    CAST(SUBSTR(ws.receipt_number, 1, INSTR(ws.receipt_number, '-') - 1) AS INTEGER) {sort_direction},
-                    CAST(SUBSTR(ws.receipt_number, INSTR(ws.receipt_number, '-') + 1) AS INTEGER) {sort_direction}
-                '''
-            else:
-                query += f' ORDER BY {sort_column} {sort_direction}'
+            query, params = append_submission_common_filters(
+                query,
+                params,
+                {
+                    'po_id': filter_po_id,
+                    'item_id': filter_item_id,
+                    'date_from': filter_date_from,
+                    'date_to': filter_date_to,
+                    'tablet_type_id': filter_tablet_type_id,
+                    'submission_type': filter_submission_type,
+                    'receipt_number': filter_receipt_number,
+                },
+            )
+            query = append_submission_archive_tab_filters(query, show_archived, active_tab)
+            query = append_submission_sort(query, sort_by, sort_order)
             
             submissions_raw = conn.execute(query, params).fetchall()
             

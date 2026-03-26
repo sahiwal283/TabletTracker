@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.7] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Backend phase 2 continuation (submissions query composition consolidation)
+- Added shared query-composition helpers in `app/services/submissions_view_service.py` for common filters, archive/tab filtering, and safe sorting behavior.
+- Refactored `app/blueprints/submissions.py` to reuse shared SQL composition in both submissions list and CSV export paths, reducing route-layer duplication while preserving behavior.
+- Added focused tests in `tests/test_submissions_view_service.py`.
+- **Verification**: full backend test suite now passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.6` → `2.47.7`.
+
+---
+
 ## [2.47.6] - 2026-03-26
 
 ### ✨ Enhancement
