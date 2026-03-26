@@ -109,10 +109,10 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.7 (Backend refactor phase 2 continuation)
-- Submissions list/export query composition consolidated into shared service helpers
-- Reduced duplicated filter and sort SQL assembly in submissions blueprint routes
-- Added service tests for common filter, archive/tab, and sort query helpers
+Current: v2.47.8 (Phase 3 non-backend continuation)
+- Receiving templates now use delegated event handling instead of inline DOM handlers
+- Reduced template-JS coupling in receiving management and receiving details pages
+- Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements
 

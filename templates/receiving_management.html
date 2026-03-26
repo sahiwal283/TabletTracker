@@ -52,7 +52,7 @@
                             </td>
                             <td class="px-4 py-4">
                                 {% if shipment.tracking_status == 'Delivered' %}
-                                <button onclick="startReceiving({{ shipment.id }}, '{{ shipment.po_number }}')" 
+                                <button data-start-receiving-id="{{ shipment.id }}" data-po-number="{{ shipment.po_number }}" 
                                         class="btn-primary text-sm px-3 py-1">
                                     <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-box" /></svg>
                                     {{ gettext('Start Receiving') }}
@@ -78,7 +78,7 @@
                                             <p>3. {{ gettext('Wait for delivery status') }} → {{ gettext('Returns here when delivered') }}</p>
                                     </div>
                                     <div class="mt-4">
-                                        <button onclick="createSampleData()" class="btn-secondary text-sm">
+                                        <button data-create-sample-data class="btn-secondary text-sm">
                                             <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg>
                                             {{ gettext('Create Sample Data for Testing') }}
                                         </button>
@@ -102,7 +102,7 @@
                         <svg class="w-6 h-6 mr-2 text-blue-500" aria-hidden="true"><use href="#icon-box" /></svg>
                         {{ gettext('Receive Shipment') }}: <span id="modal-po-number" class="ml-2 text-blue-600"></span>
                     </h3>
-                    <button onclick="closeReceivingModal()" class="text-gray-400 hover:text-gray-600">
+                    <button data-close-receiving-modal class="text-gray-400 hover:text-gray-600">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
@@ -145,7 +145,7 @@
                             </label>
                             <input type="number" id="total-small-boxes" name="total_small_boxes" required
                                    min="1" max="50" class="form-input" 
-                                   onchange="generateBoxInputs(this.value)">
+                                   data-total-small-boxes-input>
                         </div>
                         <div>
                             <label for="received-by" class="block text-sm font-medium text-gray-700 mb-1">
@@ -180,7 +180,7 @@
 
                 <!-- Submit Button -->
                 <div class="flex justify-end space-x-3 pt-4 border-t">
-                    <button type="button" onclick="closeReceivingModal()" 
+                    <button type="button" data-close-receiving-modal
                             class="btn-secondary">
                         {{ gettext('Cancel') }}
                     </button>
@@ -237,11 +237,11 @@
                             <td class="px-4 py-4 text-gray-600">{{ receiving.received_by }}</td>
                             <td class="px-4 py-4">
                                 <div class="flex gap-2">
-                                    <button onclick="viewReceivingDetails({{ receiving.id }})" 
+                                    <button data-view-receiving-id="{{ receiving.id }}" 
                                             class="text-blue-600 hover:text-blue-800 text-sm">
                                         {{ gettext('View Details') }}
                                     </button>
-                                    <button onclick="confirmDeleteReceiving({{ receiving.id }}, '{{ receiving.po_number }}')" 
+                                    <button data-delete-receiving-id="{{ receiving.id }}" data-po-number="{{ receiving.po_number }}" 
                                             class="text-red-600 hover:text-red-800 text-sm">
                                         {{ gettext('Delete') }}
                                     </button>
@@ -297,6 +297,13 @@ document.getElementById('delivery-photo').addEventListener('change', function(e)
     }
 });
 
+const totalBoxesInput = document.querySelector('[data-total-small-boxes-input]');
+if (totalBoxesInput) {
+    totalBoxesInput.addEventListener('change', function (e) {
+        generateBoxInputs(e.target.value);
+    });
+}
+
 function generateBoxInputs(totalBoxes) {
     const container = document.getElementById('box-inputs-container');
     const section = document.getElementById('box-details-section');
@@ -321,7 +328,7 @@ function generateBoxInputs(totalBoxes) {
                     </label>
                     <input type="number" name="box_${i}_bags" required min="1" max="10" 
                            class="form-input" placeholder="1-2 bags typical"
-                           onchange="updateAllBagFields()">
+                           data-box-bag-count-input>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -391,6 +398,12 @@ function updateAllBagFields() {
         currentBagNumber += bagsCount;
     }
 }
+
+document.addEventListener('change', function (e) {
+    if (e.target.matches('[data-box-bag-count-input]')) {
+        updateAllBagFields();
+    }
+});
 
 // Form submission
 document.getElementById('receiving-form').addEventListener('submit', async function(e) {
@@ -486,10 +499,10 @@ function confirmDeleteReceiving(receivingId, poNumber) {
                 <input type="text" id="deleteConfirmation" class="form-input w-full" placeholder="delete">
             </div>
             <div class="flex gap-3 justify-end">
-                <button onclick="closeDeleteModal()" class="btn-secondary">
+                <button data-close-delete-modal class="btn-secondary">
                     {{ gettext('Cancel') }}
                 </button>
-                <button onclick="executeDelete(${receivingId})" class="btn-danger">
+                <button data-execute-delete-id="${receivingId}" class="btn-danger">
                     {{ gettext('Delete Permanently') }}
                 </button>
             </div>
@@ -538,5 +551,45 @@ async function executeDelete(receivingId) {
         alert('{{ gettext("Error:") }} ' + error.message);
     }
 }
+
+document.addEventListener('click', function (e) {
+    const startBtn = e.target.closest('[data-start-receiving-id]');
+    if (startBtn) {
+        startReceiving(startBtn.dataset.startReceivingId, startBtn.dataset.poNumber || '');
+        return;
+    }
+
+    if (e.target.closest('[data-create-sample-data]')) {
+        createSampleData();
+        return;
+    }
+
+    if (e.target.closest('[data-close-receiving-modal]')) {
+        closeReceivingModal();
+        return;
+    }
+
+    const viewBtn = e.target.closest('[data-view-receiving-id]');
+    if (viewBtn) {
+        viewReceivingDetails(viewBtn.dataset.viewReceivingId);
+        return;
+    }
+
+    const deleteBtn = e.target.closest('[data-delete-receiving-id]');
+    if (deleteBtn) {
+        confirmDeleteReceiving(deleteBtn.dataset.deleteReceivingId, deleteBtn.dataset.poNumber || '');
+        return;
+    }
+
+    if (e.target.closest('[data-close-delete-modal]')) {
+        closeDeleteModal();
+        return;
+    }
+
+    const execBtn = e.target.closest('[data-execute-delete-id]');
+    if (execBtn) {
+        executeDelete(execBtn.dataset.executeDeleteId);
+    }
+});
 </script>
 {% endblock %}

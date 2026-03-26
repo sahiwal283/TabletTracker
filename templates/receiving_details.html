@@ -13,11 +13,11 @@
             <p class="text-gray-600 mt-2">PO {{ receiving.po_number }} - {{ receiving.carrier }} {{ receiving.tracking_number }}</p>
         </div>
         <div class="flex gap-3">
-            <button onclick="editReceiving({{ receiving.id }})" class="btn-primary">
+            <button data-edit-receiving-id="{{ receiving.id }}" class="btn-primary">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-edit" /></svg>
                 {{ gettext('Edit') }}
             </button>
-            <button onclick="confirmDeleteReceiving({{ receiving.id }}, '{{ receiving.po_number }}')" class="btn-danger">
+            <button data-delete-receiving-id="{{ receiving.id }}" data-po-number="{{ receiving.po_number }}" class="btn-danger">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-trash" /></svg>
                 {{ gettext('Delete') }}
             </button>
@@ -182,7 +182,7 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-center">
                             {% if bag.status != 'Closed' and bag.remaining_count > 0 %}
-                            <button onclick="toggleReservation({{ bag.id }})" 
+                            <button data-toggle-reservation-bag-id="{{ bag.id }}" 
                                     id="reserve-btn-{{ bag.id }}"
                                     class="text-sm px-3 py-1 rounded transition-colors
                                     {% if bag.reserved_for_bottles %}
@@ -248,10 +248,10 @@ function confirmDeleteReceiving(receivingId, poNumber) {
                 <input type="text" id="deleteConfirmation" class="form-input w-full" placeholder="delete">
             </div>
             <div class="flex gap-3 justify-end">
-                <button onclick="closeDeleteModal()" class="btn-secondary">
+                <button data-close-delete-modal class="btn-secondary">
                     {{ gettext('Cancel') }}
                 </button>
-                <button onclick="executeDelete(${receivingId})" class="btn-danger">
+                <button data-execute-delete-id="${receivingId}" class="btn-danger">
                     {{ gettext('Delete Permanently') }}
                 </button>
             </div>
@@ -305,6 +305,37 @@ async function executeDelete(receivingId) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeDeleteModal();
+    }
+});
+
+document.addEventListener('click', function (e) {
+    const editBtn = e.target.closest('[data-edit-receiving-id]');
+    if (editBtn) {
+        editReceiving(editBtn.dataset.editReceivingId);
+        return;
+    }
+
+    const deleteBtn = e.target.closest('[data-delete-receiving-id]');
+    if (deleteBtn) {
+        confirmDeleteReceiving(deleteBtn.dataset.deleteReceivingId, deleteBtn.dataset.poNumber || '');
+        return;
+    }
+
+    const closeDeleteBtn = e.target.closest('[data-close-delete-modal]');
+    if (closeDeleteBtn) {
+        closeDeleteModal();
+        return;
+    }
+
+    const execDeleteBtn = e.target.closest('[data-execute-delete-id]');
+    if (execDeleteBtn) {
+        executeDelete(execDeleteBtn.dataset.executeDeleteId);
+        return;
+    }
+
+    const reserveBtn = e.target.closest('[data-toggle-reservation-bag-id]');
+    if (reserveBtn) {
+        toggleReservation(reserveBtn.dataset.toggleReservationBagId);
     }
 });
 

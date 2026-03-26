@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.8] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (receiving pages)
+- Removed remaining inline DOM event handlers from:
+  - `templates/receiving_management.html`
+  - `templates/receiving_details.html`
+- Replaced inline handlers with `data-*` attributes and centralized delegated listeners for modal controls, receiving actions, and reservation toggles.
+- Kept behavior and endpoint interactions unchanged while improving maintainability and reducing template-JS coupling.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.7` → `2.47.8`.
+
+---
+
 ## [2.47.7] - 2026-03-26
 
 ### ✨ Enhancement
