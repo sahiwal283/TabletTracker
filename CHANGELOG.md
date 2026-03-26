@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.4] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Backend phase 2 continuation (receiving route decomposition)
+- Extracted receiving admin business workflows from `app/blueprints/api_receiving.py` into new service module `app/services/receiving_admin_service.py`.
+- Refactored route handlers to delegate close/publish/unpublish/PO-assignment logic while preserving endpoint contracts:
+  - `/api/receiving/<id>/close`
+  - `/api/bag/<id>/close`
+  - `/api/receiving/<id>/publish`
+  - `/api/receiving/<id>/unpublish`
+  - `/api/receiving/<id>/assign_po`
+- Added stricter route-layer input validation for `po_id` type handling in receiving PO assignment updates.
+- Added focused service tests in `tests/test_receiving_admin_service.py` for role guards and mutation workflow correctness.
+- **Verification**: full backend test suite now passes (`36` tests).
+- **Versioning**: **PATCH** bump `2.47.3` → `2.47.4`.
+
+---
+
 ## [2.47.3] - 2026-03-26
 
 ### ✨ Enhancement

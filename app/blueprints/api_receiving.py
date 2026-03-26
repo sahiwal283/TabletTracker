@@ -21,6 +21,13 @@ from app.services.receiving_service import (
     extract_shipment_number,
     build_zoho_receive_notes
 )
+from app.services.receiving_admin_service import (
+    toggle_receiving_closed as toggle_receiving_closed_service,
+    toggle_bag_closed as toggle_bag_closed_service,
+    publish_receiving as publish_receiving_service,
+    unpublish_receiving as unpublish_receiving_service,
+    assign_po_to_receiving as assign_po_to_receiving_service,
+)
 from app.services.zoho_service import zoho_api
 from app.services.chart_service import generate_bag_chart_image
 from config import Config
@@ -652,52 +659,11 @@ def close_receiving_endpoint(receiving_id):
     try:
         user_role = session.get('employee_role')
         is_admin = session.get('admin_authenticated')
-        if user_role not in ['manager', 'admin'] and not is_admin:
-            return jsonify({'success': False, 'error': 'Only managers and admins can close receives'}), 403
-        
         with db_transaction() as conn:
-            receiving = ReceivingRepository.get_by_id(conn, receiving_id)
-            if not receiving:
-                return jsonify({'success': False, 'error': 'Receiving record not found'}), 404
-            
-            # Toggle closed status
-            current_closed = receiving.get('closed', False)
-            new_closed = not current_closed
-            
-            conn.execute('''
-                UPDATE receiving 
-                SET closed = ?
-                WHERE id = ?
-            ''', (new_closed, receiving_id))
-            
-            # Also close all bags in this receive when closing
-            if new_closed:
-                conn.execute('''
-                    UPDATE bags
-                    SET status = 'Closed'
-                    WHERE small_box_id IN (
-                        SELECT id FROM small_boxes WHERE receiving_id = ?
-                    )
-                ''', (receiving_id,))
-            else:
-                # Reopen bags when reopening receive
-                conn.execute('''
-                    UPDATE bags
-                    SET status = 'Available'
-                    WHERE small_box_id IN (
-                        SELECT id FROM small_boxes WHERE receiving_id = ?
-                    )
-                ''', (receiving_id,))
-            
-            po_info = receiving.get('po_number', 'Unassigned') if receiving else 'Unassigned'
-            closed_status = new_closed
-        
-        action = 'closed' if closed_status else 'reopened'
-        return jsonify({
-            'success': True,
-            'closed': closed_status,
-            'message': f'Successfully {action} receive (PO: {po_info})'
-        })
+            result = toggle_receiving_closed_service(conn, receiving_id, user_role, bool(is_admin))
+            if not result.get('success'):
+                return jsonify({'success': False, 'error': result.get('error', 'Close receive failed')}), result.get('status_code', 400)
+            return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Error closing receiving: {str(e)}")
         return jsonify({'success': False, 'error': f'Failed to close receiving: {str(e)}'}), 500
@@ -710,38 +676,11 @@ def close_bag(bag_id):
     try:
         user_role = session.get('employee_role')
         is_admin = session.get('admin_authenticated')
-        if user_role not in ['manager', 'admin'] and not is_admin:
-            return jsonify({'success': False, 'error': 'Only managers and admins can close bags'}), 403
-        
         with db_transaction() as conn:
-            bag_row = conn.execute('''
-                SELECT b.id, COALESCE(b.status, 'Available') as status, b.bag_number, sb.box_number, tt.tablet_type_name
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE b.id = ?
-            ''', (bag_id,)).fetchone()
-            
-            if not bag_row:
-                return jsonify({'success': False, 'error': 'Bag not found'}), 404
-            
-            bag = dict(bag_row)
-            current_status = bag.get('status', 'Available')
-            new_status = 'Closed' if current_status != 'Closed' else 'Available'
-            
-            conn.execute('''
-                UPDATE bags 
-                SET status = ?
-                WHERE id = ?
-            ''', (new_status, bag_id))
-            
-            action = 'closed' if new_status == 'Closed' else 'reopened'
-            bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {bag.get('box_number', 'N/A')}, Bag {bag.get('bag_number', 'N/A')}"
-            return jsonify({
-                'success': True,
-                'status': new_status,
-                'message': f'Successfully {action} bag: {bag_info}'
-            })
+            result = toggle_bag_closed_service(conn, bag_id, user_role, bool(is_admin))
+            if not result.get('success'):
+                return jsonify({'success': False, 'error': result.get('error', 'Close bag failed')}), result.get('status_code', 400)
+            return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Error closing bag {bag_id}: {str(e)}")
         traceback.print_exc()
@@ -1810,31 +1749,10 @@ def publish_receiving(receiving_id):
     """Publish a draft receive to make it live and available for production"""
     try:
         with db_transaction() as conn:
-            # Get receive
-            receive = conn.execute('''
-                SELECT status FROM receiving WHERE id = ?
-            ''', (receiving_id,)).fetchone()
-            
-            if not receive:
-                return jsonify({'success': False, 'error': 'Receive not found'}), 404
-            
-            current_status = receive['status'] if receive else 'published'
-            
-            if current_status == 'published':
-                return jsonify({'success': False, 'error': 'Receive is already published'}), 400
-            
-            # Update status to published
-            conn.execute('''
-                UPDATE receiving 
-                SET status = 'published'
-                WHERE id = ?
-            ''', (receiving_id,))
-            
-            return jsonify({
-                'success': True,
-                'message': 'Receive published successfully! Now available for production.',
-                'status': 'published'
-            })
+            result = publish_receiving_service(conn, receiving_id)
+            if not result.get('success'):
+                return jsonify({'success': False, 'error': result.get('error', 'Publish failed')}), result.get('status_code', 400)
+            return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Error publishing receive: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1846,46 +1764,10 @@ def unpublish_receiving(receiving_id):
     """Unpublish a receive (move back to draft) - only if no submissions exist"""
     try:
         with db_transaction() as conn:
-            # Get receive
-            receive = conn.execute('''
-                SELECT status FROM receiving WHERE id = ?
-            ''', (receiving_id,)).fetchone()
-            
-            if not receive:
-                return jsonify({'success': False, 'error': 'Receive not found'}), 404
-            
-            current_status = receive['status'] if receive else 'published'
-            
-            if current_status == 'draft':
-                return jsonify({'success': False, 'error': 'Receive is already a draft'}), 400
-            
-            # Check if any submissions exist for this receive's bags
-            submission_count = conn.execute('''
-                SELECT COUNT(*) as count
-                FROM warehouse_submissions ws
-                JOIN bags b ON ws.bag_id = b.id
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                WHERE sb.receiving_id = ?
-            ''', (receiving_id,)).fetchone()
-            
-            if submission_count and submission_count['count'] > 0:
-                return jsonify({
-                    'success': False, 
-                    'error': f'Cannot unpublish: {submission_count["count"]} submission(s) already exist for this receive. Delete submissions first.'
-                }), 400
-            
-            # Update status to draft
-            conn.execute('''
-                UPDATE receiving 
-                SET status = 'draft'
-                WHERE id = ?
-            ''', (receiving_id,))
-            
-            return jsonify({
-                'success': True,
-                'message': 'Receive moved to draft. Will not appear in production until published again.',
-                'status': 'draft'
-            })
+            result = unpublish_receiving_service(conn, receiving_id)
+            if not result.get('success'):
+                return jsonify({'success': False, 'error': result.get('error', 'Unpublish failed')}), result.get('status_code', 400)
+            return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Error unpublishing receive: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1897,33 +1779,19 @@ def assign_po_to_receiving(receiving_id):
     """Update PO assignment for a receiving record (managers and admins only)"""
     try:
         user_role = session.get('employee_role')
-        if user_role not in ['manager', 'admin']:
-            return jsonify({'success': False, 'error': 'Only managers and admins can assign POs'}), 403
-        
-        data = request.get_json()
+        data = request.get_json() or {}
         po_id = data.get('po_id')
-        
+        if po_id not in (None, ''):
+            try:
+                po_id = int(po_id)
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'error': 'Invalid po_id'}), 400
+
         with db_transaction() as conn:
-            receiving = conn.execute('SELECT id FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
-            if not receiving:
-                return jsonify({'success': False, 'error': 'Receiving record not found'}), 404
-            
-            conn.execute('''
-                UPDATE receiving SET po_id = ?
-                WHERE id = ?
-            ''', (po_id if po_id else None, receiving_id))
-            
-            po_number = None
-            if po_id:
-                po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (po_id,)).fetchone()
-                if po:
-                    po_number = po['po_number']
-            
-            return jsonify({
-                'success': True,
-                'message': f'PO assignment updated successfully',
-                'po_number': po_number
-            })
+            result = assign_po_to_receiving_service(conn, receiving_id, po_id, user_role)
+            if not result.get('success'):
+                return jsonify({'success': False, 'error': result.get('error', 'Assignment failed')}), result.get('status_code', 400)
+            return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Error assigning PO to receiving: {str(e)}")
         traceback.print_exc()

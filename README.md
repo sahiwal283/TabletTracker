@@ -109,12 +109,12 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.0 (Frontend UI modernization phase 1)
-- Frontend UI polish with stronger shared style tokens and focus-visible states
-- Dashboard interaction cleanup with delegated handlers for key tables/toggles
-- Improved notification/loading experience with accessible status semantics
-- Modal accessibility upgrades (`role="dialog"`, `aria-modal`, Escape close)
-- MINOR release: backward-compatible UX and maintainability enhancements
+Current: v2.47.4 (Backend refactor phase 2 continuation)
+- Receiving admin workflow decomposition into `receiving_admin_service`
+- Route handlers now delegate close/publish/unpublish/assign-PO business logic
+- Added service-layer tests for role guards and receiving state transitions
+- Full regression suite green (`36` tests)
+- PATCH release: backward-compatible backend maintainability improvements
 
 ## 🔐 Security
 
