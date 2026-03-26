@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.1] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Frontend phase-1 continuation (template interaction cleanup)
+- Added delegated UI controllers for key pages:
+  - `static/js/submissions-ui.js`
+  - `static/js/purchase-orders-ui.js`
+  - `static/js/receiving-ui.js`
+  - `static/js/product-config-ui.js`
+  - `static/js/production-ui.js`
+- Reduced inline handler usage in high-traffic interactions for:
+  - `templates/submissions.html`
+  - `templates/purchase_orders.html`
+  - `templates/receiving.html`
+  - `templates/product_config.html`
+  - `templates/production.html`
+  - `templates/admin_panel.html`
+- Updated admin panel button handling to avoid implicit global `event` dependency and use explicit listeners.
+- **Versioning**: **PATCH** bump `2.47.0` → `2.47.1` (backward-compatible refactor and interaction hardening).
+
+---
+
 ## [2.47.0] - 2026-03-26
 
 ### ✨ Enhancement

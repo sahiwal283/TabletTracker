@@ -20,16 +20,16 @@
 
 <!-- Filter Tabs -->
 <div class="mb-6 flex gap-4">
-    <button onclick="filterPOs('all')" id="btn-all" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
+    <button data-po-filter="all" id="btn-all" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
         All POs (<span id="count-all">{{ purchase_orders|length }}</span>)
     </button>
-    <button onclick="filterPOs('open')" id="btn-open" class="px-6 py-3 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-lg">
+    <button data-po-filter="open" id="btn-open" class="px-6 py-3 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-lg">
         Open (<span id="count-open">0</span>)
     </button>
-    <button onclick="filterPOs('closed')" id="btn-closed" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
+    <button data-po-filter="closed" id="btn-closed" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
         Closed (<span id="count-closed">0</span>)
     </button>
-    <button onclick="filterPOs('draft')" id="btn-draft" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
+    <button data-po-filter="draft" id="btn-draft" class="px-6 py-3 rounded-lg font-medium transition-all bg-white text-gray-700 hover:bg-gray-50 border border-gray-300">
         Draft (<span id="count-draft">0</span>)
     </button>
 </div>
@@ -72,8 +72,10 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for po in purchase_orders %}
                 <tr class="hover:bg-gray-100 po-row {% if po.is_overs %}bg-blue-50{% endif %}" 
+                    data-po-id="{{ po.id }}"
+                    data-po-number="{{ po.po_number|e }}"
                     data-po-status="{{ 'draft' if po.internal_status == 'Draft' else ('closed' if po.closed else 'open') }}">
-                    <td class="py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer {% if po.is_overs %}pl-16 pr-6{% else %}px-6{% endif %}" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="py-4 whitespace-nowrap text-sm font-medium text-gray-900 cursor-pointer js-po-details-trigger {% if po.is_overs %}pl-16 pr-6{% else %}px-6{% endif %}">
                         {% if po.is_overs %}
                             <span class="text-blue-600 mr-2">↳</span>
                         {% endif %}
@@ -82,20 +84,20 @@
                         <div class="text-xs text-gray-500 mt-0.5">{{ po.vendor_name }}</div>
                         {% endif %}
                         {% if session.get('employee_role') == 'admin' %}
-                            <button onclick="event.stopPropagation(); deletePO({{ po.id }}, '{{ po.po_number }}')" 
+                            <button data-delete-po-id="{{ po.id }}" data-delete-po-number="{{ po.po_number|e }}" 
                                     class="ml-2 text-xs text-red-600 hover:text-red-800"
                                     title="Delete PO (Admin only)">
                                 🗑️
                             </button>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer js-po-details-trigger">
                         {{ po.tablet_type or 'Multiple' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer js-po-details-trigger">
                         {{ "{:,}".format(po.ordered_quantity) if po.ordered_quantity else '0' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium cursor-pointer js-po-details-trigger">
                         <div class="flex items-center gap-1">
                             <span>{{ "{:,}".format(po.machine_count) if po.machine_count else '0' }}</span>
                             <span class="text-gray-400">|</span>
@@ -103,10 +105,10 @@
                         </div>
                         <div class="text-xs text-gray-500 mt-0.5">Machine | Packaged</div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium cursor-pointer js-po-details-trigger">
                         {{ "{:,}".format(po.received_count) if po.received_count else '0' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {% if po.remaining_quantity < 0 %}text-purple-600{% else %}text-gray-900{% endif %} cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {% if po.remaining_quantity < 0 %}text-purple-600{% else %}text-gray-900{% endif %} cursor-pointer js-po-details-trigger">
                         {% set remaining = (po.ordered_quantity or 0) - (po.received_count or 0) %}
                         {% if remaining < 0 %}
                             +{{ "{:,}".format(remaining|abs) }} over
@@ -114,7 +116,7 @@
                             {{ "{:,}".format(remaining) }}
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap cursor-pointer js-po-details-trigger">
                         {% set received = po.received_count or 0 %}
                         {% set total = po.ordered_quantity or 1 %}
                         {% set progress = ((received / total * 100)|int) if total > 0 else 0 %}
@@ -125,7 +127,7 @@
                             <span class="text-sm font-medium text-gray-700">{{ progress }}%</span>
                         </div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap cursor-pointer" onclick="viewPODetailsModal({{ po.id }}, '{{ po.po_number }}')">
+                    <td class="px-6 py-4 whitespace-nowrap cursor-pointer js-po-details-trigger">
                         {% if po.internal_status == 'Draft' %}
                             <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-lg">
                                 📝 Draft
@@ -161,6 +163,7 @@
     </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/purchase-orders-ui.js') }}"></script>
 <!-- PO Details Modal (reuse from dashboard) -->
 <div id="po-details-modal-container"></div>
 

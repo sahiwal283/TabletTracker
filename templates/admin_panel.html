@@ -58,7 +58,7 @@
     <div class="card p-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center">🔧 System Tools</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-            <button onclick="testZohoConnection()" 
+            <button id="test-zoho-connection-btn" 
                     class="btn-primary flex items-center justify-center py-2.5">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plug" /></svg>
                 Test Zoho Connection
@@ -71,7 +71,7 @@
                 </span>
             </button>
             <!-- "View Flagged" button removed - no flagged submissions in system -->
-            <button onclick="clearPOData()" 
+            <button id="clear-po-data-btn" 
                     class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
                     title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
                 <span class="flex items-center justify-center">
@@ -92,8 +92,8 @@
 <script>
 // Admin panel functions
 
-async function testZohoConnection() {
-    const button = event.target;
+async function testZohoConnection(button) {
+    if (!button) return;
     const originalText = button.textContent;
     
     try {
@@ -155,12 +155,12 @@ async function syncZohoPOs() {
 // "View flagged submissions" function removed - feature not needed
 
 // Clear PO data
-async function clearPOData() {
+async function clearPOData(button) {
     if (!confirm('Are you sure you want to clear all PO data? This will remove all synced POs and line items.')) {
         return;
     }
     
-    const button = event.target.closest('button');
+    if (!button) return;
     const originalText = button.textContent;
     
     try {
@@ -192,8 +192,16 @@ async function clearPOData() {
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     const syncBtn = document.getElementById('sync-pos-btn');
+    const testBtn = document.getElementById('test-zoho-connection-btn');
+    const clearBtn = document.getElementById('clear-po-data-btn');
     if (syncBtn) {
         syncBtn.addEventListener('click', syncZohoPOs);
+    }
+    if (testBtn) {
+        testBtn.addEventListener('click', function() { testZohoConnection(testBtn); });
+    }
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() { clearPOData(clearBtn); });
     }
 });
 
