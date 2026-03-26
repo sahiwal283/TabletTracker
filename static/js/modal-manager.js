@@ -40,7 +40,7 @@ async function viewPODetailsModal(poId, poNumber) {
         }).join('');
         const modalHTML =
             '<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closePODetailsModal(event)">' +
-            '<div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">' +
+            '<div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="PO details" onclick="event.stopPropagation()">' +
             '<div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-lg sticky top-0 z-10">' +
             '<div class="flex justify-between items-start"><div><h2 class="text-2xl font-bold mb-2">PO ' + safePo + '</h2>' + parentBtn + ' ' + oversBtn + '</div>' +
             '<button onclick="closePODetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button></div></div>' +
@@ -51,6 +51,11 @@ async function viewPODetailsModal(poId, poNumber) {
         modalDiv.id = 'po-details-modal';
         modalDiv.innerHTML = modalHTML;
         (document.getElementById('po-details-modal-container') || document.body).appendChild(modalDiv);
+        const closeOnEscape = function (event) {
+            if (event.key === 'Escape') closePODetailsModal();
+        };
+        modalDiv._escapeListener = closeOnEscape;
+        document.addEventListener('keydown', closeOnEscape);
     } catch (error) {
         if (error.name === 'AbortError') return;
         console.error('Error loading PO details:', error);
@@ -64,7 +69,12 @@ async function viewPODetailsModal(poId, poNumber) {
 function closePODetailsModal(event) {
     if (event && event.target !== event.currentTarget) return;
     const modal = document.getElementById('po-details-modal');
-    if (modal) modal.remove();
+    if (modal) {
+        if (modal._escapeListener) {
+            document.removeEventListener('keydown', modal._escapeListener);
+        }
+        modal.remove();
+    }
 }
 
 /**
@@ -84,7 +94,7 @@ async function viewReceiveDetailsModal(receiveId, receiveName) {
         }).join('');
         const modalHTML =
             '<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReceiveDetailsModal(event)">' +
-            '<div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">' +
+            '<div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Receive details" onclick="event.stopPropagation()">' +
             '<div class="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6 rounded-t-lg sticky top-0 z-10">' +
             '<div class="flex justify-between items-start"><h2 class="text-2xl font-bold">' + safeName + '</h2>' +
             '<button onclick="closeReceiveDetailsModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button></div></div>' +
@@ -94,6 +104,11 @@ async function viewReceiveDetailsModal(receiveId, receiveName) {
         modalDiv.id = 'receive-details-modal';
         modalDiv.innerHTML = modalHTML;
         document.body.appendChild(modalDiv);
+        const closeOnEscape = function (event) {
+            if (event.key === 'Escape') closeReceiveDetailsModal();
+        };
+        modalDiv._escapeListener = closeOnEscape;
+        document.addEventListener('keydown', closeOnEscape);
     } catch (error) {
         if (error.name === 'AbortError') return;
         console.error('Error loading receive details:', error);
@@ -107,6 +122,11 @@ async function viewReceiveDetailsModal(receiveId, receiveName) {
 function closeReceiveDetailsModal(event) {
     if (event && event.target !== event.currentTarget) return;
     const modal = document.getElementById('receive-details-modal');
-    if (modal) modal.remove();
+    if (modal) {
+        if (modal._escapeListener) {
+            document.removeEventListener('keydown', modal._escapeListener);
+        }
+        modal.remove();
+    }
 }
 

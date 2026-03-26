@@ -14,6 +14,11 @@
             --wc-mid:   #93B1B5;  /* Mist */
             --wc-primary:#4F7C82;  /* Deep teal */
             --wc-dark:  #0B2E33;  /* Midnight teal */
+            --surface-1: #ffffff;
+            --surface-2: #f4fafb;
+            --text-strong: #0f172a;
+            --text-muted: #475569;
+            --focus-ring: rgba(79, 124, 130, 0.35);
 
             /* Derived neutrals */
             --bg-start: #f8fbfc;
@@ -32,6 +37,7 @@
             box-shadow: 0 4px 12px rgba(var(--neutral-shadow), 0.06), inset 0 1px 0 rgba(255,255,255,0.6) !important;
             min-height: 56px !important;
             padding: 16px 20px !important;
+            color: var(--text-strong);
         }
         .form-input:focus {
             border-color: var(--wc-primary) !important;
@@ -136,7 +142,7 @@
         .card {
             @apply bg-white shadow-xl border border-gray-100;
             border-radius: 28px !important;
-            background: linear-gradient(135deg, #ffffff 0%, var(--wc-light) 100%);
+            background: linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%);
             border-color: rgba(var(--neutral-shadow), 0.08) !important;
         }
 
@@ -192,6 +198,23 @@
         .hover-lift:hover {
             transform: translateY(-4px) scale(1.02);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Stronger keyboard accessibility without visual redesign */
+        :where(button, a, input, select, textarea, [role="button"]):focus-visible {
+            outline: 2px solid var(--wc-primary);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px var(--focus-ring);
+        }
+
+        /* Respect reduced motion preference */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
         }
     </style>
     

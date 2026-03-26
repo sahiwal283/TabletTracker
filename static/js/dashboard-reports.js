@@ -4,6 +4,23 @@
  */
 (function () {
     'use strict';
+    function notifyError(message) {
+        if (typeof showError === 'function') {
+            showError(message);
+            return;
+        }
+        window.alert(message);
+    }
+
+    function safeText(value) {
+        if (value == null) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 
     function debounce(fn, ms) {
         var t;
@@ -38,13 +55,13 @@
                 });
             } else {
                 selector.innerHTML = '<option value="">Error loading POs</option>';
-                if (data.error) alert('Error loading POs: ' + data.error);
+                if (data.error) notifyError('Error loading POs: ' + data.error);
             }
         } catch (e) {
             if (e.name === 'AbortError') return;
             selector.innerHTML = '<option value="">Error loading POs</option>';
             selector.disabled = false;
-            alert('Failed to load purchase orders: ' + (e.message || e));
+            notifyError('Failed to load purchase orders: ' + (e.message || e));
         }
     }
 
@@ -119,7 +136,7 @@
                     if (preview && previewContent) {
                         preview.classList.remove('hidden');
                         var poData = JSON.parse(selectedOption.dataset.poData);
-                        previewContent.innerHTML = '<div><strong>PO Number:</strong> ' + (poData.po_number || '') + '</div><div><strong>Tablet Type:</strong> ' + (poData.tablet_type || 'N/A') + '</div><div><strong>Status:</strong> ' + (poData.status || 'Unknown') + '</div><div><strong>Ordered:</strong> ' + (poData.ordered || 0) + ' tablets</div><div><strong>Produced:</strong> ' + (poData.produced || 0) + '</div><div><strong>Damaged:</strong> ' + (poData.damaged || 0) + '</div><div><strong>Submissions:</strong> ' + (poData.submissions || 0) + '</div>' + (poData.pack_time_days ? '<div><strong>Pack Time:</strong> ' + poData.pack_time_days + ' days</div>' : '');
+                        previewContent.innerHTML = '<div><strong>PO Number:</strong> ' + safeText(poData.po_number || '') + '</div><div><strong>Tablet Type:</strong> ' + safeText(poData.tablet_type || 'N/A') + '</div><div><strong>Status:</strong> ' + safeText(poData.status || 'Unknown') + '</div><div><strong>Ordered:</strong> ' + (poData.ordered || 0) + ' tablets</div><div><strong>Produced:</strong> ' + (poData.produced || 0) + '</div><div><strong>Damaged:</strong> ' + (poData.damaged || 0) + '</div><div><strong>Submissions:</strong> ' + (poData.submissions || 0) + '</div>' + (poData.pack_time_days ? '<div><strong>Pack Time:</strong> ' + safeText(poData.pack_time_days) + ' days</div>' : '');
                     }
                 } else {
                     if (button) button.disabled = true;
@@ -133,8 +150,21 @@
         loadAvailablePOs();
         var reportTypeSelector = document.getElementById('report_type_selector');
         var generateBtn = document.getElementById('generate-report-btn');
+        var generateAllBtn = document.getElementById('generate-all-btn');
         if (generateBtn) generateBtn.disabled = false;
         if (reportTypeSelector) reportTypeSelector.addEventListener('change', debounce(handleReportTypeChange, 150));
+        if (generateBtn && typeof window.generatePOReport === 'function') {
+            generateBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.generatePOReport();
+            });
+        }
+        if (generateAllBtn && typeof window.generateAllPOsReport === 'function') {
+            generateAllBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                window.generateAllPOsReport();
+            });
+        }
         setupPOSelectorListener();
     });
 

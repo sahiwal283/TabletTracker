@@ -1,0 +1,12 @@
+<div class="flex items-center {{ wrapper_class|default('') }}">
+    {% if icon_symbol %}
+    <span class="{{ icon_class|default('text-2xl mr-3') }}">{{ icon_symbol }}</span>
+    {% endif %}
+    {% if icon_svg %}
+    <svg class="{{ icon_svg_class|default('w-6 h-6 mr-3') }}" aria-hidden="true"><use href="{{ icon_svg }}" /></svg>
+    {% endif %}
+    <h3 class="{{ title_class|default('text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent') }}">{{ title }}</h3>
+    {% if subtitle %}
+    <span class="{{ subtitle_class|default('ml-3 text-sm text-gray-500') }}">{{ subtitle }}</span>
+    {% endif %}
+</div>

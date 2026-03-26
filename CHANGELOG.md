@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.0] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Frontend UI modernization (phase 1, non-breaking)
+- **Design system tightening**: Refined shared styling tokens in `templates/base.html` for more consistent surfaces, stronger keyboard focus-visible states, and reduced-motion support.
+- **Shared UX utilities**: Improved `static/js/api-client.js` notifications/loading behavior with cleaner visuals, ARIA status semantics, and safer message rendering.
+- **Dashboard cleanup**: Centralized key dashboard interactions into `static/js/dashboard-ui.js` and removed several inline handlers from `templates/dashboard.html` while preserving existing behavior.
+- **Report UX polish**: Updated `static/js/dashboard-reports.js` to use non-blocking error notifications and safer preview rendering.
+- **Modal accessibility**: Added dialog semantics and Escape-to-close behavior in `static/js/modal-manager.js`.
+- **Template dedupe**: Added reusable `templates/components/section_title.html` and adopted it in dashboard sections.
+- **Quality gate**: Added frontend regression checklist in `docs/FRONTEND_REFACTOR_CHECKLIST.md`.
+- **Versioning**: **MINOR** bump `2.46.9` → `2.47.0` (backward-compatible UX and maintainability enhancements).
+
+---
+
 ## [2.46.9] - 2026-03-24
 
 ### 🐛 Fix

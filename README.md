@@ -109,12 +109,12 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.43.2 (Performance refactor)
-- Performance instrumentation (request/query timing, Server-Timing header)
-- Frontend: dashboard reports module with debounce and request cancellation (AbortController)
-- API/database: performance indexes; 30s cache for report PO summary and receives list
-- Modal manager: apiCall + escapeHtml for PO/Receive details
-- PATCH release: feature parity preserved
+Current: v2.47.0 (Frontend UI modernization phase 1)
+- Frontend UI polish with stronger shared style tokens and focus-visible states
+- Dashboard interaction cleanup with delegated handlers for key tables/toggles
+- Improved notification/loading experience with accessible status semantics
+- Modal accessibility upgrades (`role="dialog"`, `aria-modal`, Escape close)
+- MINOR release: backward-compatible UX and maintainability enhancements
 
 ## 🔐 Security
 

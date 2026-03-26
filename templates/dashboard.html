@@ -5,10 +5,14 @@
 {% block content %}
 <!-- Overview Section (Full Width, Compact) -->
 <div class="card hover-lift p-6 mb-8">
-    <div class="flex items-center mb-5">
-        <svg class="w-7 h-7 mr-3" aria-hidden="true"><use href="#icon-chart" /></svg>
-        <h3 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Overview</h3>
-    </div>
+    {% with
+        title='Overview',
+        icon_svg='#icon-chart',
+        icon_svg_class='w-7 h-7 mr-3',
+        wrapper_class='mb-5'
+    %}
+        {% include "components/section_title.html" %}
+    {% endwith %}
     
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Left: PO Stats (2x2 Grid) -->
@@ -54,16 +58,21 @@
 
 <!-- Production Report Section -->
 <div class="card hover-lift p-5 mb-8 max-w-5xl mx-auto">
-    <div class="flex items-center mb-4">
-        <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-document" /></svg>
-        <h3 class="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Production Reports</h3>
-    </div>
+    {% with
+        title='Production Reports',
+        icon_svg='#icon-document',
+        icon_svg_class='w-5 h-5 mr-2',
+        wrapper_class='mb-4',
+        title_class='text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent'
+    %}
+        {% include "components/section_title.html" %}
+    {% endwith %}
     
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- Row 1: Report Type, PO/Receive Selector, Tablet Type -->
         <div>
             <label for="report_type_selector" class="block text-xs font-medium text-gray-700 mb-1">Report Type</label>
-            <select id="report_type_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="handleReportTypeChange()">
+            <select id="report_type_selector" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="vendor" selected>Vendor Report</option>
                 <option value="production">Production Report</option>
                 <option value="receive">Receive Report</option>
@@ -96,14 +105,6 @@
                 {% endfor %}
             </select>
             <p class="text-xs text-gray-500 mt-0.5">Filter by specific tablet type (optional)</p>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    const select = document.getElementById('report_tablet_type');
-                    if (select && typeof convertToTwoLevelDropdown === 'function') {
-                        convertToTwoLevelDropdown(select);
-                    }
-                });
-            </script>
         </div>
         
         <!-- Row 2: Date From and Date To -->
@@ -120,7 +121,7 @@
         
         <!-- Row 2: Buttons -->
         <div class="flex flex-col gap-2">
-        <button onclick="generatePOReport()" id="generate-report-btn"
+        <button id="generate-report-btn"
                     class="btn-primary py-2 text-sm font-semibold transform transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
             <span class="flex items-center justify-center">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-download" /></svg>
@@ -128,7 +129,7 @@
             </span>
         </button>
         
-            <button onclick="generateAllPOsReport()" id="generate-all-btn"
+            <button id="generate-all-btn"
                     class="btn-secondary text-xs px-3 py-1.5 transform transition-all duration-300 hover:scale-105">
                 <span class="flex items-center justify-center">
                     <svg class="w-3.5 h-3.5 mr-1.5" aria-hidden="true"><use href="#icon-list" /></svg>
@@ -186,7 +187,7 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for receive in active_receives %}
                 {% set receive_name = receive.po_number + '-' + (receive.receive_number|string if receive.receive_number else '1') %}
-                <tr class="hover:bg-gray-100 cursor-pointer po-row" data-po-index="{{ loop.index }}" data-receive-id="{{ receive.id }}" onclick="viewReceiveDetails({{ receive.id }}, '{{ receive_name|e }}')">
+                <tr class="hover:bg-gray-100 cursor-pointer po-row" data-po-index="{{ loop.index }}" data-receive-id="{{ receive.id }}" data-receive-name="{{ receive_name|e }}">
                     <td class="px-2 py-2 font-medium text-gray-900">
                         {{ receive_name }}
                     </td>
@@ -281,7 +282,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for sub in submissions_needing_review %}
-                <tr class="hover:bg-orange-50 bg-orange-25 cursor-pointer" onclick="viewAmbiguousSubmission({{ sub.id }})">
+                <tr class="hover:bg-orange-50 bg-orange-25 cursor-pointer" data-ambiguous-submission-id="{{ sub.id }}">
                     <td class="px-3 py-2 text-xs text-gray-500">
                         {{ sub.created_at|to_est_time if sub.created_at else 'N/A' }}
                     </td>
@@ -324,7 +325,7 @@
 <div class="card hover-lift mt-10">
     <div class="px-8 py-6 border-b border-gray-200">
         <div class="flex justify-between items-center">
-            <div class="flex items-center cursor-pointer hover:bg-gray-50" onclick="toggleRecentSubmissions()">
+            <div class="flex items-center cursor-pointer hover:bg-gray-50" id="recent-submissions-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="recent-submissions-content">
                 <span class="text-3xl mr-4">📝</span>
                 <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Recent Submissions</h3>
                 <span class="ml-3 text-sm text-gray-500">(last {{ submissions|length }})</span>
@@ -370,7 +371,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for sub in submissions %}
-                <tr class="hover:bg-gray-50 cursor-pointer" onclick="viewSubmissionDetails({{ sub.id }})">
+                <tr class="hover:bg-gray-50 cursor-pointer" data-submission-id="{{ sub.id }}">
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.created_at|to_est if sub.created_at else 'N/A' }}
                     </td>
@@ -397,10 +398,9 @@
                         <div class="flex items-center gap-2">
                             {{ sub.employee_name }}
                             {% if sub.admin_notes %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors" 
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors js-admin-notes-trigger" 
                                   title="Click to view admin notes"
-                                  data-admin-notes="{{ sub.admin_notes|e }}"
-                                  onclick="event.stopPropagation(); showAdminNotes(this.getAttribute('data-admin-notes'));">
+                                  data-admin-notes="{{ sub.admin_notes|e }}">
                                 📝
                             </span>
                             {% endif %}
@@ -452,6 +452,7 @@
 
 <!-- Closed POs removed - view all POs on dedicated page -->
 <script src="{{ url_for('static', filename='js/dashboard-reports.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-ui.js') }}"></script>
 <script>
 // Define syncZohoPOs function early to ensure it's available
 async function syncZohoPOs() {
