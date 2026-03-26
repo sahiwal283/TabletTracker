@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.11] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (fix-bags admin utility)
+- Removed inline handler usage from `templates/fix_bags.html`.
+- Replaced inline button click wiring with delegated `data-*` listener while preserving the same admin API flow and result rendering.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.10` → `2.47.11`.
+
+---
+
 ## [2.47.10] - 2026-03-26
 
 ### ✨ Enhancement

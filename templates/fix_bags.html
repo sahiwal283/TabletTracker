@@ -26,7 +26,7 @@
                 </div>
             </div>
 
-            <button onclick="fixBagAssignments()" 
+            <button data-fix-bag-assignments
                     id="fixButton"
                     class="btn-primary px-6 py-3 text-lg font-semibold">
                 🔧 Fix All Bag Assignments
@@ -119,5 +119,11 @@ async function fixBagAssignments() {
         button.textContent = '🔧 Fix All Bag Assignments';
     }
 }
+
+document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-fix-bag-assignments]')) {
+        fixBagAssignments();
+    }
+});
 </script>
 {% endblock %}

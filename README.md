@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.10 (Phase 3 non-backend continuation)
-- Employee management and shipments pages now use delegated event handling
-- Removed remaining inline handler patterns from those templates
+Current: v2.47.11 (Phase 3 non-backend continuation)
+- Fix-bags admin utility now uses delegated event handling
+- Removed inline handler pattern from that template
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements
