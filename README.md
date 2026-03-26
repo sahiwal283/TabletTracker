@@ -109,11 +109,11 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.5 (Backend refactor phase 2 continuation)
-- Production submission context consolidation into shared service helpers
-- Reduced duplicated employee/notes normalization logic across production APIs
-- Added service-layer tests for submission context resolution behavior
-- Full regression suite green (`41` tests)
+Current: v2.47.6 (Backend refactor phase 2 continuation)
+- Submission detail aggregation extracted from API route to service layer
+- Thinner bag-submissions API handler with stable response contract
+- Added service tests covering bag payload and per-type tablet total behavior
+- Full regression suite green (`43` tests)
 - PATCH release: backward-compatible backend maintainability improvements
 
 ## 🔐 Security

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.6] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Backend phase 2 continuation (submission detail service extraction)
+- Extracted bag-level submission detail aggregation from `app/blueprints/api_submissions.py` into `app/services/submission_details_service.py`.
+- Kept `/api/bag/<id>/submissions` behavior and response contract stable while making the route handler thin and service-oriented.
+- Added focused tests in `tests/test_submission_details_service.py` for bag lookup and per-type tablet total calculation behavior.
+- **Verification**: full backend test suite now passes (`43` tests).
+- **Versioning**: **PATCH** bump `2.47.5` → `2.47.6`.
+
+---
+
 ## [2.47.5] - 2026-03-26
 
 ### ✨ Enhancement
