@@ -109,11 +109,11 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.4 (Backend refactor phase 2 continuation)
-- Receiving admin workflow decomposition into `receiving_admin_service`
-- Route handlers now delegate close/publish/unpublish/assign-PO business logic
-- Added service-layer tests for role guards and receiving state transitions
-- Full regression suite green (`36` tests)
+Current: v2.47.5 (Backend refactor phase 2 continuation)
+- Production submission context consolidation into shared service helpers
+- Reduced duplicated employee/notes normalization logic across production APIs
+- Added service-layer tests for submission context resolution behavior
+- Full regression suite green (`41` tests)
 - PATCH release: backward-compatible backend maintainability improvements
 
 ## 🔐 Security

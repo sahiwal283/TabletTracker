@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.5] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Backend phase 2 continuation (production submission context consolidation)
+- Added shared production context helpers in `app/services/submission_context_service.py`:
+  - `resolve_submission_employee_name`
+  - `normalize_optional_text`
+- Refactored `app/blueprints/production.py` to replace repeated employee-name fallback and notes normalization blocks across packaged, bag-count, machine-count, bottle, and repack submission flows.
+- Kept endpoint contracts and response/error behavior stable while reducing route-layer duplication and improving maintainability.
+- Added focused tests in `tests/test_submission_context_service.py`.
+- **Verification**: full backend test suite now passes (`41` tests).
+- **Versioning**: **PATCH** bump `2.47.4` → `2.47.5`.
+
+---
+
 ## [2.47.4] - 2026-03-26
 
 ### ✨ Enhancement
