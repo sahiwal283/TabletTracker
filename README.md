@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.11 (Phase 3 non-backend continuation)
-- Fix-bags admin utility now uses delegated event handling
-- Removed inline handler pattern from that template
+Current: v2.47.12 (Phase 3 non-backend continuation)
+- Product config template now has delegated handler wiring for core static interactions
+- Reduced inline handler usage for tablet/product/category/machine actions
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements

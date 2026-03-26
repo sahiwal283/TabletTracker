@@ -79,7 +79,7 @@
             {% set category_types = tablet_types | selectattr('category', 'equalto', category) | list %}
             {% if category_types %}
             <div class="border-b border-gray-200">
-                <button onclick="toggleSection('tt-{{ category | replace(' ', '-') }}')" 
+                <button data-toggle-section-id="tt-{{ category | replace(' ', '-') }}" 
                         class="w-full px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-left flex items-center gap-3">
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-tt-{{ category | replace(' ', '-') }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -112,12 +112,12 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <div class="tablet-display" id="actions-display-{{ tt.id }}">
-                                        <button onclick="editTabletType({{ tt.id }})" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
-                                        <button onclick="deleteTabletType({{ tt.id }}, '{{ tt.tablet_type_name }}')" class="text-red-600 hover:text-red-900">Delete</button>
+                                        <button data-edit-tablet-type-id="{{ tt.id }}" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
+                                        <button data-delete-tablet-type-id="{{ tt.id }}" data-tablet-type-name="{{ tt.tablet_type_name }}" class="text-red-600 hover:text-red-900">Delete</button>
                                     </div>
                                     <div class="tablet-edit hidden" id="actions-edit-{{ tt.id }}">
-                                        <button onclick="saveTabletType({{ tt.id }})" class="text-green-600 hover:text-green-900 mr-2">Save</button>
-                                        <button onclick="cancelTabletEdit({{ tt.id }})" class="text-gray-600 hover:text-gray-900">Cancel</button>
+                                        <button data-save-tablet-type-id="{{ tt.id }}" class="text-green-600 hover:text-green-900 mr-2">Save</button>
+                                        <button data-cancel-tablet-edit-id="{{ tt.id }}" class="text-gray-600 hover:text-gray-900">Cancel</button>
                                     </div>
                                 </td>
                             </tr>
@@ -133,7 +133,7 @@
             {% set uncategorized_types = tablet_types | rejectattr('category') | list + tablet_types | selectattr('category', 'equalto', '') | list %}
             {% if uncategorized_types %}
             <div class="border-b border-gray-200">
-                <button onclick="toggleSection('tt-uncategorized')" 
+                <button data-toggle-section-id="tt-uncategorized" 
                         class="w-full px-6 py-4 bg-gradient-to-r from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 text-left flex items-center gap-3">
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-tt-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -165,12 +165,12 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <div class="tablet-display" id="actions-display-{{ tt.id }}">
-                                        <button onclick="editTabletType({{ tt.id }})" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
-                                        <button onclick="deleteTabletType({{ tt.id }}, '{{ tt.tablet_type_name }}')" class="text-red-600 hover:text-red-900">Delete</button>
+                                        <button data-edit-tablet-type-id="{{ tt.id }}" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
+                                        <button data-delete-tablet-type-id="{{ tt.id }}" data-tablet-type-name="{{ tt.tablet_type_name }}" class="text-red-600 hover:text-red-900">Delete</button>
                                     </div>
                                     <div class="tablet-edit hidden" id="actions-edit-{{ tt.id }}">
-                                        <button onclick="saveTabletType({{ tt.id }})" class="text-green-600 hover:text-green-900 mr-2">Save</button>
-                                        <button onclick="cancelTabletEdit({{ tt.id }})" class="text-gray-600 hover:text-gray-900">Cancel</button>
+                                        <button data-save-tablet-type-id="{{ tt.id }}" class="text-green-600 hover:text-green-900 mr-2">Save</button>
+                                        <button data-cancel-tablet-edit-id="{{ tt.id }}" class="text-gray-600 hover:text-gray-900">Cancel</button>
                                     </div>
                                 </td>
                             </tr>
@@ -282,7 +282,7 @@
                     <div class="border-t pt-4">
                         <div class="flex justify-between items-center mb-3">
                             <label class="block text-sm font-medium text-gray-700">Pack Contents - Which Flavors & How Many</label>
-                            <button type="button" onclick="addVarietyPackFlavor()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add Flavor</button>
+                            <button type="button" data-add-variety-pack-flavor class="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add Flavor</button>
                         </div>
                         <div id="variety-pack-contents" class="space-y-2">
                             <!-- Dynamically added flavor entries -->
@@ -305,7 +305,7 @@
             {% set category_products = products | selectattr('category', 'equalto', category) | list %}
             {% if category_products %}
             <div class="border-b border-gray-200">
-                <button onclick="toggleSection('prod-{{ category | replace(' ', '-') }}')" 
+                <button data-toggle-section-id="prod-{{ category | replace(' ', '-') }}" 
                         class="w-full px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-left flex items-center gap-3">
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-{{ category | replace(' ', '-') }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -340,7 +340,7 @@
                                 <div class="flex items-center gap-3">
                                     <button onclick="openEditProductModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablet_type_id or 'null' }}, {{ product.packages_per_display or 0 }}, {{ product.tablets_per_package or 0 }}, {{ 'true' if product.is_bottle_product else 'false' }}, {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }}, '{{ product.category or '' }}')" 
                                             class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
-                                    <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                    <button data-delete-product-id="{{ product.id }}" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
                             </div>
                         </div>
@@ -355,7 +355,7 @@
             {% set uncategorized_products = products | rejectattr('is_variety_pack') | rejectattr('category') | list %}
             {% if uncategorized_products %}
             <div class="border-b border-gray-200">
-                <button onclick="toggleSection('prod-uncategorized')" 
+                <button data-toggle-section-id="prod-uncategorized" 
                         class="w-full px-6 py-4 bg-gradient-to-r from-gray-50 to-slate-50 hover:from-gray-100 hover:to-slate-100 text-left flex items-center gap-3">
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -386,7 +386,7 @@
                                 <div class="flex items-center gap-3">
                                     <button onclick="openEditProductModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablet_type_id or 'null' }}, {{ product.packages_per_display or 0 }}, {{ product.tablets_per_package or 0 }}, {{ 'true' if product.is_bottle_product else 'false' }}, {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }}, '{{ product.category or '' }}')" 
                                             class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
-                                    <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                    <button data-delete-product-id="{{ product.id }}" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
                             </div>
                         </div>
@@ -400,7 +400,7 @@
             {% set variety_packs = products | selectattr('is_variety_pack') | list %}
             {% if variety_packs %}
             <div class="border-b border-gray-200">
-                <button onclick="toggleSection('prod-variety-packs')" 
+                <button data-toggle-section-id="prod-variety-packs" 
                         class="w-full px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 text-left flex items-center gap-3">
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-variety-packs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -425,7 +425,7 @@
                                 <div class="flex gap-3">
                                     <button onclick="openEditVarietyPackModal({{ product.id }}, '{{ product.product_name }}', {{ product.tablets_per_bottle or 0 }}, {{ product.bottles_per_display or 0 }}, '{{ product.variety_pack_contents | default('[]', true) | e }}')" 
                                             class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
-                                    <button onclick="deleteProduct({{ product.id }})" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
+                                    <button data-delete-product-id="{{ product.id }}" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
                             </div>
                         </div>
@@ -454,7 +454,7 @@
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Category Management</h3>
-                <button onclick="openAddCategoryModal()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
+                <button data-open-add-category-modal class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
                     ➕ Add Category
                 </button>
             </div>
@@ -465,15 +465,15 @@
                     <div class="flex justify-between items-center mb-3">
                         <h4 class="font-medium text-gray-900">{{ category }}</h4>
                         <div class="flex gap-2">
-                            <button onclick="openEditCategoryModal('{{ category }}')" class="text-blue-600 hover:text-blue-800 text-sm">✏️ Rename</button>
-                            <button onclick="deleteCategory('{{ category }}')" class="text-red-600 hover:text-red-800 text-sm">🗑️ Delete</button>
+                            <button data-open-edit-category-modal="{{ category }}" class="text-blue-600 hover:text-blue-800 text-sm">✏️ Rename</button>
+                            <button data-delete-category="{{ category }}" class="text-red-600 hover:text-red-800 text-sm">🗑️ Delete</button>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                         {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
                         {% for tt in category_tablets %}
                         <label class="flex items-center text-sm">
-                            <input type="checkbox" class="form-checkbox mr-2" checked onchange="updateTabletTypeCategory({{ tt.id }}, '{{ category }}', this.checked)">
+                            <input type="checkbox" class="form-checkbox mr-2" checked data-update-tablet-type-category-id="{{ tt.id }}" data-update-tablet-type-category-name="{{ category }}">
                             {{ tt.tablet_type_name }}
                         </label>
                         {% else %}
@@ -513,7 +513,7 @@
                                         <option value="">-- Select Category --</option>
                                         {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
                                     </select>
-                                    <button onclick="assignCategory({{ tt.id }}, '{{ tt.tablet_type_name | e }}')" 
+                                    <button data-assign-category-id="{{ tt.id }}" data-assign-category-name="{{ tt.tablet_type_name | e }}" 
                                             class="btn-primary text-sm px-4 py-2 bg-orange-600 hover:bg-orange-700 whitespace-nowrap">
                                         Assign Category
                                     </button>
@@ -539,7 +539,7 @@
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Machine Configuration</h3>
-                <button onclick="openAddMachineModal()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
+                <button data-open-add-machine-modal class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
                     ➕ Add Machine
                 </button>
             </div>
@@ -553,12 +553,12 @@
 </div>
 
 <!-- Machine Modal -->
-<div id="machine-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) closeMachineModal()">
+<div id="machine-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-machine-modal-overlay>
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-t-lg">
             <div class="flex justify-between items-center">
                 <h3 id="machine-modal-title" class="text-xl font-bold">Add Machine</h3>
-                <button onclick="closeMachineModal()" class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
+                <button data-close-machine-modal class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
             </div>
         </div>
         <div class="p-6 space-y-4">
@@ -572,8 +572,8 @@
                 <p class="text-xs text-gray-500 mt-1">How many blister cards does this machine produce per crank turn?</p>
             </div>
             <div class="flex justify-end gap-3 pt-4 border-t">
-                <button onclick="closeMachineModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button onclick="saveMachine()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Machine</button>
+                <button data-close-machine-modal class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button data-save-machine class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Machine</button>
             </div>
         </div>
     </div>
@@ -1419,5 +1419,97 @@ async function saveEditProduct() {
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('click', function (event) {
+    const toggleSectionBtn = event.target.closest('[data-toggle-section-id]');
+    if (toggleSectionBtn) {
+        toggleSection(toggleSectionBtn.dataset.toggleSectionId);
+        return;
+    }
+
+    const editTabletBtn = event.target.closest('[data-edit-tablet-type-id]');
+    if (editTabletBtn) {
+        editTabletType(editTabletBtn.dataset.editTabletTypeId);
+        return;
+    }
+    const deleteTabletBtn = event.target.closest('[data-delete-tablet-type-id]');
+    if (deleteTabletBtn) {
+        deleteTabletType(deleteTabletBtn.dataset.deleteTabletTypeId, deleteTabletBtn.dataset.tabletTypeName || '');
+        return;
+    }
+    const saveTabletBtn = event.target.closest('[data-save-tablet-type-id]');
+    if (saveTabletBtn) {
+        saveTabletType(saveTabletBtn.dataset.saveTabletTypeId);
+        return;
+    }
+    const cancelTabletBtn = event.target.closest('[data-cancel-tablet-edit-id]');
+    if (cancelTabletBtn) {
+        cancelTabletEdit(cancelTabletBtn.dataset.cancelTabletEditId);
+        return;
+    }
+
+    if (event.target.closest('[data-add-variety-pack-flavor]')) {
+        addVarietyPackFlavor();
+        return;
+    }
+
+    const deleteProductBtn = event.target.closest('[data-delete-product-id]');
+    if (deleteProductBtn) {
+        deleteProduct(deleteProductBtn.dataset.deleteProductId);
+        return;
+    }
+
+    if (event.target.closest('[data-open-add-category-modal]')) {
+        openAddCategoryModal();
+        return;
+    }
+    const renameCategoryBtn = event.target.closest('[data-open-edit-category-modal]');
+    if (renameCategoryBtn) {
+        openEditCategoryModal(renameCategoryBtn.dataset.openEditCategoryModal || '');
+        return;
+    }
+    const deleteCategoryBtn = event.target.closest('[data-delete-category]');
+    if (deleteCategoryBtn) {
+        deleteCategory(deleteCategoryBtn.dataset.deleteCategory || '');
+        return;
+    }
+
+    const assignCategoryBtn = event.target.closest('[data-assign-category-id]');
+    if (assignCategoryBtn) {
+        assignCategory(assignCategoryBtn.dataset.assignCategoryId, assignCategoryBtn.dataset.assignCategoryName || '');
+        return;
+    }
+
+    if (event.target.closest('[data-open-add-machine-modal]')) {
+        openAddMachineModal();
+        return;
+    }
+
+    const machineOverlay = event.target.closest('[data-machine-modal-overlay]');
+    if (machineOverlay && event.target === machineOverlay) {
+        closeMachineModal();
+        return;
+    }
+    if (event.target.closest('[data-close-machine-modal]')) {
+        closeMachineModal();
+        return;
+    }
+    if (event.target.closest('[data-save-machine]')) {
+        saveMachine();
+    }
+});
+
+document.addEventListener('change', function (event) {
+    const categoryCheckbox = event.target.closest('[data-update-tablet-type-category-id]');
+    if (categoryCheckbox) {
+        updateTabletTypeCategory(
+            categoryCheckbox.dataset.updateTabletTypeCategoryId,
+            categoryCheckbox.dataset.updateTabletTypeCategoryName || '',
+            categoryCheckbox.checked
+        );
+    }
+});
+</script>
 {% endblock %}
 

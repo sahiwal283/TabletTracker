@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.12] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (product config partial)
+- Converted a major subset of static inline handlers in `templates/product_config.html` to delegated `data-*` listener wiring.
+- Covered key tablet/product/category/machine interactions (section toggles, tablet edit/delete/save/cancel, category actions, machine modal open/close/save).
+- Preserved behavior while reducing inline handler coupling; dynamic modal/template-string handlers remain for a follow-up cleanup slice.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.11` → `2.47.12`.
+
+---
+
 ## [2.47.11] - 2026-03-26
 
 ### ✨ Enhancement
