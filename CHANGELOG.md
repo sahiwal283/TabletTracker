@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.18] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Final inline handler parity cleanup (modal manager)
+- Removed remaining inline `onclick` usage from `static/js/modal-manager.js` modal template strings.
+- Replaced with delegated `data-*` handlers for modal close and PO navigation actions.
+- This closes the last inline event-handler remnants in the repository.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.17` → `2.47.18`.
+
+---
+
 ## [2.47.17] - 2026-03-26
 
 ### ✨ Enhancement

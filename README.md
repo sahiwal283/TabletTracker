@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.17 (Phase 3 non-backend completion)
-- Dashboard and base shared modal surfaces now use delegated `data-*` event routing (no inline `onclick/onchange` in primary templates)
-- Inline handler cleanup is complete across core UI templates
+Current: v2.47.18 (Phase 3 non-backend completion)
+- Final inline-handler remnants in `static/js/modal-manager.js` were removed and replaced with delegated `data-*` routing
+- Inline `onclick/onchange` cleanup is now complete across the repository
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements
