@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.9] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (submissions page)
+- Removed remaining inline handler usage from `templates/submissions.html` (reassign/admin-reassign modal interactions).
+- Replaced inline handler wiring (`onclick`/`onchange` and direct property handlers) with `data-*` attributes and centralized delegated `click`/`change` listeners.
+- Preserved existing reassignment/admin override behavior and API interactions while reducing template-JS coupling.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.8` → `2.47.9`.
+
+---
+
 ## [2.47.8] - 2026-03-26
 
 ### ✨ Enhancement

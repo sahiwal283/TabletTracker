@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.8 (Phase 3 non-backend continuation)
-- Receiving templates now use delegated event handling instead of inline DOM handlers
-- Reduced template-JS coupling in receiving management and receiving details pages
+Current: v2.47.9 (Phase 3 non-backend continuation)
+- Submissions reassign/admin modal interactions now use delegated event handling
+- Removed remaining inline handler patterns from submissions template wiring
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements

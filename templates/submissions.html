@@ -526,8 +526,8 @@
 </div>
 
 <!-- Reassign Modal -->
-<div id="reassign-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeReassignModal(event)">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+<div id="reassign-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-reassign-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
         <!-- Header -->
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
             <div class="flex justify-between items-center">
@@ -535,7 +535,7 @@
                     <h3 class="text-xl font-bold">🔄 Reassign Submission to PO</h3>
                     <p class="text-sm text-blue-100 mt-1" id="reassign-modal-subtitle"></p>
                 </div>
-                <button onclick="closeReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                <button data-close-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                     ✕
                 </button>
             </div>
@@ -651,7 +651,8 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
             data.possible_receives.forEach(receive => {
                 const receiveDiv = document.createElement('div');
                 receiveDiv.className = 'border rounded-lg p-4 hover:bg-blue-50 cursor-pointer transition-colors border-gray-300';
-                receiveDiv.onclick = () => assignSubmissionToReceive(submissionId, receive.bag_id);
+                receiveDiv.dataset.assignReceiveSubmissionId = String(submissionId);
+                receiveDiv.dataset.assignReceiveBagId = String(receive.bag_id);
                 
                 const receiveDate = receive.received_date ? new Date(receive.received_date).toLocaleDateString() : 'N/A';
                 
@@ -775,13 +776,9 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
         modal = document.createElement('div');
         modal.id = 'admin-reassign-modal';
         modal.className = 'hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.onclick = function(event) {
-            if (event.target === modal) {
-                closeAdminReassignModal();
-            }
-        };
+        modal.setAttribute('data-admin-reassign-overlay', 'true');
         modal.innerHTML = `
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onclick="event.stopPropagation()">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
                 <!-- Header -->
                 <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
                     <div class="flex justify-between items-center">
@@ -789,7 +786,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
                             <h3 class="text-xl font-bold">🔧 Admin: Change PO Assignment</h3>
                             <p class="text-sm text-orange-100 mt-1" id="admin-reassign-modal-subtitle"></p>
                         </div>
-                        <button onclick="closeAdminReassignModal()" class="text-white hover:text-gray-200 text-2xl font-bold">
+                        <button data-close-admin-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold">
                             ✕
                         </button>
                     </div>
@@ -847,13 +844,8 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
     
     // Watch for checkbox change
     if (checkboxEl) {
-        checkboxEl.onchange = function() {
-            if (this.checked) {
-                loadAdminReassignPOs(submissionId, productName);
-            } else {
-                if (posSectionEl) posSectionEl.classList.add('hidden');
-            }
-        };
+        checkboxEl.dataset.adminReassignSubmissionId = String(submissionId);
+        checkboxEl.dataset.adminReassignProductName = String(productName || '');
     }
 }
 
@@ -891,7 +883,9 @@ async function loadAdminReassignPOs(submissionId, productName) {
             
             const poDiv = document.createElement('div');
             poDiv.className = `border rounded-lg p-4 hover:bg-orange-50 cursor-pointer transition-colors ${isCurrent ? 'border-orange-500 bg-orange-50' : 'border-gray-300'}`;
-            poDiv.onclick = () => adminReassignSubmission(submissionId, po.id, po.po_number);
+            poDiv.dataset.adminReassignSubmissionId = String(submissionId);
+            poDiv.dataset.adminReassignNewPoId = String(po.id);
+            poDiv.dataset.adminReassignNewPoNumber = String(po.po_number || '');
             
             poDiv.innerHTML = `
                 <div class="flex justify-between items-start">
@@ -1027,6 +1021,65 @@ function openReassignFromDetails(submissionId, poNumber, productName) {
         alert('Reassign function not available on this page. Please use the Submissions page to reassign.');
     }
 }
+
+document.addEventListener('click', function (event) {
+    const closeReassignBtn = event.target.closest('[data-close-reassign-modal]');
+    if (closeReassignBtn) {
+        closeReassignModal();
+        return;
+    }
+
+    const reassignOverlay = event.target.closest('[data-close-reassign-overlay]');
+    if (reassignOverlay && event.target === reassignOverlay) {
+        closeReassignModal(event);
+        return;
+    }
+
+    const assignReceiveCard = event.target.closest('[data-assign-receive-submission-id][data-assign-receive-bag-id]');
+    if (assignReceiveCard) {
+        assignSubmissionToReceive(assignReceiveCard.dataset.assignReceiveSubmissionId, assignReceiveCard.dataset.assignReceiveBagId);
+        return;
+    }
+
+    const adminOverlay = event.target.closest('[data-admin-reassign-overlay]');
+    if (adminOverlay && event.target === adminOverlay) {
+        closeAdminReassignModal(event);
+        return;
+    }
+
+    const closeAdminBtn = event.target.closest('[data-close-admin-reassign-modal]');
+    if (closeAdminBtn) {
+        closeAdminReassignModal();
+        return;
+    }
+
+    const adminReassignCard = event.target.closest('[data-admin-reassign-submission-id][data-admin-reassign-new-po-id]');
+    if (adminReassignCard) {
+        adminReassignSubmission(
+            adminReassignCard.dataset.adminReassignSubmissionId,
+            adminReassignCard.dataset.adminReassignNewPoId,
+            adminReassignCard.dataset.adminReassignNewPoNumber || ''
+        );
+    }
+});
+
+document.addEventListener('change', function (event) {
+    const checkbox = event.target.closest('#admin-reassign-confirm-checkbox');
+    if (!checkbox) {
+        return;
+    }
+    if (checkbox.checked) {
+        loadAdminReassignPOs(
+            checkbox.dataset.adminReassignSubmissionId,
+            checkbox.dataset.adminReassignProductName || ''
+        );
+    } else {
+        const posSectionEl = document.getElementById('admin-reassign-pos-section');
+        if (posSectionEl) {
+            posSectionEl.classList.add('hidden');
+        }
+    }
+});
 </script>
 {% endblock %}
 
