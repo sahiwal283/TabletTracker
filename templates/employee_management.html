@@ -17,7 +17,7 @@
             <svg class="w-8 h-8 mr-4" aria-hidden="true"><use href="#icon-users" /></svg>
             <h1 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Employee Management</h1>
         </div>
-        <button onclick="showAddEmployeeForm()" class="btn-primary flex items-center">
+        <button data-show-add-employee-form class="btn-primary flex items-center">
             <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plus" /></svg>
             Add Employee
         </button>
@@ -60,7 +60,7 @@
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-check" /></svg>
                 Add Employee
             </button>
-            <button type="button" onclick="hideAddEmployeeForm()" class="btn-secondary flex items-center">
+            <button type="button" data-hide-add-employee-form class="btn-secondary flex items-center">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-x" /></svg>
                 Cancel
             </button>
@@ -105,7 +105,7 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex items-center">
-                            <select onchange="updateEmployeeRole({{ employee.id }}, this.value)" 
+                            <select data-update-employee-role-id="{{ employee.id }}"
                                     class="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 <option value="warehouse_staff" {% if employee.role == 'warehouse_staff' %}selected{% endif %}>Warehouse Staff</option>
                                 <option value="supervisor" {% if employee.role == 'supervisor' %}selected{% endif %}>Supervisor</option>
@@ -154,11 +154,11 @@
                         {{ employee.created_at|to_est if employee.created_at else 'Unknown' }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                        <button onclick="toggleEmployee({{ employee.id }})" 
+                        <button data-toggle-employee-id="{{ employee.id }}" 
                                 class="text-blue-600 hover:text-blue-900 font-medium">
                             {% if employee.is_active %}Deactivate{% else %}Activate{% endif %}
                         </button>
-                        <button onclick="deleteEmployee({{ employee.id }}, '{{ employee.full_name }}')" 
+                        <button data-delete-employee-id="{{ employee.id }}" data-employee-name="{{ employee.full_name }}" 
                                 class="text-red-600 hover:text-red-900 font-medium ml-3">
                             Delete
                         </button>
@@ -297,5 +297,32 @@ async function deleteEmployee(employeeId, employeeName) {
         showError('Failed to delete employee: ' + error.message);
     }
 }
+
+document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-show-add-employee-form]')) {
+        showAddEmployeeForm();
+        return;
+    }
+    if (event.target.closest('[data-hide-add-employee-form]')) {
+        hideAddEmployeeForm();
+        return;
+    }
+    const toggleBtn = event.target.closest('[data-toggle-employee-id]');
+    if (toggleBtn) {
+        toggleEmployee(toggleBtn.dataset.toggleEmployeeId);
+        return;
+    }
+    const deleteBtn = event.target.closest('[data-delete-employee-id]');
+    if (deleteBtn) {
+        deleteEmployee(deleteBtn.dataset.deleteEmployeeId, deleteBtn.dataset.employeeName || '');
+    }
+});
+
+document.addEventListener('change', function (event) {
+    const roleSelect = event.target.closest('[data-update-employee-role-id]');
+    if (roleSelect) {
+        updateEmployeeRole(roleSelect.dataset.updateEmployeeRoleId, roleSelect.value);
+    }
+});
 </script>
 {% endblock %}

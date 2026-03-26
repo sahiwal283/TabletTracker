@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.10] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (admin and shipments pages)
+- Removed remaining inline handler usage from:
+  - `templates/employee_management.html`
+  - `templates/shipments_public.html`
+- Replaced inline `onclick`/`onchange` attributes with `data-*` attributes and delegated listeners for add/cancel form actions, role updates, employee toggles/deletes, and shipment deletion.
+- Preserved existing behavior and API calls while reducing template-JS coupling.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.9` → `2.47.10`.
+
+---
+
 ## [2.47.9] - 2026-03-26
 
 ### ✨ Enhancement

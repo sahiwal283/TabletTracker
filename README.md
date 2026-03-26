@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.9 (Phase 3 non-backend continuation)
-- Submissions reassign/admin modal interactions now use delegated event handling
-- Removed remaining inline handler patterns from submissions template wiring
+Current: v2.47.10 (Phase 3 non-backend continuation)
+- Employee management and shipments pages now use delegated event handling
+- Removed remaining inline handler patterns from those templates
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements
