@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.47.17] - 2026-03-26
+
+### ✨ Enhancement
+
+#### Phase 3 non-backend UI event delegation cleanup (final dashboard/base completion)
+- Removed remaining inline event handlers from `templates/dashboard.html` and `templates/base.html`, including dynamic modal/template-string interactions.
+- Added delegated `data-*` action routing for submission/PO/receive modal actions, bag controls, and shared detail modal controls.
+- Completed project-wide inline `onclick`/`onchange` cleanup across all primary templates.
+- **Verification**: full regression test suite passes (`46` tests).
+- **Versioning**: **PATCH** bump `2.47.16` → `2.47.17`.
+
+---
+
 ## [2.47.16] - 2026-03-26
 
 ### ✨ Enhancement

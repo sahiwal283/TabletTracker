@@ -109,9 +109,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.16 (Phase 3 non-backend continuation)
-- Product config, receiving, and purchase orders templates now have full inline handler removal with delegated `data-*` action routing
-- Remaining refactor focus is concentrated in dashboard/base shared dynamic modal surfaces
+Current: v2.47.17 (Phase 3 non-backend completion)
+- Dashboard and base shared modal surfaces now use delegated `data-*` event routing (no inline `onclick/onchange` in primary templates)
+- Inline handler cleanup is complete across core UI templates
 - Preserved existing UI behavior and API interactions with cleaner event wiring
 - Full regression suite green (`46` tests)
 - PATCH release: backward-compatible backend maintainability improvements
