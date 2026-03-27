@@ -43,20 +43,22 @@
     <div id="content-active" class="tab-content space-y-6">
         {% for po_group in grouped_shipments %}
         {% if not po_group.po_closed %}
-        <!-- PO Group Header -->
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 px-4 py-3 mb-2">
+        <!-- PO Group Header (whole bar toggles expand — use getAttribute in JS, not dataset.togglePoCollapse) -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 px-4 py-3 mb-2 cursor-pointer select-none"
+             data-toggle-po-collapse="po-{{ po_group.po_number }}"
+             role="button"
+             tabindex="0"
+             aria-label="Show or hide shipments for {{ po_group.po_number }}">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">
                     📋 {{ po_group.po_number }}
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
                 </h2>
-                <button data-toggle-po-collapse="po-{{ po_group.po_number }}" 
-                        class="text-gray-600 hover:text-gray-900 transition-colors"
-                        aria-label="Toggle collapse">
+                <span class="text-gray-600 pointer-events-none" aria-hidden="true">
                     <svg id="icon-po-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                </button>
+                </span>
             </div>
         </div>
         
@@ -188,19 +190,21 @@
         
         <!-- Receives Without PO -->
         {% if shipments_without_po %}
-        <div class="bg-gradient-to-r from-gray-50 to-gray-100 border-l-4 border-gray-400 px-4 py-3 mb-2">
+        <div class="bg-gradient-to-r from-gray-50 to-gray-100 border-l-4 border-gray-400 px-4 py-3 mb-2 cursor-pointer select-none"
+             data-toggle-po-collapse="unassigned-receives"
+             role="button"
+             tabindex="0"
+             aria-label="Show or hide unassigned receives">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">
                     📦 Unassigned Receives
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ shipments_without_po|length }} receive{{ 's' if shipments_without_po|length != 1 else '' }})</span>
                 </h2>
-                <button data-toggle-po-collapse="unassigned-receives" 
-                        class="text-gray-600 hover:text-gray-900 transition-colors"
-                        aria-label="Toggle collapse">
+                <span class="text-gray-600 pointer-events-none" aria-hidden="true">
                     <svg id="icon-unassigned-receives" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                </button>
+                </span>
             </div>
         </div>
         <div id="unassigned-receives" class="space-y-4 ml-4 hidden">
@@ -308,20 +312,22 @@
         {% for po_group in grouped_shipments %}
         {% if po_group.po_closed %}
         <!-- PO Group Header -->
-        <div class="bg-gradient-to-r from-gray-50 to-gray-100 border-l-4 border-gray-500 px-4 py-3 mb-2">
+        <div class="bg-gradient-to-r from-gray-50 to-gray-100 border-l-4 border-gray-500 px-4 py-3 mb-2 cursor-pointer select-none"
+             data-toggle-po-collapse="po-closed-{{ po_group.po_number }}"
+             role="button"
+             tabindex="0"
+             aria-label="Show or hide closed PO {{ po_group.po_number }} shipments">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">
                     📋 {{ po_group.po_number }}
                     <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed</span>
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
                 </h2>
-                <button data-toggle-po-collapse="po-closed-{{ po_group.po_number }}" 
-                        class="text-gray-600 hover:text-gray-900 transition-colors"
-                        aria-label="Toggle collapse">
+                <span class="text-gray-600 pointer-events-none" aria-hidden="true">
                     <svg id="icon-po-closed-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                </button>
+                </span>
             </div>
         </div>
         
@@ -2788,16 +2794,19 @@ function switchReceivingTab(tabName) {
 
 // Toggle PO collapse/expand
 function togglePOCollapse(poId) {
+    if (!poId) return;
     const contentDiv = document.getElementById(poId);
     const iconSvg = document.getElementById(`icon-${poId}`);
     
-    if (!contentDiv || !iconSvg) return;
+    if (!contentDiv) return;
     
     if (contentDiv.classList.contains('hidden')) {
         // Expand
         contentDiv.classList.remove('hidden');
-        iconSvg.classList.remove('rotate-0');
-        iconSvg.classList.add('rotate-180');
+        if (iconSvg) {
+            iconSvg.classList.remove('rotate-0');
+            iconSvg.classList.add('rotate-180');
+        }
         
         // When expanding PO, keep closed shipments collapsed
         // Find all shipments within this PO that are closed
@@ -2825,43 +2834,61 @@ function togglePOCollapse(poId) {
     } else {
         // Collapse
         contentDiv.classList.add('hidden');
-        iconSvg.classList.remove('rotate-180');
-        iconSvg.classList.add('rotate-0');
+        if (iconSvg) {
+            iconSvg.classList.remove('rotate-180');
+            iconSvg.classList.add('rotate-0');
+        }
     }
 }
+window.switchReceivingTab = switchReceivingTab;
 
 // Toggle shipment collapse/expand
 function toggleShipmentCollapse(shipmentId) {
+    if (!shipmentId) return;
     const contentDiv = document.getElementById(shipmentId);
     const iconSvg = document.getElementById(`icon-${shipmentId}`);
     
-    if (!contentDiv || !iconSvg) return;
+    if (!contentDiv) return;
     
     if (contentDiv.classList.contains('hidden')) {
         // Expand
         contentDiv.classList.remove('hidden');
-        iconSvg.classList.remove('rotate-0');
-        iconSvg.classList.add('rotate-180');
+        if (iconSvg) {
+            iconSvg.classList.remove('rotate-0');
+            iconSvg.classList.add('rotate-180');
+        }
     } else {
         // Collapse
         contentDiv.classList.add('hidden');
-        iconSvg.classList.remove('rotate-180');
-        iconSvg.classList.add('rotate-0');
+        if (iconSvg) {
+            iconSvg.classList.remove('rotate-180');
+            iconSvg.classList.add('rotate-0');
+        }
     }
 }
+
+document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const poToggle = event.target.closest('[data-toggle-po-collapse]');
+    if (!poToggle || event.target !== poToggle) return;
+    event.preventDefault();
+    togglePOCollapse(poToggle.getAttribute('data-toggle-po-collapse'));
+});
 
 document.addEventListener('click', function (event) {
     const poToggle = event.target.closest('[data-toggle-po-collapse]');
     if (poToggle) {
         event.stopPropagation();
-        togglePOCollapse(poToggle.dataset.togglePoCollapse);
+        const poId = poToggle.getAttribute('data-toggle-po-collapse');
+        togglePOCollapse(poId);
         return;
     }
 
     const shipmentToggle = event.target.closest('[data-toggle-shipment-collapse]');
     if (shipmentToggle) {
         event.stopPropagation();
-        toggleShipmentCollapse(shipmentToggle.dataset.toggleShipmentCollapse);
+        const sid = shipmentToggle.getAttribute('data-toggle-shipment-collapse');
+        toggleShipmentCollapse(sid);
         return;
     }
 

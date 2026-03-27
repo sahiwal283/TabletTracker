@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.48.1] - 2026-03-26
+
+### 🐛 Fix
+
+#### Shipments Received: Active PO rows expand/collapse
+- **Cause**: `data-toggle-po-collapse` was read via **`dataset.togglePoCollapse`**, which is unreliable for multi-hyphen data attributes in some browsers; **`togglePOCollapse` also returned early** when the chevron SVG was missing. The **toggle control was only on the small chevron**, so clicks on the PO title bar did nothing.
+- **Fix**: Read **`getAttribute('data-toggle-po-collapse')`**, make the **entire PO header bar** (active, unassigned, closed) the toggle target with **`role="button"`** / **`tabindex="0"`**, animate the chevron only when present, and assign **`window.switchReceivingTab`** so `receiving-ui.js` tab switching always finds the handler.
+- **Versioning**: **PATCH** `2.48.0` → `2.48.1`.
+
+---
+
 ## [2.47.23] - 2026-03-26
 
 ### ✨ Enhancement
