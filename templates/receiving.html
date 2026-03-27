@@ -48,7 +48,7 @@
              data-toggle-po-collapse="po-{{ po_group.po_number }}"
              role="button"
              tabindex="0"
-             aria-label="Show or hide shipments for {{ po_group.po_number }}">
+             aria-label="Show or hide shipments for {{ po_group.po_number | e }}">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">
                     📋 {{ po_group.po_number }}
@@ -316,7 +316,7 @@
              data-toggle-po-collapse="po-closed-{{ po_group.po_number }}"
              role="button"
              tabindex="0"
-             aria-label="Show or hide closed PO {{ po_group.po_number }} shipments">
+             aria-label="Show or hide closed PO {{ po_group.po_number | e }} shipments">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">
                     📋 {{ po_group.po_number }}
@@ -627,9 +627,9 @@ let currentPoId = null;
 let poSelectListenerAdded = false; // Track if PO select listener has been added
 
 // Store categories and tablet types from server.
-// Using JSON.parse on an escaped JSON string keeps this block parser-friendly.
-var categories = JSON.parse("{{ categories | tojson | safe }}");
-var tabletTypes = JSON.parse("{{ tablet_types | tojson | safe }}");
+// Use |tojson as a JS literal (do NOT wrap in JSON.parse("...") — nested quotes in data break the parser).
+var categories = {{ categories | tojson | safe }};
+var tabletTypes = {{ tablet_types | tojson | safe }};
 let shipmentBatchDefaultRowCounter = 0;
 
 function getTabletTypeById(tabletTypeId) {

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.48.2] - 2026-03-26
+
+### 🐛 Fix
+
+#### Shipments Received: script syntax error blocked PO accordion
+- **Cause**: `var x = JSON.parse("{{ data | tojson }}")` embeds JSON **inside a JS double-quoted string**. Any `"` or line breaks in serialized data can produce **`Uncaught SyntaxError: missing ) after argument list`**, so the rest of the page script (including PO expand/collapse) never runs.
+- **Fix**: Assign **`{{ categories | tojson | safe }}` and `{{ tablet_types | tojson | safe }}` as JS literals** (Flask/Jinja pattern — no `JSON.parse` wrapper). Escape PO numbers in `aria-label` with **`|e`** for safety.
+- **Versioning**: **PATCH** `2.48.1` → `2.48.2`.
+
+---
+
 ## [2.48.1] - 2026-03-26
 
 ### 🐛 Fix
