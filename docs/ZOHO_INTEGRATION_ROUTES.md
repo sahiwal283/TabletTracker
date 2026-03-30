@@ -256,6 +256,10 @@ Content-Type: application/json
 
 ## Environment Variables Required
 
+**Self-hosted (Zoho integration service):** set `ZOHO_SERVICE_BASE_URL` (e.g. `http://zoho-integration:9503`). The app uses `{ZOHO_SERVICE_BASE_URL}/inventory/v1` for API calls and `{ZOHO_SERVICE_BASE_URL}/oauth/v2/token` for tokens unless you override with `ZOHO_INVENTORY_API_BASE` / `ZOHO_TOKEN_URL`. Optional `ZOHO_SERVICE_EXTRA_HEADERS` is a JSON object merged into every Zoho HTTP request.
+
+**Credentials (still required for refresh-token flow):**
+
 ```bash
 ZOHO_CLIENT_ID=<from zoho api console>
 ZOHO_CLIENT_SECRET=<from zoho api console>

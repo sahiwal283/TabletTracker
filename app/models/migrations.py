@@ -174,6 +174,8 @@ class MigrationRunner:
         self._add_column_if_not_exists(
             'warehouse_submissions', 'repack_machine_count', 'INTEGER DEFAULT 0'
         )
+        self._add_column_if_not_exists('warehouse_submissions', 'bag_start_time', 'TEXT')
+        self._add_column_if_not_exists('warehouse_submissions', 'bag_end_time', 'TEXT')
     
     def _migrate_shipments(self):
         """Migrate shipments table"""
@@ -200,6 +202,8 @@ class MigrationRunner:
         
         # Add bottle reservation flag (v2.24.0+dev) - for variety pack bag reservation
         self._add_column_if_not_exists('bags', 'reserved_for_bottles', 'BOOLEAN DEFAULT 0')
+        self._add_column_if_not_exists('bags', 'bag_weight_kg', 'REAL')
+        self._add_column_if_not_exists('bags', 'estimated_tablets_from_weight', 'INTEGER')
     
     def _migrate_tablet_type_categories(self):
         """Migrate tablet_type_categories table - ensure it exists"""

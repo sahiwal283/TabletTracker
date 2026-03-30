@@ -23,6 +23,7 @@ from app.utils.db_utils import get_db, db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, role_required, employee_required
 from app.utils.route_helpers import get_setting, ensure_app_settings_table, ensure_submission_type_column
 from app.utils.receive_tracking import find_bag_for_submission
+from app.utils.eastern_datetime import parse_optional_eastern
 from app.services.submission_calculator import calculate_repack_output_good
 from app.services.repack_allocation_service import (
     allocate_repack_tablets,
@@ -1733,7 +1734,8 @@ def edit_submission(submission_id):
                        loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
                        bottles_made, machine_id,
                        COALESCE(submission_type, 'packaged') as submission_type,
-                       repack_vendor_return_notes, repack_machine_count
+                       repack_vendor_return_notes, repack_machine_count,
+                       bag_start_time, bag_end_time
                 FROM warehouse_submissions
                 WHERE id = ?
             ''', (submission_id,)).fetchone()
@@ -1941,6 +1943,19 @@ def edit_submission(submission_id):
             
             # Get receipt_number from form data
             receipt_number = (data.get('receipt_number') or '').strip() or None
+
+            bag_start_parsed = None
+            bag_end_parsed = None
+            if submission_type == 'machine' and 'bag_start_time' in data:
+                try:
+                    bag_start_parsed = parse_optional_eastern(data.get('bag_start_time'))
+                except ValueError as ve:
+                    return jsonify({'success': False, 'error': f'Invalid bag start time: {ve}'}), 400
+            elif submission_type == 'packaged' and 'bag_end_time' in data:
+                try:
+                    bag_end_parsed = parse_optional_eastern(data.get('bag_end_time'))
+                except ValueError as ve:
+                    return jsonify({'success': False, 'error': f'Invalid bag end time: {ve}'}), 400
             
             # Find the correct bag_id if box_number and bag_number are provided
             new_box_number = data.get('box_number')
@@ -1967,17 +1982,30 @@ def edit_submission(submission_id):
             # Update the submission
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
             if submission_type == 'machine':
-                conn.execute('''
-                    UPDATE warehouse_submissions
-                    SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
-                        damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
-                        machine_id = ?
-                    WHERE id = ?
-                ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
-                      damaged_tablets, new_box_number, new_bag_number, new_bag_id,
-                      data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
-                      product_name_to_use, inventory_item_id, new_machine_id, submission_id))
+                if 'bag_start_time' in data:
+                    conn.execute('''
+                        UPDATE warehouse_submissions
+                        SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
+                            damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                            submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                            machine_id = ?, bag_start_time = ?
+                        WHERE id = ?
+                    ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
+                          damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                          data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
+                          product_name_to_use, inventory_item_id, new_machine_id, bag_start_parsed, submission_id))
+                else:
+                    conn.execute('''
+                        UPDATE warehouse_submissions
+                        SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
+                            damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                            submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                            machine_id = ?
+                        WHERE id = ?
+                    ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
+                          damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                          data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
+                          product_name_to_use, inventory_item_id, new_machine_id, submission_id))
             elif submission_type == 'bottle':
                 bottles_made = (displays_made * bottles_per_display) + packs_remaining
                 conn.execute('''
@@ -2047,16 +2075,29 @@ def edit_submission(submission_id):
                     ),
                 )
             else:
-                conn.execute('''
-                    UPDATE warehouse_submissions
-                    SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
-                            damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                            submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
-                    WHERE id = ?
-                ''', (displays_made, packs_remaining, loose_tablets,
-                          damaged_tablets, new_box_number, new_bag_number, new_bag_id,
-                          data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
-                          product_name_to_use, inventory_item_id, submission_id))
+                if submission_type == 'packaged' and 'bag_end_time' in data:
+                    conn.execute('''
+                        UPDATE warehouse_submissions
+                        SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
+                                damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                                bag_end_time = ?
+                        WHERE id = ?
+                    ''', (displays_made, packs_remaining, loose_tablets,
+                              damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                              data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                              product_name_to_use, inventory_item_id, bag_end_parsed, submission_id))
+                else:
+                    conn.execute('''
+                        UPDATE warehouse_submissions
+                        SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
+                                damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
+                        WHERE id = ?
+                    ''', (displays_made, packs_remaining, loose_tablets,
+                              damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                              data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                              product_name_to_use, inventory_item_id, submission_id))
             
             # Update PO line counts if assigned to a PO
             if old_po_id and inventory_item_id:

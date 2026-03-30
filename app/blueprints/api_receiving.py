@@ -28,7 +28,7 @@ from app.services.receiving_admin_service import (
     unpublish_receiving as unpublish_receiving_service,
     assign_po_to_receiving as assign_po_to_receiving_service,
 )
-from app.services.zoho_service import zoho_api
+from app.services.zoho_service import zoho_api, parse_zoho_item_weight_grams
 from app.services.chart_service import generate_bag_chart_image
 from config import Config
 
@@ -36,6 +36,28 @@ bp = Blueprint('api_receiving', __name__)
 
 
 BATCH_VALUE_PATTERN = re.compile(r'^[A-Za-z0-9-]+$')
+
+
+@bp.route('/api/tablet-types/<int:tablet_type_id>/zoho-item-weight', methods=['GET'])
+@employee_required
+def zoho_item_weight_for_tablet_type(tablet_type_id):
+    """Return whether Zoho has a unit weight (grams) for this tablet type's inventory item."""
+    try:
+        with db_read_only() as conn:
+            row = conn.execute(
+                'SELECT inventory_item_id FROM tablet_types WHERE id = ?',
+                (tablet_type_id,),
+            ).fetchone()
+        if not row or not row['inventory_item_id']:
+            return jsonify({'has_weight': False, 'grams_per_tablet': None})
+        zoho_item = zoho_api.get_item(row['inventory_item_id'])
+        grams = parse_zoho_item_weight_grams(zoho_item)
+        ok = grams is not None and grams > 0
+        return jsonify({'has_weight': ok, 'grams_per_tablet': grams if ok else None})
+    except Exception as e:
+        current_app.logger.error(f"zoho_item_weight_for_tablet_type: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def normalize_batch_number(value):
@@ -1588,14 +1610,50 @@ def save_receives():
                     elif shipment_batch_defaults.get(tablet_type_id_int):
                         effective_batch_number = shipment_batch_defaults[tablet_type_id_int]
                         batch_source = 'shipment_default'
+
+                    bag_weight_kg = None
+                    estimated_tablets_from_weight = None
+                    bw_raw = bag.get('bag_weight_kg')
+                    if bw_raw is not None and str(bw_raw).strip() != '':
+                        try:
+                            bag_weight_kg = float(bw_raw)
+                        except (TypeError, ValueError):
+                            return jsonify({
+                                'success': False,
+                                'error': f'Invalid bag weight (kg) for bag {bag_number}',
+                            }), 400
+                        if bag_weight_kg < 0:
+                            return jsonify({'success': False, 'error': 'Bag weight cannot be negative'}), 400
+                        tt_row = conn.execute(
+                            'SELECT inventory_item_id FROM tablet_types WHERE id = ?',
+                            (tablet_type_id_int,),
+                        ).fetchone()
+                        if not tt_row or not tt_row['inventory_item_id']:
+                            return jsonify({
+                                'success': False,
+                                'error': 'Tablet type has no Zoho inventory item; cannot record bag weight.',
+                            }), 400
+                        zoho_item = zoho_api.get_item(tt_row['inventory_item_id'])
+                        grams = parse_zoho_item_weight_grams(zoho_item)
+                        if not grams:
+                            return jsonify({
+                                'success': False,
+                                'error': (
+                                    'No weight configured in Zoho for this item. '
+                                    'Remove the weight field or add weight in Zoho Inventory.'
+                                ),
+                            }), 400
+                        estimated_tablets_from_weight = int((bag_weight_kg * 1000.0) / grams)
                     
                     conn.execute('''
                         INSERT INTO bags (
-                            small_box_id, bag_number, bag_label_count, tablet_type_id, status, batch_number, batch_source
+                            small_box_id, bag_number, bag_label_count, tablet_type_id, status, batch_number, batch_source,
+                            bag_weight_kg, estimated_tablets_from_weight
                         )
-                        VALUES (?, ?, ?, ?, 'Available', ?, ?)
+                        VALUES (?, ?, ?, ?, 'Available', ?, ?, ?, ?)
                     ''', (
-                        small_box_id, bag_number, bag_count, tablet_type_id_int, effective_batch_number, batch_source
+                        small_box_id, bag_number, bag_count, tablet_type_id_int, effective_batch_number, batch_source,
+                        bag_weight_kg, estimated_tablets_from_weight,
                     ))
                     total_bags += 1
             

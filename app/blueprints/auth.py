@@ -135,3 +135,9 @@ def version():
         'description': __description__
     })
 
+
+@bp.route('/health')
+def health():
+    """Liveness for reverse proxies and orchestration (no auth)."""
+    return jsonify({'status': 'ok'}), 200
+

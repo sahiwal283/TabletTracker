@@ -8,33 +8,40 @@ logger = logging.getLogger(__name__)
 
 class ZohoInventoryAPI:
     def __init__(self):
-        self.base_url = 'https://www.zohoapis.com/inventory/v1'
+        self.base_url = Config.ZOHO_INVENTORY_API_BASE.rstrip("/")
+        self.token_url = Config.ZOHO_TOKEN_URL
         self.organization_id = Config.ZOHO_ORGANIZATION_ID
         self.access_token = None
         self.token_expires_at = None
-        
+        self._extra_headers = dict(Config.ZOHO_SERVICE_EXTRA_HEADERS or {})
+
+    def _merge_headers(self, headers):
+        merged = dict(self._extra_headers)
+        merged.update(headers)
+        return merged
+
     def get_access_token(self):
         """Get a fresh access token using refresh token"""
         if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
             return self.access_token
-            
-        url = 'https://accounts.zoho.com/oauth/v2/token'
+
+        url = self.token_url
         data = {
             'refresh_token': Config.ZOHO_REFRESH_TOKEN,
             'client_id': Config.ZOHO_CLIENT_ID,
             'client_secret': Config.ZOHO_CLIENT_SECRET,
             'grant_type': 'refresh_token'
         }
-        
+
         # Validate credentials are present
         if not Config.ZOHO_CLIENT_ID or not Config.ZOHO_CLIENT_SECRET or not Config.ZOHO_REFRESH_TOKEN:
             error_msg = "Zoho API credentials not configured. Please set ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, and ZOHO_REFRESH_TOKEN in .env file."
             logger.error(error_msg)
             raise ValueError(error_msg)
-        
+
         try:
             # Add timeout to prevent hanging (30 seconds)
-            response = requests.post(url, data=data, timeout=30)
+            response = requests.post(url, data=data, headers=self._merge_headers({}), timeout=30)
             response.raise_for_status()
             token_data = response.json()
             
@@ -52,7 +59,7 @@ class ZohoInventoryAPI:
             return self.access_token
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error getting access token from Zoho: {e}")
+            logger.error(f"Error getting access token from Zoho (token URL: {self.token_url}): {e}")
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"Response body: {e.response.text}")
             raise
@@ -64,11 +71,13 @@ class ZohoInventoryAPI:
             return None
             
         url = f"{self.base_url}/{endpoint}"
-        headers = {
-            'Authorization': f'Zoho-oauthtoken {token}',
-            'Content-Type': 'application/json'
-        }
-        
+        headers = self._merge_headers(
+            {
+                'Authorization': f'Zoho-oauthtoken {token}',
+                'Content-Type': 'application/json',
+            }
+        )
+
         params = {'organization_id': self.organization_id}
         if extra_params:
             params.update(extra_params)
@@ -125,6 +134,13 @@ class ZohoInventoryAPI:
         endpoint = 'items'
         params = {'per_page': per_page}
         return self.make_request(endpoint, extra_params=params)
+
+    def get_item(self, item_id):
+        """GET a single inventory item by Zoho item_id (for weight, etc.)."""
+        if not item_id:
+            return None
+        endpoint = f'items/{item_id}'
+        return self.make_request(endpoint)
     
     def create_purchase_order(self, po_data):
         """Create a purchase order in Zoho Inventory"""
@@ -257,10 +273,12 @@ class ZohoInventoryAPI:
             return False
         
         url = f"{self.base_url}/purchasereceives/{receive_id}/attachment"
-        headers = {
-            'Authorization': f'Zoho-oauthtoken {token}'
-            # Note: Don't set Content-Type for multipart/form-data, requests handles it
-        }
+        headers = self._merge_headers(
+            {
+                'Authorization': f'Zoho-oauthtoken {token}',
+                # Note: Don't set Content-Type for multipart/form-data, requests handles it
+            }
+        )
         
         params = {'organization_id': self.organization_id}
         
@@ -701,6 +719,36 @@ class ZohoInventoryAPI:
             logger.warning(f"Error during submission re-evaluation: {e}")
         
         return True, f"✅ Synced {synced_count} tablet POs, skipped {skipped_count} non-tablet POs"
+
+def parse_zoho_item_weight_grams(item_response):
+    """
+    Return item unit weight in grams from Zoho GET /items/{id} JSON, or None.
+    Values come only from API fields — never hardcode tablet mass in application code.
+    """
+    if not item_response or not isinstance(item_response, dict):
+        return None
+    item = item_response.get('item')
+    if not isinstance(item, dict):
+        item = item_response
+    w = item.get('weight')
+    if w is None:
+        return None
+    try:
+        w = float(w)
+    except (TypeError, ValueError):
+        return None
+    if w <= 0:
+        return None
+    unit = item.get('weight_unit') or item.get('unit') or 'g'
+    unit = str(unit).lower().strip()
+    if unit in ('kg', 'kilogram', 'kilograms'):
+        return w * 1000.0
+    if unit in ('lb', 'lbs', 'pound', 'pounds'):
+        return w * 453.592
+    if unit in ('g', 'gram', 'grams', 'gm'):
+        return w
+    return w
+
 
 # Global instance
 zoho_api = ZohoInventoryAPI()

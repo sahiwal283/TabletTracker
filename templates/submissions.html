@@ -294,6 +294,9 @@
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Cards<br><span class="text-xs font-normal normal-case">(remaining)</span>
                     </th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                        Bag time<br><span class="text-xs font-normal normal-case">(Eastern)</span>
+                    </th>
                     {% elif active_tab == 'bottles' %}
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         Displays Made
@@ -386,6 +389,15 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">
                         {{ sub.packs_remaining if sub.packs_remaining else '' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
+                        {% if sub.submission_type == 'machine' %}
+                            {{ sub.bag_start_time|to_est if sub.bag_start_time else '—' }}
+                        {% elif sub.submission_type == 'packaged' %}
+                            {{ sub.bag_end_time|to_est if sub.bag_end_time else '—' }}
+                        {% else %}
+                            —
+                        {% endif %}
                     </td>
                     {% elif active_tab == 'bottles' %}
                     <td class="px-6 py-4 whitespace-nowrap text-base text-gray-500">

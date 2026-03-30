@@ -1099,7 +1099,7 @@ async function restoreSavedDraft(savedDraft) {
     // Parse saved fields to reconstruct boxes
     const boxData = {};
     for (const [key, value] of Object.entries(savedDraft.fields)) {
-        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number|bag_specific_batch_number)$/);
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number|bag_specific_batch_number|bag_weight_kg)$/);
         if (match) {
             const boxNum = parseInt(match[1]);
             const bagNum = parseInt(match[2]);
@@ -1365,6 +1365,13 @@ function addBag(boxNumber) {
                        autocomplete="off">
             </div>
         </div>
+        <div id="box_${boxNumber}_bag_${bagSequence}_weight_row" class="hidden mt-3 p-3 bg-slate-50 rounded border border-slate-200">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Bag weight (kg)</label>
+            <input type="number" name="box_${boxNumber}_bag_${bagSequence}_bag_weight_kg" min="0" step="0.001"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bag-weight-kg-input"
+                   placeholder="Optional — full bag in kg">
+            <p class="text-xs text-gray-500 mt-1">Shown only when this tablet type has a unit weight in Zoho. Tablet estimate is rough.</p>
+        </div>
     `;
     
     bagsContainer.appendChild(bagDiv);
@@ -1387,6 +1394,7 @@ function addBag(boxNumber) {
         // Skip if this is a programmatic change to the same value (e.g., from copy function)
         // Only process if flavor actually changed or is newly selected
         if (previousFlavor === tabletTypeId) {
+            refreshBagWeightRowVisibility(boxNumber, bagSequence);
             return; // Same flavor, no need to increment/decrement
         }
         
@@ -1410,7 +1418,35 @@ function addBag(boxNumber) {
             updateBagLabel(boxNumber, bagSequence, null, null);
         }
         refreshShipmentBatchDefaultTabletOptions();
+        refreshBagWeightRowVisibility(boxNumber, bagSequence);
     });
+    refreshBagWeightRowVisibility(boxNumber, bagSequence);
+}
+
+async function refreshBagWeightRowVisibility(boxNumber, bagSequence) {
+    const row = document.getElementById(`box_${boxNumber}_bag_${bagSequence}_weight_row`);
+    if (!row) return;
+    const sel = document.querySelector(`select[name="box_${boxNumber}_bag_${bagSequence}_tablet_type"]`);
+    if (!sel || !sel.value) {
+        row.classList.add('hidden');
+        const inp = row.querySelector('.bag-weight-kg-input');
+        if (inp) inp.value = '';
+        return;
+    }
+    try {
+        const r = await fetch(`/api/tablet-types/${encodeURIComponent(sel.value)}/zoho-item-weight`);
+        const j = await r.json();
+        if (j.has_weight) {
+            row.classList.remove('hidden');
+        } else {
+            row.classList.add('hidden');
+            const inp = row.querySelector('.bag-weight-kg-input');
+            if (inp) inp.value = '';
+        }
+    } catch (e) {
+        console.warn('zoho-item-weight', e);
+        row.classList.add('hidden');
+    }
 }
 
 function removeBag(boxNumber, bagNumber) {
@@ -1731,7 +1767,7 @@ async function submitReceivesWithStatus(event, status = 'published') {
         }
 
         // Match pattern: box_{boxNum}_bag_{bagSeq}_{fieldType}
-        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number|bag_specific_batch_number)$/);
+        const match = key.match(/^box_(\d+)_bag_(\d+)_(tablet_type|bag_count|flavor_bag_number|bag_specific_batch_number|bag_weight_kg)$/);
         if (match) {
             const boxNum = match[1];
             const bagSeq = match[2];
@@ -1782,12 +1818,16 @@ async function submitReceivesWithStatus(event, status = 'published') {
             });
             
             if (bag.tablet_type && bag.bag_count && bag.flavor_bag_number) {
-                bagsArray.push({
+                const bagPayload = {
                     tablet_type_id: parseInt(bag.tablet_type),
                     bag_count: parseInt(bag.bag_count),
                     bag_number: parseInt(bag.flavor_bag_number), // NEW: Use flavor-based bag number
                     bag_specific_batch_number: (bag.bag_specific_batch_number || '').trim()
-                });
+                };
+                if (bag.bag_weight_kg !== undefined && String(bag.bag_weight_kg).trim() !== '') {
+                    bagPayload.bag_weight_kg = parseFloat(bag.bag_weight_kg);
+                }
+                bagsArray.push(bagPayload);
             } else {
                 console.warn(`[Submit] SKIPPED Box ${boxNum} Bag ${bagSeq} - missing required data`);
             }

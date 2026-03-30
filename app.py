@@ -10,7 +10,7 @@ To run the application:
     flask run
     
 Or for production with gunicorn:
-    gunicorn app:app
+    gunicorn -b 0.0.0.0:8000 wsgi:application
 """
 from app import create_app
 

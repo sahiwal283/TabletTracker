@@ -1,0 +1,29 @@
+# TabletTracker on the internal app platform (example).
+# Point ZOHO_SERVICE_BASE_URL at your integration service (port 9503 on the shared Docker network).
+# Join the same external network as nginx (104), platform frontend (1120), and the Zoho service.
+
+services:
+  tablettracker:
+    build: .
+    image: tablettracker:latest
+    container_name: tablettracker
+    ports:
+      - "7620:8000"
+    env_file:
+      - .env
+    environment:
+      TABLETTRACKER_SELF_HOSTED: "1"
+      FLASK_ENV: production
+      BEHIND_PROXY: "1"
+      DATABASE_PATH: /data/tablet_counter.db
+    volumes:
+      # Create ./data on the host and place tablet_counter.db there (see docs/MIGRATION_FROM_PYTHONANYWHERE.md)
+      - ./data:/data
+    restart: unless-stopped
+    networks:
+      - app_platform
+
+networks:
+  app_platform:
+    external: true
+    name: app_platform

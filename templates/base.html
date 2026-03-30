@@ -506,6 +506,60 @@ async function populateEditMachineDropdown(submission) {
     wireEditMachineDerivedSync();
 }
 
+// UTC naive DB string -> Eastern display for read-only UI (matches to_est semantics)
+function utcNaiveToEasternDisplay(s) {
+    if (!s || typeof s !== 'string') return '';
+    try {
+        const d = new Date(s.trim().replace(' ', 'T') + 'Z');
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString('en-US', {
+            timeZone: 'America/New_York',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch (e) {
+        return '';
+    }
+}
+
+// UTC naive DB string -> "YYYY-MM-DD HH:MM" in America/New_York for text inputs (must round-trip parse_optional_eastern)
+function utcNaiveToEasternInputString(s) {
+    if (!s || typeof s !== 'string') return '';
+    try {
+        const t = s.trim();
+        if (!t) return '';
+        const iso = t.includes('T') ? t : t.replace(' ', 'T');
+        const withZ = iso.endsWith('Z') ? iso : iso + 'Z';
+        const d = new Date(withZ);
+        if (Number.isNaN(d.getTime())) return '';
+        const f = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+        const parts = f.formatToParts(d);
+        const get = (type) => parts.find((p) => p.type === type)?.value;
+        const y = get('year');
+        const m = get('month');
+        const day = get('day');
+        const h = get('hour');
+        const min = get('minute');
+        if (y === undefined || m === undefined || day === undefined || h === undefined || min === undefined) return '';
+        return `${y}-${m}-${day} ${h}:${min}`;
+    } catch (e) {
+        return '';
+    }
+}
+
 // Close edit submission modal - defined early
 function closeEditSubmissionModal(event) {
     // Always close the modal when called (whether from button click or backdrop click)
@@ -574,6 +628,8 @@ async function saveSubmissionEdit() {
         formData.packs_remaining = 0;  // Server sets from recomputed card count
         formData.loose_tablets = 0;    // Not used for machine
         formData.damaged_tablets = 0;  // Not used for machine
+        const bstEl = document.getElementById('edit-bag-start-time');
+        if (bstEl) formData.bag_start_time = bstEl.value.trim() || null;
     } else if (isBottleSubmission) {
         // Bottle: displays + single bottles remaining
         formData.displays_made = parseInt(document.getElementById('edit-bottle-displays').value) || 0;
@@ -596,6 +652,11 @@ async function saveSubmissionEdit() {
         formData.loose_tablets = parseInt(document.getElementById('edit-loose').value) || 0;
         formData.damaged_tablets = parseInt(document.getElementById('edit-damaged').value) || 0;
         formData.tablets_pressed_into_cards = 0;  // Not used for packaging
+        const st = document.getElementById('edit-submission-type')?.value;
+        if (st === 'packaged') {
+            const betEl = document.getElementById('edit-bag-end-time');
+            if (betEl) formData.bag_end_time = betEl.value.trim() || null;
+        }
     }
     
     try {
@@ -671,12 +732,18 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
         const packagingFields = document.getElementById('packaging-fields');
         
         const packagingCountFields = document.getElementById('edit-packaging-count-fields');
+        const bagStartWrap = document.getElementById('edit-bag-start-time-wrap');
+        const bagEndWrap = document.getElementById('edit-bag-end-time-wrap');
+        if (bagStartWrap) bagStartWrap.classList.add('hidden');
+        if (bagEndWrap) bagEndWrap.classList.add('hidden');
+
         if (submissionType === 'machine') {
             if (machineFields) machineFields.classList.remove('hidden');
             if (bottleFields) bottleFields.classList.add('hidden');
             // Shared fields (box/bag/receipt/date/product/notes) live under packaging-fields — keep visible
             if (packagingFields) packagingFields.classList.remove('hidden');
             if (packagingCountFields) packagingCountFields.classList.add('hidden');
+            if (bagStartWrap) bagStartWrap.classList.remove('hidden');
         } else if (submissionType === 'bottle') {
             if (machineFields) machineFields.classList.add('hidden');
             if (bottleFields) bottleFields.classList.remove('hidden');
@@ -687,6 +754,7 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             if (bottleFields) bottleFields.classList.add('hidden');
             if (packagingFields) packagingFields.classList.remove('hidden');
             if (packagingCountFields) packagingCountFields.classList.remove('hidden');
+            if (submissionType === 'packaged' && bagEndWrap) bagEndWrap.classList.remove('hidden');
         }
         
         // Populate the form
@@ -721,6 +789,8 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 editDate.value = submissionDate;
             }
             await populateEditMachineDropdown(sub);
+            const bst = document.getElementById('edit-bag-start-time');
+            if (bst) bst.value = utcNaiveToEasternInputString(sub.bag_start_time);
         } else if (submissionType === 'bottle') {
             const editBottleDisplays = document.getElementById('edit-bottle-displays');
             const editBottleRemaining = document.getElementById('edit-bottle-remaining');
@@ -764,6 +834,10 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 // Format date properly for date input
                 const submissionDate = sub.submission_date || (sub.created_at ? sub.created_at.split(' ')[0] : '');
                 editDate.value = submissionDate;
+            }
+            const bet = document.getElementById('edit-bag-end-time');
+            if (bet) {
+                bet.value = submissionType === 'packaged' ? utcNaiveToEasternInputString(sub.bag_end_time) : '';
             }
         }
 
@@ -1784,6 +1858,19 @@ async function convertToTwoLevelDropdown(selectElement) {
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <p class="text-xs text-gray-500 mt-1">Change this if submitting for a different date</p>
                 </div>
+
+                <div id="edit-bag-start-time-wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bag start time (Eastern)</label>
+                    <input type="text" id="edit-bag-start-time" placeholder="YYYY-MM-DD HH:MM"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Wall time in US Eastern; stored as UTC internally.</p>
+                </div>
+                <div id="edit-bag-end-time-wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bag end time (Eastern)</label>
+                    <input type="text" id="edit-bag-end-time" placeholder="YYYY-MM-DD HH:MM"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Packaged submissions only. Wall time in US Eastern.</p>
+                </div>
                 
                 <!-- Product/Flavor Selector -->
                 <div id="product-selector-section" class="border-t pt-4 mt-4">
@@ -2467,6 +2554,27 @@ async function viewSubmissionDetails(submissionId) {
                 hour12: true
             });
         })() : 'N/A';
+
+        // Bag times stored as UTC-naive strings (same convention as created_at); display in Eastern
+        const bagTimeEastern = (ts) => {
+            if (!ts) return '—';
+            const s = String(ts).trim();
+            const iso = s.includes('T') ? s : s.replace(' ', 'T');
+            const utcDate = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+            if (Number.isNaN(utcDate.getTime())) return '—';
+            return utcDate.toLocaleString('en-US', {
+                timeZone: 'America/New_York',
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+        };
+        const bagStartDisplay = sub.submission_type === 'machine' ? bagTimeEastern(sub.bag_start_time) : null;
+        const bagEndDisplay = sub.submission_type === 'packaged' ? bagTimeEastern(sub.bag_end_time) : null;
         
         // Get bag deductions for bottle submissions
         const bagDeductions = data.bag_deductions || [];
@@ -2581,6 +2689,18 @@ async function viewSubmissionDetails(submissionId) {
                                     <label class="text-xs text-gray-500 uppercase">Created At</label>
                                     <div class="mt-1 text-gray-900">${createdDate}</div>
                                 </div>
+                                ${bagStartDisplay !== null ? `
+                                <div>
+                                    <label class="text-xs text-gray-500 uppercase">Bag start (Eastern)</label>
+                                    <div class="mt-1 text-gray-900">${bagStartDisplay}</div>
+                                </div>
+                                ` : ''}
+                                ${bagEndDisplay !== null ? `
+                                <div>
+                                    <label class="text-xs text-gray-500 uppercase">Bag end (Eastern)</label>
+                                    <div class="mt-1 text-gray-900">${bagEndDisplay}</div>
+                                </div>
+                                ` : ''}
                             </div>
                         </div>
                         

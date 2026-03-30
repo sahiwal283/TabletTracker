@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 """
-WSGI configuration for PythonAnywhere deployment
-TabletTracker v2.0 - Application Factory Pattern
+WSGI entry for production (PythonAnywhere, gunicorn, Docker).
+
+Set TABLETTRACKER_ROOT to the project directory if wsgi.py is not at the repo root.
 """
 
-import sys
 import os
+import sys
 
-# Add your project directory to the sys.path
-path = '/home/sahilk1/TabletTracker'
-if path not in sys.path:
-    sys.path.insert(0, path)
+PROJECT_ROOT = os.environ.get("TABLETTRACKER_ROOT", os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+os.chdir(PROJECT_ROOT)
 
-# Change to the project directory
-os.chdir(path)
-
-# Import and create Flask application using factory pattern
 try:
     from app import create_app
+
     application = create_app()
-    print(f"✅ Flask app created successfully with {len(application.blueprints)} blueprints registered")
+    print(
+        f"✅ Flask app created successfully with {len(application.blueprints)} blueprints registered"
+    )
     if len(application.blueprints) == 0:
         print("⚠️  WARNING: No blueprints registered! Check blueprint imports.")
 except Exception as e:
-    # Log the error and raise it - don't fall back to old app.py
     import traceback
+
     error_msg = f"❌ CRITICAL: Failed to create Flask app: {str(e)}\n{traceback.format_exc()}"
     print(error_msg)
     raise

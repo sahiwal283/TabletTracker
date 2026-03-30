@@ -148,6 +148,34 @@ To deploy updates:
 3. Run any new migrations
 4. Reload the web app
 
+## Self-hosted (Docker + nginx + Zoho integration service)
+
+**Full step-by-step checklist (export DB from PythonAnywhere, networks, nginx):** see **[MIGRATION_FROM_PYTHONANYWHERE.md](MIGRATION_FROM_PYTHONANYWHERE.md)**.
+
+Summary:
+
+1. **Copy data from PythonAnywhere**: Download `database/tablet_counter.db` and place it on the server under `./data/` (see `docker-compose.yml`) or mount to `/data/tablet_counter.db` in the container.
+2. **Environment**: Copy `.env.example` to `.env` and set `SECRET_KEY`, `ADMIN_PASSWORD`, Zoho credentials, and **`ZOHO_SERVICE_BASE_URL`** (e.g. `http://<zoho-service-host>:9503`). The Docker image sets **`TABLETTRACKER_SELF_HOSTED=1`**, which **requires** `ZOHO_SERVICE_BASE_URL` so all Zoho and token traffic uses your integration service only.
+3. **Build and run** (publish host port **7620** → gunicorn **8000**):
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   Or without Compose:
+
+   ```bash
+   docker build -t tablettracker .
+   docker run -d --name tablettracker -p 7620:8000 \
+     -v /path/on/host/tablet_counter.db:/data/tablet_counter.db \
+     --env-file .env \
+     tablettracker
+   ```
+
+4. **Docker network**: Use `docker-compose.yml` (edit the external network name) so TabletTracker shares a network with the Zoho integration service; `ZOHO_SERVICE_BASE_URL` must use the service’s **container DNS name**.
+5. **nginx (e.g. container 104)**: Example fragment: `deploy/nginx-tablettracker.example.conf`. Proxy to `127.0.0.1:7620` (host) or `http://tablettracker:8000` (same Docker network). Set **`BEHIND_PROXY=1`** (default in Dockerfile).
+6. **Verify**: `GET /health` returns `{"status":"ok"}`; exercise Zoho flows from `docs/ZOHO_INTEGRATION_ROUTES.md`.
+
 ---
 
 **Deployment completed!** 🎉

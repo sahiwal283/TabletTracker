@@ -1,10 +1,12 @@
 """TabletTracker application factory."""
 
+import os
 from datetime import timedelta
 import time
 import traceback
 
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_babel import Babel
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -33,6 +35,8 @@ def _configure_app(app, config_class):
     app.config["LANGUAGES"] = LANGUAGES
     app.config["BABEL_DEFAULT_LOCALE"] = "en"
     app.config["BABEL_DEFAULT_TIMEZONE"] = "UTC"
+    root = getattr(config_class, "APPLICATION_ROOT", None) or "/"
+    app.config["APPLICATION_ROOT"] = root if root.startswith("/") else f"/{root}"
 
 
 def _build_locale_selector(app):
@@ -227,6 +231,20 @@ def create_app(config_class=Config):
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
     _configure_app(app, config_class)
+    if getattr(config_class, "BEHIND_PROXY", False) or os.environ.get("BEHIND_PROXY", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        n = int(os.environ.get("TRUSTED_PROXY_COUNT", str(getattr(config_class, "TRUSTED_PROXY_COUNT", 1))))
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=n,
+            x_proto=1,
+            x_host=1,
+            x_port=1,
+            x_prefix=1,
+        )
     _initialize_extensions(app)
     _configure_session_security(app, config_class)
     _register_error_handlers(app, config_class)

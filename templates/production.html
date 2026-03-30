@@ -171,6 +171,15 @@
                        class="form-input text-base" placeholder="Enter receipt number">
                 <p class="text-xs text-gray-500 mt-1">💡 This receipt number will be used by the packaging team</p>
             </div>
+
+            <div>
+                <label for="machine_bag_start_time" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">
+                    Bag start time (Eastern)
+                </label>
+                <input type="datetime-local" id="machine_bag_start_time" name="bag_start_time"
+                       class="form-input text-base">
+                <p class="text-xs text-gray-500 mt-1">Optional — match the time written on the receipt (US Eastern).</p>
+            </div>
             
             <!-- Notes (optional) -->
             <div>
@@ -241,6 +250,15 @@
             
             <!-- Receipt Lookup Status Message -->
             <div id="receipt-lookup-status" class="hidden"></div>
+
+            <div>
+                <label for="packaged_bag_end_time" class="block text-sm font-medium text-gray-700 mb-1">
+                    Bag end time (Eastern)
+                </label>
+                <input type="datetime-local" id="packaged_bag_end_time" name="bag_end_time"
+                       class="form-input">
+                <p class="text-xs text-gray-500 mt-1">Optional — leave blank to use the time of submit (Eastern).</p>
+            </div>
             
             <!-- Hidden fields for box/bag (populated via JavaScript) -->
             <input type="hidden" id="box_number" name="box_number">
@@ -1073,6 +1091,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (data.success && data.machine_count) {
                     // Success - auto-fill everything
                     const mc = data.machine_count;
+                    const receiptMachineSuffix = (data.machine_count_total > 1)
+                        ? ` <span class="text-xs text-gray-600">(${data.machine_count_total} machines on this receipt)</span>`
+                        : '';
                     receiptLookupSuccess = true;
                     autoSelectedTabletTypeId = mc.tablet_type_id;
                     
@@ -1158,17 +1179,17 @@ document.addEventListener('DOMContentLoaded', async function() {
                                     productCountSelect.value = exactMatch.name;
                                     productCountSelect.disabled = true;
                                     productNameHidden.value = exactMatch.name;
-                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${exactMatch.name} auto-selected.</p>`;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${exactMatch.name} auto-selected.${receiptMachineSuffix}</p>`;
                                 } else if (matchingProducts.length === 1) {
                                     // Auto-select the only product
                                     productCountSelect.value = matchingProducts[0].name;
                                     productCountSelect.disabled = true;
                                     productNameHidden.value = matchingProducts[0].name;
-                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${matchingProducts[0].name} auto-selected.</p>`;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${matchingProducts[0].name} auto-selected.${receiptMachineSuffix}</p>`;
                                 } else {
                                     // Multiple products - user needs to select count variant
                                     productCountSelect.disabled = false;
-                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${matchedBaseName}. Please select count variant.</p>`;
+                                    receiptStatus.innerHTML = `<p class="text-sm text-green-600">✓ Receipt matched! Product: ${matchedBaseName}. Please select count variant.${receiptMachineSuffix}</p>`;
                                 }
                             }
                         }, 100);
@@ -1178,8 +1199,22 @@ document.addEventListener('DOMContentLoaded', async function() {
                         enableProductSelection();
                     }
                     
+                } else if (data.inconsistent_receipt) {
+                    receiptLookupSuccess = false;
+                    let matchesHtml = '<div class="bg-red-50 border border-red-200 rounded p-3">';
+                    matchesHtml += `<p class="text-sm font-medium text-red-800 mb-2">${data.error || 'Receipt data is inconsistent.'}</p>`;
+                    if (data.matches && data.matches.length) {
+                        matchesHtml += '<ul class="text-xs text-red-700 space-y-1 ml-4">';
+                        data.matches.forEach(match => {
+                            matchesHtml += `<li>• ${match.tablet_type_name || ''} — ${match.employee_name || ''} on ${match.submission_date || ''}</li>`;
+                        });
+                        matchesHtml += '</ul>';
+                    }
+                    matchesHtml += '</div>';
+                    receiptStatus.innerHTML = matchesHtml;
+                    receiptStatus.classList.remove('hidden');
+                    showFallbackFields();
                 } else if (data.multiple_matches) {
-                    // Multiple matches - show error
                     receiptLookupSuccess = false;
                     let matchesHtml = '<div class="bg-red-50 border border-red-200 rounded p-3">';
                     matchesHtml += '<p class="text-sm font-medium text-red-800 mb-2">⚠️ Multiple machine counts found for this receipt:</p>';
@@ -1190,11 +1225,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                     matchesHtml += '</ul>';
                     matchesHtml += '<p class="text-xs text-red-600 mt-2">Please contact your manager to resolve this conflict.</p>';
                     matchesHtml += '</div>';
-                    
                     receiptStatus.innerHTML = matchesHtml;
                     receiptStatus.classList.remove('hidden');
                     showFallbackFields();
-                    
                 } else {
                     // No match found - show fallback
                     receiptLookupSuccess = false;

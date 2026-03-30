@@ -22,6 +22,10 @@ from app.utils.route_helpers import (
     ensure_machine_counts_table, ensure_machine_count_columns
 )
 from app.utils.receive_tracking import find_bag_for_submission
+from app.utils.eastern_datetime import (
+    parse_optional_eastern,
+    utc_now_naive_string,
+)
 
 bp = Blueprint('production', __name__)
 
@@ -238,29 +242,39 @@ def submit_warehouse():
             # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
             # This is much more reliable than looking up box/bag and re-matching
             if not (box_number and bag_number):
-                machine_count = conn.execute('''
+                machine_rows = conn.execute('''
                     SELECT inventory_item_id, product_name, bag_id, assigned_po_id, box_number, bag_number
                     FROM warehouse_submissions
                     WHERE receipt_number = ? AND submission_type = 'machine'
-                    ORDER BY created_at DESC LIMIT 1
-                ''', (receipt_number,)).fetchone()
+                    ORDER BY created_at ASC
+                ''', (receipt_number,)).fetchall()
                 
-                if machine_count:
-                    # Convert Row to dict for safe access
-                    machine_count = dict(machine_count)
-                    # CRITICAL: Verify the machine count is for the SAME product/flavor
+                if machine_rows:
+                    inv_ids = {dict(r)['inventory_item_id'] for r in machine_rows}
+                    bag_ids = {dict(r)['bag_id'] for r in machine_rows}
+                    if len(inv_ids) > 1:
+                        return jsonify({
+                            'error': (
+                                f'Machine counts on receipt #{receipt_number} disagree on product/inventory '
+                                '(multiple inventory_item_id values). Enter box/bag manually or fix submissions.'
+                            ),
+                        }), 400
+                    if len(bag_ids) > 1:
+                        return jsonify({
+                            'error': (
+                                f'Machine counts on receipt #{receipt_number} disagree on bag assignment '
+                                '(multiple bag_id values). Enter box/bag manually or fix submissions.'
+                            ),
+                        }), 400
+                    machine_count = dict(machine_rows[0])
                     if machine_count['inventory_item_id'] != inventory_item_id:
                         return jsonify({
-                        'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
-                    }), 400
-                
-                    # Use bag_id DIRECTLY from machine count (no second lookup needed!)
+                            'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
+                        }), 400
                     bag_id = machine_count['bag_id']
                     assigned_po_id = machine_count['assigned_po_id']
                     box_number = machine_count['box_number']
                     bag_number = machine_count['bag_number']
-                
-                    # Get bag_label_count if bag_id exists
                     if bag_id:
                         bag_row = conn.execute('''
                             SELECT id, bag_label_count, reserved_for_bottles
@@ -272,7 +286,6 @@ def submit_warehouse():
                             bag_label_count = bag_row['bag_label_count']
                         current_app.logger.info(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
                     else:
-                        # Machine count didn't have bag_id (needs review), packaging also needs review
                         needs_review = True
                         current_app.logger.warning(f"⚠️ Machine count for receipt {receipt_number} was flagged for review - packaging also needs review")
                 else:
@@ -339,6 +352,15 @@ def submit_warehouse():
             except Exception as pragma_error:
                 current_app.logger.error(f"Error checking table schema: {pragma_error}")
             
+            bag_end_time = None
+            try:
+                if data.get('bag_end_time'):
+                    bag_end_time = parse_optional_eastern(data.get('bag_end_time'))
+                else:
+                    bag_end_time = utc_now_naive_string()
+            except ValueError as ve:
+                return jsonify({'error': f'Invalid bag end time: {ve}'}), 400
+
             # Insert submission with bag_id and po_id if matched
             # Note: receipt_number already extracted and validated above
             # bag_label_count already set from receipt lookup or manual matching
@@ -347,12 +369,12 @@ def submit_warehouse():
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
                      displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
-                     submission_type, bag_id, assigned_po_id, needs_review, receipt_number)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?)
+                     submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
                 ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
                       bag_label_count or data.get('bag_label_count') or 0,
                       displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
-                      bag_id, assigned_po_id, needs_review, receipt_number))
+                      bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time))
             except Exception as e:
                 current_app.logger.error(f"SQL Error inserting submission: {e}")
                 current_app.logger.error(f"Values: product_name={data.get('product_name')}, inventory_item_id={inventory_item_id}, box={box_number}, bag={bag_number}")
@@ -674,20 +696,44 @@ def submit_machine_count():
         # Get receipt_number from form data
             receipt_number = (data.get('receipt_number') or '').strip() or None
             
-            # Check for duplicate receipt number (prevent double-submit)
+            # Allow multiple machine rows per receipt when machine_id differs; block duplicate (receipt, machine_id)
             if receipt_number:
-                existing_machine_count = conn.execute('''
-                    SELECT id, product_name, created_at
-                    FROM warehouse_submissions
-                    WHERE receipt_number = ? AND submission_type = 'machine'
-                    LIMIT 1
-                ''', (receipt_number,)).fetchone()
-                
-                if existing_machine_count:
-                    return jsonify({
-                        'error': f'Receipt number {receipt_number} already used for a machine count submission (Product: {existing_machine_count["product_name"]}, Created: {existing_machine_count["created_at"]}). Please use a unique receipt number.'
-                    }), 400
+                if machine_id is not None:
+                    existing_same_machine = conn.execute('''
+                        SELECT id, product_name, created_at
+                        FROM warehouse_submissions
+                        WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
+                        LIMIT 1
+                    ''', (receipt_number, machine_id)).fetchone()
+                    if existing_same_machine:
+                        return jsonify({
+                            'error': (
+                                f'Receipt number {receipt_number} already has a machine count for this machine '
+                                f'(Product: {existing_same_machine["product_name"]}, Created: {existing_same_machine["created_at"]}). '
+                                'Use a different receipt or verify the submission was not already entered.'
+                            ),
+                        }), 400
+                else:
+                    existing_null_machine = conn.execute('''
+                        SELECT id, product_name, created_at
+                        FROM warehouse_submissions
+                        WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id IS NULL
+                        LIMIT 1
+                    ''', (receipt_number,)).fetchone()
+                    if existing_null_machine:
+                        return jsonify({
+                            'error': (
+                                f'Receipt number {receipt_number} already used for a machine count without a machine selected '
+                                f'(Created: {existing_null_machine["created_at"]}). Please use a unique receipt or select a machine.'
+                            ),
+                        }), 400
         
+            bag_start_time = None
+            try:
+                bag_start_time = parse_optional_eastern(data.get('bag_start_time'))
+            except ValueError as ve:
+                return jsonify({'error': f'Invalid bag start time: {ve}'}), 400
+
         # Create warehouse submission with submission_type='machine'
         # For machine submissions:
         # - displays_made = machine_count_int (turns)
@@ -698,11 +744,11 @@ def submit_machine_count():
             INSERT INTO warehouse_submissions 
             (employee_name, product_name, inventory_item_id, box_number, bag_number, 
              displays_made, packs_remaining, tablets_pressed_into_cards,
-             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?)
+             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?, ?)
             ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
               machine_count_int, cards_made, tablets_pressed_into_cards,
-              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number))
+              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time))
         
             # If no receive match, submission is saved but not assigned
             if not assigned_po_id:
@@ -801,15 +847,16 @@ def get_machine_count_by_receipt():
             # Find all machine count submissions with this receipt number
             # Join with product_details and tablet_types to get tablet type info
             machine_counts = conn.execute('''
-            SELECT ws.id, ws.box_number, ws.bag_number, ws.product_name, 
+            SELECT ws.id, ws.box_number, ws.bag_number, ws.product_name,
                    ws.displays_made as turns, ws.employee_name, ws.submission_date,
+                   ws.inventory_item_id, ws.bag_id, ws.machine_id, ws.bag_start_time,
                    pd.tablet_type_id, tt.tablet_type_name
             FROM warehouse_submissions ws
             JOIN product_details pd ON ws.product_name = pd.product_name
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            WHERE ws.receipt_number = ? 
+            WHERE ws.receipt_number = ?
             AND ws.submission_type = 'machine'
-            ORDER BY ws.created_at DESC
+            ORDER BY ws.created_at ASC
         ''', (receipt_number,)).fetchall()
         
         if len(machine_counts) == 0:
@@ -817,18 +864,25 @@ def get_machine_count_by_receipt():
                 'success': False,
                 'error': 'No machine count found for this receipt number'
             })
-        elif len(machine_counts) > 1:
+        rows = [dict(mc) for mc in machine_counts]
+        inv_ids = {r['inventory_item_id'] for r in rows}
+        bag_ids = {r['bag_id'] for r in rows}
+        if len(inv_ids) > 1 or len(bag_ids) > 1:
             return jsonify({
                 'success': False,
-                'multiple_matches': True,
-                'matches': [dict(mc) for mc in machine_counts],
-                'error': 'Multiple machine counts found for this receipt number'
+                'inconsistent_receipt': True,
+                'matches': rows,
+                'error': (
+                    'Machine counts on this receipt disagree on product or bag assignment. '
+                    'Enter box/bag manually or ask a manager to fix the submissions.'
+                ),
             })
-        else:
-            return jsonify({
-                'success': True,
-                'machine_count': dict(machine_counts[0])
-            })
+        return jsonify({
+            'success': True,
+            'machine_count': rows[0],
+            'machine_counts': rows,
+            'machine_count_total': len(rows),
+        })
     except Exception as e:
         current_app.logger.error(f"Error in get_machine_count_by_receipt: {e}")
         traceback.print_exc()

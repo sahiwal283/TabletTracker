@@ -24,7 +24,14 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
         self.assertIn('version', data)
-    
+
+    def test_health_route(self):
+        """Test health endpoint for load balancers / nginx"""
+        response = self.client.get('/health')
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data.get('status'), 'ok')
+
     def test_dashboard_requires_auth(self):
         """Test dashboard requires authentication"""
         response = self.client.get('/dashboard')

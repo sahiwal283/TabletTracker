@@ -1,7 +1,19 @@
+import json
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _parse_zoho_service_extra_headers():
+    raw = os.environ.get("ZOHO_SERVICE_EXTRA_HEADERS", "").strip()
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+
 
 class Config:
     # Flask settings
@@ -22,9 +34,34 @@ class Config:
     
     # Zoho API settings
     ZOHO_CLIENT_ID = os.environ.get('ZOHO_CLIENT_ID')
-    ZOHO_CLIENT_SECRET = os.environ.get('ZOHO_CLIENT_SECRET') 
+    ZOHO_CLIENT_SECRET = os.environ.get('ZOHO_CLIENT_SECRET')
     ZOHO_REFRESH_TOKEN = os.environ.get('ZOHO_REFRESH_TOKEN')
     ZOHO_ORGANIZATION_ID = os.environ.get('ZOHO_ORGANIZATION_ID', '856048585')  # Your org ID
+
+    # Self-hosted: route all Zoho traffic through integration service (e.g. http://zoho-integration:9503).
+    # When set, defaults inventory API to {ZOHO_SERVICE_BASE_URL}/inventory/v1 and token to
+    # {ZOHO_SERVICE_BASE_URL}/oauth/v2/token (standard Zoho layout behind a transparent proxy).
+    # Override with ZOHO_INVENTORY_API_BASE / ZOHO_TOKEN_URL if your service uses different paths.
+    ZOHO_SERVICE_BASE_URL = os.environ.get("ZOHO_SERVICE_BASE_URL", "").strip().rstrip("/")
+    _zoho_inv_override = os.environ.get("ZOHO_INVENTORY_API_BASE", "").strip().rstrip("/")
+    _zoho_tok_override = os.environ.get("ZOHO_TOKEN_URL", "").strip()
+    ZOHO_INVENTORY_API_BASE = _zoho_inv_override or (
+        f"{ZOHO_SERVICE_BASE_URL}/inventory/v1"
+        if ZOHO_SERVICE_BASE_URL
+        else "https://www.zohoapis.com/inventory/v1"
+    )
+    ZOHO_TOKEN_URL = _zoho_tok_override or (
+        f"{ZOHO_SERVICE_BASE_URL}/oauth/v2/token"
+        if ZOHO_SERVICE_BASE_URL
+        else "https://accounts.zoho.com/oauth/v2/token"
+    )
+    ZOHO_SERVICE_EXTRA_HEADERS = _parse_zoho_service_extra_headers()
+
+    # Reverse proxy (nginx): trust X-Forwarded-*; optional subpath via X-Forwarded-Prefix
+    BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "").lower() in ("1", "true", "yes")
+    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", "1"))
+    # If the app is mounted under a path (and not only X-Forwarded-Prefix), set e.g. APPLICATION_ROOT=/tablet
+    APPLICATION_ROOT = os.environ.get("APPLICATION_ROOT", "").strip() or "/"
     
     # UPS Tracking API (free; client credentials)
     UPS_CLIENT_ID = os.environ.get('UPS_CLIENT_ID')
@@ -39,9 +76,10 @@ class Config:
     FEDEX_ACCOUNT_NUMBER = os.environ.get('FEDEX_ACCOUNT_NUMBER')
     FEDEX_BASE = os.environ.get('FEDEX_BASE', 'https://apis.fedex.com')
     
-    # Database
-    DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'database', 'tablet_counter.db')
-    DATABASE_URL = os.environ.get('DATABASE_URL') or f'sqlite:///{DATABASE_PATH}'
+    # Database (set DATABASE_PATH in Docker to a mounted volume, e.g. /data/tablet_counter.db)
+    _config_dir = os.path.dirname(os.path.abspath(__file__))
+    DATABASE_PATH = os.environ.get("DATABASE_PATH") or os.path.join(_config_dir, "database", "tablet_counter.db")
+    DATABASE_URL = os.environ.get("DATABASE_URL") or f"sqlite:///{DATABASE_PATH}"
     
     # Security settings
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
@@ -66,3 +104,19 @@ class Config:
     # Rate limiting (for future implementation)
     RATELIMIT_STORAGE_URL = "memory://"
     RATELIMIT_DEFAULT = "100 per hour"
+
+
+def _validate_self_hosted_zoho():
+    """Docker image sets TABLETTRACKER_SELF_HOSTED=1; all Zoho traffic must use the integration service."""
+    if os.environ.get("TABLETTRACKER_SELF_HOSTED", "").lower() not in ("1", "true", "yes"):
+        return
+    if os.environ.get("SKIP_ZOHO_SERVICE_CHECK", "").lower() in ("1", "true", "yes"):
+        return
+    if not os.environ.get("ZOHO_SERVICE_BASE_URL", "").strip():
+        raise ValueError(
+            "TABLETTRACKER_SELF_HOSTED is set but ZOHO_SERVICE_BASE_URL is empty. "
+            "Set it to your Zoho integration service base URL, e.g. http://zoho-integration:9503"
+        )
+
+
+_validate_self_hosted_zoho()
