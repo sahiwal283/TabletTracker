@@ -7,7 +7,7 @@ import hmac
 from config import Config
 from app.utils.auth_utils import verify_password
 from app.utils.db_utils import db_query, db_read_only
-from __version__ import __version__, __title__, __description__
+from app.utils.version_display import read_version_constants
 
 bp = Blueprint('auth', __name__)
 
@@ -129,10 +129,11 @@ def get_csrf_token():
 @bp.route('/version')
 def version():
     """Get application version information"""
+    meta = read_version_constants()
     return jsonify({
-        'version': __version__,
-        'title': __title__,
-        'description': __description__
+        'version': meta['__version__'],
+        'title': meta['__title__'],
+        'description': meta['__description__'],
     })
 
 

@@ -15,6 +15,7 @@ import requests
 import sqlite3
 from config import Config
 from __version__ import __version__, __title__, __description__
+from app.utils.version_display import read_version_constants
 from flask_babel import gettext, ngettext, get_locale
 from app.services.zoho_service import zoho_api
 from app.services.tracking_service import refresh_shipment_row
@@ -2841,13 +2842,14 @@ def to_est_time_filter(dt_string):
 @bp.app_context_processor
 def inject_version():
     """Make version information available to all templates"""
+    meta = read_version_constants()
     locale = get_locale()
     # Convert Locale object to string if needed
     current_lang = str(locale) if hasattr(locale, 'language') else locale
     return {
-        'version': lambda: __version__,
-        'app_title': __title__,
-        'app_description': __description__,
+        'version': lambda: meta['__version__'],
+        'app_title': meta['__title__'],
+        'app_description': meta['__description__'],
         'current_language': current_lang,
         'languages': current_app.config['LANGUAGES'],
         'gettext': gettext,
