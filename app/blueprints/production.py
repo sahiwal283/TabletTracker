@@ -30,6 +30,60 @@ from app.utils.eastern_datetime import (
 bp = Blueprint('production', __name__)
 
 
+def _parse_machine_submission_entries(data):
+    """
+    Normalize request body to a list of dicts: machine_id (int or None), machine_count (int).
+
+    Supports batch submissions via machine_entries: [{machine_id, machine_count}, ...]
+    or legacy single machine_id + machine_count fields.
+    """
+    raw = data.get('machine_entries')
+    if isinstance(raw, list) and len(raw) > 0:
+        out = []
+        for row in raw:
+            if not isinstance(row, dict):
+                return None, 'Invalid machine_entries format.'
+            try:
+                mc = int(row.get('machine_count'))
+            except (TypeError, ValueError):
+                return None, 'Each machine row needs a valid machine count.'
+            if mc < 0:
+                return None, 'Machine count cannot be negative.'
+            mid = row.get('machine_id')
+            if mid is None or mid == '':
+                mid_parsed = None
+            else:
+                try:
+                    mid_parsed = int(mid)
+                except (TypeError, ValueError):
+                    return None, 'Invalid machine selection in machine_entries.'
+            out.append({'machine_id': mid_parsed, 'machine_count': mc})
+        if not out:
+            return None, 'Add at least one machine count.'
+        non_null = [e['machine_id'] for e in out if e['machine_id'] is not None]
+        if len(non_null) != len(set(non_null)):
+            return None, 'Each machine may only appear once in this submission.'
+        if len(out) > 1 and any(e['machine_id'] is None for e in out):
+            return None, 'When submitting multiple machine counts, select a machine for each row.'
+        return out, None
+
+    try:
+        mc = int(data.get('machine_count'))
+    except (TypeError, ValueError):
+        return None, 'Valid machine count is required'
+    if mc < 0:
+        return None, 'Valid machine count is required'
+    mid = data.get('machine_id')
+    if mid is None or mid == '':
+        mid_parsed = None
+    else:
+        try:
+            mid_parsed = int(mid)
+        except (TypeError, ValueError):
+            mid_parsed = None
+    return [{'machine_id': mid_parsed, 'machine_count': mc}], None
+
+
 @bp.route('/production')
 @employee_required
 def production_form():
@@ -518,27 +572,26 @@ def submit_count():
 @bp.route('/api/submissions/machine-count', methods=['POST'])
 @employee_required
 def submit_machine_count():
-    """Submit machine count reading and create warehouse submission"""
+    """Submit machine count reading(s) and create warehouse submission row(s)."""
     try:
         data = request.get_json()
-        
-        # Ensure required tables/columns exist
+
         ensure_submission_type_column()
         ensure_machine_counts_table()
         ensure_machine_count_columns()
-        
+
         product_id = data.get('product_id')
-        machine_count = data.get('machine_count')
         count_date = data.get('count_date')
-        
-        # Validation
+
         if not product_id:
             return jsonify({'error': 'Product is required'}), 400
-        if machine_count is None or machine_count < 0:
-            return jsonify({'error': 'Valid machine count is required'}), 400
         if not count_date:
             return jsonify({'error': 'Date is required'}), 400
-        
+
+        entries, err_msg = _parse_machine_submission_entries(data)
+        if err_msg:
+            return jsonify({'error': err_msg}), 400
+
         with db_transaction() as conn:
             employee_result = resolve_submission_employee_name(
                 conn,
@@ -549,96 +602,38 @@ def submit_machine_count():
             if not employee_result.get('success'):
                 return jsonify({'error': employee_result.get('error', 'Employee resolution failed')}), employee_result.get('status_code', 400)
             employee_name = employee_result['employee_name']
-        
-            # Get product details and derive tablet type
-            product = conn.execute('''
+
+            product = conn.execute("""
             SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.tablets_per_package,
                    tt.tablet_type_name, tt.inventory_item_id
             FROM product_details pd
             JOIN tablet_types tt ON pd.tablet_type_id = tt.id
             WHERE pd.id = ?
-            ''', (product_id,)).fetchone()
-            
+            """, (product_id,)).fetchone()
+
             if not product:
                 return jsonify({'error': 'Product not found'}), 400
-            
+
             product = dict(product)
-            
-            # Extract values
+
             tablet_type_id = product.get('tablet_type_id')
             if not tablet_type_id:
                 return jsonify({'error': 'Product has no tablet type configured'}), 400
-            
+
             tablets_per_package = product.get('tablets_per_package', 0)
             if tablets_per_package == 0:
                 return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
-            
+
             inventory_item_id = product.get('inventory_item_id')
             if not inventory_item_id:
                 return jsonify({'error': f'Product "{product.get("product_name")}" is missing inventory_item_id. Please configure this in admin.'}), 400
-            
-            # Get machine_id from form data FIRST (before calculating cards_per_turn)
-            machine_id = data.get('machine_id')
-            if machine_id:
-                try:
-                    machine_id = int(machine_id)
-                except (ValueError, TypeError):
-                    machine_id = None
-            
-            # Get machine-specific cards_per_turn from machines table
-            cards_per_turn = None
-            if machine_id:
-                machine_row = conn.execute('''
-                    SELECT cards_per_turn FROM machines WHERE id = ?
-                ''', (machine_id,)).fetchone()
-                if machine_row:
-                    machine = dict(machine_row)
-                    cards_per_turn = machine.get('cards_per_turn')
-            
-            # Fallback to global setting if machine not found or doesn't have cards_per_turn
-            if not cards_per_turn:
-                cards_per_turn_setting = get_setting('cards_per_turn', '1')
-                try:
-                    cards_per_turn = int(cards_per_turn_setting)
-                except (ValueError, TypeError):
-                    cards_per_turn = 1
-            
-            # Calculate total tablets for machine submissions
-            # Formula: turns × cards_per_turn × tablets_per_package = total tablets pressed into cards
-            try:
-                machine_count_int = int(machine_count)
-                total_tablets = machine_count_int * cards_per_turn * tablets_per_package
-                # For machine submissions: these tablets are pressed into blister cards (not loose)
-                # Store in a clearly named variable to distinguish from actual loose tablets
-                tablets_pressed_into_cards = total_tablets
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid machine count value'}), 400
-            
-            # inventory_item_id and tablet_type_id already extracted from product earlier
-            # (No need to get them again - they were set when we queried the product)
-            
-            # Insert machine count record (for historical tracking)
-            if machine_id:
-                conn.execute('''
-                    INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (tablet_type_id, machine_id, machine_count_int, employee_name, count_date))
-            else:
-                conn.execute('''
-                    INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
-                    VALUES (?, ?, ?, ?)
-                ''', (tablet_type_id, machine_count_int, employee_name, count_date))
-        
-            # Get box/bag numbers from form data
-            # Normalize empty strings to None for flavor-based bags (new system)
+
             box_number_raw = data.get('box_number')
             box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
             bag_number = data.get('bag_number')
-        
-            # Notes are optional and available to all users.
+
             admin_notes = normalize_optional_text(data.get('admin_notes', ''))
-        
-            # RECEIVE-BASED TRACKING: Try to match to existing receive/bag
+
             bag = None
             needs_review = False
             error_message = None
@@ -646,27 +641,20 @@ def submit_machine_count():
             bag_id = None
             confirm_reserved_override = str(data.get('confirm_reserved_override', '')).strip().lower() in ('1', 'true', 'yes', 'on')
             confirm_unassigned_submit = str(data.get('confirm_unassigned_submit', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-        
+
             if bag_number:
-                # NEW: Pass bag_number first, box_number as optional parameter
-                # Machine count submissions: exclude closed bags
                 bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
-            
+
             if bag:
-                # Exact match found - auto-assign
                 bag_id = bag['id']
                 assigned_po_id = bag['po_id']
-                # Use box_number from matched bag (bag always has box_number from small_boxes)
-                # This ensures we store the actual box_number even if user didn't enter it
                 box_number = bag.get('box_number') or box_number
                 box_ref = f", box={box_number}" if box_number else ""
                 current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
             elif needs_review:
-                # Multiple matches - needs manual review
                 box_ref = f" Box {box_number}," if box_number else ""
                 current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
             elif error_message:
-                # No match found
                 current_app.logger.error(f"❌ {error_message}")
 
             if bag_number and not bag and error_message and not confirm_unassigned_submit:
@@ -680,7 +668,6 @@ def submit_machine_count():
                     'bag_number': bag_number
                 }), 409
 
-            # For machine submissions, reserved bags can still be used with explicit confirmation.
             if bag and int(bag.get('reserved_for_bottles') or 0) == 1 and not confirm_reserved_override:
                 return jsonify({
                     'error': (
@@ -692,65 +679,145 @@ def submit_machine_count():
                     'box_number': box_number,
                     'bag_number': bag_number
                 }), 409
-        
-        # Get receipt_number from form data
+
             receipt_number = (data.get('receipt_number') or '').strip() or None
-            
-            # Allow multiple machine rows per receipt when machine_id differs; block duplicate (receipt, machine_id)
+
             if receipt_number:
-                if machine_id is not None:
-                    existing_same_machine = conn.execute('''
-                        SELECT id, product_name, created_at
-                        FROM warehouse_submissions
-                        WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
-                        LIMIT 1
-                    ''', (receipt_number, machine_id)).fetchone()
-                    if existing_same_machine:
-                        return jsonify({
-                            'error': (
-                                f'Receipt number {receipt_number} already has a machine count for this machine '
-                                f'(Product: {existing_same_machine["product_name"]}, Created: {existing_same_machine["created_at"]}). '
-                                'Use a different receipt or verify the submission was not already entered.'
-                            ),
-                        }), 400
-                else:
-                    existing_null_machine = conn.execute('''
-                        SELECT id, product_name, created_at
-                        FROM warehouse_submissions
-                        WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id IS NULL
-                        LIMIT 1
-                    ''', (receipt_number,)).fetchone()
-                    if existing_null_machine:
-                        return jsonify({
-                            'error': (
-                                f'Receipt number {receipt_number} already used for a machine count without a machine selected '
-                                f'(Created: {existing_null_machine["created_at"]}). Please use a unique receipt or select a machine.'
-                            ),
-                        }), 400
-        
+                for entry in entries:
+                    machine_id_chk = entry['machine_id']
+                    if machine_id_chk is not None:
+                        existing_same_machine = conn.execute("""
+                            SELECT id, product_name, created_at
+                            FROM warehouse_submissions
+                            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
+                            LIMIT 1
+                        """, (receipt_number, machine_id_chk)).fetchone()
+                        if existing_same_machine:
+                            return jsonify({
+                                'error': (
+                                    f'Receipt number {receipt_number} already has a machine count for this machine '
+                                    f'(Product: {existing_same_machine["product_name"]}, Created: {existing_same_machine["created_at"]}). '
+                                    'Use a different receipt or verify the submission was not already entered.'
+                                ),
+                            }), 400
+                    else:
+                        existing_null_machine = conn.execute("""
+                            SELECT id, product_name, created_at
+                            FROM warehouse_submissions
+                            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id IS NULL
+                            LIMIT 1
+                        """, (receipt_number,)).fetchone()
+                        if existing_null_machine:
+                            return jsonify({
+                                'error': (
+                                    f'Receipt number {receipt_number} already used for a machine count without a machine selected '
+                                    f'(Created: {existing_null_machine["created_at"]}). Please use a unique receipt or select a machine.'
+                                ),
+                            }), 400
+
             bag_start_time = None
             try:
                 bag_start_time = parse_optional_eastern(data.get('bag_start_time'))
             except ValueError as ve:
                 return jsonify({'error': f'Invalid bag start time: {ve}'}), 400
 
-        # Create warehouse submission with submission_type='machine'
-        # For machine submissions:
-        # - displays_made = machine_count_int (turns)
-        # - packs_remaining = machine_count_int * cards_per_turn (cards made)
-        # - tablets_pressed_into_cards = total tablets pressed into blister cards (properly named column)
-            cards_made = machine_count_int * cards_per_turn
-            conn.execute('''
-            INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, box_number, bag_number, 
-             displays_made, packs_remaining, tablets_pressed_into_cards,
-             submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?, ?)
-            ''', (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
-              machine_count_int, cards_made, tablets_pressed_into_cards,
-              count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time))
-        
-            # If no receive match, submission is saved but not assigned
+            def cards_per_turn_for(mid):
+                cp = None
+                if mid:
+                    machine_row = conn.execute(
+                        'SELECT cards_per_turn FROM machines WHERE id = ?', (mid,)
+                    ).fetchone()
+                    if machine_row:
+                        cp = dict(machine_row).get('cards_per_turn')
+                if not cp:
+                    tc = get_setting('cards_per_turn', '1')
+                    try:
+                        cp = int(tc)
+                    except (ValueError, TypeError):
+                        cp = 1
+                return int(cp)
+
+            assigned_po_lines = []
+            if assigned_po_id:
+                po_lines = conn.execute("""
+                    SELECT pl.*, po.closed
+                    FROM po_lines pl
+                    JOIN purchase_orders po ON pl.po_id = po.id
+                    WHERE pl.inventory_item_id = ? AND po.id = ?
+                """, (inventory_item_id, assigned_po_id)).fetchall()
+                assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
+
+            line_for_po = assigned_po_lines[0] if assigned_po_lines else None
+
+            for entry in entries:
+                machine_id = entry['machine_id']
+                machine_count_int = entry['machine_count']
+                cards_per_turn = cards_per_turn_for(machine_id)
+                tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package
+
+                if machine_id:
+                    conn.execute("""
+                        INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (tablet_type_id, machine_id, machine_count_int, employee_name, count_date))
+                else:
+                    conn.execute("""
+                        INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
+                        VALUES (?, ?, ?, ?)
+                    """, (tablet_type_id, machine_count_int, employee_name, count_date))
+
+                cards_made = machine_count_int * cards_per_turn
+                conn.execute("""
+                    INSERT INTO warehouse_submissions
+                    (employee_name, product_name, inventory_item_id, box_number, bag_number,
+                     displays_made, packs_remaining, tablets_pressed_into_cards,
+                     submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?, ?)
+                """, (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
+                      machine_count_int, cards_made, tablets_pressed_into_cards,
+                      count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time))
+
+                if line_for_po:
+                    conn.execute("""
+                        UPDATE po_lines
+                        SET machine_good_count = machine_good_count + ?
+                        WHERE id = ?
+                    """, (tablets_pressed_into_cards, line_for_po['id']))
+                    current_app.logger.info(
+                        f"Machine count - Updated PO line {line_for_po['id']}: +{tablets_pressed_into_cards} tablets pressed into cards"
+                    )
+
+            if assigned_po_id and assigned_po_lines:
+                updated_pos = set()
+                for line in assigned_po_lines:
+                    if line['po_id'] not in updated_pos:
+                        totals = conn.execute("""
+                            SELECT
+                                COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                                COALESCE(SUM(good_count), 0) as total_good,
+                                COALESCE(SUM(damaged_count), 0) as total_damaged,
+                                COALESCE(SUM(machine_good_count), 0) as total_machine_good,
+                                COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
+                            FROM po_lines
+                            WHERE po_id = ?
+                        """, (line['po_id'],)).fetchone()
+
+                        remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+
+                        conn.execute("""
+                            UPDATE purchase_orders
+                            SET ordered_quantity = ?, current_good_count = ?,
+                                current_damaged_count = ?, remaining_quantity = ?,
+                                machine_good_count = ?, machine_damaged_count = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (totals['total_ordered'], totals['total_good'],
+                              totals['total_damaged'], remaining,
+                              totals['total_machine_good'], totals['total_machine_damaged'],
+                              line['po_id']))
+
+                        updated_pos.add(line['po_id'])
+
             if not assigned_po_id:
                 if error_message:
                     return jsonify({
@@ -760,74 +827,20 @@ def submit_machine_count():
                         'needs_review': needs_review,
                         'message': 'Machine count submitted successfully.'
                     })
-                else:
-                    return jsonify({
-                        'success': True,
-                        'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
-                        'submission_saved': True,
-                        'message': 'Machine count submitted successfully.'
-                    })
-        
-        # Get PO lines for the matched PO to update counts
-            po_lines = conn.execute('''
-            SELECT pl.*, po.closed
-            FROM po_lines pl
-            JOIN purchase_orders po ON pl.po_id = po.id
-            WHERE pl.inventory_item_id = ? AND po.id = ?
-            ''', (inventory_item_id, assigned_po_id)).fetchall()
-        
-        # Only allocate to lines from the ASSIGNED PO
-            assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
-        
-        # Update machine_good_count (separate from regular good_count)
-            if assigned_po_lines:
-                line = assigned_po_lines[0]
-                conn.execute('''
-                    UPDATE po_lines 
-                    SET machine_good_count = machine_good_count + ?
-                    WHERE id = ?
-                ''', (tablets_pressed_into_cards, line['id']))
-                current_app.logger.info(f"Machine count - Updated PO line {line['id']}: +{tablets_pressed_into_cards} tablets pressed into cards")
-            
-            # Update PO header totals (separate machine counts)
-            updated_pos = set()
-            for line in assigned_po_lines:
-                if line['po_id'] not in updated_pos:
-                    totals = conn.execute('''
-                        SELECT 
-                            COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                            COALESCE(SUM(good_count), 0) as total_good,
-                            COALESCE(SUM(damaged_count), 0) as total_damaged,
-                            COALESCE(SUM(machine_good_count), 0) as total_machine_good,
-                            COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
-                        FROM po_lines 
-                        WHERE po_id = ?
-                    ''', (line['po_id'],)).fetchone()
-                    
-                    remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
-                    
-                    conn.execute('''
-                        UPDATE purchase_orders 
-                        SET ordered_quantity = ?, current_good_count = ?, 
-                            current_damaged_count = ?, remaining_quantity = ?,
-                            machine_good_count = ?, machine_damaged_count = ?,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    ''', (totals['total_ordered'], totals['total_good'], 
-                          totals['total_damaged'], remaining,
-                          totals['total_machine_good'], totals['total_machine_damaged'],
-                          line['po_id']))
-                    
-                    updated_pos.add(line['po_id'])
-            
+                return jsonify({
+                    'success': True,
+                    'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
+                    'submission_saved': True,
+                    'message': 'Machine count submitted successfully.'
+                })
+
             return jsonify({
-                'success': True, 
+                'success': True,
                 'message': 'Machine count submitted successfully.'
             })
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
 
 @bp.route('/api/machine-count/by-receipt', methods=['GET'])
 @employee_required

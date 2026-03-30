@@ -120,6 +120,48 @@ class TestSharedReceipt(unittest.TestCase):
         self.assertEqual(r2.status_code, 200, r2.get_json())
         self.assertTrue(r2.get_json().get("success"))
 
+    def test_machine_entries_batch_single_post_two_machines(self):
+        """One POST with machine_entries creates two submission rows (same receipt)."""
+        receipt = "TEST-SR-BATCH-001"
+        r = _csrf_post(
+            self.client,
+            "/api/submissions/machine-count",
+            {
+                "product_id": 1,
+                "count_date": "2026-03-30",
+                "receipt_number": receipt,
+                "machine_entries": [
+                    {"machine_id": 1, "machine_count": 1},
+                    {"machine_id": 2, "machine_count": 2},
+                ],
+            },
+        )
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertTrue(r.get_json().get("success"))
+        gr = self.client.get(f"/api/machine-count/by-receipt?receipt={receipt}")
+        data = gr.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data.get("machine_count_total"), 2)
+        self.assertEqual(len(data.get("machine_counts") or []), 2)
+
+    def test_machine_entries_duplicate_machine_in_payload_rejected(self):
+        receipt = "TEST-SR-BATCH-DUP-001"
+        r = _csrf_post(
+            self.client,
+            "/api/submissions/machine-count",
+            {
+                "product_id": 1,
+                "count_date": "2026-03-30",
+                "receipt_number": receipt,
+                "machine_entries": [
+                    {"machine_id": 1, "machine_count": 1},
+                    {"machine_id": 1, "machine_count": 2},
+                ],
+            },
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("error", r.get_json())
+
     def test_duplicate_same_machine_same_receipt_rejected(self):
         receipt = "TEST-SR-DUP-001"
         body = {
