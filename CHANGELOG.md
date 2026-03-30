@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.48.3] - 2026-03-30
+
+### 🐛 Fix
+
+#### Shipments Received: Edit / Publish opened view-details modal
+- **Cause**: The document click handler matched **`[data-view-receive-id]`** (the parent `.card`) **before** Edit / Publish / Assign PO / Close / Delete. `closest()` walks up from the click target, so those links matched the card first and **`viewReceiveDetails` ran instead of the action**.
+- **Fix**: Handle **`data-edit-receive-id`**, **`data-publish-receive-id`**, and the other shipment action attributes **before** the generic **`data-view-receive-id`** branch.
+- **Versioning**: **PATCH** `2.48.2` → `2.48.3`.
+
+---
+
 ## [2.48.2] - 2026-03-26
 
 ### 🐛 Fix

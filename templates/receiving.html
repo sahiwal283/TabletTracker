@@ -2892,20 +2892,8 @@ document.addEventListener('click', function (event) {
         return;
     }
 
-    const viewReceiveTarget = event.target.closest('[data-view-receive-id]');
-    if (viewReceiveTarget) {
-        const receiveId = parseInt(viewReceiveTarget.dataset.viewReceiveId, 10);
-        const receiveName = viewReceiveTarget.dataset.viewReceiveName || '';
-        const boxNumber = viewReceiveTarget.dataset.viewReceiveBoxNumber;
-        const bagId = viewReceiveTarget.dataset.viewReceiveBagId;
-        if (boxNumber && bagId) {
-            viewReceiveDetails(receiveId, receiveName, parseInt(boxNumber, 10), parseInt(bagId, 10));
-        } else {
-            viewReceiveDetails(receiveId, receiveName);
-        }
-        return;
-    }
-
+    // Shipment card actions must run BEFORE [data-view-receive-id]: the card has that attribute,
+    // so closest() would match the parent .card when clicking Edit / Publish / etc.
     const editReceiveBtn = event.target.closest('[data-edit-receive-id]');
     if (editReceiveBtn) {
         event.stopPropagation();
@@ -2949,6 +2937,20 @@ document.addEventListener('click', function (event) {
             deleteShipmentBtn.dataset.openDeleteShipmentDate || 'Unknown',
             deleteShipmentBtn.dataset.openDeleteShipmentPo || 'No PO'
         );
+        return;
+    }
+
+    const viewReceiveTarget = event.target.closest('[data-view-receive-id]');
+    if (viewReceiveTarget) {
+        const receiveId = parseInt(viewReceiveTarget.dataset.viewReceiveId, 10);
+        const receiveName = viewReceiveTarget.dataset.viewReceiveName || '';
+        const boxNumber = viewReceiveTarget.dataset.viewReceiveBoxNumber;
+        const bagId = viewReceiveTarget.dataset.viewReceiveBagId;
+        if (boxNumber && bagId) {
+            viewReceiveDetails(receiveId, receiveName, parseInt(boxNumber, 10), parseInt(bagId, 10));
+        } else {
+            viewReceiveDetails(receiveId, receiveName);
+        }
         return;
     }
 
