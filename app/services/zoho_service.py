@@ -724,22 +724,36 @@ def parse_zoho_item_weight_grams(item_response):
     """
     Return item unit weight in grams from Zoho GET /items/{id} JSON, or None.
     Values come only from API fields — never hardcode tablet mass in application code.
+
+    Zoho often exposes weight on the item and/or under ``package_details`` (same as the UI).
     """
     if not item_response or not isinstance(item_response, dict):
         return None
     item = item_response.get('item')
     if not isinstance(item, dict):
-        item = item_response
-    w = item.get('weight')
-    if w is None:
+        item = item_response if isinstance(item_response, dict) else None
+    if not item:
+        return None
+
+    w_raw = item.get('weight')
+    unit = item.get('weight_unit') or item.get('unit')
+
+    pd = item.get('package_details')
+    if isinstance(pd, dict):
+        if w_raw is None or w_raw == '':
+            w_raw = pd.get('weight')
+        if not unit:
+            unit = pd.get('weight_unit') or pd.get('unit')
+
+    if w_raw is None or w_raw == '':
         return None
     try:
-        w = float(w)
+        w = float(w_raw)
     except (TypeError, ValueError):
         return None
     if w <= 0:
         return None
-    unit = item.get('weight_unit') or item.get('unit') or 'g'
+    unit = (unit or 'g')
     unit = str(unit).lower().strip()
     if unit in ('kg', 'kilogram', 'kilograms'):
         return w * 1000.0

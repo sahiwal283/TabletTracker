@@ -1426,7 +1426,10 @@ function addBag(boxNumber) {
 async function refreshBagWeightRowVisibility(boxNumber, bagSequence) {
     const row = document.getElementById(`box_${boxNumber}_bag_${bagSequence}_weight_row`);
     if (!row) return;
-    const sel = document.querySelector(`select[name="box_${boxNumber}_bag_${bagSequence}_tablet_type"]`);
+    const bagRoot = document.getElementById(`box-${boxNumber}-bag-${bagSequence}`);
+    const sel = bagRoot
+        ? bagRoot.querySelector(`select[name="box_${boxNumber}_bag_${bagSequence}_tablet_type"]`)
+        : document.querySelector(`select[name="box_${boxNumber}_bag_${bagSequence}_tablet_type"]`);
     if (!sel || !sel.value) {
         row.classList.add('hidden');
         const inp = row.querySelector('.bag-weight-kg-input');
@@ -1435,14 +1438,17 @@ async function refreshBagWeightRowVisibility(boxNumber, bagSequence) {
     }
     try {
         const r = await fetch(`/api/tablet-types/${encodeURIComponent(sel.value)}/zoho-item-weight`);
-        const j = await r.json();
-        if (j.has_weight) {
-            row.classList.remove('hidden');
-        } else {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.has_weight) {
             row.classList.add('hidden');
             const inp = row.querySelector('.bag-weight-kg-input');
             if (inp) inp.value = '';
+            if (!r.ok) {
+                console.warn('zoho-item-weight HTTP', r.status, j.error || j);
+            }
+            return;
         }
+        row.classList.remove('hidden');
     } catch (e) {
         console.warn('zoho-item-weight', e);
         row.classList.add('hidden');
@@ -2238,6 +2244,8 @@ async function editReceive(receivingId) {
                                     itemSelect.value = bagData.tablet_type_id;
                                     console.log(`[Edit]   Forced item select value to:`, itemSelect.value);
                                 }
+                                tabletTypeSelect.value = itemSelect.value;
+                                await refreshBagWeightRowVisibility(currentBoxNumber, currentBagSequence);
                             }
                         } else {
                             console.error(`[Edit]   ERROR: Option with value ${bagData.tablet_type_id} not found in hidden select`);

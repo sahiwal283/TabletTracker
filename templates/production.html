@@ -142,6 +142,15 @@
                 <p class="text-xs text-gray-500 mt-1">Box number is optional for flavor-based receives</p>
             </div>
 
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50/90 p-3 sm:p-4 text-sm text-indigo-950">
+                <p class="font-semibold text-indigo-900 mb-1">Two sealers, one receipt</p>
+                <p class="text-indigo-900/90 leading-relaxed">
+                    Each operator submits <strong>once</strong> with the <strong>same</strong> receipt #, product, and bag.
+                    Choose <strong>your</strong> sealing machine and <strong>your</strong> counter reading.
+                    After a successful submit, only machine and count clear so the next person can submit right away.
+                </p>
+            </div>
+
             <!-- Machine Selection -->
             <div>
                 <label for="machine_id" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">
@@ -169,7 +178,7 @@
                 </label>
                 <input type="text" id="machine_receipt_number" name="receipt_number" required
                        class="form-input text-base" placeholder="Enter receipt number">
-                <p class="text-xs text-gray-500 mt-1">💡 This receipt number will be used by the packaging team</p>
+                <p class="text-xs text-gray-500 mt-1">💡 Use the <strong>same</strong> receipt # for both machine submissions; packaging ties them together.</p>
             </div>
 
             <div>
@@ -195,6 +204,10 @@
             <button type="submit" class="w-full py-4 px-6 text-base sm:text-lg font-bold btn-primary mt-6 sm:mt-8 transform transition-all duration-300 active:scale-95 sm:hover:scale-105 flex items-center justify-center">
                 <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
                 Submit Machine Count
+            </button>
+            <button type="button" id="machine-count-reset-all"
+                    class="w-full mt-3 py-2 text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2">
+                Clear entire form (new receipt or different bag)
             </button>
         </form>
         
@@ -1560,8 +1573,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
 
             if (response.ok) {
-                showSuccess(result.message || 'Machine count submitted successfully!');
-                machineCountForm.reset();
+                const baseMsg = result.message || 'Machine count submitted successfully.';
+                const warn = result.warning ? ' ' + result.warning : '';
+                showSuccess(
+                    baseMsg + warn +
+                    ' Second sealer: keep the same receipt, product, and bag — pick the other machine, enter its count, submit again.'
+                );
+                const mid = document.getElementById('machine_id');
+                const mc = document.getElementById('machine_count');
+                const notes = document.getElementById('machine_admin_notes');
+                if (mid) mid.value = '';
+                if (mc) mc.value = '';
+                if (notes) notes.value = '';
+                if (mid) {
+                    mid.focus();
+                    try {
+                        mid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    } catch (e) { /* ignore */ }
+                }
             } else {
                 showError(result.error || 'Submission failed');
             }
@@ -1573,6 +1602,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             machineCountSubmitting = false;
         }
     });
+
+    const machineResetAllBtn = document.getElementById('machine-count-reset-all');
+    if (machineResetAllBtn && machineCountForm) {
+        machineResetAllBtn.addEventListener('click', function () {
+            if (!window.confirm('Clear all fields—including receipt, product, and bag—for a new run?')) return;
+            machineCountForm.reset();
+            loadMachines();
+        });
+    }
     
     // Load machines for machine count form
     async function loadMachines() {
