@@ -2169,12 +2169,16 @@ async function editReceive(receivingId) {
                 const bagCountInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_count"]`);
                 const flavorBagNumberInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_flavor_bag_number"]`);
                 const specificBatchInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_specific_batch_number"]`);
+                const bagWeightInput = document.querySelector(`input[name="box_${currentBoxNumber}_bag_${currentBagSequence}_bag_weight_kg"]`);
                 
                 if (tabletTypeSelect && bagCountInput && flavorBagNumberInput) {
                     tabletTypeSelect.value = bagData.tablet_type_id;
                     bagCountInput.value = bagData.bag_label_count;
                     if (specificBatchInput) {
                         specificBatchInput.value = bagData.batch_source === 'bag_specific' ? (bagData.batch_number || '') : '';
+                    }
+                    if (bagWeightInput && bagData.bag_weight_kg !== null && bagData.bag_weight_kg !== undefined) {
+                        bagWeightInput.value = bagData.bag_weight_kg;
                     }
                     
                     // CRITICAL: Set the flavor bag number from database (required for form collection)

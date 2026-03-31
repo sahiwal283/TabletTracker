@@ -3130,6 +3130,11 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
             const remaining = receivedCount - packagedCount;
             const batchNumber = bag.batch_number || '';
             const batchSource = (bag.batch_source || '').replace(/_/g, ' ');
+            const hasWeight = bag.bag_weight_kg !== null && bag.bag_weight_kg !== undefined && bag.bag_weight_kg !== '';
+            const weightKg = hasWeight ? Number(bag.bag_weight_kg) : null;
+            const estFromWeight = bag.estimated_tablets_from_weight !== null && bag.estimated_tablets_from_weight !== undefined
+                ? Number(bag.estimated_tablets_from_weight)
+                : null;
             const percentComplete = receivedCount > 0 
                 ? Math.round((totalCounted / receivedCount) * 100) 
                 : 0;
@@ -3208,6 +3213,14 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                             ? `🧾 Batch: <span class="font-semibold text-gray-800">${batchNumber}</span> <span class="text-gray-500">(${batchSource || 'unknown'})</span>`
                             : '<span class="text-amber-700">🧾 Batch: Not set</span>'}
                     </div>
+                    ${hasWeight ? `
+                    <div class="mb-2 text-xs text-gray-600">
+                        ⚖️ Bag weight: <span class="font-semibold text-gray-800">${weightKg.toFixed(3)} kg</span>
+                        ${Number.isFinite(estFromWeight)
+                            ? ` <span class="text-gray-500">| rough est: ~${estFromWeight.toLocaleString()} tablets</span>`
+                            : ''}
+                    </div>
+                    ` : ''}
                     
                     <!-- Progress Bar -->
                     <div class="mb-2">

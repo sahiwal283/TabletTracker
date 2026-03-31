@@ -262,7 +262,9 @@ def get_receiving_details(receive_id):
                     'zoho_receive_id': bag.get('zoho_receive_id'),
                     'reserved_for_bottles': bool(bag.get('reserved_for_bottles', False)),
                     'batch_number': bag.get('batch_number'),
-                    'batch_source': bag.get('batch_source')
+                    'batch_source': bag.get('batch_source'),
+                    'bag_weight_kg': bag.get('bag_weight_kg'),
+                    'estimated_tablets_from_weight': bag.get('estimated_tablets_from_weight'),
                 }
                 products[inventory_item_id]['boxes'][box_number][bag_number] = bag_entry
             
@@ -1424,7 +1426,8 @@ def get_receive_editable(receiving_id):
                 # Get bags for this box
                 bags = conn.execute('''
                     SELECT b.id, b.bag_number, b.bag_label_count, b.tablet_type_id, b.status,
-                           b.batch_number, b.batch_source
+                           b.batch_number, b.batch_source,
+                           b.bag_weight_kg, b.estimated_tablets_from_weight
                     FROM bags b
                     WHERE b.small_box_id = ?
                     ORDER BY b.bag_number
