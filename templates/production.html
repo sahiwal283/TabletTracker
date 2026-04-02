@@ -923,6 +923,22 @@ function switchForm(formType) {
     }
 }
 
+// Opening "Split entry" from Full run left both legacy forms with .hidden, so nothing appeared.
+(function wireAdvancedSplitEntryToggle() {
+    const adv = document.getElementById('advanced-split-entry');
+    if (!adv) return;
+    adv.addEventListener('toggle', function () {
+        if (!this.open) return;
+        const machineForm = document.getElementById('machine-count-form');
+        const submissionForm = document.getElementById('production-submission-form');
+        const machineHidden = machineForm && machineForm.classList.contains('hidden');
+        const subHidden = submissionForm && submissionForm.classList.contains('hidden');
+        if (machineHidden && subHidden) {
+            switchForm('machine-count');
+        }
+    });
+})();
+
 document.addEventListener('DOMContentLoaded', async function() {
     // Global flags to prevent double-submit
     let packagedSubmitting = false;
