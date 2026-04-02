@@ -93,7 +93,6 @@ class TestProductionCombined(unittest.TestCase):
             "displays_made": 1,
             "packs_remaining": 0,
             "damaged_tablets": 0,
-            "loose_tablets": 0,
             "employee_name": "Test Admin",
         }
         r = _csrf_post(self.client, "/api/submissions/production-combined", body)
