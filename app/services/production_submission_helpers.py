@@ -80,17 +80,23 @@ def _machine_admin_notes(data):
     )
 
 
+def _ensure_default_count_date(data: dict) -> None:
+    """Set count_date (production date for machine rows) to today when missing or blank."""
+    raw = data.get('count_date')
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        data['count_date'] = datetime.now().date().isoformat()
+
+
 def execute_machine_submission(conn, data, employee_name: str, entries: list) -> dict:
     """
     Execute machine submission inside an existing connection/transaction.
     Raises ProductionSubmissionError on validation failures.
     """
     product_id = data.get('product_id')
-    count_date = data.get('count_date')
     if not product_id:
         raise ProductionSubmissionError(400, {'error': 'Product is required'})
-    if not count_date:
-        raise ProductionSubmissionError(400, {'error': 'Date is required'})
+    _ensure_default_count_date(data)
+    count_date = data['count_date']
 
     product = conn.execute(
         """

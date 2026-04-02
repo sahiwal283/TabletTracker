@@ -250,8 +250,6 @@ def submit_production_combined():
 
         if not data.get('product_id'):
             return jsonify({'error': 'Product is required'}), 400
-        if not data.get('count_date'):
-            return jsonify({'error': 'Date is required'}), 400
 
         entries, err_msg = parse_machine_submission_entries(data)
         if err_msg:
@@ -303,12 +301,9 @@ def submit_machine_count():
         ensure_machine_count_columns()
 
         product_id = data.get('product_id')
-        count_date = data.get('count_date')
 
         if not product_id:
             return jsonify({'error': 'Product is required'}), 400
-        if not count_date:
-            return jsonify({'error': 'Date is required'}), 400
 
         entries, err_msg = parse_machine_submission_entries(data)
         if err_msg:
