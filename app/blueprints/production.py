@@ -18,7 +18,7 @@ from app.services.submission_context_service import (
 )
 from app.utils.auth_utils import employee_required
 from app.utils.route_helpers import (
-    get_setting, ensure_submission_type_column,
+    ensure_submission_type_column,
     ensure_machine_counts_table, ensure_machine_count_columns
 )
 from app.utils.receive_tracking import find_bag_for_submission
@@ -26,62 +26,14 @@ from app.utils.eastern_datetime import (
     parse_optional_eastern,
     utc_now_naive_string,
 )
+from app.services.production_submission_helpers import (
+    ProductionSubmissionError,
+    parse_machine_submission_entries,
+    execute_machine_submission,
+    execute_packaged_submission,
+)
 
 bp = Blueprint('production', __name__)
-
-
-def _parse_machine_submission_entries(data):
-    """
-    Normalize request body to a list of dicts: machine_id (int or None), machine_count (int).
-
-    Supports batch submissions via machine_entries: [{machine_id, machine_count}, ...]
-    or legacy single machine_id + machine_count fields.
-    """
-    raw = data.get('machine_entries')
-    if isinstance(raw, list) and len(raw) > 0:
-        out = []
-        for row in raw:
-            if not isinstance(row, dict):
-                return None, 'Invalid machine_entries format.'
-            try:
-                mc = int(row.get('machine_count'))
-            except (TypeError, ValueError):
-                return None, 'Each machine row needs a valid machine count.'
-            if mc < 0:
-                return None, 'Machine count cannot be negative.'
-            mid = row.get('machine_id')
-            if mid is None or mid == '':
-                mid_parsed = None
-            else:
-                try:
-                    mid_parsed = int(mid)
-                except (TypeError, ValueError):
-                    return None, 'Invalid machine selection in machine_entries.'
-            out.append({'machine_id': mid_parsed, 'machine_count': mc})
-        if not out:
-            return None, 'Add at least one machine count.'
-        non_null = [e['machine_id'] for e in out if e['machine_id'] is not None]
-        if len(non_null) != len(set(non_null)):
-            return None, 'Each machine may only appear once in this submission.'
-        if len(out) > 1 and any(e['machine_id'] is None for e in out):
-            return None, 'When submitting multiple machine counts, select a machine for each row.'
-        return out, None
-
-    try:
-        mc = int(data.get('machine_count'))
-    except (TypeError, ValueError):
-        return None, 'Valid machine count is required'
-    if mc < 0:
-        return None, 'Valid machine count is required'
-    mid = data.get('machine_id')
-    if mid is None or mid == '':
-        mid_parsed = None
-    else:
-        try:
-            mid_parsed = int(mid)
-        except (TypeError, ValueError):
-            mid_parsed = None
-    return [{'machine_id': mid_parsed, 'machine_count': mc}], None
 
 
 @bp.route('/production')
@@ -160,14 +112,12 @@ def submit_warehouse():
     """Process warehouse submission and update PO counts"""
     try:
         data = request.get_json() if request.is_json else request.form
-        
-        # Validate required fields
-        if not data.get('product_name'):
+
+        if not (data.get('product_name') or '').strip() and not data.get('product_id'):
             return jsonify({'error': 'product_name is required'}), 400
-        
-        # Ensure submission_type column exists
+
         ensure_submission_type_column()
-        
+
         with db_transaction() as conn:
             employee_result = resolve_submission_employee_name(
                 conn,
@@ -178,291 +128,10 @@ def submit_warehouse():
             if not employee_result.get('success'):
                 return jsonify({'error': employee_result.get('error', 'Employee resolution failed')}), employee_result.get('status_code', 400)
             employee_name = employee_result['employee_name']
-            
-            # Get product details
-            product_name = data.get('product_name', '').strip()
-            current_app.logger.info(f"Looking up product: '{product_name}'")
-            
-            product = conn.execute('''
-            SELECT pd.*, tt.inventory_item_id, tt.tablet_type_name, tt.id as tablet_type_id
-            FROM product_details pd
-            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            WHERE pd.product_name = ?
-            ''', (product_name,)).fetchone()
-            
-            if not product:
-                # Try to find similar products for better error message
-                similar = conn.execute('''
-                    SELECT pd.product_name, tt.tablet_type_name
-                    FROM product_details pd
-                    JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                    WHERE pd.product_name LIKE ? OR tt.tablet_type_name LIKE ?
-                    LIMIT 5
-                ''', (f'%{product_name}%', f'%{product_name}%')).fetchall()
-                
-                error_msg = f"Product '{product_name}' not found in product_details table."
-                if similar:
-                    error_msg += f" Did you mean: {', '.join([s['product_name'] for s in similar])}?"
-                else:
-                    # List all products
-                    all_products = conn.execute('''
-                        SELECT pd.product_name FROM product_details pd ORDER BY pd.product_name LIMIT 10
-                    ''').fetchall()
-                    if all_products:
-                        error_msg += f" Available products: {', '.join([p['product_name'] for p in all_products])}"
-                
-                current_app.logger.error(error_msg)
-                return jsonify({'error': error_msg}), 400
-        
-            # Convert Row to dict for safe access
-            product = dict(product)
-        
-            # Validate product configuration
-            packages_per_display = product.get('packages_per_display')
-            tablets_per_package = product.get('tablets_per_package')
-            
-            if packages_per_display is None or tablets_per_package is None or packages_per_display == 0 or tablets_per_package == 0:
-                return jsonify({'error': 'Product configuration incomplete: packages_per_display and tablets_per_package are required and must be greater than 0'}), 400
-            
-            # Convert to int after validation
-            try:
-                packages_per_display = int(packages_per_display)
-                tablets_per_package = int(tablets_per_package)
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid numeric values for product configuration'}), 400
-            
-            # Calculate tablet counts with safe type conversion
-            try:
-                displays_made = int(data.get('displays_made', 0) or 0)
-                packs_remaining = int(data.get('packs_remaining', 0) or 0)
-                loose_tablets = int(data.get('loose_tablets', 0) or 0)
-                damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid numeric values for counts'}), 400
-        
-            good_tablets = (displays_made * packages_per_display * tablets_per_package + 
-                       packs_remaining * tablets_per_package + 
-                       loose_tablets)
-        
-            # Get submission_date (defaults to today if not provided)
-            submission_date = data.get('submission_date', datetime.now().date().isoformat())
-        
-            # Notes are optional and available to all users.
-            admin_notes = normalize_optional_text(data.get('admin_notes', ''))
-        
-            # Insert submission record using logged-in employee name WITH inventory_item_id
-            inventory_item_id = product.get('inventory_item_id')
-            if not inventory_item_id:
-                current_app.logger.error(f"Product '{data.get('product_name')}' missing inventory_item_id. Product data: {dict(product)}")
-                return jsonify({'error': f"Product '{data.get('product_name')}' is missing inventory_item_id configuration. Please contact admin to configure this product."}), 400
-        
-            # Get tablet_type_id for receive-based matching
-            tablet_type_id = product.get('tablet_type_id')
-            if not tablet_type_id:
-                return jsonify({'error': 'Product tablet_type_id not found'}), 400
-        
-            # Get receipt_number (required for packaging submissions)
-            receipt_number = (data.get('receipt_number') or '').strip() or None
-            if not receipt_number:
-                return jsonify({'error': 'Receipt number is required'}), 400
-            
-            # Check for duplicate receipt number for packaged submissions (prevent double-submit)
-            existing_packaged = conn.execute('''
-                SELECT id, product_name, created_at
-                FROM warehouse_submissions
-                WHERE receipt_number = ? AND submission_type = 'packaged'
-                LIMIT 1
-            ''', (receipt_number,)).fetchone()
-            
-            if existing_packaged:
-                return jsonify({
-                    'error': f'Receipt number {receipt_number} already used for a packaged submission (Product: {existing_packaged["product_name"]}, Created: {existing_packaged["created_at"]}). Please use a unique receipt number or check if this was already submitted.'
-                }), 400
-            
-            # Try to get box/bag from form data first
-            # Normalize empty strings to None for flavor-based bags (new system)
-            box_number_raw = data.get('box_number')
-            box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
-            bag_number = data.get('bag_number')
-            confirm_reserved_override = str(data.get('confirm_reserved_override', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-            confirm_unassigned_submit = str(data.get('confirm_unassigned_submit', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-            bag_id = None
-            assigned_po_id = None
-            bag_label_count = None
-            needs_review = False
-            error_message = None  # Initialize error_message for all code paths
-            matched_bag = None
-        
-            # NEW APPROACH: If box/bag not provided, lookup bag_id DIRECTLY from receipt
-            # This is much more reliable than looking up box/bag and re-matching
-            if not (box_number and bag_number):
-                machine_rows = conn.execute('''
-                    SELECT inventory_item_id, product_name, bag_id, assigned_po_id, box_number, bag_number
-                    FROM warehouse_submissions
-                    WHERE receipt_number = ? AND submission_type = 'machine'
-                    ORDER BY created_at ASC
-                ''', (receipt_number,)).fetchall()
-                
-                if machine_rows:
-                    inv_ids = {dict(r)['inventory_item_id'] for r in machine_rows}
-                    bag_ids = {dict(r)['bag_id'] for r in machine_rows}
-                    if len(inv_ids) > 1:
-                        return jsonify({
-                            'error': (
-                                f'Machine counts on receipt #{receipt_number} disagree on product/inventory '
-                                '(multiple inventory_item_id values). Enter box/bag manually or fix submissions.'
-                            ),
-                        }), 400
-                    if len(bag_ids) > 1:
-                        return jsonify({
-                            'error': (
-                                f'Machine counts on receipt #{receipt_number} disagree on bag assignment '
-                                '(multiple bag_id values). Enter box/bag manually or fix submissions.'
-                            ),
-                        }), 400
-                    machine_count = dict(machine_rows[0])
-                    if machine_count['inventory_item_id'] != inventory_item_id:
-                        return jsonify({
-                            'error': f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for {data.get("product_name")}. Receipts cannot be reused across different products. Please use a new receipt or enter box/bag numbers manually.'
-                        }), 400
-                    bag_id = machine_count['bag_id']
-                    assigned_po_id = machine_count['assigned_po_id']
-                    box_number = machine_count['box_number']
-                    bag_number = machine_count['bag_number']
-                    if bag_id:
-                        bag_row = conn.execute('''
-                            SELECT id, bag_label_count, reserved_for_bottles
-                            FROM bags
-                            WHERE id = ?
-                        ''', (bag_id,)).fetchone()
-                        if bag_row:
-                            matched_bag = dict(bag_row)
-                            bag_label_count = bag_row['bag_label_count']
-                        current_app.logger.info(f"📝 Inherited bag_id from receipt {receipt_number}: bag_id={bag_id}, po_id={assigned_po_id}, box={box_number}, bag={bag_number}")
-                    else:
-                        needs_review = True
-                        current_app.logger.warning(f"⚠️ Machine count for receipt {receipt_number} was flagged for review - packaging also needs review")
-                else:
-                    return jsonify({
-                        'error': f'No machine count found for receipt #{receipt_number}. Please check the receipt number or enter box and bag numbers manually.'
-                    }), 400
-            else:
-                # Box/bag provided manually - use old matching logic
-                # Packaging submissions: allow closed bags (bags may be closed after production but still need packaging)
-                bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='packaged')
-                
-                if bag:
-                    # Exact match found - auto-assign
-                    matched_bag = bag
-                    bag_id = bag['id']
-                    assigned_po_id = bag['po_id']
-                    bag_label_count = bag.get('bag_label_count', 0)
-                    # Use box_number from matched bag (bag always has box_number from small_boxes)
-                    # This ensures we store the actual box_number even if user didn't enter it
-                    box_number = bag.get('box_number') or box_number
-                    box_ref = f", box={box_number}" if box_number else ""
-                    current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
-                elif needs_review:
-                    # Multiple matches - needs manual review
-                    box_ref = f" Box {box_number}," if box_number else ""
-                    current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
-                elif error_message and not confirm_unassigned_submit:
-                    return jsonify({
-                        'error': (
-                            f'Bag not found for Box #{box_number}, Bag #{bag_number}. '
-                            'Please double check bag information. Submit anyway?'
-                        ),
-                        'requires_unassigned_confirmation': True,
-                        'box_number': box_number,
-                        'bag_number': bag_number
-                    }), 409
-
-            # For packaged submissions, allow override if bag is reserved for variety/bottle workflows.
-            # Require explicit confirmation from the UI before proceeding.
-            if matched_bag and int(matched_bag.get('reserved_for_bottles') or 0) == 1 and not confirm_reserved_override:
-                return jsonify({
-                    'error': (
-                        f'Bag #{bag_number} (Box #{box_number}) is currently reserved for variety pack/bottle use. '
-                        'Do you want to continue with a regular packaged submission on this bag?'
-                    ),
-                    'requires_reserved_override': True,
-                    'bag_id': bag_id,
-                    'box_number': box_number,
-                    'bag_number': bag_number
-                }), 409
-        
-            # Verify inventory_item_id column exists before inserting
-            try:
-                columns = [row[1] for row in conn.execute("PRAGMA table_info(warehouse_submissions)").fetchall()]
-                if 'inventory_item_id' not in columns:
-                    current_app.logger.error("inventory_item_id column missing from warehouse_submissions table")
-                    # Try to add it
-                    try:
-                        conn.execute('ALTER TABLE warehouse_submissions ADD COLUMN inventory_item_id TEXT')
-                        current_app.logger.info("Added inventory_item_id column to warehouse_submissions")
-                    except Exception as alter_error:
-                        current_app.logger.error(f"Failed to add inventory_item_id column: {alter_error}")
-                        return jsonify({'error': 'Database schema error: inventory_item_id column missing. Please run migration script.'}), 500
-            except Exception as pragma_error:
-                current_app.logger.error(f"Error checking table schema: {pragma_error}")
-            
-            bag_end_time = None
-            try:
-                if data.get('bag_end_time'):
-                    bag_end_time = parse_optional_eastern(data.get('bag_end_time'))
-                else:
-                    bag_end_time = utc_now_naive_string()
-            except ValueError as ve:
-                return jsonify({'error': f'Invalid bag end time: {ve}'}), 400
-
-            # Insert submission with bag_id and po_id if matched
-            # Note: receipt_number already extracted and validated above
-            # bag_label_count already set from receipt lookup or manual matching
-            try:
-                conn.execute('''
-                    INSERT INTO warehouse_submissions 
-                    (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-                     displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes, 
-                     submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
-                ''', (employee_name, data.get('product_name'), inventory_item_id, box_number, bag_number,
-                      bag_label_count or data.get('bag_label_count') or 0,
-                      displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
-                      bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time))
-            except Exception as e:
-                current_app.logger.error(f"SQL Error inserting submission: {e}")
-                current_app.logger.error(f"Values: product_name={data.get('product_name')}, inventory_item_id={inventory_item_id}, box={box_number}, bag={bag_number}")
-                # Check if it's a column error
-                if 'inventory_item_id' in str(e).lower() or 'syntax error' in str(e).lower():
-                    return jsonify({'error': f'Database schema error: {str(e)}. Please ensure inventory_item_id column exists in warehouse_submissions table.'}), 500
-                raise
-            
-            # Return appropriate message based on matching result
-            if error_message:
-                return jsonify({
-                    'success': True,
-                    'warning': error_message,
-                    'submission_saved': True,
-                    'needs_review': needs_review,
-                    'bag_id': bag_id,
-                    'po_id': assigned_po_id
-                })
-            elif needs_review:
-                return jsonify({
-                    'success': True,
-                    'message': 'Submission flagged for manager review - multiple matching receives found.',
-                    'bag_id': bag_id,
-                    'po_id': assigned_po_id,
-                    'needs_review': needs_review
-                })
-            else:
-                return jsonify({
-                    'success': True,
-                    'message': 'Packaged count submitted successfully',
-                    'bag_id': bag_id,
-                    'po_id': assigned_po_id,
-                    'needs_review': needs_review
-                })
+            result = execute_packaged_submission(conn, data, employee_name)
+        return jsonify(result), 200
+    except ProductionSubmissionError as e:
+        return jsonify(e.body), e.status_code
     except Exception as e:
         current_app.logger.error(f"Error in submit_warehouse: {e}")
         traceback.print_exc()
@@ -569,6 +238,59 @@ def submit_count():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/submissions/production-combined', methods=['POST'])
+@employee_required
+def submit_production_combined():
+    """Machine submission then packaged submission in one database transaction."""
+    try:
+        data = request.get_json()
+        ensure_submission_type_column()
+        ensure_machine_counts_table()
+        ensure_machine_count_columns()
+
+        if not data.get('product_id'):
+            return jsonify({'error': 'Product is required'}), 400
+        if not data.get('count_date'):
+            return jsonify({'error': 'Date is required'}), 400
+
+        entries, err_msg = parse_machine_submission_entries(data)
+        if err_msg:
+            return jsonify({'error': err_msg}), 400
+
+        if not (data.get('receipt_number') or '').strip():
+            return jsonify({'error': 'Receipt number is required'}), 400
+
+        if 'displays_made' not in data or 'packs_remaining' not in data:
+            return jsonify({'error': 'displays_made and packs_remaining are required'}), 400
+
+        packaged_data = dict(data)
+
+        with db_transaction() as conn:
+            employee_result = resolve_submission_employee_name(
+                conn,
+                data.get('employee_name'),
+                session.get('employee_id'),
+                bool(session.get('admin_authenticated')),
+            )
+            if not employee_result.get('success'):
+                return jsonify({'error': employee_result.get('error', 'Employee resolution failed')}), employee_result.get('status_code', 400)
+            employee_name = employee_result['employee_name']
+            machine_result = execute_machine_submission(conn, data, employee_name, entries)
+            packaged_result = execute_packaged_submission(conn, packaged_data, employee_name)
+
+        return jsonify({
+            'success': True,
+            'message': 'Machine and packaged submissions saved.',
+            'machine': machine_result,
+            'packaged': packaged_result,
+        }), 200
+    except ProductionSubmissionError as e:
+        return jsonify(e.body), e.status_code
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/submissions/machine-count', methods=['POST'])
 @employee_required
 def submit_machine_count():
@@ -588,7 +310,7 @@ def submit_machine_count():
         if not count_date:
             return jsonify({'error': 'Date is required'}), 400
 
-        entries, err_msg = _parse_machine_submission_entries(data)
+        entries, err_msg = parse_machine_submission_entries(data)
         if err_msg:
             return jsonify({'error': err_msg}), 400
 
@@ -602,242 +324,10 @@ def submit_machine_count():
             if not employee_result.get('success'):
                 return jsonify({'error': employee_result.get('error', 'Employee resolution failed')}), employee_result.get('status_code', 400)
             employee_name = employee_result['employee_name']
-
-            product = conn.execute("""
-            SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.tablets_per_package,
-                   tt.tablet_type_name, tt.inventory_item_id
-            FROM product_details pd
-            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-            WHERE pd.id = ?
-            """, (product_id,)).fetchone()
-
-            if not product:
-                return jsonify({'error': 'Product not found'}), 400
-
-            product = dict(product)
-
-            tablet_type_id = product.get('tablet_type_id')
-            if not tablet_type_id:
-                return jsonify({'error': 'Product has no tablet type configured'}), 400
-
-            tablets_per_package = product.get('tablets_per_package', 0)
-            if tablets_per_package == 0:
-                return jsonify({'error': 'Product configuration incomplete: tablets_per_package must be greater than 0'}), 400
-
-            inventory_item_id = product.get('inventory_item_id')
-            if not inventory_item_id:
-                return jsonify({'error': f'Product "{product.get("product_name")}" is missing inventory_item_id. Please configure this in admin.'}), 400
-
-            box_number_raw = data.get('box_number')
-            box_number = box_number_raw if (box_number_raw and str(box_number_raw).strip()) else None
-            bag_number = data.get('bag_number')
-
-            admin_notes = normalize_optional_text(data.get('admin_notes', ''))
-
-            bag = None
-            needs_review = False
-            error_message = None
-            assigned_po_id = None
-            bag_id = None
-            confirm_reserved_override = str(data.get('confirm_reserved_override', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-            confirm_unassigned_submit = str(data.get('confirm_unassigned_submit', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-
-            if bag_number:
-                bag, needs_review, error_message = find_bag_for_submission(conn, tablet_type_id, bag_number, box_number, submission_type='machine')
-
-            if bag:
-                bag_id = bag['id']
-                assigned_po_id = bag['po_id']
-                box_number = bag.get('box_number') or box_number
-                box_ref = f", box={box_number}" if box_number else ""
-                current_app.logger.info(f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}")
-            elif needs_review:
-                box_ref = f" Box {box_number}," if box_number else ""
-                current_app.logger.warning(f"⚠️ Multiple receives found for{box_ref} Bag {bag_number} - needs review")
-            elif error_message:
-                current_app.logger.error(f"❌ {error_message}")
-
-            if bag_number and not bag and error_message and not confirm_unassigned_submit:
-                return jsonify({
-                    'error': (
-                        f'Bag not found for Box #{box_number}, Bag #{bag_number}. '
-                        'Please double check bag information. Submit anyway?'
-                    ),
-                    'requires_unassigned_confirmation': True,
-                    'box_number': box_number,
-                    'bag_number': bag_number
-                }), 409
-
-            if bag and int(bag.get('reserved_for_bottles') or 0) == 1 and not confirm_reserved_override:
-                return jsonify({
-                    'error': (
-                        f'Bag #{bag_number} (Box #{box_number}) is currently reserved for variety pack/bottle use. '
-                        'Do you want to continue with this machine submission on the reserved bag?'
-                    ),
-                    'requires_reserved_override': True,
-                    'bag_id': bag_id,
-                    'box_number': box_number,
-                    'bag_number': bag_number
-                }), 409
-
-            receipt_number = (data.get('receipt_number') or '').strip() or None
-
-            if receipt_number:
-                for entry in entries:
-                    machine_id_chk = entry['machine_id']
-                    if machine_id_chk is not None:
-                        existing_same_machine = conn.execute("""
-                            SELECT id, product_name, created_at
-                            FROM warehouse_submissions
-                            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
-                            LIMIT 1
-                        """, (receipt_number, machine_id_chk)).fetchone()
-                        if existing_same_machine:
-                            return jsonify({
-                                'error': (
-                                    f'Receipt number {receipt_number} already has a machine count for this machine '
-                                    f'(Product: {existing_same_machine["product_name"]}, Created: {existing_same_machine["created_at"]}). '
-                                    'Use a different receipt or verify the submission was not already entered.'
-                                ),
-                            }), 400
-                    else:
-                        existing_null_machine = conn.execute("""
-                            SELECT id, product_name, created_at
-                            FROM warehouse_submissions
-                            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id IS NULL
-                            LIMIT 1
-                        """, (receipt_number,)).fetchone()
-                        if existing_null_machine:
-                            return jsonify({
-                                'error': (
-                                    f'Receipt number {receipt_number} already used for a machine count without a machine selected '
-                                    f'(Created: {existing_null_machine["created_at"]}). Please use a unique receipt or select a machine.'
-                                ),
-                            }), 400
-
-            bag_start_time = None
-            try:
-                bag_start_time = parse_optional_eastern(data.get('bag_start_time'))
-            except ValueError as ve:
-                return jsonify({'error': f'Invalid bag start time: {ve}'}), 400
-
-            def cards_per_turn_for(mid):
-                cp = None
-                if mid:
-                    machine_row = conn.execute(
-                        'SELECT cards_per_turn FROM machines WHERE id = ?', (mid,)
-                    ).fetchone()
-                    if machine_row:
-                        cp = dict(machine_row).get('cards_per_turn')
-                if not cp:
-                    tc = get_setting('cards_per_turn', '1')
-                    try:
-                        cp = int(tc)
-                    except (ValueError, TypeError):
-                        cp = 1
-                return int(cp)
-
-            assigned_po_lines = []
-            if assigned_po_id:
-                po_lines = conn.execute("""
-                    SELECT pl.*, po.closed
-                    FROM po_lines pl
-                    JOIN purchase_orders po ON pl.po_id = po.id
-                    WHERE pl.inventory_item_id = ? AND po.id = ?
-                """, (inventory_item_id, assigned_po_id)).fetchall()
-                assigned_po_lines = [line for line in po_lines if line['po_id'] == assigned_po_id]
-
-            line_for_po = assigned_po_lines[0] if assigned_po_lines else None
-
-            for entry in entries:
-                machine_id = entry['machine_id']
-                machine_count_int = entry['machine_count']
-                cards_per_turn = cards_per_turn_for(machine_id)
-                tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package
-
-                if machine_id:
-                    conn.execute("""
-                        INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (tablet_type_id, machine_id, machine_count_int, employee_name, count_date))
-                else:
-                    conn.execute("""
-                        INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
-                        VALUES (?, ?, ?, ?)
-                    """, (tablet_type_id, machine_count_int, employee_name, count_date))
-
-                cards_made = machine_count_int * cards_per_turn
-                conn.execute("""
-                    INSERT INTO warehouse_submissions
-                    (employee_name, product_name, inventory_item_id, box_number, bag_number,
-                     displays_made, packs_remaining, tablets_pressed_into_cards,
-                     submission_date, submission_type, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'machine', ?, ?, ?, ?, ?, ?, ?)
-                """, (employee_name, product['product_name'], inventory_item_id, box_number, bag_number,
-                      machine_count_int, cards_made, tablets_pressed_into_cards,
-                      count_date, bag_id, assigned_po_id, needs_review, machine_id, admin_notes, receipt_number, bag_start_time))
-
-                if line_for_po:
-                    conn.execute("""
-                        UPDATE po_lines
-                        SET machine_good_count = machine_good_count + ?
-                        WHERE id = ?
-                    """, (tablets_pressed_into_cards, line_for_po['id']))
-                    current_app.logger.info(
-                        f"Machine count - Updated PO line {line_for_po['id']}: +{tablets_pressed_into_cards} tablets pressed into cards"
-                    )
-
-            if assigned_po_id and assigned_po_lines:
-                updated_pos = set()
-                for line in assigned_po_lines:
-                    if line['po_id'] not in updated_pos:
-                        totals = conn.execute("""
-                            SELECT
-                                COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                                COALESCE(SUM(good_count), 0) as total_good,
-                                COALESCE(SUM(damaged_count), 0) as total_damaged,
-                                COALESCE(SUM(machine_good_count), 0) as total_machine_good,
-                                COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
-                            FROM po_lines
-                            WHERE po_id = ?
-                        """, (line['po_id'],)).fetchone()
-
-                        remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
-
-                        conn.execute("""
-                            UPDATE purchase_orders
-                            SET ordered_quantity = ?, current_good_count = ?,
-                                current_damaged_count = ?, remaining_quantity = ?,
-                                machine_good_count = ?, machine_damaged_count = ?,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE id = ?
-                        """, (totals['total_ordered'], totals['total_good'],
-                              totals['total_damaged'], remaining,
-                              totals['total_machine_good'], totals['total_machine_damaged'],
-                              line['po_id']))
-
-                        updated_pos.add(line['po_id'])
-
-            if not assigned_po_id:
-                if error_message:
-                    return jsonify({
-                        'success': True,
-                        'warning': error_message,
-                        'submission_saved': True,
-                        'needs_review': needs_review,
-                        'message': 'Machine count submitted successfully.'
-                    })
-                return jsonify({
-                    'success': True,
-                    'warning': 'No receive found for this box/bag combination. Submission saved but not assigned to PO.',
-                    'submission_saved': True,
-                    'message': 'Machine count submitted successfully.'
-                })
-
-            return jsonify({
-                'success': True,
-                'message': 'Machine count submitted successfully.'
-            })
+            result = execute_machine_submission(conn, data, employee_name, entries)
+        return jsonify(result), 200
+    except ProductionSubmissionError as e:
+        return jsonify(e.body), e.status_code
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

@@ -9,6 +9,10 @@
         if (machineProduct && typeof window.convertToTwoLevelDropdownByDataAttr === 'function') {
             window.convertToTwoLevelDropdownByDataAttr(machineProduct, 'data-category');
         }
+        var combinedProduct = document.getElementById('combined_product');
+        if (combinedProduct && typeof window.convertToTwoLevelDropdownByDataAttr === 'function') {
+            window.convertToTwoLevelDropdownByDataAttr(combinedProduct, 'data-category');
+        }
 
         document.addEventListener('click', function (event) {
             var toggle = event.target.closest('[data-production-form]');
