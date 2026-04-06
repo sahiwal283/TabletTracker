@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.51.5] - 2026-03-30
+
+### 🐛 Fix
+
+#### Managers could not save submission edits
+- **Cause**: `POST /api/submission/<id>/edit` used **`@admin_required`**, which only allows the admin password session or employees with **`employee_role == 'admin'`**. Managers were rejected with **403** before the handler’s own admin/manager check ran.
+- **Fix**: Use **`@employee_required`** and keep the explicit allowlist for **`admin_authenticated`** or **`employee_role` in `admin`, `manager`** (warehouse staff remain blocked).
+- **Versioning**: **PATCH** `2.51.4` → `2.51.5`.
+
+---
+
 ## [2.48.3] - 2026-03-30
 
 ### 🐛 Fix

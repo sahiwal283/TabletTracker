@@ -1719,13 +1719,13 @@ def get_submission_details(submission_id):
 
 
 @bp.route('/api/submission/<int:submission_id>/edit', methods=['POST'])
-@admin_required
+@employee_required
 def edit_submission(submission_id):
-    """Edit a submission and recalculate PO counts (Admin and Manager only)"""
-    # Allow managers to edit submissions (especially admin notes)
-    if not (session.get('admin_authenticated') or 
+    """Edit a submission and recalculate PO counts (admin login or employee admin/manager only)."""
+    # Must not use @admin_required here — managers use employee login, not admin panel.
+    if not (session.get('admin_authenticated') or
             (session.get('employee_authenticated') and session.get('employee_role') in ['admin', 'manager'])):
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
+        return jsonify({'success': False, 'error': 'Access denied. Only administrators and managers can edit submissions.'}), 403
     try:
         data = request.get_json()
         with db_transaction() as conn:
