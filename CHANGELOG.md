@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.6] - 2026-03-30
+
+### 🐛 Fix
+
+#### Overs PO missing product line: show “Create / add to overs PO” button
+- **Cause**: When the overs PO existed in Zoho but had **no line** for this inventory item, the API returned 400 **without** `zoho_push_overs`, so the persistent error UI never rendered the action button.
+- **Fix**: That response now includes **`zoho_push_overs`** (same shape as split-required) and a clearer message.
+- **Versioning**: **PATCH** `2.52.5` → `2.52.6`.
+
+---
+
 ## [2.52.5] - 2026-03-30
 
 ### ✨ Enhancement

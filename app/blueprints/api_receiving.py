@@ -1323,12 +1323,24 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                     overs_zoho_po_id, bag.get('inventory_item_id')
                 )
                 if not resolved_overs_line:
+                    name = stats.get('line_item_name') or bag.get('tablet_type_name') or 'Line item'
+                    err_detail = (
+                        '❌ Overs PO is missing this product line in Zoho.\n\n'
+                        f'📦 Product: {name}\n\n'
+                        'TabletTracker found the overs PO, but Zoho has no line whose inventory item '
+                        'matches this bag’s tablet type. Add the line with **Create / add to overs PO** '
+                        'below, then push again (Sync is optional; push refreshes lines).\n\n'
+                        f'🎒 Overage for overs PO: {overs_qty:,} tablets.'
+                    )
                     return jsonify({
                         'success': False,
-                        'error': (
-                            'Could not find a line for this product on the overs PO in Zoho (by item id). '
-                            'Use “Create / add to overs PO” if the line is missing, run Sync Zoho POs, then push again.'
-                        ),
+                        'error': err_detail,
+                        'zoho_push_overs': {
+                            'parent_po_id': bag['po_id'],
+                            'overage_tablets': overs_qty,
+                            'inventory_item_id': bag.get('inventory_item_id'),
+                            'line_item_name': name,
+                        },
                     }), 400
                 if overs_zoho_line_id and str(overs_zoho_line_id) != str(resolved_overs_line):
                     current_app.logger.warning(
