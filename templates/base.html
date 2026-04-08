@@ -1655,6 +1655,58 @@ async function convertToTwoLevelDropdown(selectElement) {
             }, 5500);
         }
 
+        /** Zoho / long API errors: stays visible until user clicks Dismiss (scrollable body). */
+        function showErrorPersistent(message) {
+            const existing = document.getElementById('persistent-error-toast');
+            if (existing) existing.remove();
+
+            const wrap = document.createElement('div');
+            wrap.id = 'persistent-error-toast';
+            wrap.setAttribute('role', 'alert');
+            wrap.className = 'fixed top-4 right-4 left-4 sm:left-auto max-w-2xl w-full max-h-[min(85vh,32rem)] flex flex-col bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl shadow-2xl z-[110] transform transition-all duration-300 scale-95 opacity-0';
+
+            const inner = document.createElement('div');
+            inner.className = 'flex flex-col flex-1 min-h-0 p-4';
+
+            const headerRow = document.createElement('div');
+            headerRow.className = 'flex items-center justify-between gap-3 flex-shrink-0 mb-2';
+
+            const title = document.createElement('div');
+            title.className = 'flex items-center gap-2 font-semibold text-base';
+            const icon = document.createElement('span');
+            icon.textContent = '⚠️';
+            const titleText = document.createElement('span');
+            titleText.textContent = 'Error';
+            title.appendChild(icon);
+            title.appendChild(titleText);
+
+            const dismissBtn = document.createElement('button');
+            dismissBtn.type = 'button';
+            dismissBtn.className = 'flex-shrink-0 px-3 py-1.5 rounded-lg bg-white/25 hover:bg-white/35 text-sm font-semibold border border-white/40';
+            dismissBtn.textContent = 'Dismiss';
+            dismissBtn.addEventListener('click', () => {
+                wrap.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => wrap.remove(), 250);
+            });
+
+            headerRow.appendChild(title);
+            headerRow.appendChild(dismissBtn);
+
+            const body = document.createElement('div');
+            body.className = 'text-sm font-medium whitespace-pre-wrap break-words leading-relaxed overflow-y-auto flex-1 pr-1';
+            body.textContent = message;
+
+            inner.appendChild(headerRow);
+            inner.appendChild(body);
+            wrap.appendChild(inner);
+            document.body.appendChild(wrap);
+
+            requestAnimationFrame(() => {
+                wrap.classList.remove('scale-95', 'opacity-0');
+                wrap.classList.add('scale-100', 'opacity-100');
+            });
+        }
+
         // Mobile menu toggle function
         function toggleMobileMenu() {
             const menu = document.getElementById('mobile-menu');
@@ -4380,18 +4432,23 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
                 }
             }, 100);
         } else {
-            // Show error message
-            alert('Error: ' + (data.error || 'Failed to push to Zoho'));
-            
-            // Re-enable button
+            const errText = data.error || 'Failed to push to Zoho';
+            if (typeof showErrorPersistent === 'function') {
+                showErrorPersistent(errText);
+            } else {
+                alert('Error: ' + errText);
+            }
             btn.disabled = false;
             btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
         }
     } catch (error) {
         console.error('Error pushing to Zoho:', error);
-        alert('Failed to push to Zoho: ' + error.message);
-        
-        // Re-enable button
+        const errText = error.message || String(error);
+        if (typeof showErrorPersistent === 'function') {
+            showErrorPersistent('Failed to push to Zoho: ' + errText);
+        } else {
+            alert('Failed to push to Zoho: ' + errText);
+        }
         btn.disabled = false;
         btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
     }

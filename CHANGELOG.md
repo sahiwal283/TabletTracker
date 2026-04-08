@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.51.7] - 2026-03-30
+
+### ✨ Enhancement
+
+#### Push to Zoho: persistent error until dismissed
+- **UI**: Zoho push failures use **`showErrorPersistent()`** — a scrollable panel above the modals with a **Dismiss** button; no auto-hide so users can read long API messages.
+- **Versioning**: **PATCH** `2.51.6` → `2.51.7`.
+
+---
+
 ## [2.51.6] - 2026-03-30
 
 ### 🐛 Fix
