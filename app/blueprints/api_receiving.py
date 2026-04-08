@@ -31,6 +31,7 @@ from app.services.receiving_admin_service import (
 from app.services.zoho_service import zoho_api, parse_zoho_item_weight_grams
 from app.services.chart_service import generate_bag_chart_image
 from config import Config
+from typing import Optional
 
 bp = Blueprint('api_receiving', __name__)
 
@@ -110,6 +111,52 @@ def get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id, inventory_item
                 f"Zoho PO {zoho_po_id}: multiple lines for item_id {inv}; cannot resolve line stats"
             )
     return None
+
+
+def _resolve_zoho_line_item_id_for_po_item(zoho_po_id, inventory_item_id) -> Optional[str]:
+    """
+    GET purchaseorders/{id} and return line_item_id for the line whose item_id matches inventory_item_id.
+
+    Use this for overs PO (and any multi-line PO) so we never post a receive to the wrong flavor line when
+    SQLite po_lines.zoho_line_item_id is stale or duplicated across items.
+    """
+    if not zoho_po_id or not inventory_item_id:
+        return None
+    po_details = zoho_api.get_purchase_order_details(zoho_po_id)
+    if not po_details or not isinstance(po_details, dict):
+        return None
+    po = po_details.get('purchaseorder')
+    if not po:
+        return None
+    inv = str(inventory_item_id)
+    matches = [li for li in (po.get('line_items') or []) if str(li.get('item_id') or '') == inv]
+    if len(matches) == 1:
+        lid = str(matches[0].get('line_item_id') or '').strip()
+        return lid or None
+    if len(matches) > 1:
+        current_app.logger.warning(
+            f"Zoho PO {zoho_po_id}: multiple lines for item_id {inv}; cannot pick line_item_id"
+        )
+    return None
+
+
+def _update_bag_zoho_push(conn, bag_id: int, zoho_receive_id, zoho_receive_overs_id) -> None:
+    """Mark bag pushed; raises RuntimeError if no row was updated."""
+    cur = conn.execute(
+        '''
+        UPDATE bags
+        SET zoho_receive_pushed = 1,
+            zoho_receive_id = ?,
+            zoho_receive_overs_id = ?
+        WHERE id = ?
+        ''',
+        (zoho_receive_id, zoho_receive_overs_id, bag_id),
+    )
+    if cur.rowcount != 1:
+        raise RuntimeError(
+            f'Expected to update 1 bag row (id={bag_id}), updated {cur.rowcount}. '
+            'Zoho may have recorded the receive; check Zoho and do not retry blindly.'
+        )
 
 
 @bp.route('/api/tablet-types/<int:tablet_type_id>/zoho-item-weight', methods=['GET'])
@@ -1200,6 +1247,7 @@ def push_bag_to_zoho(bag_id):
                 overs_po_number = f"{parent_po_number}-OVERS"
                 overs_zoho_po_id = None
                 overs_zoho_line_id = None
+                overs_local_po_id = None
                 with db_read_only() as conn:
                     opro = conn.execute(
                         'SELECT id, zoho_po_id FROM purchase_orders WHERE po_number = ?',
@@ -1207,6 +1255,7 @@ def push_bag_to_zoho(bag_id):
                     ).fetchone()
                     if opro:
                         opro = dict(opro)
+                        overs_local_po_id = opro['id']
                         overs_zoho_po_id = opro.get('zoho_po_id')
                         plr = conn.execute(
                             '''
@@ -1217,7 +1266,7 @@ def push_bag_to_zoho(bag_id):
                         ).fetchone()
                         if plr and plr['zoho_line_item_id']:
                             overs_zoho_line_id = plr['zoho_line_item_id']
-                if not overs_zoho_po_id or not overs_zoho_line_id:
+                if not overs_zoho_po_id:
                     name = stats['line_item_name']
                     ordered = stats['ordered']
                     recv_zoho = stats['received_in_zoho_before_push']
@@ -1245,6 +1294,38 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                             'line_item_name': name,
                         },
                     }), 400
+
+                # Always resolve overs line from Zoho by item_id — SQLite can point at the wrong flavor line
+                # when the overs PO has multiple tablet lines (stale or duplicate zoho_line_item_id).
+                resolved_overs_line = _resolve_zoho_line_item_id_for_po_item(
+                    overs_zoho_po_id, bag.get('inventory_item_id')
+                )
+                if not resolved_overs_line:
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            'Could not find a line for this product on the overs PO in Zoho (by item id). '
+                            'Use “Create / add to overs PO” if the line is missing, run Sync Zoho POs, then push again.'
+                        ),
+                    }), 400
+                if overs_zoho_line_id and str(overs_zoho_line_id) != str(resolved_overs_line):
+                    current_app.logger.warning(
+                        f"Bag {bag_id}: overs PO line_item_id from SQLite ({overs_zoho_line_id}) "
+                        f"differs from Zoho GET ({resolved_overs_line}); using Zoho value for receive"
+                    )
+                overs_zoho_line_id = resolved_overs_line
+                if overs_local_po_id is not None:
+                    try:
+                        with db_transaction() as conn:
+                            conn.execute(
+                                '''
+                                UPDATE po_lines SET zoho_line_item_id = ?
+                                WHERE po_id = ? AND inventory_item_id = ?
+                                ''',
+                                (resolved_overs_line, overs_local_po_id, bag['inventory_item_id']),
+                            )
+                    except Exception as e:
+                        current_app.logger.warning(f"Could not persist overs po_lines zoho_line_item_id: {e}")
 
                 current_app.logger.info(
                     f"Split Zoho push bag {bag_id}: main_qty={main_qty} overs_qty={overs_qty}"
@@ -1350,19 +1431,11 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                     }), 500
 
                 with db_transaction() as conn:
-                    conn.execute(
-                        '''
-                        UPDATE bags
-                        SET zoho_receive_pushed = 1,
-                            zoho_receive_id = ?,
-                            zoho_receive_overs_id = ?
-                        WHERE id = ?
-                        ''',
-                        (
-                            str(rid_main) if rid_main else None,
-                            str(rid_overs) if rid_overs else None,
-                            bag_id,
-                        ),
+                    _update_bag_zoho_push(
+                        conn,
+                        bag_id,
+                        str(rid_main) if rid_main else None,
+                        str(rid_overs) if rid_overs else None,
                     )
 
                 bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {box_number}, Bag {bag_number}"
@@ -1375,6 +1448,7 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                     )
                 return jsonify({
                     'success': True,
+                    'zoho_receive_pushed': True,
                     'message': split_msg,
                     'zoho_receive_id': str(rid_main) if rid_main else None,
                     'zoho_receive_overs_id': str(rid_overs) if rid_overs else None,
@@ -1565,17 +1639,14 @@ Zoho API: {error_msg}'''
         
         # Update bag to mark as pushed
         with db_transaction() as conn:
-            conn.execute('''
-                UPDATE bags 
-                SET zoho_receive_pushed = 1, zoho_receive_id = ?, zoho_receive_overs_id = NULL
-                WHERE id = ?
-            ''', (zoho_receive_id, bag_id))
+            _update_bag_zoho_push(conn, bag_id, zoho_receive_id, None)
         
         bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {box_number}, Bag {bag_number}"
         current_app.logger.info(f"Successfully pushed bag {bag_id} to Zoho receive {zoho_receive_id}")
         
         return jsonify({
             'success': True,
+            'zoho_receive_pushed': True,
             'message': f'Successfully pushed {bag_info} to Zoho',
             'zoho_receive_id': zoho_receive_id
         })

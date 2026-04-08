@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.4] - 2026-03-30
+
+### 🐛 Fix
+
+#### Split push: wrong overs line (e.g. Vimto 0 received, Blue Magic got qty) + bag not marked pushed
+- **Cause**: On multi-line overs POs, **`po_lines.zoho_line_item_id`** could still point at another flavor’s line; the app posted the overs receive to the **wrong** `line_item_id`. Separately, **`UPDATE bags`** could silently affect **0 rows** without failing the request, so the UI showed a brief success toast but **no ✓ Zoho** badge.
+- **Fix**: **Always** resolve the overs PO **`line_item_id`** from **Zoho GET** by **`item_id`** (same inventory item as the bag) before **`create_purchase_receive`**; **UPDATE** local **`po_lines`** when it differs. **`_update_bag_zoho_push`** requires **`cursor.rowcount == 1`** or raises. API returns **`zoho_receive_pushed: true`** on success. UI treats success only when **`zoho_receive_pushed !== false`**, shows the green toast **8s** / **`z-[200]`**, and warns if the badge does not appear after refresh.
+- **Versioning**: **PATCH** `2.52.3` → `2.52.4`.
+
+---
+
 ## [2.52.3] - 2026-03-30
 
 ### 🐛 Fix

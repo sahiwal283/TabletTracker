@@ -4452,13 +4452,14 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
         
         const data = await response.json();
         
-        if (data.success) {
+        const pushSaved = data.success === true && data.zoho_receive_pushed !== false;
+        if (pushSaved) {
             // Close the push modal
             closePushToZohoModal();
             
-            // Show success message
+            // Show success message (longer so users can read receive IDs)
             const successMsg = document.createElement('div');
-            successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
+            successMsg.className = 'fixed top-4 right-4 max-w-md bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[200]';
             successMsg.innerHTML = `<div class="font-semibold">✓ ${data.message}</div>`;
             if (data.zoho_receive_id) {
                 successMsg.innerHTML += `<div class="text-sm opacity-90">Main PO receive ID: ${data.zoho_receive_id}</div>`;
@@ -4468,32 +4469,49 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             }
             document.body.appendChild(successMsg);
             
-            // Remove success message after 3 seconds
-            setTimeout(() => successMsg.remove(), 3000);
+            setTimeout(() => successMsg.remove(), 8000);
             
             // Refresh the receive details modal to show updated bag status (with Zoho badge)
-            // Preserve filter and scroll position
             const filterInput = document.getElementById('bag-search-filter');
             const currentFilter = filterInput ? filterInput.value : '';
             const scrollContainer = document.getElementById('receive-modal-content');
             const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
             
-            // Refresh modal
             await viewReceiveDetails(receiveId, receiveName, null, bagId);
             
-            // Restore filter and scroll after refresh
             setTimeout(() => {
                 const newFilterInput = document.getElementById('bag-search-filter');
                 if (newFilterInput && currentFilter) {
                     newFilterInput.value = currentFilter;
                     filterReceiveBags(currentFilter);
                 }
-                
                 const newScrollContainer = document.getElementById('receive-modal-content');
                 if (newScrollContainer && currentScroll) {
                     newScrollContainer.scrollTop = currentScroll;
                 }
             }, 100);
+
+            const card = document.querySelector(`[data-bag-id="${bagId}"]`);
+            const hasZohoBadge = card && card.textContent && card.textContent.includes('✓ Zoho');
+            if (!hasZohoBadge) {
+                if (typeof showErrorPersistent === 'function') {
+                    showErrorPersistent(
+                        'Push may have succeeded in Zoho but this bag is not marked as pushed in TabletTracker yet. '
+                        + 'Refresh the page or reopen this receive. If “Push to Zoho” still appears, contact support with the receive IDs above.'
+                    );
+                }
+            }
+        } else if (data.success === true && data.zoho_receive_pushed === false) {
+            if (typeof showErrorPersistent === 'function') {
+                showErrorPersistent(
+                    (data.error || 'Push did not confirm saving to TabletTracker.') +
+                    ' Check Zoho for the receive before pushing again.'
+                );
+            } else {
+                alert(data.error || 'Push did not confirm.');
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
         } else {
             const errText = data.error || 'Failed to push to Zoho';
             if (typeof showErrorPersistent === 'function') {
