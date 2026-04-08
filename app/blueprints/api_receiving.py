@@ -1168,19 +1168,34 @@ def push_bag_to_zoho(bag_id):
         zoho_po_id = bag.get('zoho_po_id')
         if not zoho_po_id:
             return jsonify({
-                'success': False, 
-                'error': 'Cannot push to Zoho: PO does not have a Zoho PO ID. Please sync POs from Zoho first.'
+                'success': False,
+                'error': (
+                    'Cannot push to Zoho: PO does not have a Zoho PO ID. '
+                    'Run Sync Zoho POs once so this receive is linked to Zoho, or assign a synced PO.'
+                ),
             }), 400
-        
-        # Get zoho_line_item_id for this bag's tablet type in this PO
-        # This is the unique ID for the line item in the purchase order
+
+        # Refresh PO lines from Zoho so local zoho_line_item_id stays current without manual Sync before every push
+        try:
+            with db_transaction() as conn:
+                zoho_api.refresh_tablet_po_lines(conn, bag['po_id'], zoho_po_id)
+        except Exception as e:
+            current_app.logger.warning(f"refresh_tablet_po_lines (parent PO) skipped: {e}")
+        bag = get_bag_with_packaged_count(bag_id)
+        if not bag:
+            return jsonify({'success': False, 'error': 'Bag not found'}), 404
+
         zoho_line_item_id = bag.get('zoho_line_item_id')
         if not zoho_line_item_id:
             return jsonify({
-                'success': False, 
-                'error': 'Cannot push to Zoho: PO line item does not have a Zoho line item ID. Please sync POs from Zoho first (click Sync POs button on Dashboard).'
+                'success': False,
+                'error': (
+                    'Cannot push to Zoho: no tablet line item for this product on the PO in Zoho '
+                    '(or it is not linked in TabletTracker tablet types). '
+                    'Check Zoho has a line for this inventory item, then run Sync Zoho POs if needed.'
+                ),
             }), 400
-        
+
         # Get values for notes
         receive_name = bag.get('receive_name', '')
         current_app.logger.info(f"📝 Building notes - receive_name from DB: '{receive_name}'")
@@ -1210,8 +1225,8 @@ def push_bag_to_zoho(bag_id):
             return jsonify({
                 'success': False,
                 'error': (
-                    'Could not read this PO line from Zoho (line item may be stale or changed in Zoho). '
-                    'Run Sync Zoho POs on the dashboard, then try again.'
+                    'Could not read this PO line from Zoho (line may have been restructured). '
+                    'Try Push again after a moment, or run Sync Zoho POs once if the PO changed in Zoho.'
                 ),
             }), 400
 
@@ -1294,6 +1309,13 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                             'line_item_name': name,
                         },
                     }), 400
+
+                if overs_local_po_id is not None:
+                    try:
+                        with db_transaction() as conn:
+                            zoho_api.refresh_tablet_po_lines(conn, overs_local_po_id, overs_zoho_po_id)
+                    except Exception as e:
+                        current_app.logger.warning(f"refresh_tablet_po_lines (overs PO) skipped: {e}")
 
                 # Always resolve overs line from Zoho by item_id — SQLite can point at the wrong flavor line
                 # when the overs PO has multiple tablet lines (stale or duplicate zoho_line_item_id).

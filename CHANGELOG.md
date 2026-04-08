@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.5] - 2026-03-30
+
+### ✨ Enhancement
+
+#### Push to Zoho: refresh PO lines automatically (no Sync before every push)
+- **`refresh_tablet_po_lines`**: On each **Push to Zoho**, TabletTracker **GET**s the parent PO (and the overs PO when splitting) from Zoho and **upserts** `po_lines` for configured tablet items so local **`zoho_line_item_id`** stays aligned—**you do not need to click Sync Zoho POs every time** before pushing.
+- **When Sync still matters**: New POs not yet in SQLite, first-time linking, or rare Zoho-side changes that need a **full** list sync—use **Sync Zoho POs** then, not before every bag.
+- **Versioning**: **PATCH** `2.52.4` → `2.52.5`.
+
+---
+
 ## [2.52.4] - 2026-03-30
 
 ### 🐛 Fix

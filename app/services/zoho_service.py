@@ -393,6 +393,70 @@ class ZohoInventoryAPI:
             logger.error(f"Error uploading attachment: {e}")
             return False
     
+    def refresh_tablet_po_lines(self, db_conn, local_po_id: int, zoho_po_id: str) -> bool:
+        """
+        Upsert po_lines for one PO from Zoho GET purchaseorders/{id} (tablet inventory items only).
+
+        Call this before Push to Zoho so local zoho_line_item_id matches Zoho without a full dashboard Sync.
+        Does not insert purchase_orders — the PO row must already exist.
+        """
+        if not local_po_id or not zoho_po_id:
+            return False
+        po_details = self.get_purchase_order_details(zoho_po_id)
+        if not po_details or not isinstance(po_details, dict):
+            return False
+        pur = po_details.get('purchaseorder')
+        if not pur:
+            return False
+        row = db_conn.execute(
+            'SELECT po_number FROM purchase_orders WHERE id = ?',
+            (local_po_id,),
+        ).fetchone()
+        if not row:
+            return False
+        po_number = row['po_number']
+        tablet_rows = db_conn.execute(
+            """
+            SELECT inventory_item_id FROM tablet_types
+            WHERE inventory_item_id IS NOT NULL AND TRIM(inventory_item_id) != ''
+            """
+        ).fetchall()
+        tablet_item_ids_set = {r['inventory_item_id'] for r in tablet_rows}
+        for line in pur.get('line_items') or []:
+            item_id = line.get('item_id') or ''
+            if not item_id or item_id not in tablet_item_ids_set:
+                continue
+            line_item_id = line.get('line_item_id') or ''
+            name = line.get('name') or ''
+            qty = line.get('quantity')
+            try:
+                qty = int(round(float(qty))) if qty is not None else 0
+            except (TypeError, ValueError):
+                qty = 0
+            existing = db_conn.execute(
+                'SELECT id FROM po_lines WHERE po_id = ? AND inventory_item_id = ?',
+                (local_po_id, item_id),
+            ).fetchone()
+            if existing:
+                db_conn.execute(
+                    '''
+                    UPDATE po_lines
+                    SET line_item_name = ?, quantity_ordered = ?, zoho_line_item_id = ?
+                    WHERE id = ?
+                    ''',
+                    (name, qty, line_item_id, existing['id']),
+                )
+            else:
+                db_conn.execute(
+                    '''
+                    INSERT INTO po_lines
+                    (po_id, po_number, inventory_item_id, line_item_name, quantity_ordered, zoho_line_item_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ''',
+                    (local_po_id, po_number, item_id, name, qty, line_item_id),
+                )
+        return True
+
     def sync_tablet_pos_to_db(self, db_conn):
         """Sync ONLY tablet POs from Zoho to local database"""
         # Get all POs (open, closed, draft, etc.)
