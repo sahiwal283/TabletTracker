@@ -38,6 +38,42 @@ bp = Blueprint('api_receiving', __name__)
 BATCH_VALUE_PATTERN = re.compile(r'^[A-Za-z0-9-]+$')
 
 
+def _parse_zoho_po_quantity(value):
+    """Parse quantity fields from Zoho JSON (may be int, float, or string)."""
+    try:
+        if value is None:
+            return 0
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id):
+    """
+    Fetch ordered quantity and quantity_received for one PO line from Zoho GET purchaseorders/{id}.
+
+    Zoho error 36012 is enforced against Zoho's own received totals, not TabletTracker's po_lines.good_count
+    (which tracks in-app credits and can be zero even when Zoho already shows receives).
+    """
+    if not zoho_po_id or not zoho_line_item_id:
+        return None
+    po_details = zoho_api.get_purchase_order_details(zoho_po_id)
+    if not po_details or not isinstance(po_details, dict):
+        return None
+    po = po_details.get('purchaseorder')
+    if not po:
+        return None
+    zid = str(zoho_line_item_id)
+    for line in po.get('line_items') or []:
+        if str(line.get('line_item_id', '')) == zid:
+            return {
+                'line_item_name': line.get('name') or 'Unknown',
+                'ordered': _parse_zoho_po_quantity(line.get('quantity')),
+                'received_in_zoho_before_push': _parse_zoho_po_quantity(line.get('quantity_received')),
+            }
+    return None
+
+
 @bp.route('/api/tablet-types/<int:tablet_type_id>/zoho-item-weight', methods=['GET'])
 @employee_required
 def zoho_item_weight_for_tablet_type(tablet_type_id):
@@ -1143,13 +1179,56 @@ def push_bag_to_zoho(bag_id):
 
             # Handle specific error codes with helpful messages
             if error_code == 36012:
-                # Quantity recorded cannot be more than quantity ordered
-                # Get detailed PO line item info to provide helpful error message
+                # Quantity recorded cannot be more than quantity ordered (Zoho-side rule).
+                # Use live Zoho PO line (quantity + quantity_received), not local po_lines.good_count
+                # (local counts reflect TabletTracker credits, not Zoho receives).
+                stats = get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id)
+                if stats:
+                    name = stats['line_item_name']
+                    ordered = stats['ordered']
+                    recv_zoho = stats['received_in_zoho_before_push']
+                    remaining_zoho = max(0, ordered - recv_zoho)
+                    total_after_push = recv_zoho + packaged_count
+                    overage = max(0, total_after_push - ordered)
+                    error_detail = f'''❌ Zoho Quantity Limit Exceeded
+
+Zoho rejected this receive: on this PO line, (already received in Zoho + this push) cannot exceed the ordered quantity.
+
+Numbers below are from Zoho Inventory (GET purchase order — the same totals Zoho uses for this check).
+
+📦 Product: {name}
+
+📊 This PO line in Zoho (before this push):
+  • Ordered: {ordered:,} tablets
+  • Already received in Zoho: {recv_zoho:,} tablets
+  • Remaining you can still receive: {remaining_zoho:,} tablets (= ordered minus already received)
+
+🎒 This bag (this push):
+  • Quantity you are trying to push: {packaged_count:,} tablets
+
+📈 If this push succeeded, Zoho would show:
+  • Total received: {recv_zoho:,} + {packaged_count:,} = {total_after_push:,} tablets
+  • Overage (amount past the order): {overage:,} tablets
+    Same as: max(0, (already received in Zoho + this push) − ordered). Zoho only accepts when this is 0.
+
+⚠️ Zoho enforces strict limits — you cannot receive more than ordered on the line.
+
+💡 Options:
+  1. Reduce this bag’s packaged quantity (e.g. adjust submissions) so the push stays within remaining capacity.
+  2. Increase the ordered quantity on this line in Zoho (then sync POs here).
+  3. Receive the excess on another PO / overs order in Zoho.
+
+Zoho API: {error_msg}'''
+                    return jsonify({
+                        'success': False,
+                        'error': error_detail
+                    }), 400
+
+                # Fallback: could not read PO from Zoho — keep local context only for product name / ordered
                 try:
                     with db_read_only() as conn:
                         po_line_info = conn.execute('''
-                        SELECT pl.line_item_name, pl.quantity_ordered, pl.good_count, pl.damaged_count,
-                               (pl.quantity_ordered - pl.good_count - pl.damaged_count) as remaining_capacity
+                        SELECT pl.line_item_name, pl.quantity_ordered
                         FROM po_lines pl
                         WHERE pl.po_id = (SELECT po_id FROM receiving WHERE id = (
                             SELECT receiving_id FROM small_boxes WHERE id = (
@@ -1159,41 +1238,35 @@ def push_bag_to_zoho(bag_id):
                         AND pl.inventory_item_id = ?
                         LIMIT 1
                     ''', (bag_id, bag.get('inventory_item_id'))).fetchone()
-                    
+                    line_hint = ''
                     if po_line_info:
                         pl = dict(po_line_info)
-                        error_detail = f'''❌ Zoho Quantity Limit Exceeded
+                        line_hint = (
+                            f"\n\n📦 (from TabletTracker DB) Product: {pl.get('line_item_name', 'Unknown')}\n"
+                            f"   Ordered on file: {pl.get('quantity_ordered', 0):,} tablets — "
+                            "verify in Zoho; local DB may not match Zoho received totals."
+                        )
+                except Exception as e:
+                    current_app.logger.error(f"Error getting PO line fallback details: {e}")
+                    line_hint = ''
 
-📦 Product: {pl.get("line_item_name", "Unknown")}
-📊 PO Line Item Status:
-  • Ordered: {pl.get("quantity_ordered", 0):,} tablets
-  • Already Received: {pl.get("good_count", 0):,} tablets
-  • Remaining Capacity: {pl.get("remaining_capacity", 0):,} tablets
-  
-🎒 This Bag:
-  • Trying to Push: {packaged_count:,} tablets
-  • Overage: {packaged_count - pl.get("remaining_capacity", 0):,} tablets
+                error_detail = f'''❌ Zoho Quantity Limit Exceeded
 
-⚠️ Zoho enforces strict limits - cannot receive more than ordered.
+Could not load this PO line from Zoho to show “already received” exactly as Zoho sees it (required for a precise breakdown). Open Zoho Inventory, Purchase Orders, this PO, and compare Ordered vs Received on the line; Zoho rejects when (received + this push) is greater than ordered.
+
+🎒 This push quantity: {packaged_count:,} tablets
+
+Zoho’s rule: total received after this push would exceed the ordered quantity on the line.{line_hint}
 
 💡 Options:
-  1. Delete some submissions to reduce packaged count
-  2. Increase ordered quantity in Zoho PO first
-  3. Create an overs PO for the excess quantity'''
-                        
-                        return jsonify({
-                            'success': False,
-                            'error': error_detail
-                        }), 400
-                except Exception as e:
-                    current_app.logger.error(f"Error getting PO line details: {e}")
-                    # Fallback to basic error
-                    pass
-                
-                # Fallback error if we couldn't get details
+  1. Reduce packaged quantity for this bag, or split receiving in Zoho.
+  2. Increase ordered quantity on the PO line in Zoho, then sync POs here.
+  3. Use another PO for excess quantity.
+
+Zoho API: {error_msg}'''
                 return jsonify({
                     'success': False,
-                    'error': f'Cannot push to Zoho: Packaged quantity ({packaged_count:,}) exceeds quantity ordered in PO. Zoho enforces this business rule. Please check the PO line item quantity or adjust the packaged count.'
+                    'error': error_detail
                 }), 400
             else:
                 return jsonify({

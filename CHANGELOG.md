@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.51.8] - 2026-03-30
+
+### 🐛 Fix
+
+#### Zoho error 36012: wrong “already received” and overage in the message
+- **Cause**: The quantity-limit message used **`po_lines.good_count`** (TabletTracker credits), which often does not match **Zoho’s** received total (e.g. receives done in Zoho or not synced). Overage used **`this push − local remaining`**, which matched neither Zoho nor “past the order.”
+- **Fix**: On **36012**, fetch the PO line from **Zoho** (`GET purchaseorders/{id}`) and use **`quantity`** and **`quantity_received`**. **Remaining** = ordered − already received (Zoho). **Overage** = `max(0, (already received + this push) − ordered)` — e.g. 6,185 + 5,925 − 12,000 = **110**.
+- **Fallback**: If the Zoho GET fails, show instructions to check Ordered vs Received in Zoho plus optional local product/ordered hints (explicitly labeled as DB-only).
+- **Versioning**: **PATCH** `2.51.7` → `2.51.8`.
+
+---
+
 ## [2.51.7] - 2026-03-30
 
 ### ✨ Enhancement
