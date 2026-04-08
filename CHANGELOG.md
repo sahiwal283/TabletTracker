@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.2] - 2026-03-30
+
+### 🐛 Fix
+
+#### Create / add to overs PO: no visible feedback after success
+- **Cause**: The Push to Zoho modal stays open with a fullscreen overlay (`z-50`), so the green success toast (also `z-50`) was easy to miss or hidden behind the overlay; the red persistent error was dismissed, so it felt like “nothing happened.”
+- **Fix**: Remove the push modal when overs create succeeds; raise **`showSuccess` / `showError`** to **`z-[130]`** with **`max-w-*`** so toasts sit above modals and long text wraps.
+- **Versioning**: **PATCH** `2.52.1` → `2.52.2`.
+
+---
+
 ## [2.52.1] - 2026-03-30
 
 ### 🐛 Fix

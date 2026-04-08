@@ -1595,7 +1595,7 @@ async function convertToTwoLevelDropdown(selectElement) {
         // Enhanced JavaScript utilities with better styling
         function showSuccess(message) {
             const alert = document.createElement('div');
-            alert.className = 'fixed top-6 right-6 bg-gradient-to-r from-emerald-500 to-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-50 transform transition-all duration-500 scale-0';
+            alert.className = 'fixed top-6 right-6 max-w-md sm:max-w-lg bg-gradient-to-r from-emerald-500 to-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-[130] transform transition-all duration-500 scale-0 break-words';
             
             // Create structure safely to prevent XSS
             const container = document.createElement('div');
@@ -1626,7 +1626,7 @@ async function convertToTwoLevelDropdown(selectElement) {
 
         function showError(message) {
             const alert = document.createElement('div');
-            alert.className = 'fixed top-6 right-6 bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-4 rounded-xl shadow-2xl z-50 transform transition-all duration-500 scale-0';
+            alert.className = 'fixed top-6 right-6 max-w-md sm:max-w-lg bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-4 rounded-xl shadow-2xl z-[130] transform transition-all duration-500 scale-0 break-words';
             
             // Create structure safely to prevent XSS
             const container = document.createElement('div');
@@ -1724,9 +1724,15 @@ async function convertToTwoLevelDropdown(selectElement) {
                         }
                         const out = await res.json();
                         if (out.success) {
+                            // Push-to-Zoho modal is fullscreen z-50; dismiss it so success toast is visible.
+                            const pushModal = document.getElementById('push-to-zoho-modal');
+                            if (pushModal) pushModal.remove();
+                            const extra = (out.instructions || 'Sync Zoho POs, then push again.').trim();
+                            const msg = (out.message || 'Overs PO saved in Zoho.') + ' ' + extra;
                             if (typeof showSuccess === 'function') {
-                                const extra = (out.instructions || 'Sync Zoho POs, then push again.').trim();
-                                showSuccess((out.message || 'Overs PO saved in Zoho.') + ' ' + extra);
+                                showSuccess(msg);
+                            } else {
+                                alert(msg);
                             }
                             wrap.classList.add('scale-95', 'opacity-0');
                             setTimeout(() => wrap.remove(), 250);
