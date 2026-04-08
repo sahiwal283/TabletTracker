@@ -186,6 +186,19 @@ class ZohoInventoryAPI:
             if po.get('purchaseorder_number') == purchaseorder_number:
                 return po.get('purchaseorder_id')
         return None
+
+    def find_purchase_order_id_by_reference(self, reference_number: str):
+        """Match purchaseorder_id when reference_number equals (e.g. overs PO with Zoho auto PO #)."""
+        if not reference_number:
+            return None
+        data = self.get_purchase_orders(per_page=500)
+        if not data or not isinstance(data, dict):
+            return None
+        ref = reference_number.strip()
+        for po in data.get('purchaseorders') or []:
+            if (po.get('reference_number') or '').strip() == ref:
+                return po.get('purchaseorder_id')
+        return None
     
     def get_items(self, per_page=200):
         """Get all inventory items"""
@@ -403,7 +416,11 @@ class ZohoInventoryAPI:
             # Check if it's a tablet PO AND not closed
             is_tablet_po = False
             po_number = po.get('purchaseorder_number', '')
-            is_overs_po = po_number.upper().endswith('-OVERS')
+            ref_num = (po.get('reference_number') or '').strip()
+            is_overs_po = (
+                po_number.upper().endswith('-OVERS')
+                or ref_num.upper().endswith('-OVERS')
+            )
             
             # Check the tablets custom field (the one you just marked in Zoho)
             if po.get('cf_tablets_unformatted') in [True, 'true', 'True', 1, '1']:
@@ -516,12 +533,25 @@ class ZohoInventoryAPI:
             vendor_id = po.get('vendor_id') or po.get('contact_id') or None
             vendor_name = po.get('vendor_name') or po.get('contact_name') or None
             
-            # Detect parent PO for overs POs (e.g., PO-00127-OVERS -> PO-00127)
+            # Detect parent PO for overs POs (e.g., PO-00127-OVERS -> PO-00127).
+            # Zoho auto-number may assign a different purchaseorder_number; reference_number may hold ...-OVERS.
             parent_po_number = None
-            if is_overs_po and po_number:
-                # Extract parent PO number by removing "-OVERS" suffix
-                parent_po_number = po_number[:-6]  # Remove "-OVERS" (6 characters)
-                logger.info(f"📋 Overs PO {po_number} linked to parent PO: {parent_po_number}")
+            overs_label = None
+            if is_overs_po:
+                if po_number.upper().endswith('-OVERS'):
+                    overs_label = po_number
+                elif ref_num.upper().endswith('-OVERS'):
+                    overs_label = ref_num
+                if overs_label:
+                    parent_po_number = overs_label[:-6]
+                    logger.info(
+                        f"📋 Overs PO Zoho#={po_number} ref={ref_num!r} → parent PO: {parent_po_number}"
+                    )
+
+            # Store human overs label in SQLite when reference carries ...-OVERS but Zoho # does not
+            stored_po_number = po_number
+            if ref_num.upper().endswith('-OVERS') and not po_number.upper().endswith('-OVERS'):
+                stored_po_number = ref_num
             
             if existing:
                 # Convert Row to dict for .get() method access
@@ -564,7 +594,7 @@ class ZohoInventoryAPI:
                         SET po_number = ?, vendor_id = ?, vendor_name = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, created_at = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
                     ''', (
-                        po['purchaseorder_number'], vendor_id, vendor_name,
+                        stored_po_number, vendor_id, vendor_name,
                         zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date, po['purchaseorder_id']
                     ))
                 else:
@@ -574,7 +604,7 @@ class ZohoInventoryAPI:
                         SET po_number = ?, vendor_id = ?, vendor_name = ?, zoho_status = ?, closed = ?, internal_status = ?, parent_po_number = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE zoho_po_id = ?
                     ''', (
-                        po['purchaseorder_number'], vendor_id, vendor_name,
+                        stored_po_number, vendor_id, vendor_name,
                         zoho_status, is_now_closed, new_internal_status, parent_po_number, po['purchaseorder_id']
                     ))
                 
@@ -608,7 +638,7 @@ class ZohoInventoryAPI:
                         INSERT INTO purchase_orders (po_number, zoho_po_id, vendor_id, vendor_name, zoho_status, closed, internal_status, parent_po_number, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
-                        po['purchaseorder_number'], po['purchaseorder_id'], vendor_id, vendor_name,
+                        stored_po_number, po['purchaseorder_id'], vendor_id, vendor_name,
                         zoho_status, is_now_closed, new_internal_status, parent_po_number, po_date
                     ))
                 else:
@@ -616,7 +646,7 @@ class ZohoInventoryAPI:
                         INSERT INTO purchase_orders (po_number, zoho_po_id, vendor_id, vendor_name, zoho_status, closed, internal_status, parent_po_number)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
-                        po['purchaseorder_number'], po['purchaseorder_id'], vendor_id, vendor_name,
+                        stored_po_number, po['purchaseorder_id'], vendor_id, vendor_name,
                         zoho_status, is_now_closed, new_internal_status, parent_po_number
                     ))
                 po_id = cursor.lastrowid
@@ -664,7 +694,7 @@ class ZohoInventoryAPI:
                             INSERT INTO po_lines 
                             (po_id, po_number, inventory_item_id, line_item_name, quantity_ordered, zoho_line_item_id)
                             VALUES (?, ?, ?, ?, ?, ?)
-                        ''', (po_id, po['purchaseorder_number'], item_id, 
+                        ''', (po_id, stored_po_number, item_id, 
                               line['name'], line['quantity'], line_item_id))
                         logger.debug(f"✅ Synced tablet line item '{line['name']}' (ID: {item_id}, LineID: {line_item_id})")
                     

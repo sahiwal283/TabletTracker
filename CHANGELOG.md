@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.1] - 2026-03-30
+
+### 🐛 Fix
+
+#### Overs PO create when Zoho auto-generates PO numbers
+- **Cause**: Zoho returned *"Number entered does not match the auto-generated number"* when creating overs POs with a custom **`purchaseorder_number`** (`{parent}-OVERS`).
+- **Fix**: On that error, **retry** create **without** `purchaseorder_number` and set **`reference_number`** to `{parent}-OVERS` so sync and lookups still match. Shared helper **`_create_zoho_overs_draft_po`** used for both the dashboard **Create overs PO** flow and **`overs_for_zoho_push`**.
+- **API / UI**: Success JSON **`instructions`** (and the push toast) append a short note when Zoho used auto numbering.
+- **Versioning**: **PATCH** `2.52.0` → `2.52.1`.
+
+---
+
 ## [2.52.0] - 2026-03-30
 
 ### ✨ Feature

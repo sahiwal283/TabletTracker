@@ -141,6 +141,31 @@ def sync_po_from_zoho(po_id: Optional[int] = None) -> Dict[str, Any]:
         }
 
 
+def _create_zoho_overs_draft_po(po_data: dict, overs_po_number: str):
+    """
+    POST a draft PO. If Zoho rejects a custom purchaseorder_number (auto-numbering), retry
+    without it and set reference_number to overs_po_number so sync can treat it as ...-OVERS.
+    Returns (result_dict_or_none, optional_note_for_ui).
+    """
+    result = zoho_api.create_purchase_order(po_data)
+    if result and 'purchaseorder' in result:
+        return result, None
+    err_l = str((result or {}).get('message', '')).lower()
+    if (
+        'auto-generated' in err_l
+        or 'auto generation' in err_l
+        or 'does not match' in err_l
+    ):
+        po_auto = {k: v for k, v in po_data.items() if k != 'purchaseorder_number'}
+        po_auto['reference_number'] = overs_po_number
+        result = zoho_api.create_purchase_order(po_auto)
+        if result and 'purchaseorder' in result:
+            return result, (
+                f'Zoho uses auto PO numbering; reference is set to "{overs_po_number}" for sync.'
+            )
+    return result, None
+
+
 def create_overs_po(parent_po_id: int) -> Dict[str, Any]:
     """
     Create an overs PO in Zoho for a parent PO.
@@ -230,23 +255,24 @@ def create_overs_po(parent_po_id: int) -> Dict[str, Any]:
             if 'currency_code' in parent_data:
                 po_data['currency_code'] = parent_data['currency_code']
         
-        # Create PO in Zoho
-        result = zoho_api.create_purchase_order(po_data)
-        
+        result, note = _create_zoho_overs_draft_po(po_data, overs_po_number)
+
         if result and 'purchaseorder' in result:
             created_po = result['purchaseorder']
-            return {
+            out = {
                 'success': True,
                 'overs_po_number': overs_po_number,
                 'zoho_po_id': created_po.get('purchaseorder_id'),
                 'total_overs': overs_quantity
             }
-        else:
-            error_msg = result.get('message', 'Unknown error') if result else 'No response from Zoho API'
-            return {
-                'success': False,
-                'error': f'Failed to create PO in Zoho: {error_msg}'
-            }
+            if note:
+                out['zoho_note'] = note
+            return out
+        error_msg = result.get('message', 'Unknown error') if result else 'No response from Zoho API'
+        return {
+            'success': False,
+            'error': f'Failed to create PO in Zoho: {error_msg}'
+        }
 
 
 def _zoho_line_items_for_overs_put(
@@ -371,7 +397,9 @@ def create_or_update_overs_po_for_push(
     if overs_row:
         overs_zoho_id = dict(overs_row).get('zoho_po_id')
     if not overs_zoho_id:
-        overs_zoho_id = zoho_api.find_purchase_order_id_by_number(overs_po_number)
+        overs_zoho_id = zoho_api.find_purchase_order_id_by_number(
+            overs_po_number
+        ) or zoho_api.find_purchase_order_id_by_reference(overs_po_number)
 
     parent_zoho_po = zoho_api.get_purchase_order_details(parent_zoho_id)
     if not parent_zoho_po or 'purchaseorder' not in parent_zoho_po:
@@ -410,18 +438,24 @@ def create_or_update_overs_po_for_push(
     if 'currency_code' in parent_data:
         po_data['currency_code'] = parent_data['currency_code']
 
-    result = zoho_api.create_purchase_order(po_data)
+    result, auto_note = _create_zoho_overs_draft_po(po_data, overs_po_number)
     if result and 'purchaseorder' in result:
         created = result['purchaseorder']
-        return {
+        out = {
             'success': True,
             'overs_po_number': overs_po_number,
             'zoho_po_id': created.get('purchaseorder_id'),
             'action': 'created',
             'total_overs_added': overage_tablets,
         }
+        if auto_note:
+            out['zoho_note'] = auto_note
+        return out
     err = result.get('message', 'Unknown error') if result else 'No response from Zoho API'
-    alt_id = zoho_api.find_purchase_order_id_by_number(overs_po_number)
+
+    alt_id = zoho_api.find_purchase_order_id_by_number(
+        overs_po_number
+    ) or zoho_api.find_purchase_order_id_by_reference(overs_po_number)
     if alt_id:
         return _apply_overs_po_draft_update(
             str(alt_id),

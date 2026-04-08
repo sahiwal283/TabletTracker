@@ -1725,7 +1725,8 @@ async function convertToTwoLevelDropdown(selectElement) {
                         const out = await res.json();
                         if (out.success) {
                             if (typeof showSuccess === 'function') {
-                                showSuccess((out.message || 'Overs PO saved in Zoho.') + ' Sync Zoho POs, then push again.');
+                                const extra = (out.instructions || 'Sync Zoho POs, then push again.').trim();
+                                showSuccess((out.message || 'Overs PO saved in Zoho.') + ' ' + extra);
                             }
                             wrap.classList.add('scale-95', 'opacity-0');
                             setTimeout(() => wrap.remove(), 250);

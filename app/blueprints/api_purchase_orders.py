@@ -47,13 +47,18 @@ def create_overs_po(po_id):
     try:
         result = create_overs_po_service(po_id)
         if result.get('success'):
+            instructions = (
+                'The overs PO has been created in Zoho. You can now sync POs to import it into the app.'
+            )
+            if result.get('zoho_note'):
+                instructions += ' ' + result['zoho_note']
             return jsonify({
                 'success': True,
                 'message': f'Overs PO "{result["overs_po_number"]}" created successfully in Zoho!',
                 'overs_po_number': result['overs_po_number'],
                 'zoho_po_id': result.get('zoho_po_id'),
                 'total_overs': result.get('total_overs', 0),
-                'instructions': 'The overs PO has been created in Zoho. You can now sync POs to import it into the app.'
+                'instructions': instructions,
             })
         error = result.get('error', 'Failed to create overs PO')
         status_code = 404 if error == 'Parent PO not found' else 400 if 'No overs found' in error or 'No line items with overs found' in error else 500
@@ -107,6 +112,11 @@ def overs_for_zoho_push(po_id):
             line_item_name,
         )
         if result.get('success'):
+            instructions = (
+                'Sync Zoho POs to import the overs PO line, then push the bag again.'
+            )
+            if result.get('zoho_note'):
+                instructions += ' ' + result['zoho_note']
             return jsonify({
                 'success': True,
                 'message': (
@@ -117,7 +127,7 @@ def overs_for_zoho_push(po_id):
                 'zoho_po_id': result.get('zoho_po_id'),
                 'action': result.get('action'),
                 'total_overs_added': result.get('total_overs_added', 0),
-                'instructions': 'Sync Zoho POs to import the overs PO line, then push the bag again.',
+                'instructions': instructions,
             })
         err = result.get('error', 'Failed to create or update overs PO')
         status = 404 if 'not found' in err.lower() else 400

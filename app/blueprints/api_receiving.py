@@ -1167,11 +1167,18 @@ def push_bag_to_zoho(bag_id):
                             overs_zoho_line_id = plr['zoho_line_item_id']
                 if not overs_zoho_po_id or not overs_zoho_line_id:
                     name = stats['line_item_name']
+                    ordered = stats['ordered']
+                    recv_zoho = stats['received_in_zoho_before_push']
                     error_detail = f'''❌ Zoho Quantity Limit — split required
 
 📦 Product: {name}
 
-This bag’s packaged quantity ({packaged_count:,}) exceeds remaining capacity on the main PO line ({remaining_zoho:,}). Receiving requires an overs PO with this tablet line synced in TabletTracker.
+📊 This PO line in Zoho (before this push):
+  • Ordered: {ordered:,} tablets
+  • Already received in Zoho: {recv_zoho:,} tablets
+  • Remaining capacity on the main line: {remaining_zoho:,} tablets
+
+This bag’s packaged quantity ({packaged_count:,}) exceeds that remaining capacity. Receiving the full bag requires an overs PO with this tablet line synced in TabletTracker.
 
 Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the overs line gets a Zoho line item ID, then push again.
 
