@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.3] - 2026-03-30
+
+### 🐛 Fix
+
+#### Split Zoho push: main PO receive missing or wrong receive IDs
+- **Cause**: Stale **`zoho_line_item_id`** in SQLite could fail to match Zoho’s GET `line_items`, so split logic used wrong stats while receives still used the old ID (or stats were `None` and the code fell through oddly). Split success also stored the **overs** receive id in **`zoho_receive_id`** when main id extraction failed, hiding the problem.
+- **Fix**: Match PO line stats by **`line_item_id`**, then **fallback** to a **unique** line by **`item_id`**; use the **matched** line id for **all** purchase receives and **UPDATE** `po_lines.zoho_line_item_id` when it differs. **Fail** push if Zoho line stats cannot be loaded. **Require** a receive id when **`main_qty > 0`**. Store **`zoho_receive_id`** = main only and **`zoho_receive_overs_id`** = overs only. Clear message when Zoho shows **0** remaining on main (overs-only receive). Success toast shows **Main** and **Overs** receive IDs.
+- **Versioning**: **PATCH** `2.52.2` → `2.52.3`.
+
+---
+
 ## [2.52.2] - 2026-03-30
 
 ### 🐛 Fix

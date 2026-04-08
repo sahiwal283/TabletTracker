@@ -4461,7 +4461,10 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[100]';
             successMsg.innerHTML = `<div class="font-semibold">✓ ${data.message}</div>`;
             if (data.zoho_receive_id) {
-                successMsg.innerHTML += `<div class="text-sm opacity-90">Zoho Receive ID: ${data.zoho_receive_id}</div>`;
+                successMsg.innerHTML += `<div class="text-sm opacity-90">Main PO receive ID: ${data.zoho_receive_id}</div>`;
+            }
+            if (data.zoho_receive_overs_id) {
+                successMsg.innerHTML += `<div class="text-sm opacity-90">Overs PO receive ID: ${data.zoho_receive_overs_id}</div>`;
             }
             document.body.appendChild(successMsg);
             

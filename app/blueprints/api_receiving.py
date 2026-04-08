@@ -64,9 +64,21 @@ def _extract_zoho_receive_id_from_result(result):
     )
 
 
-def get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id):
+def _line_stats_from_zoho_line(line: dict) -> dict:
+    """Build receive stats dict from one Zoho PO line item (GET purchaseorders/{id})."""
+    return {
+        'line_item_name': line.get('name') or 'Unknown',
+        'ordered': _parse_zoho_po_quantity(line.get('quantity')),
+        'received_in_zoho_before_push': _parse_zoho_po_quantity(line.get('quantity_received')),
+        'matched_line_item_id': str(line.get('line_item_id', '') or ''),
+    }
+
+
+def get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id, inventory_item_id=None):
     """
     Fetch ordered quantity and quantity_received for one PO line from Zoho GET purchaseorders/{id}.
+
+    Matches by line_item_id first; if not found (stale ID after Zoho edits), matches a unique line by item_id.
 
     Zoho error 36012 is enforced against Zoho's own received totals, not TabletTracker's po_lines.good_count
     (which tracks in-app credits and can be zero even when Zoho already shows receives).
@@ -79,14 +91,24 @@ def get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id):
     po = po_details.get('purchaseorder')
     if not po:
         return None
+    lines = po.get('line_items') or []
     zid = str(zoho_line_item_id)
-    for line in po.get('line_items') or []:
+    for line in lines:
         if str(line.get('line_item_id', '')) == zid:
-            return {
-                'line_item_name': line.get('name') or 'Unknown',
-                'ordered': _parse_zoho_po_quantity(line.get('quantity')),
-                'received_in_zoho_before_push': _parse_zoho_po_quantity(line.get('quantity_received')),
-            }
+            return _line_stats_from_zoho_line(line)
+    if inventory_item_id:
+        inv = str(inventory_item_id)
+        matches = [li for li in lines if str(li.get('item_id') or '') == inv]
+        if len(matches) == 1:
+            current_app.logger.warning(
+                f"Zoho PO {zoho_po_id}: stored line_item_id {zid} not in GET response; "
+                f"using unique line matched by item_id {inv}"
+            )
+            return _line_stats_from_zoho_line(matches[0])
+        if len(matches) > 1:
+            current_app.logger.warning(
+                f"Zoho PO {zoho_po_id}: multiple lines for item_id {inv}; cannot resolve line stats"
+            )
     return None
 
 
@@ -1134,10 +1156,40 @@ def push_bag_to_zoho(bag_id):
         chart_filename = f"bag_{bag_id}_stats.png" if chart_image else None
 
         today = datetime.now().strftime('%Y-%m-%d')
-        stats = get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id)
+        stats = get_zoho_po_line_receive_stats(
+            zoho_po_id, zoho_line_item_id, bag.get('inventory_item_id')
+        )
+        if stats is None:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Could not read this PO line from Zoho (line item may be stale or changed in Zoho). '
+                    'Run Sync Zoho POs on the dashboard, then try again.'
+                ),
+            }), 400
+
+        effective_line_id = str(zoho_line_item_id or '').strip()
+        mid = (stats.get('matched_line_item_id') or '').strip()
+        if mid and mid != effective_line_id:
+            current_app.logger.warning(
+                f"Bag {bag_id}: Zoho line_item_id from GET ({mid}) differs from DB ({effective_line_id}); "
+                'using Zoho value for this receive'
+            )
+            effective_line_id = mid
+            try:
+                with db_transaction() as conn:
+                    conn.execute(
+                        '''
+                        UPDATE po_lines SET zoho_line_item_id = ?
+                        WHERE po_id = ? AND inventory_item_id = ?
+                        ''',
+                        (mid, bag['po_id'], bag['inventory_item_id']),
+                    )
+            except Exception as e:
+                current_app.logger.warning(f"Could not persist corrected zoho_line_item_id: {e}")
 
         # Split push: main PO + overs PO when packaged count exceeds remaining capacity on the main line
-        if stats and packaged_count > 0:
+        if packaged_count > 0:
             ordered = stats['ordered']
             recv_zoho = stats['received_in_zoho_before_push']
             remaining_zoho = max(0, ordered - recv_zoho)
@@ -1214,7 +1266,7 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                     )
                     result_main = zoho_api.create_purchase_receive(
                         purchaseorder_id=zoho_po_id,
-                        line_items=[{'line_item_id': zoho_line_item_id, 'quantity': main_qty}],
+                        line_items=[{'line_item_id': effective_line_id, 'quantity': main_qty}],
                         date=today,
                         notes=notes_main,
                         image_bytes=chart_image if chart_image else None,
@@ -1236,6 +1288,17 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                         current_app.logger.error(f"Zoho split main receive error: {em}")
                         return jsonify({'success': False, 'error': f'Zoho error (main PO receive): {em}'}), 500
                     rid_main = _extract_zoho_receive_id_from_result(result_main)
+                    if not rid_main:
+                        current_app.logger.error(
+                            f"Zoho main receive returned no receive id (bag {bag_id}): {json.dumps(result_main, default=str)[:2000]}"
+                        )
+                        return jsonify({
+                            'success': False,
+                            'error': (
+                                'Zoho did not return a purchase receive id for the main PO line. '
+                                'Check Zoho for duplicate receives before retrying.'
+                            ),
+                        }), 500
 
                 notes_ov = build_zoho_receive_notes(
                     shipment_number=shipment_number,
@@ -1274,6 +1337,17 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                     current_app.logger.error(f"Zoho overs receive error: {em}")
                     return jsonify({'success': False, 'error': f'Zoho error (overs PO receive): {em}'}), 500
                 rid_overs = _extract_zoho_receive_id_from_result(result_overs)
+                if not rid_overs:
+                    current_app.logger.error(
+                        f"Zoho overs receive returned no receive id (bag {bag_id}): {json.dumps(result_overs, default=str)[:2000]}"
+                    )
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            'Zoho did not return a purchase receive id for the overs PO line. '
+                            'Check Zoho for duplicate receives before retrying.'
+                        ),
+                    }), 500
 
                 with db_transaction() as conn:
                     conn.execute(
@@ -1285,18 +1359,25 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                         WHERE id = ?
                         ''',
                         (
-                            str(rid_main) if rid_main else str(rid_overs),
-                            str(rid_overs) if (rid_main and rid_overs) else None,
+                            str(rid_main) if rid_main else None,
+                            str(rid_overs) if rid_overs else None,
                             bag_id,
                         ),
                     )
 
                 bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {box_number}, Bag {bag_number}"
+                split_msg = f'Successfully pushed {bag_info} to Zoho (split: main + overs PO)'
+                if main_qty <= 0:
+                    split_msg = (
+                        f'Successfully pushed {bag_info} to Zoho on the overs PO only. '
+                        f'Zoho shows the main line as full (ordered {ordered:,}, already received {recv_zoho:,}). '
+                        f'Overs receive: {overs_qty:,} tablets.'
+                    )
                 return jsonify({
                     'success': True,
-                    'message': f'Successfully pushed {bag_info} to Zoho (split: main + overs PO)',
-                    'zoho_receive_id': str(rid_main) if rid_main else str(rid_overs),
-                    'zoho_receive_overs_id': str(rid_overs) if rid_main else None,
+                    'message': split_msg,
+                    'zoho_receive_id': str(rid_main) if rid_main else None,
+                    'zoho_receive_overs_id': str(rid_overs) if rid_overs else None,
                     'split_main_qty': main_qty,
                     'split_overs_qty': overs_qty,
                 })
@@ -1314,13 +1395,13 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
         )
 
         line_items = [{
-            'line_item_id': zoho_line_item_id,
+            'line_item_id': effective_line_id,
             'quantity': packaged_count
         }]
 
         current_app.logger.info(f"Pushing bag {bag_id} to Zoho:")
         current_app.logger.info(f"  - Zoho PO ID: {zoho_po_id}")
-        current_app.logger.info(f"  - Zoho Line Item ID: {zoho_line_item_id}")
+        current_app.logger.info(f"  - Zoho Line Item ID (effective): {effective_line_id}")
         current_app.logger.info(f"  - Line items: {line_items}")
         current_app.logger.info(f"  - Date: {today}")
         current_app.logger.info(f"  - Has chart image: {bool(chart_image)}")
@@ -1361,7 +1442,9 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                 # Quantity recorded cannot be more than quantity ordered (Zoho-side rule).
                 # Use live Zoho PO line (quantity + quantity_received), not local po_lines.good_count
                 # (local counts reflect TabletTracker credits, not Zoho receives).
-                stats = get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id)
+                stats = get_zoho_po_line_receive_stats(
+                    zoho_po_id, effective_line_id, bag.get('inventory_item_id')
+                )
                 if stats:
                     name = stats['line_item_name']
                     ordered = stats['ordered']
