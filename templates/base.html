@@ -1656,7 +1656,7 @@ async function convertToTwoLevelDropdown(selectElement) {
         }
 
         /** Zoho / long API errors: stays visible until user clicks Dismiss (scrollable body). */
-        function showErrorPersistent(message) {
+        function showErrorPersistent(message, zohoPushOvers) {
             const existing = document.getElementById('persistent-error-toast');
             if (existing) existing.remove();
 
@@ -1698,6 +1698,59 @@ async function convertToTwoLevelDropdown(selectElement) {
 
             inner.appendChild(headerRow);
             inner.appendChild(body);
+
+            if (zohoPushOvers && zohoPushOvers.parent_po_id && zohoPushOvers.overage_tablets > 0) {
+                const footer = document.createElement('div');
+                footer.className = 'mt-3 pt-3 border-t border-white/25 flex-shrink-0 flex flex-wrap items-center gap-2';
+                const oversBtn = document.createElement('button');
+                oversBtn.type = 'button';
+                oversBtn.className = 'px-4 py-2 rounded-lg bg-white text-rose-900 font-semibold text-sm hover:bg-gray-100 shadow';
+                oversBtn.textContent = 'Create / add to overs PO';
+                oversBtn.addEventListener('click', async () => {
+                    oversBtn.disabled = true;
+                    try {
+                        const res = await csrfFetch('/api/purchase_orders/' + encodeURIComponent(zohoPushOvers.parent_po_id) + '/overs_for_zoho_push', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                overage_tablets: zohoPushOvers.overage_tablets,
+                                inventory_item_id: zohoPushOvers.inventory_item_id || '',
+                                line_item_name: zohoPushOvers.line_item_name || ''
+                            })
+                        });
+                        const ct = res.headers.get('content-type');
+                        if (!ct || !ct.includes('application/json')) {
+                            throw new Error('Server returned non-JSON response');
+                        }
+                        const out = await res.json();
+                        if (out.success) {
+                            if (typeof showSuccess === 'function') {
+                                showSuccess((out.message || 'Overs PO saved in Zoho.') + ' Sync Zoho POs, then push again.');
+                            }
+                            wrap.classList.add('scale-95', 'opacity-0');
+                            setTimeout(() => wrap.remove(), 250);
+                        } else {
+                            oversBtn.disabled = false;
+                            if (typeof showErrorPersistent === 'function') {
+                                showErrorPersistent(out.error || 'Failed to create overs PO');
+                            } else {
+                                alert(out.error || 'Failed');
+                            }
+                        }
+                    } catch (e) {
+                        oversBtn.disabled = false;
+                        console.error(e);
+                        if (typeof showErrorPersistent === 'function') {
+                            showErrorPersistent('Failed to create overs PO: ' + (e.message || String(e)));
+                        } else {
+                            alert('Failed: ' + e.message);
+                        }
+                    }
+                });
+                footer.appendChild(oversBtn);
+                inner.appendChild(footer);
+            }
+
             wrap.appendChild(inner);
             document.body.appendChild(wrap);
 
@@ -4434,7 +4487,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
         } else {
             const errText = data.error || 'Failed to push to Zoho';
             if (typeof showErrorPersistent === 'function') {
-                showErrorPersistent(errText);
+                showErrorPersistent(errText, data.zoho_push_overs || null);
             } else {
                 alert('Error: ' + errText);
             }

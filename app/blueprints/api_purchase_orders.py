@@ -3,7 +3,7 @@ Purchase Order API routes.
 
 This module handles all purchase order-related API endpoints.
 """
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, session
 from datetime import datetime
 import traceback
 from app.utils.db_utils import db_read_only, db_transaction
@@ -11,6 +11,7 @@ from app.utils.auth_utils import role_required
 from app.services.zoho_service import zoho_api
 from app.services.purchase_order_service import create_overs_po as create_overs_po_service
 from app.services.purchase_order_service import get_overs_po_preview
+from app.services.purchase_order_service import create_or_update_overs_po_for_push
 
 bp = Blueprint('api_purchase_orders', __name__)
 
@@ -75,6 +76,56 @@ def get_overs_po_info(po_id):
     except Exception as e:
         current_app.logger.error(f"Error getting overs PO info: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/purchase_orders/<int:po_id>/overs_for_zoho_push', methods=['POST'])
+@role_required('dashboard')
+def overs_for_zoho_push(po_id):
+    """Create or update draft overs PO in Zoho using overage from a failed Zoho push (quantity limit)."""
+    user_role = session.get('employee_role')
+    is_admin = session.get('admin_authenticated')
+    if user_role not in ['manager', 'admin'] and not is_admin:
+        return jsonify({'success': False, 'error': 'Only managers and admins can create overs POs'}), 403
+    try:
+        body = request.get_json() or {}
+        overage = body.get('overage_tablets')
+        inventory_item_id = (body.get('inventory_item_id') or '').strip()
+        line_item_name = (body.get('line_item_name') or 'Line item').strip()
+        try:
+            overage_int = int(overage)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'overage_tablets must be a positive integer'}), 400
+        if overage_int <= 0:
+            return jsonify({'success': False, 'error': 'overage_tablets must be positive'}), 400
+        if not inventory_item_id:
+            return jsonify({'success': False, 'error': 'inventory_item_id is required'}), 400
+
+        result = create_or_update_overs_po_for_push(
+            po_id,
+            overage_int,
+            inventory_item_id,
+            line_item_name,
+        )
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': (
+                    f'Overs PO "{result["overs_po_number"]}" '
+                    f'{"updated" if result.get("action") == "updated" else "created"} in Zoho.'
+                ),
+                'overs_po_number': result['overs_po_number'],
+                'zoho_po_id': result.get('zoho_po_id'),
+                'action': result.get('action'),
+                'total_overs_added': result.get('total_overs_added', 0),
+                'instructions': 'Sync Zoho POs to import the overs PO line, then push the bag again.',
+            })
+        err = result.get('error', 'Failed to create or update overs PO')
+        status = 404 if 'not found' in err.lower() else 400
+        return jsonify({'success': False, 'error': err}), status
+    except Exception as e:
+        current_app.logger.error(f"overs_for_zoho_push: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/api/po_lines/<int:po_id>')

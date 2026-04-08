@@ -48,6 +48,22 @@ def _parse_zoho_po_quantity(value):
         return 0
 
 
+def _extract_zoho_receive_id_from_result(result):
+    """Parse Zoho purchase receive create response for receive id."""
+    if not result or not isinstance(result, dict):
+        return None
+    if result.get('purchasereceive'):
+        pr = result['purchasereceive']
+        return (
+            pr.get('purchasereceive_id') or pr.get('purchase_receive_id')
+            or pr.get('id') or pr.get('receive_id')
+        )
+    return (
+        result.get('purchasereceive_id') or result.get('purchase_receive_id')
+        or result.get('id') or result.get('receive_id')
+    )
+
+
 def get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id):
     """
     Fetch ordered quantity and quantity_received for one PO line from Zoho GET purchaseorders/{id}.
@@ -296,6 +312,7 @@ def get_receiving_details(receive_id):
                     'bag_count': dict(bag_count)['total_bag'] if bag_count else 0,
                     'zoho_receive_pushed': bool(bag.get('zoho_receive_pushed', False)),
                     'zoho_receive_id': bag.get('zoho_receive_id'),
+                    'zoho_receive_overs_id': bag.get('zoho_receive_overs_id'),
                     'reserved_for_bottles': bool(bag.get('reserved_for_bottles', False)),
                     'batch_number': bag.get('batch_number'),
                     'batch_source': bag.get('batch_source'),
@@ -1105,7 +1122,179 @@ def push_bag_to_zoho(bag_id):
         bag_label_count = bag.get('bag_label_count', 0) or 0
         packaged_count = bag.get('packaged_count', 0) or 0
         
-        # Build notes
+        # Generate chart image with context information (attach to main PO receive when splitting)
+        chart_image = generate_bag_chart_image(
+            bag_label_count=bag_label_count,
+            packaged_count=packaged_count,
+            tablet_type_name=bag.get('tablet_type_name'),
+            box_number=bag.get('box_number'),
+            bag_number=bag.get('bag_number'),
+            receive_name=receive_name
+        )
+        chart_filename = f"bag_{bag_id}_stats.png" if chart_image else None
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        stats = get_zoho_po_line_receive_stats(zoho_po_id, zoho_line_item_id)
+
+        # Split push: main PO + overs PO when packaged count exceeds remaining capacity on the main line
+        if stats and packaged_count > 0:
+            ordered = stats['ordered']
+            recv_zoho = stats['received_in_zoho_before_push']
+            remaining_zoho = max(0, ordered - recv_zoho)
+            if packaged_count > remaining_zoho:
+                main_qty = remaining_zoho
+                overs_qty = packaged_count - main_qty
+                parent_po_number = bag.get('po_number') or ''
+                overs_po_number = f"{parent_po_number}-OVERS"
+                overs_zoho_po_id = None
+                overs_zoho_line_id = None
+                with db_read_only() as conn:
+                    opro = conn.execute(
+                        'SELECT id, zoho_po_id FROM purchase_orders WHERE po_number = ?',
+                        (overs_po_number,),
+                    ).fetchone()
+                    if opro:
+                        opro = dict(opro)
+                        overs_zoho_po_id = opro.get('zoho_po_id')
+                        plr = conn.execute(
+                            '''
+                            SELECT zoho_line_item_id FROM po_lines
+                            WHERE po_id = ? AND inventory_item_id = ?
+                            ''',
+                            (opro['id'], bag.get('inventory_item_id')),
+                        ).fetchone()
+                        if plr and plr['zoho_line_item_id']:
+                            overs_zoho_line_id = plr['zoho_line_item_id']
+                if not overs_zoho_po_id or not overs_zoho_line_id:
+                    name = stats['line_item_name']
+                    error_detail = f'''❌ Zoho Quantity Limit — split required
+
+📦 Product: {name}
+
+This bag’s packaged quantity ({packaged_count:,}) exceeds remaining capacity on the main PO line ({remaining_zoho:,}). Receiving requires an overs PO with this tablet line synced in TabletTracker.
+
+Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the overs line gets a Zoho line item ID, then push again.
+
+🎒 Split if pushed: main PO {main_qty:,} tablets + overs PO {overs_qty:,} tablets.'''
+                    return jsonify({
+                        'success': False,
+                        'error': error_detail,
+                        'zoho_push_overs': {
+                            'parent_po_id': bag['po_id'],
+                            'overage_tablets': overs_qty,
+                            'inventory_item_id': bag.get('inventory_item_id'),
+                            'line_item_name': name,
+                        },
+                    }), 400
+
+                current_app.logger.info(
+                    f"Split Zoho push bag {bag_id}: main_qty={main_qty} overs_qty={overs_qty}"
+                )
+                rid_main = None
+                if main_qty > 0:
+                    notes_main = build_zoho_receive_notes(
+                        shipment_number=shipment_number,
+                        box_number=box_number,
+                        bag_number=bag_number,
+                        bag_label_count=bag_label_count,
+                        packaged_count=main_qty,
+                        batch_number=bag.get('batch_number'),
+                        batch_source=bag.get('batch_source'),
+                        custom_notes=custom_notes,
+                        split_main_qty=main_qty,
+                        split_overs_qty=overs_qty,
+                        split_receive_role='main',
+                    )
+                    result_main = zoho_api.create_purchase_receive(
+                        purchaseorder_id=zoho_po_id,
+                        line_items=[{'line_item_id': zoho_line_item_id, 'quantity': main_qty}],
+                        date=today,
+                        notes=notes_main,
+                        image_bytes=chart_image if chart_image else None,
+                        image_filename=chart_filename
+                    )
+                    if result_main is None:
+                        current_app.logger.error(
+                            "Zoho API returned None on split main receive — timeout or network failure"
+                        )
+                        return jsonify({
+                            'success': False,
+                            'error': (
+                                'Could not reach Zoho or the request timed out on the main PO receive. '
+                                'Check your network and Zoho status.'
+                            ),
+                        }), 500
+                    if result_main.get('code') is not None and result_main.get('code') != 0:
+                        em = result_main.get('message', 'Unknown Zoho API error')
+                        current_app.logger.error(f"Zoho split main receive error: {em}")
+                        return jsonify({'success': False, 'error': f'Zoho error (main PO receive): {em}'}), 500
+                    rid_main = _extract_zoho_receive_id_from_result(result_main)
+
+                notes_ov = build_zoho_receive_notes(
+                    shipment_number=shipment_number,
+                    box_number=box_number,
+                    bag_number=bag_number,
+                    bag_label_count=bag_label_count,
+                    packaged_count=overs_qty,
+                    batch_number=bag.get('batch_number'),
+                    batch_source=bag.get('batch_source'),
+                    custom_notes=custom_notes,
+                    split_main_qty=main_qty,
+                    split_overs_qty=overs_qty,
+                    split_receive_role='overs',
+                )
+                result_overs = zoho_api.create_purchase_receive(
+                    purchaseorder_id=overs_zoho_po_id,
+                    line_items=[{'line_item_id': overs_zoho_line_id, 'quantity': overs_qty}],
+                    date=today,
+                    notes=notes_ov,
+                    image_bytes=None,
+                    image_filename=None
+                )
+                if result_overs is None:
+                    current_app.logger.error(
+                        "Zoho API returned None on overs PO receive — timeout or network failure"
+                    )
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            'Main PO receive may have succeeded but overs PO receive failed or timed out. '
+                            'Check Zoho for duplicate receives before retrying.'
+                        ),
+                    }), 500
+                if result_overs.get('code') is not None and result_overs.get('code') != 0:
+                    em = result_overs.get('message', 'Unknown Zoho API error')
+                    current_app.logger.error(f"Zoho overs receive error: {em}")
+                    return jsonify({'success': False, 'error': f'Zoho error (overs PO receive): {em}'}), 500
+                rid_overs = _extract_zoho_receive_id_from_result(result_overs)
+
+                with db_transaction() as conn:
+                    conn.execute(
+                        '''
+                        UPDATE bags
+                        SET zoho_receive_pushed = 1,
+                            zoho_receive_id = ?,
+                            zoho_receive_overs_id = ?
+                        WHERE id = ?
+                        ''',
+                        (
+                            str(rid_main) if rid_main else str(rid_overs),
+                            str(rid_overs) if (rid_main and rid_overs) else None,
+                            bag_id,
+                        ),
+                    )
+
+                bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {box_number}, Bag {bag_number}"
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully pushed {bag_info} to Zoho (split: main + overs PO)',
+                    'zoho_receive_id': str(rid_main) if rid_main else str(rid_overs),
+                    'zoho_receive_overs_id': str(rid_overs) if rid_main else None,
+                    'split_main_qty': main_qty,
+                    'split_overs_qty': overs_qty,
+                })
+
+        # Single receive path
         notes = build_zoho_receive_notes(
             shipment_number=shipment_number,
             box_number=box_number,
@@ -1116,36 +1305,19 @@ def push_bag_to_zoho(bag_id):
             batch_source=bag.get('batch_source'),
             custom_notes=custom_notes
         )
-        
-        # Generate chart image with context information
-        chart_image = generate_bag_chart_image(
-            bag_label_count=bag_label_count,
-            packaged_count=packaged_count,
-            tablet_type_name=bag.get('tablet_type_name'),
-            box_number=bag.get('box_number'),
-            bag_number=bag.get('bag_number'),
-            receive_name=receive_name
-        )
-        chart_filename = f"bag_{bag_id}_stats.png" if chart_image else None
-        
-        # Build line items for Zoho receive
-        # Use line_item_id from the PO (this is required by Zoho API for purchase receives)
+
         line_items = [{
             'line_item_id': zoho_line_item_id,
             'quantity': packaged_count
         }]
-        
-        # Create purchase receive in Zoho
-        today = datetime.now().strftime('%Y-%m-%d')
-        
-        # Log the request details for debugging
+
         current_app.logger.info(f"Pushing bag {bag_id} to Zoho:")
         current_app.logger.info(f"  - Zoho PO ID: {zoho_po_id}")
         current_app.logger.info(f"  - Zoho Line Item ID: {zoho_line_item_id}")
         current_app.logger.info(f"  - Line items: {line_items}")
         current_app.logger.info(f"  - Date: {today}")
         current_app.logger.info(f"  - Has chart image: {bool(chart_image)}")
-        
+
         result = zoho_api.create_purchase_receive(
             purchaseorder_id=zoho_po_id,
             line_items=line_items,
@@ -1214,10 +1386,18 @@ def push_bag_to_zoho(bag_id):
   3. Receive the excess on another PO / overs order in Zoho.
 
 Zoho API: {error_msg}'''
-                    return jsonify({
+                    payload = {
                         'success': False,
-                        'error': error_detail
-                    }), 400
+                        'error': error_detail,
+                    }
+                    if overage > 0:
+                        payload['zoho_push_overs'] = {
+                            'parent_po_id': bag['po_id'],
+                            'overage_tablets': overage,
+                            'inventory_item_id': bag.get('inventory_item_id'),
+                            'line_item_name': name,
+                        }
+                    return jsonify(payload), 400
 
                 # Fallback: could not read PO from Zoho — keep local context only for product name / ordered
                 try:
@@ -1297,7 +1477,7 @@ Zoho API: {error_msg}'''
         with db_transaction() as conn:
             conn.execute('''
                 UPDATE bags 
-                SET zoho_receive_pushed = 1, zoho_receive_id = ?
+                SET zoho_receive_pushed = 1, zoho_receive_id = ?, zoho_receive_overs_id = NULL
                 WHERE id = ?
             ''', (zoho_receive_id, bag_id))
         

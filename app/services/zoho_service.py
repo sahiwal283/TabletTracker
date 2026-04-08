@@ -171,6 +171,21 @@ class ZohoInventoryAPI:
         """Get detailed information for a specific PO"""
         endpoint = f'purchaseorders/{po_id}'
         return self.make_request(endpoint)
+
+    def find_purchase_order_id_by_number(self, purchaseorder_number: str):
+        """
+        Find a Zoho purchase order ID by exact purchaseorder_number (list + match).
+        Returns purchaseorder_id string or None.
+        """
+        if not purchaseorder_number:
+            return None
+        data = self.get_purchase_orders(per_page=500)
+        if not data or not isinstance(data, dict):
+            return None
+        for po in data.get('purchaseorders') or []:
+            if po.get('purchaseorder_number') == purchaseorder_number:
+                return po.get('purchaseorder_id')
+        return None
     
     def get_items(self, per_page=200):
         """Get all inventory items"""
@@ -189,6 +204,13 @@ class ZohoInventoryAPI:
         """Create a purchase order in Zoho Inventory"""
         endpoint = 'purchaseorders'
         return self.make_request(endpoint, method='POST', data=po_data)
+
+    def update_purchase_order(self, zoho_po_id, po_data):
+        """Update an existing purchase order in Zoho Inventory (e.g. draft overs PO line quantities)."""
+        if not zoho_po_id:
+            return None
+        endpoint = f'purchaseorders/{zoho_po_id}'
+        return self.make_request(endpoint, method='PUT', data=po_data)
     
     def create_purchase_receive(self, purchaseorder_id, line_items, date, receive_number=None, notes=None, image_bytes=None, image_filename=None):
         """

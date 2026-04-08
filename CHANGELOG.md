@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.0] - 2026-03-30
+
+### ✨ Feature
+
+#### Zoho push: overs PO from quantity limit + split receives
+- **Overs PO API**: `POST /api/purchase_orders/<po_id>/overs_for_zoho_push` creates or updates a draft **`{parent}-OVERS`** PO in Zoho for a Zoho-computed overage (same auth as push: managers/admins).
+- **Zoho service**: `update_purchase_order` (PUT), `find_purchase_order_id_by_number` (list match).
+- **Push flow**: If live Zoho line stats show **packaged > remaining** on the main line, TabletTracker **splits** into two purchase receives (main + overs) when the overs PO is synced with a **`zoho_line_item_id`** for that tablet line; notes document **bag split** and main vs overs tablet counts. **`bags.zoho_receive_overs_id`** stores the second receive when applicable.
+- **36012 / split-required errors**: JSON may include **`zoho_push_overs`**; the persistent error toast adds **Create / add to overs PO**, then users **Sync Zoho POs** and push again.
+- **Versioning**: **MINOR** `2.51.8` → `2.52.0`.
+
+---
+
 ## [2.51.8] - 2026-03-30
 
 ### 🐛 Fix

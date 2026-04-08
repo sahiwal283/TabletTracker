@@ -249,6 +249,191 @@ def create_overs_po(parent_po_id: int) -> Dict[str, Any]:
             }
 
 
+def _zoho_line_items_for_overs_put(
+    purchaseorder: dict,
+    inventory_item_id: str,
+    line_item_name: str,
+    quantity_to_add: int,
+) -> List[dict]:
+    """Build line_items array for PUT: bump quantity on matching item_id or append a line."""
+    inv = str(inventory_item_id)
+    lines_out: List[dict] = []
+    found = False
+    for li in purchaseorder.get('line_items') or []:
+        item_id = str(li.get('item_id') or '')
+        qty = int(round(float(li.get('quantity') or 0)))
+        rate = float(li.get('rate') or 0)
+        if item_id == inv:
+            qty = qty + quantity_to_add
+            found = True
+        entry = {
+            'line_item_id': li.get('line_item_id'),
+            'item_id': item_id,
+            'name': li.get('name') or line_item_name,
+            'quantity': qty,
+            'rate': rate,
+        }
+        lines_out.append(entry)
+    if not found:
+        lines_out.append({
+            'item_id': inv,
+            'name': line_item_name,
+            'quantity': quantity_to_add,
+            'rate': 0,
+        })
+    return lines_out
+
+
+def _apply_overs_po_draft_update(
+    overs_zoho_id: str,
+    overs_po_number: str,
+    inventory_item_id: str,
+    line_item_name: str,
+    overage_tablets: int,
+    parent_data: dict,
+) -> Dict[str, Any]:
+    """Increment overs draft PO line quantity (or add line) via Zoho PUT."""
+    det = zoho_api.get_purchase_order_details(overs_zoho_id)
+    if not det or 'purchaseorder' not in det:
+        return {'success': False, 'error': 'Could not load overs PO from Zoho'}
+    pur = det['purchaseorder']
+    new_lines = _zoho_line_items_for_overs_put(
+        pur, inventory_item_id, line_item_name, overage_tablets
+    )
+    prev_note = (pur.get('notes') or '').strip()
+    add_note = (
+        f'Overs from TabletTracker Zoho push: +{overage_tablets:,} tablets for {line_item_name}'
+    )
+    merged_notes = f"{prev_note}\n{add_note}".strip() if prev_note else add_note
+    po_body = {
+        'purchaseorder_number': pur.get('purchaseorder_number') or overs_po_number,
+        'date': pur.get('date') or datetime.now().date().isoformat(),
+        'vendor_id': pur.get('vendor_id') or parent_data.get('vendor_id'),
+        'vendor_name': pur.get('vendor_name') or parent_data.get('vendor_name'),
+        'line_items': new_lines,
+        'notes': merged_notes,
+        'status': 'draft',
+        'cf_tablets': True,
+    }
+    if parent_data.get('currency_code'):
+        po_body['currency_code'] = parent_data['currency_code']
+    result = zoho_api.update_purchase_order(overs_zoho_id, po_body)
+    if result and result.get('purchaseorder'):
+        return {
+            'success': True,
+            'overs_po_number': overs_po_number,
+            'zoho_po_id': overs_zoho_id,
+            'action': 'updated',
+            'total_overs_added': overage_tablets,
+        }
+    err = (result or {}).get('message', 'Unknown error') if result else 'No response from Zoho API'
+    return {'success': False, 'error': f'Failed to update overs PO in Zoho: {err}'}
+
+
+def create_or_update_overs_po_for_push(
+    parent_po_id: int,
+    overage_tablets: int,
+    inventory_item_id: str,
+    line_item_name: str,
+) -> Dict[str, Any]:
+    """
+    Create a draft overs PO in Zoho or add quantity to an existing draft overs PO line,
+    using Zoho-computed overage from a failed push (not local negative remaining).
+
+    Overs PO number: {parent_po_number}-OVERS
+    """
+    if overage_tablets <= 0:
+        return {'success': False, 'error': 'overage_tablets must be a positive integer'}
+    if not inventory_item_id:
+        return {'success': False, 'error': 'inventory_item_id is required'}
+
+    with db_read_only() as conn:
+        parent = PurchaseOrderRepository.get_by_id(conn, parent_po_id)
+        if not parent:
+            return {'success': False, 'error': 'Parent PO not found'}
+        parent = dict(parent)
+        parent_po_number = parent.get('po_number') or ''
+        parent_zoho_id = parent.get('zoho_po_id')
+        if not parent_zoho_id:
+            return {'success': False, 'error': 'Parent PO has no Zoho PO ID. Sync POs from Zoho first.'}
+
+        overs_po_number = f"{parent_po_number}-OVERS"
+        overs_row = conn.execute(
+            '''
+            SELECT id, zoho_po_id, po_number
+            FROM purchase_orders
+            WHERE po_number = ?
+            ''',
+            (overs_po_number,),
+        ).fetchone()
+
+    overs_zoho_id = None
+    if overs_row:
+        overs_zoho_id = dict(overs_row).get('zoho_po_id')
+    if not overs_zoho_id:
+        overs_zoho_id = zoho_api.find_purchase_order_id_by_number(overs_po_number)
+
+    parent_zoho_po = zoho_api.get_purchase_order_details(parent_zoho_id)
+    if not parent_zoho_po or 'purchaseorder' not in parent_zoho_po:
+        return {'success': False, 'error': 'Could not load parent PO from Zoho'}
+
+    parent_data = parent_zoho_po['purchaseorder']
+
+    if overs_zoho_id:
+        return _apply_overs_po_draft_update(
+            str(overs_zoho_id),
+            overs_po_number,
+            inventory_item_id,
+            line_item_name,
+            overage_tablets,
+            parent_data,
+        )
+
+    line_items = [{
+        'item_id': inventory_item_id,
+        'name': line_item_name,
+        'quantity': overage_tablets,
+        'rate': 0,
+    }]
+    po_data = {
+        'purchaseorder_number': overs_po_number,
+        'date': datetime.now().date().isoformat(),
+        'line_items': line_items,
+        'cf_tablets': True,
+        'notes': f'Overs PO for {parent_po_number} — TabletTracker push: {overage_tablets:,} tablets ({line_item_name})',
+        'status': 'draft',
+    }
+    if 'vendor_id' in parent_data:
+        po_data['vendor_id'] = parent_data['vendor_id']
+    if 'vendor_name' in parent_data:
+        po_data['vendor_name'] = parent_data['vendor_name']
+    if 'currency_code' in parent_data:
+        po_data['currency_code'] = parent_data['currency_code']
+
+    result = zoho_api.create_purchase_order(po_data)
+    if result and 'purchaseorder' in result:
+        created = result['purchaseorder']
+        return {
+            'success': True,
+            'overs_po_number': overs_po_number,
+            'zoho_po_id': created.get('purchaseorder_id'),
+            'action': 'created',
+            'total_overs_added': overage_tablets,
+        }
+    err = result.get('message', 'Unknown error') if result else 'No response from Zoho API'
+    alt_id = zoho_api.find_purchase_order_id_by_number(overs_po_number)
+    if alt_id:
+        return _apply_overs_po_draft_update(
+            str(alt_id),
+            overs_po_number,
+            inventory_item_id,
+            line_item_name,
+            overage_tablets,
+            parent_data,
+        )
+    return {'success': False, 'error': f'Failed to create overs PO in Zoho: {err}'}
+
+
 def get_overs_po_preview(parent_po_id: int) -> Dict[str, Any]:
     """
     Build preview information for creating an overs PO.

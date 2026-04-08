@@ -199,6 +199,7 @@ class MigrationRunner:
         # Add Zoho receive push tracking columns (v2.23.0+dev)
         self._add_column_if_not_exists('bags', 'zoho_receive_pushed', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('bags', 'zoho_receive_id', 'TEXT')
+        self._add_column_if_not_exists('bags', 'zoho_receive_overs_id', 'TEXT')
         
         # Add bottle reservation flag (v2.24.0+dev) - for variety pack bag reservation
         self._add_column_if_not_exists('bags', 'reserved_for_bottles', 'BOOLEAN DEFAULT 0')

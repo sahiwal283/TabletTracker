@@ -299,7 +299,10 @@ def build_zoho_receive_notes(
     packaged_count: int,
     batch_number: Optional[str] = None,
     batch_source: Optional[str] = None,
-    custom_notes: Optional[str] = None
+    custom_notes: Optional[str] = None,
+    split_main_qty: Optional[int] = None,
+    split_overs_qty: Optional[int] = None,
+    split_receive_role: Optional[str] = None,
 ) -> str:
     """
     Build the notes string for a Zoho purchase receive.
@@ -319,7 +322,10 @@ def build_zoho_receive_notes(
         batch_number: Effective batch used for this bag
         batch_source: Batch source label (shipment default, box default, bag specific)
         custom_notes: Optional additional notes
-        
+        split_main_qty: If set with split_overs_qty, append bag-split explanation (main PO tablets)
+        split_overs_qty: Overs PO tablet portion for a split receive
+        split_receive_role: 'main' or 'overs' — which receive this note is for
+
     Returns:
         Formatted notes string
     """
@@ -334,6 +340,21 @@ def build_zoho_receive_notes(
     
     if custom_notes and custom_notes.strip():
         notes += f"\n\n{custom_notes.strip()}"
+
+    if split_main_qty is not None and split_overs_qty is not None:
+        notes += (
+            "\n\nBAG SPLIT — PO line capacity / overs:"
+            f"\n• Main PO portion: {split_main_qty:,} tablets"
+            f"\n• Overs PO portion: {split_overs_qty:,} tablets"
+        )
+        if split_receive_role == 'main':
+            notes += (
+                f"\n(This purchase receive is the {split_main_qty:,} tablets on the main PO line.)"
+            )
+        elif split_receive_role == 'overs':
+            notes += (
+                f"\n(This purchase receive is the {split_overs_qty:,} tablets on the overs PO line.)"
+            )
     
     return notes
 
