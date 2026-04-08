@@ -1192,16 +1192,12 @@ def push_bag_to_zoho(bag_id):
                     overage = max(0, total_after_push - ordered)
                     error_detail = f'''❌ Zoho Quantity Limit Exceeded
 
-Zoho rejected this receive: on this PO line, (already received in Zoho + this push) cannot exceed the ordered quantity.
-
-Numbers below are from Zoho Inventory (GET purchase order — the same totals Zoho uses for this check).
-
 📦 Product: {name}
 
 📊 This PO line in Zoho (before this push):
   • Ordered: {ordered:,} tablets
   • Already received in Zoho: {recv_zoho:,} tablets
-  • Remaining you can still receive: {remaining_zoho:,} tablets (= ordered minus already received)
+  • Remaining you can still receive: {remaining_zoho:,} tablets
 
 🎒 This bag (this push):
   • Quantity you are trying to push: {packaged_count:,} tablets
@@ -1209,7 +1205,6 @@ Numbers below are from Zoho Inventory (GET purchase order — the same totals Zo
 📈 If this push succeeded, Zoho would show:
   • Total received: {recv_zoho:,} + {packaged_count:,} = {total_after_push:,} tablets
   • Overage (amount past the order): {overage:,} tablets
-    Same as: max(0, (already received in Zoho + this push) − ordered). Zoho only accepts when this is 0.
 
 ⚠️ Zoho enforces strict limits — you cannot receive more than ordered on the line.
 
