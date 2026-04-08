@@ -48,17 +48,24 @@
              data-toggle-po-collapse="po-{{ po_group.po_number }}"
              role="button"
              tabindex="0"
-             aria-label="Show or hide shipments for {{ po_group.po_number | e }}">
-            <div class="flex justify-between items-center">
-                <h2 class="text-xl font-bold text-gray-900">
-                    📋 {{ po_group.po_number }}
-                    <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
-                </h2>
-                <span class="text-gray-600 pointer-events-none" aria-hidden="true">
-                    <svg id="icon-po-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
-                </span>
+             aria-label="Show or hide shipments for {{ po_group.po_number | e }}{% if po_group.vendor_name %}, {{ po_group.vendor_name | e }}{% endif %}">
+            <div class="flex justify-between items-center gap-3">
+                <div class="flex items-baseline gap-2 flex-wrap min-w-0">
+                    <h2 class="text-xl font-bold text-gray-900">
+                        📋 {{ po_group.po_number }}
+                        <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
+                    </h2>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-end">
+                    {% if po_group.vendor_name %}
+                    <span class="text-sm text-gray-600 truncate max-w-[10rem] sm:max-w-md text-right" title="{{ po_group.vendor_name | e }}">{{ po_group.vendor_name }}</span>
+                    {% endif %}
+                    <span class="text-gray-600 pointer-events-none flex-shrink-0" aria-hidden="true">
+                        <svg id="icon-po-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </span>
+                </div>
             </div>
         </div>
         
@@ -316,18 +323,25 @@
              data-toggle-po-collapse="po-closed-{{ po_group.po_number }}"
              role="button"
              tabindex="0"
-             aria-label="Show or hide closed PO {{ po_group.po_number | e }} shipments">
-            <div class="flex justify-between items-center">
-                <h2 class="text-xl font-bold text-gray-900">
-                    📋 {{ po_group.po_number }}
-                    <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed</span>
-                    <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
-                </h2>
-                <span class="text-gray-600 pointer-events-none" aria-hidden="true">
-                    <svg id="icon-po-closed-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
-                </span>
+             aria-label="Show or hide closed PO {{ po_group.po_number | e }} shipments{% if po_group.vendor_name %}, {{ po_group.vendor_name | e }}{% endif %}">
+            <div class="flex justify-between items-center gap-3">
+                <div class="flex items-baseline gap-2 flex-wrap min-w-0">
+                    <h2 class="text-xl font-bold text-gray-900">
+                        📋 {{ po_group.po_number }}
+                        <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed</span>
+                        <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
+                    </h2>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-end">
+                    {% if po_group.vendor_name %}
+                    <span class="text-sm text-gray-600 truncate max-w-[10rem] sm:max-w-md text-right" title="{{ po_group.vendor_name | e }}">{{ po_group.vendor_name }}</span>
+                    {% endif %}
+                    <span class="text-gray-600 pointer-events-none flex-shrink-0" aria-hidden="true">
+                        <svg id="icon-po-closed-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </span>
+                </div>
             </div>
         </div>
         

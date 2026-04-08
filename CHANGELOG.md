@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.7] - 2026-03-27
+
+### ✨ Enhancement
+
+#### Shipments Received: vendor name on PO accordion rows
+- **Active POs** and **Closed POs** list headers now show **`purchase_orders.vendor_name`** (when set) beside each PO, before the expand chevron; full name on hover when truncated.
+- **Versioning**: **PATCH** `2.52.6` → `2.52.7`.
+
+---
+
 ## [2.52.6] - 2026-03-30
 
 ### 🐛 Fix

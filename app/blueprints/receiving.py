@@ -26,12 +26,14 @@ def receiving_list():
             # Get unique categories for dropdown grouping
             categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
             
+            po_columns = [row['name'] for row in conn.execute("PRAGMA table_info(purchase_orders)").fetchall()]
+            has_vendor_name = 'vendor_name' in po_columns
+            vendor_select = 'vendor_name' if has_vendor_name else "NULL as vendor_name"
+            vendor_po_sql = 'po.vendor_name AS vendor_name' if has_vendor_name else "NULL AS vendor_name"
+            
             # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
             purchase_orders = []
             if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
-                po_columns = [row['name'] for row in conn.execute("PRAGMA table_info(purchase_orders)").fetchall()]
-                has_vendor_name = 'vendor_name' in po_columns
-                vendor_select = 'vendor_name' if has_vendor_name else "NULL as vendor_name"
                 po_rows = conn.execute(f'''
                 SELECT id, po_number, {vendor_select}, closed, internal_status, zoho_status
                 FROM purchase_orders
@@ -41,13 +43,14 @@ def receiving_list():
                 ''').fetchall()
                 purchase_orders = [dict(row) for row in po_rows]
             
-            # Get all receiving records with their boxes and bags (include status)
-            receiving_records = conn.execute('''
+            # Get all receiving records with their boxes and bags (include status, PO vendor)
+            receiving_records = conn.execute(f'''
             SELECT r.*, 
                    COUNT(DISTINCT sb.id) as box_count,
                    COUNT(DISTINCT b.id) as total_bags,
                    po.po_number,
                    po.closed as po_closed,
+                   {vendor_po_sql},
                    COALESCE(r.status, 'published') as status
             FROM receiving r
             LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
@@ -123,10 +126,14 @@ def receiving_list():
                 po_id = shipment['receiving']['po_id']
                 if po_id:
                     if po_id not in po_groups:
+                        _vn = shipment['receiving'].get('vendor_name')
+                        if isinstance(_vn, str):
+                            _vn = _vn.strip() or None
                         po_groups[po_id] = {
                             'po_number': shipment['receiving']['po_number'],
                             'po_closed': shipment['receiving']['po_closed'],
                             'po_id': po_id,
+                            'vendor_name': _vn,
                             'receives': []
                         }
                     po_groups[po_id]['receives'].append(shipment)
