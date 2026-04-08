@@ -65,11 +65,29 @@ class ZohoInventoryAPI:
             raise
     
     def make_request(self, endpoint, method='GET', data=None, extra_params=None):
-        """Make authenticated request to Zoho Inventory API"""
-        token = self.get_access_token()
+        """
+        Make authenticated request to Zoho Inventory API.
+
+        Returns:
+            Parsed JSON dict for HTTP 200/201, or for many 4xx/5xx responses that include a Zoho JSON body.
+            Dict often includes ``code`` and ``message`` keys on error (Zoho convention).
+            Returns None only on timeout or connection errors without a parseable response.
+        """
+        try:
+            token = self.get_access_token()
+        except ValueError as e:
+            logger.error(str(e))
+            return {'code': -1, 'message': str(e)}
+        except requests.exceptions.RequestException as e:
+            err = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                err = f"{err} — {e.response.text[:800]}"
+            logger.error(f"Zoho token request failed: {err}")
+            return {'code': -1, 'message': err}
+
         if not token:
             return None
-            
+
         url = f"{self.base_url}/{endpoint}"
         headers = self._merge_headers(
             {
@@ -81,27 +99,46 @@ class ZohoInventoryAPI:
         params = {'organization_id': self.organization_id}
         if extra_params:
             params.update(extra_params)
-        
+
+        timeout = 30
         try:
-            # Add timeout to prevent hanging (30 seconds)
-            timeout = 30
             if method == 'GET':
                 response = requests.get(url, headers=headers, params=params, timeout=timeout)
             elif method == 'POST':
                 response = requests.post(url, headers=headers, params=params, json=data, timeout=timeout)
             elif method == 'PUT':
                 response = requests.put(url, headers=headers, params=params, json=data, timeout=timeout)
-            
+            else:
+                logger.error(f"Unsupported HTTP method for Zoho API: {method}")
+                return None
+
             logger.debug(f"Request URL: {response.url}")
             logger.debug(f"Response Status: {response.status_code}")
-            
-            if response.status_code not in [200, 201]:
-                logger.error(f"Error Response Status: {response.status_code}")
-                logger.error(f"Error Response Body: {response.text}")
-            
-            response.raise_for_status()
-            return response.json()
-            
+
+            body = None
+            if response.content:
+                try:
+                    body = response.json()
+                except ValueError:
+                    body = None
+
+            if response.status_code in (200, 201):
+                return body if body is not None else {}
+
+            # Zoho often returns 4xx on POST/PUT with a JSON body (code + message). Surface that to callers.
+            # For GET, keep returning None on HTTP errors so existing sync/test code keeps working.
+            logger.error(
+                f"Zoho API HTTP {response.status_code} on {endpoint}: {response.text[:2000]}"
+            )
+            if method in ('POST', 'PUT'):
+                if isinstance(body, dict) and (body.get('code') is not None or body.get('message')):
+                    return body
+                return {
+                    'code': response.status_code,
+                    'message': (response.text[:2000] if response.text else '') or f'HTTP {response.status_code}',
+                }
+            return None
+
         except requests.exceptions.Timeout as e:
             logger.error(f"Zoho API request timed out after {timeout} seconds: {e}")
             logger.error(f"Endpoint: {endpoint}, Method: {method}")
@@ -112,6 +149,12 @@ class ZohoInventoryAPI:
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"Response status: {e.response.status_code}")
                 logger.error(f"Response body: {e.response.text}")
+                try:
+                    jb = e.response.json()
+                    if isinstance(jb, dict):
+                        return jb
+                except ValueError:
+                    pass
             return None
     
     def get_purchase_orders(self, status='all', per_page=200):
@@ -204,8 +247,8 @@ class ZohoInventoryAPI:
         
         # Create the purchase receive - purchaseorder_id is passed as URL parameter
         result = self.make_request(endpoint, method='POST', data=receive_data, extra_params=extra_params)
-        
-        if not result:
+
+        if result is None:
             logger.error("Failed to create purchase receive - no response from API (check credentials, network, or API endpoint)")
             return None
         

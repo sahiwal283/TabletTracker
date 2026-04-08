@@ -1118,26 +1118,36 @@ def push_bag_to_zoho(bag_id):
             image_bytes=chart_image if chart_image else None,
             image_filename=chart_filename
         )
-        
-        if not result:
-            current_app.logger.error("Zoho API returned None - likely authentication or network error")
+
+        if result is None:
+            current_app.logger.error("Zoho API returned None — timeout or network failure (no JSON body)")
             return jsonify({
                 'success': False,
-                'error': 'Failed to create purchase receive in Zoho. Please check API credentials and try again. Check Flask logs for details.'
+                'error': (
+                    'Could not reach Zoho or the request timed out. Check your network, Zoho Inventory status, '
+                    'and that ZOHO_* credentials in .env are valid. See Flask logs for details.'
+                )
             }), 500
-        
+
         # Check for errors in Zoho response
-        if result.get('code') and result.get('code') != 0:
+        if result.get('code') is not None and result.get('code') != 0:
             error_code = result.get('code')
             error_msg = result.get('message', 'Unknown Zoho API error')
             current_app.logger.error(f"Zoho API error (code {error_code}): {error_msg}")
-            
+
+            if error_code == -1:
+                return jsonify({
+                    'success': False,
+                    'error': f'Zoho authentication/configuration error: {error_msg}'
+                }), 500
+
             # Handle specific error codes with helpful messages
             if error_code == 36012:
                 # Quantity recorded cannot be more than quantity ordered
                 # Get detailed PO line item info to provide helpful error message
                 try:
-                    po_line_info = conn.execute('''
+                    with db_read_only() as conn:
+                        po_line_info = conn.execute('''
                         SELECT pl.line_item_name, pl.quantity_ordered, pl.good_count, pl.damaged_count,
                                (pl.quantity_ordered - pl.good_count - pl.damaged_count) as remaining_capacity
                         FROM po_lines pl

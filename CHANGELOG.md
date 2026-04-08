@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.51.6] - 2026-03-30
+
+### 🐛 Fix
+
+#### Push bag to Zoho: generic “credentials” error on real API failures
+- **Cause**: `make_request` used **`raise_for_status()`**. Zoho often answers purchase receives with **HTTP 4xx** and a JSON body (`code`, `message`). That raised, was caught, and the client returned **`None`**, so the UI only showed a generic “check credentials” message.
+- **Fix**: For **POST/PUT**, return Zoho’s JSON error payload (or a structured HTTP error) instead of swallowing it. **GET** unchanged (still returns **`None`** on error) so sync/test behavior stays stable. **Token** failures return `{'code': -1, 'message': ...}`. **`push_bag_to_zoho`**: clearer timeout message; **`-1`** auth errors surfaced to the user; fixed **undefined `conn`** in the quantity-limit (**36012**) branch by using **`db_read_only()`**.
+- **Versioning**: **PATCH** `2.51.5` → `2.51.6`.
+
+---
+
 ## [2.51.5] - 2026-03-30
 
 ### 🐛 Fix
