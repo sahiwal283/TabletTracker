@@ -1,7 +1,7 @@
 """
 Receiving service for business logic related to receiving operations.
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Sequence
 from app.utils.db_utils import db_read_only, db_transaction, ReceivingRepository, BagRepository
 
 
@@ -249,6 +249,53 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
         )
         
         return bag
+
+
+def get_packaged_counts_for_bag_ids(conn, bag_ids: Sequence[int]) -> Dict[int, int]:
+    """
+    Batch packaged tablet totals per bag, matching get_bag_with_packaged_count
+    (packaged + bottle + variety-pack deductions).
+    """
+    ids = [int(b) for b in bag_ids if b is not None]
+    if not ids:
+        return {}
+    placeholders = ','.join('?' * len(ids))
+    rows = conn.execute(
+        f'''
+        SELECT b.id AS bag_id,
+               (
+                 COALESCE((
+                   SELECT SUM(
+                     (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                     (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                     COALESCE(ws.loose_tablets, 0)
+                   )
+                   FROM warehouse_submissions ws
+                   LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                   WHERE ws.bag_id = b.id AND ws.submission_type = 'packaged'
+                 ), 0) +
+                 COALESCE((
+                   SELECT SUM(COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0))
+                   FROM warehouse_submissions ws
+                   LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                   WHERE ws.submission_type = 'bottle' AND ws.bag_id = b.id
+                 ), 0) +
+                 COALESCE((
+                   SELECT SUM(sbd.tablets_deducted)
+                   FROM submission_bag_deductions sbd
+                   WHERE sbd.bag_id = b.id
+                 ), 0)
+               ) AS packaged_count
+        FROM bags b
+        WHERE b.id IN ({placeholders})
+        ''',
+        tuple(ids),
+    ).fetchall()
+    out: Dict[int, int] = {}
+    for row in rows:
+        d = dict(row)
+        out[int(d['bag_id'])] = int(d['packaged_count'] or 0)
+    return out
 
 
 def extract_shipment_number(receive_name: Optional[str]) -> str:

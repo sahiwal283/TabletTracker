@@ -18,6 +18,7 @@ from app.services.receiving_service import (
     get_receiving_with_details, 
     close_receiving,
     get_bag_with_packaged_count,
+    get_packaged_counts_for_bag_ids,
     extract_shipment_number,
     build_zoho_receive_notes
 )
@@ -2425,6 +2426,7 @@ def get_po_receives(po_id):
             }
             
             receives = []
+            all_bag_ids = []
             for rec in receiving_records:
                 rec_dict = dict(rec)
                 rec_id = rec_dict['id']
@@ -2451,15 +2453,25 @@ def get_po_receives(po_id):
                         WHERE b.small_box_id = ?
                         ORDER BY b.bag_number
                     ''', (box_dict['id'],)).fetchall()
+                    bag_dicts = [dict(bag) for bag in bags]
+                    for bd in bag_dicts:
+                        all_bag_ids.append(bd['id'])
                     boxes_with_bags.append({
                         'box': box_dict,
-                        'bags': [dict(bag) for bag in bags]
+                        'bags': bag_dicts
                     })
                 
                 receives.append({
                     'receiving': rec_dict,
                     'boxes': boxes_with_bags
                 })
+
+            packaged_by_bag = get_packaged_counts_for_bag_ids(conn, all_bag_ids)
+            for recv in receives:
+                for box_data in recv['boxes']:
+                    for bag in box_data['bags']:
+                        bid = bag.get('id')
+                        bag['packaged_count'] = packaged_by_bag.get(bid, 0) if bid is not None else 0
             
             return jsonify({
                 'success': True,
