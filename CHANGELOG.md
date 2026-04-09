@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.9] - 2026-04-09
+
+### 🐛 Fix
+
+#### Receive modal: duplicate "Select category" dropdown
+- **Cause**: Rapid async re-conversion of the two-level tablet selector could render duplicate category controls in the new-receive form.
+- **Fix**: Added a conversion-in-progress guard and made selector refresh deterministic so each bag renders one category dropdown + one item dropdown.
+- **Versioning**: **PATCH** `2.52.8` → `2.52.9`.
+
+---
+
 ## [2.52.8] - 2026-04-09
 
 ### ✨ Enhancement

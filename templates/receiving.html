@@ -671,7 +671,8 @@ function getAllowedTabletTypesForSelectedPO() {
 }
 
 function resetTwoLevelDropdownForSelect(selectElement) {
-    if (!selectElement) return;
+    if (!selectElement) return false;
+    if (selectElement.dataset.twoLevelConverting === 'true') return false;
     const groupSelect = document.getElementById(selectElement.id + '_group');
     const itemSelect = document.getElementById(selectElement.id + '_item');
     const wrapper = groupSelect && groupSelect.parentElement;
@@ -687,6 +688,7 @@ function resetTwoLevelDropdownForSelect(selectElement) {
     }
     selectElement.style.display = '';
     selectElement.dataset.twoLevelConverted = 'false';
+    return true;
 }
 
 function getTabletTypeIdsInCurrentReceiveForm() {
@@ -830,9 +832,9 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     return html;
 }
 
-function refreshAllBagTabletTypeDropdowns() {
+async function refreshAllBagTabletTypeDropdowns() {
     const selects = document.querySelectorAll('select[id^="box_"][id$="_tablet_type"]');
-    selects.forEach(select => {
+    for (const select of selects) {
         const currentValue = String(select.value || '');
         const match = (select.name || '').match(/^box_(\d+)_bag_(\d+)_tablet_type$/);
         const boxNumber = match ? match[1] : null;
@@ -842,7 +844,8 @@ function refreshAllBagTabletTypeDropdowns() {
             ? document.querySelector(`#box-${boxNumber}-bag-${bagSequence} .flavor-bag-number-field`)
             : null;
 
-        resetTwoLevelDropdownForSelect(select);
+        const wasReset = resetTwoLevelDropdownForSelect(select);
+        if (!wasReset) return;
         select.innerHTML = buildTabletTypeDropdown(boxNumber, bagSequence);
 
         if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
@@ -859,16 +862,16 @@ function refreshAllBagTabletTypeDropdowns() {
         }
 
         if (typeof convertToTwoLevelDropdown === 'function') {
-            convertToTwoLevelDropdown(select);
+            await convertToTwoLevelDropdown(select);
         }
-    });
+    }
 
     refreshShipmentBatchDefaultTabletOptions();
 }
 
 async function handlePOSelectionChange() {
     await loadMaxBagNumbersForPO();
-    refreshAllBagTabletTypeDropdowns();
+    await refreshAllBagTabletTypeDropdowns();
 }
 
 // Load max bag numbers for selected PO (for new entries only - doesn't affect existing data)
