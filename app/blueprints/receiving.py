@@ -42,6 +42,23 @@ def receiving_list():
                 ORDER BY po_number DESC
                 ''').fetchall()
                 purchase_orders = [dict(row) for row in po_rows]
+
+            # Map each PO to the tablet_type IDs that can be received for that PO
+            po_tablet_type_ids_by_po = {}
+            if purchase_orders:
+                po_ids = [po['id'] for po in purchase_orders if po.get('id') is not None]
+                if po_ids:
+                    placeholders = ','.join('?' * len(po_ids))
+                    po_tablet_rows = conn.execute(f'''
+                        SELECT DISTINCT pl.po_id, tt.id AS tablet_type_id
+                        FROM po_lines pl
+                        JOIN tablet_types tt ON tt.inventory_item_id = pl.inventory_item_id
+                        WHERE pl.po_id IN ({placeholders})
+                        ORDER BY pl.po_id, tt.tablet_type_name
+                    ''', tuple(po_ids)).fetchall()
+                    for row in po_tablet_rows:
+                        po_key = str(row['po_id'])
+                        po_tablet_type_ids_by_po.setdefault(po_key, []).append(row['tablet_type_id'])
             
             # Get all receiving records with their boxes and bags (include status, PO vendor)
             receiving_records = conn.execute(f'''
@@ -153,6 +170,7 @@ def receiving_list():
                                  tablet_types=tablet_types,
                                  categories=categories,
                                  purchase_orders=purchase_orders,
+                                 po_tablet_type_ids_by_po=po_tablet_type_ids_by_po,
                                  grouped_shipments=grouped_shipments,
                                  shipments_without_po=shipments_without_po,
                                  user_role=session.get('employee_role'))

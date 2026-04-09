@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.8] - 2026-04-09
+
+### ✨ Enhancement
+
+#### Shipments Received: new receive dropdown filters by selected PO
+- **Receive entry modal** now limits bag flavor selection to tablet types whose `inventory_item_id` exists on the selected PO lines.
+- **Category + tablet flow** is filtered together: category list only includes matching PO flavors, and the second dropdown only shows tablet types from that PO/category.
+- **PO switching in modal** refreshes all existing bag selectors against the newly selected PO and clears incompatible flavor picks to reduce wrong-PO receive entries.
+- **Versioning**: **PATCH** `2.52.7` → `2.52.8`.
+
+---
+
 ## [2.52.7] - 2026-03-27
 
 ### ✨ Enhancement

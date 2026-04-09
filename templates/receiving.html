@@ -644,10 +644,49 @@ let poSelectListenerAdded = false; // Track if PO select listener has been added
 // Use |tojson as a JS literal (do NOT wrap in JSON.parse("...") — nested quotes in data break the parser).
 var categories = {{ categories | tojson | safe }};
 var tabletTypes = {{ tablet_types | tojson | safe }};
+var poTabletTypeIdsByPo = {{ po_tablet_type_ids_by_po | tojson | safe }};
 let shipmentBatchDefaultRowCounter = 0;
 
 function getTabletTypeById(tabletTypeId) {
     return tabletTypes.find(tt => String(tt.id) === String(tabletTypeId));
+}
+
+function getSelectedPoAllowedTabletTypeIds() {
+    const poSelect = document.getElementById('po-select');
+    const poId = poSelect ? String(poSelect.value || '').trim() : '';
+    if (!poId) return null;
+    const raw = poTabletTypeIdsByPo && poTabletTypeIdsByPo[poId] ? poTabletTypeIdsByPo[poId] : [];
+    return new Set(raw.map(id => String(id)));
+}
+
+function getAllowedTabletTypesForSelectedPO() {
+    const poSelect = document.getElementById('po-select');
+    if (!poSelect) {
+        // Non-manager views without PO assignment should still see all flavors.
+        return tabletTypes.slice();
+    }
+    const allowedIds = getSelectedPoAllowedTabletTypeIds();
+    if (allowedIds === null) return [];
+    return tabletTypes.filter(tt => allowedIds.has(String(tt.id)));
+}
+
+function resetTwoLevelDropdownForSelect(selectElement) {
+    if (!selectElement) return;
+    const groupSelect = document.getElementById(selectElement.id + '_group');
+    const itemSelect = document.getElementById(selectElement.id + '_item');
+    const wrapper = groupSelect && groupSelect.parentElement;
+    if (groupSelect) groupSelect.remove();
+    if (itemSelect) itemSelect.remove();
+    if (
+        wrapper &&
+        wrapper.classList &&
+        wrapper.classList.contains('space-y-2') &&
+        wrapper.childElementCount === 0
+    ) {
+        wrapper.remove();
+    }
+    selectElement.style.display = '';
+    selectElement.dataset.twoLevelConverted = 'false';
 }
 
 function getTabletTypeIdsInCurrentReceiveForm() {
@@ -755,11 +794,20 @@ function removeShipmentBatchDefaultRow(rowId) {
 
 // Function to build tablet type dropdown HTML dynamically
 function buildTabletTypeDropdown(boxNumber, bagNumber) {
+    const allowedTabletTypes = getAllowedTabletTypesForSelectedPO();
+    const poSelected = !!(document.getElementById('po-select') && document.getElementById('po-select').value);
+    if (allowedTabletTypes.length === 0) {
+        if (poSelected) {
+            return '<option value="">No tablet types found for this PO...</option>';
+        }
+        return '<option value="">Select a PO first...</option>';
+    }
+
     let html = `<option value="">Select tablet type...</option>`;
     
     // Add categorized options
     categories.forEach(category => {
-        const categoryTypes = tabletTypes.filter(tt => tt.category === category);
+        const categoryTypes = allowedTabletTypes.filter(tt => tt.category === category);
         if (categoryTypes.length > 0) {
             html += `<optgroup label="${category}">`;
             categoryTypes.forEach(tt => {
@@ -770,7 +818,7 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     });
     
     // Add uncategorized options
-    const uncategorized = tabletTypes.filter(tt => !tt.category || tt.category === '');
+    const uncategorized = allowedTabletTypes.filter(tt => !tt.category || tt.category === '');
     if (uncategorized.length > 0) {
         html += `<optgroup label="⚠️ Uncategorized">`;
         uncategorized.forEach(tt => {
@@ -780,6 +828,47 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     }
     
     return html;
+}
+
+function refreshAllBagTabletTypeDropdowns() {
+    const selects = document.querySelectorAll('select[id^="box_"][id$="_tablet_type"]');
+    selects.forEach(select => {
+        const currentValue = String(select.value || '');
+        const match = (select.name || '').match(/^box_(\d+)_bag_(\d+)_tablet_type$/);
+        const boxNumber = match ? match[1] : null;
+        const bagSequence = match ? match[2] : null;
+        const bagId = (boxNumber && bagSequence) ? `${boxNumber}-${bagSequence}` : null;
+        const hiddenField = bagId
+            ? document.querySelector(`#box-${boxNumber}-bag-${bagSequence} .flavor-bag-number-field`)
+            : null;
+
+        resetTwoLevelDropdownForSelect(select);
+        select.innerHTML = buildTabletTypeDropdown(boxNumber, bagSequence);
+
+        if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+            select.value = currentValue;
+        } else {
+            const previousFlavor = bagId ? bagFlavorAssignments[bagId] : null;
+            if (previousFlavor) {
+                decrementFlavorBagNumber(previousFlavor);
+                delete bagFlavorAssignments[bagId];
+            }
+            if (hiddenField) hiddenField.value = '';
+            if (bagId) updateBagLabel(boxNumber, bagSequence, null, null);
+            select.value = '';
+        }
+
+        if (typeof convertToTwoLevelDropdown === 'function') {
+            convertToTwoLevelDropdown(select);
+        }
+    });
+
+    refreshShipmentBatchDefaultTabletOptions();
+}
+
+async function handlePOSelectionChange() {
+    await loadMaxBagNumbersForPO();
+    refreshAllBagTabletTypeDropdowns();
 }
 
 // Load max bag numbers for selected PO (for new entries only - doesn't affect existing data)
@@ -1079,7 +1168,9 @@ async function restoreSavedDraft(savedDraft) {
     if (savedDraft.po_id) {
         const poSelect = document.getElementById('po-select');
         if (poSelect) {
+            ensurePOSelectListener();
             poSelect.value = savedDraft.po_id;
+            await handlePOSelectionChange();
         }
     }
 
@@ -1188,6 +1279,13 @@ async function restoreSavedDraft(savedDraft) {
     alert(`✅ Restored ${sortedBoxes.length} boxes from saved draft`);
 }
 
+function ensurePOSelectListener() {
+    const poSelect = document.getElementById('po-select');
+    if (!poSelect || poSelectListenerAdded) return;
+    poSelect.addEventListener('change', handlePOSelectionChange);
+    poSelectListenerAdded = true;
+}
+
 async function openAddReceivesModal() {
     // Reset form
     boxCounter = 0;
@@ -1211,15 +1309,13 @@ async function openAddReceivesModal() {
     // Load max bag numbers when PO is selected (if PO select exists)
     const poSelect = document.getElementById('po-select');
     if (poSelect) {
-        // Add event listener only once
-        if (!poSelectListenerAdded) {
-            poSelect.addEventListener('change', loadMaxBagNumbersForPO);
-            poSelectListenerAdded = true;
-        }
+        ensurePOSelectListener();
         
-        // Load max bag numbers if PO is already selected
+        // Apply PO filtering and bag numbering if PO is already selected
         if (poSelect.value) {
-            await loadMaxBagNumbersForPO();
+            await handlePOSelectionChange();
+        } else {
+            refreshAllBagTabletTypeDropdowns();
         }
     }
 }
@@ -2097,9 +2193,10 @@ async function editReceive(receivingId) {
         // Set PO if assigned
         const poSelect = document.getElementById('po-select');
         if (poSelect && data.receive.po_id) {
+            ensurePOSelectListener();
             poSelect.value = data.receive.po_id;
-            // Load max bag numbers for this PO
-            await loadMaxBagNumbersForPO();
+            // Apply PO-based filtering and load max bag numbers for this PO
+            await handlePOSelectionChange();
         }
 
         // Restore shipment-level flavor defaults
