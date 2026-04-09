@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.10] - 2026-04-09
+
+### 🐛 Fix
+
+#### Receive modal: bag weight prompt missing after flavor selection
+- **Cause**: Two-level tablet dropdown conversion could race during PO-based refresh, leaving duplicate/unsynced selector controls where the hidden original flavor select stayed empty.
+- **Fix**: Added conversion revision + in-progress guards so stale async conversions do not render, and ensured selector resets clear all duplicate controls before rebuilding.
+- **Result**: One selector flow per bag, proper flavor sync, and Zoho weight-based bag weight prompt appears reliably.
+- **Versioning**: **PATCH** `2.52.9` → `2.52.10`.
+
+---
+
 ## [2.52.9] - 2026-04-09
 
 ### 🐛 Fix

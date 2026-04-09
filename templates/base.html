@@ -1089,12 +1089,14 @@ function convertToTwoLevelDropdownByDataAttr(selectElement, dataAttrName) {
 // Moved here to be available for openEditSubmissionModal
 async function convertToTwoLevelDropdown(selectElement) {
     if (!selectElement || selectElement.tagName !== 'SELECT') return;
+    const conversionRevision = selectElement.dataset.twoLevelRevision || '0';
     
     // Check if already converted
     if (selectElement.dataset.twoLevelConverted === 'true') return;
     if (selectElement.dataset.twoLevelConverting === 'true') return;
     selectElement.dataset.twoLevelConverting = 'true';
-    selectElement.dataset.twoLevelConverted = 'true';
+    try {
+        selectElement.dataset.twoLevelConverted = 'true';
     
     const options = Array.from(selectElement.options);
     const placeholder = options.find(opt => opt.value === '' || opt.value === null);
@@ -1347,13 +1349,20 @@ async function convertToTwoLevelDropdown(selectElement) {
         }
     }
     
-    // Insert wrapper before select
-    const parent = selectElement.parentNode;
-    parent.insertBefore(wrapper, selectElement);
-    wrapper.appendChild(groupSelect);
-    wrapper.appendChild(itemSelect);
-    wrapper.appendChild(selectElement); // Keep original for form submission
-    selectElement.dataset.twoLevelConverting = 'false';
+        // If select was reset/rebuilt while this async call was running, skip stale render.
+        if ((selectElement.dataset.twoLevelRevision || '0') !== conversionRevision) {
+            return;
+        }
+
+        // Insert wrapper before select
+        const parent = selectElement.parentNode;
+        parent.insertBefore(wrapper, selectElement);
+        wrapper.appendChild(groupSelect);
+        wrapper.appendChild(itemSelect);
+        wrapper.appendChild(selectElement); // Keep original for form submission
+    } finally {
+        selectElement.dataset.twoLevelConverting = 'false';
+    }
 }
 </script>
 <body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
@@ -2273,12 +2282,14 @@ function openReassignFromDetails(submissionId, poNumber, productName) {
 // Convert tablet type dropdown to two-level dropdown system (duplicate - kept for backward compatibility)
 async function convertToTwoLevelDropdown(selectElement) {
     if (!selectElement || selectElement.tagName !== 'SELECT') return;
+    const conversionRevision = selectElement.dataset.twoLevelRevision || '0';
     
     // Check if already converted
     if (selectElement.dataset.twoLevelConverted === 'true') return;
     if (selectElement.dataset.twoLevelConverting === 'true') return;
     selectElement.dataset.twoLevelConverting = 'true';
-    selectElement.dataset.twoLevelConverted = 'true';
+    try {
+        selectElement.dataset.twoLevelConverted = 'true';
     
     const options = Array.from(selectElement.options);
     const placeholder = options.find(opt => opt.value === '' || opt.value === null);
@@ -2531,13 +2542,20 @@ async function convertToTwoLevelDropdown(selectElement) {
         }
     }
     
-    // Insert wrapper before select
-    const parent = selectElement.parentNode;
-    parent.insertBefore(wrapper, selectElement);
-    wrapper.appendChild(groupSelect);
-    wrapper.appendChild(itemSelect);
-    wrapper.appendChild(selectElement); // Keep original for form submission
-    selectElement.dataset.twoLevelConverting = 'false';
+        // If select was reset/rebuilt while this async call was running, skip stale render.
+        if ((selectElement.dataset.twoLevelRevision || '0') !== conversionRevision) {
+            return;
+        }
+
+        // Insert wrapper before select
+        const parent = selectElement.parentNode;
+        parent.insertBefore(wrapper, selectElement);
+        wrapper.appendChild(groupSelect);
+        wrapper.appendChild(itemSelect);
+        wrapper.appendChild(selectElement); // Keep original for form submission
+    } finally {
+        selectElement.dataset.twoLevelConverting = 'false';
+    }
 }
 
 // Add search functionality to tablet type dropdown

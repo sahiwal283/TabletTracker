@@ -672,12 +672,13 @@ function getAllowedTabletTypesForSelectedPO() {
 
 function resetTwoLevelDropdownForSelect(selectElement) {
     if (!selectElement) return false;
-    if (selectElement.dataset.twoLevelConverting === 'true') return false;
-    const groupSelect = document.getElementById(selectElement.id + '_group');
-    const itemSelect = document.getElementById(selectElement.id + '_item');
-    const wrapper = groupSelect && groupSelect.parentElement;
-    if (groupSelect) groupSelect.remove();
-    if (itemSelect) itemSelect.remove();
+    const groupId = selectElement.id + '_group';
+    const itemId = selectElement.id + '_item';
+    const groupSelects = document.querySelectorAll(`[id="${groupId}"]`);
+    const itemSelects = document.querySelectorAll(`[id="${itemId}"]`);
+    const wrapper = groupSelects.length > 0 ? groupSelects[0].parentElement : null;
+    groupSelects.forEach(el => el.remove());
+    itemSelects.forEach(el => el.remove());
     if (
         wrapper &&
         wrapper.classList &&
@@ -688,6 +689,9 @@ function resetTwoLevelDropdownForSelect(selectElement) {
     }
     selectElement.style.display = '';
     selectElement.dataset.twoLevelConverted = 'false';
+    selectElement.dataset.twoLevelConverting = 'false';
+    const revision = parseInt(selectElement.dataset.twoLevelRevision || '0', 10) || 0;
+    selectElement.dataset.twoLevelRevision = String(revision + 1);
     return true;
 }
 
