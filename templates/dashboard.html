@@ -316,7 +316,7 @@
                     </td>
                     <td class="px-2 py-2 text-xs text-center">
                         {% if sub.submission_type == 'machine' %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine{% if sub.machine_id %}<span class="ml-1 font-semibold tabular-nums text-blue-950">#{{ sub.machine_id }}</span>{% endif %}</span>
                         {% elif sub.submission_type == 'bag' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag</span>
                         {% elif sub.submission_type == 'repack' %}
@@ -1356,7 +1356,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             showError(data.error || 'Failed to load submissions');
             return;
         }
-        
+
+        const poRef = data.po || { po_number: poName };
+        const bagMeta = data.bag || null;
+        const escBagAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        const isAdminOrManager = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
+
         // Filter submissions by inventory_item_id if specified
         // This is more reliable than product name matching since names can differ between Zoho and submissions
         let filteredSubmissions = inventoryItemId 
@@ -1451,14 +1456,14 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                     ← Back
                                 </button>
                                 ` : `
-                                <button data-back-to-po-details-id="${poId}" data-back-to-po-details-number="${data.po.po_number}" 
+                                <button data-back-to-po-details-id="${poId}" data-back-to-po-details-number="${poRef.po_number}" 
                                         class="text-white hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                                         title="Back to PO details">
                                     ← Back
                                 </button>
                                 `}
                             <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}-${boxNumber}-${bagNumber}` : (receiveName ? `for ${receiveName}` : `for ${data.po.po_number}`)}</h3>
+                                <h3 class="text-xl font-bold">📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}-${boxNumber}-${bagNumber}` : (receiveName ? `for ${receiveName}` : `for ${poRef.po_number}`)}</h3>
                                 ${receiveName && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">
@@ -1545,7 +1550,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                 
                 // Always allow viewing details, edit only if admin and PO not closed
                 const isAdmin = JSON.parse("{{ (session.get('employee_role') == 'admin' or session.get('admin_authenticated')) | tojson | safe }}");
-                const poIsClosed = data.po && data.po.closed === true;
+                const poIsClosed = data.po ? data.po.closed === true : false;
                 const canEdit = isAdmin && !poIsClosed;
                 const clickHandler = `data-view-submission-details-id="${sub.id}" data-view-submission-details-origin-modal="submissions-modal" data-view-submission-details-callback="viewPOSubmissions" data-view-submission-details-po-id="${poId}" data-view-submission-details-po-name="${poName}"`;
                 const cursorClass = 'cursor-pointer';
@@ -1555,7 +1560,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                 const submissionType = sub.submission_type || 'packaged';
                 let typeBadge = '';
                 if (submissionType === 'machine') {
-                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>';
                 } else if (submissionType === 'bag') {
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
                 } else if (submissionType === 'bottle') {
@@ -1640,7 +1645,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                 <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
                             </div>
                             <div>
-                                <div class="text-xs text-gray-500">Damaged Tablets</div>
+                                <div class="text-xs text-gray-500">Cards re-opened</div>
                                 <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
                             </div>
                             `}
@@ -1675,7 +1680,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                 : `📋 View All Submissions for this PO (${data.submissions.length} total)`;
             modalContent += `
                 <div class="mt-6 flex justify-center border-t pt-4">
-                    <button data-view-po-submissions-id="${poId}" data-view-po-submissions-number="${poName}"
+                    <button data-view-po-submissions-id="${poId}" data-view-po-submissions-number="${poRef.po_number}"
                             class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-lg transition-colors">
                         ${buttonText}
                     </button>
@@ -1683,8 +1688,35 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             `;
         }
         
+        const bagClosePushFooter = (bagId !== null && bagMeta && isAdminOrManager) ? `
+                    <div class="border-t border-gray-200 bg-gray-50 px-6 py-4 flex flex-wrap gap-3 justify-end items-center">
+                        <span class="text-sm text-gray-600 mr-auto">
+                            ${bagMeta.status === 'Closed' ? '<span class="text-green-700 font-medium">Bag closed</span>' : '<span class="text-amber-700 font-medium">Bag open</span>'}
+                            ${bagMeta.zoho_receive_pushed ? ' · <span class="text-green-700">Pushed to Zoho</span>' : ''}
+                        </span>
+                        ${!bagMeta.zoho_receive_pushed ? `
+                        <button type="button"
+                            data-bag-close-and-push-zoho
+                            data-bag-close-and-push-zoho-bag-id="${bagId}"
+                            data-bag-close-and-push-zoho-name="${escBagAttr(bagMeta.tablet_type_name || displayProductName || 'Product')}"
+                            data-bag-close-and-push-zoho-bag-number="${bagMeta.bag_number != null ? bagMeta.bag_number : (bagNumber || 0)}"
+                            data-bag-close-and-push-zoho-box-number="${bagMeta.box_number != null ? bagMeta.box_number : (boxNumber || 0)}"
+                            data-bag-close-and-push-zoho-received="${bagMeta.received_count || 0}"
+                            data-bag-close-and-push-zoho-packaged="${bagMeta.packaged_count || 0}"
+                            data-bag-close-and-push-zoho-receive-id="${receiveId || bagMeta.receiving_id || 0}"
+                            data-bag-close-and-push-zoho-receive-name="${escBagAttr(receiveName || bagMeta.receive_name || '')}"
+                            data-bag-close-and-push-zoho-closed="${bagMeta.status === 'Closed' ? 'true' : 'false'}"
+                            data-bag-close-and-push-zoho-pushed="${bagMeta.zoho_receive_pushed ? 'true' : 'false'}"
+                            class="inline-flex items-center px-4 py-2 rounded-lg font-medium transition-colors bg-indigo-600 hover:bg-indigo-700 text-white shadow">
+                            Close &amp; push to Zoho
+                        </button>
+                        ` : ''}
+                    </div>
+        ` : '';
+
         modalContent += `
                     </div>
+                    ${bagClosePushFooter}
                 </div>
             </div>
         `;
@@ -1700,7 +1732,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
             allSubmissions: allSubmissions,
             filteredSubmissions: filteredSubmissions,
             poId: poId,
-            poName: data.po.po_number,
+            poName: poRef.po_number,
             inventoryItemId: inventoryItemId,
             receiveId: receiveId,
             receiveName: receiveName,
@@ -1779,7 +1811,7 @@ function filterSubmissionsInModal(filterType) {
         const submissionType = sub.submission_type || 'packaged';
         let typeBadge = '';
         if (submissionType === 'machine') {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>';
         } else if (submissionType === 'bag') {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
         } else if (submissionType === 'bottle') {
@@ -3072,7 +3104,7 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
             const subType = sub.submission_type || 'packaged';
             let typeBadge = '';
             if (subType === 'machine') {
-                typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+                typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>';
             } else if (subType === 'bag') {
                 typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
             } else if (subType === 'bottle') {
@@ -3189,7 +3221,7 @@ async function viewAmbiguousSubmission(submissionId) {
         const subType = submission.submission_type || 'packaged';
         let typeBadge = '';
         if (subType === 'machine') {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(submission) + '</span>';
         } else if (subType === 'bag') {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
         } else if (subType === 'bottle') {
@@ -3414,7 +3446,6 @@ document.addEventListener('click', function (event) {
     }
     const subDetails = event.target.closest('[data-view-submission-details-id]');
     if (subDetails) {
-        closeSubmissionsModal();
         viewSubmissionDetails(parseInt(subDetails.dataset.viewSubmissionDetailsId, 10));
         return;
     }

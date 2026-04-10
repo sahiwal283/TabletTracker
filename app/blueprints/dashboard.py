@@ -175,7 +175,7 @@ def dashboard_view():
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            )), 0)) + 
-                       ws.loose_tablets + ws.damaged_tablets
+                       ws.loose_tablets
                        )
                    END as calculated_total
             FROM warehouse_submissions ws
@@ -355,7 +355,7 @@ def dashboard_view():
                            )), 0)),
                                0
                            )
-                           ELSE ws.loose_tablets + ws.damaged_tablets
+                           ELSE ws.loose_tablets
                        END
                    ) as calculated_total
             FROM warehouse_submissions ws

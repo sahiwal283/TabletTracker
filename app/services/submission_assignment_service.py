@@ -86,8 +86,8 @@ def _calculate_submission_counts(submission: Dict[str, Any]) -> Dict[str, int]:
             + (submission.get('packs_remaining', 0) or 0) * tablets_per_package
             + (submission.get('loose_tablets', 0) or 0)
         )
-    damaged_tablets = 0 if submission_type == 'repack' else (submission.get('damaged_tablets', 0) or 0)
-    return {'good': good_tablets, 'damaged': damaged_tablets}
+    # damaged_tablets column = cards re-opened (packaging); do not apply to PO damaged_count
+    return {'good': good_tablets, 'damaged': 0}
 
 
 def reassign_submission_to_po(conn, submission_id: int, new_po_id: int) -> Dict[str, Any]:

@@ -140,3 +140,23 @@ class TestProductionCombined(unittest.TestCase):
         r2 = _csrf_post(self.client, "/api/submissions/production-combined", body)
         self.assertEqual(r2.status_code, 400)
         self.assertIn("error", r2.get_json())
+
+    def test_combined_rejects_bag_end_before_start(self):
+        receipt = "TEST-COMBINED-BAD-TIME-001"
+        body = {
+            "product_id": 1,
+            "count_date": "2026-03-30",
+            "receipt_number": receipt,
+            "machine_entries": [{"machine_id": 1, "machine_count": 1}],
+            "displays_made": 0,
+            "packs_remaining": 0,
+            "damaged_tablets": 0,
+            "employee_name": "Test Admin",
+            "bag_start_time": "2026-03-30T16:00",
+            "bag_end_time": "2026-03-30T10:00",
+        }
+        r = _csrf_post(self.client, "/api/submissions/production-combined", body)
+        self.assertEqual(r.status_code, 400, r.get_json())
+        err = (r.get_json() or {}).get("error", "")
+        self.assertIn("end", err.lower())
+        self.assertIn("start", err.lower())

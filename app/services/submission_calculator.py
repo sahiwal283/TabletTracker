@@ -13,18 +13,22 @@ def calculate_packaged_submission_total(
     tablets_per_package: Optional[int] = None
 ) -> int:
     """
-    Calculate total tablets for a packaged submission.
-    
+    Calculate total tablets for a packaged submission (good salable output only).
+
     Formula: (displays_made * packages_per_display * tablets_per_package) +
              (packs_remaining * tablets_per_package) +
-             loose_tablets + damaged_tablets
-    
+             loose_tablets
+
+    The ``damaged_tablets`` column stores **cards re-opened** (ripped/destroyed blister
+    packaging for defects). It is operational packaging-loss tracking only and must not
+    be included in tablet totals.
+
     Args:
         submission: Submission dictionary with fields:
             - displays_made (int, optional)
             - packs_remaining (int, optional)
             - loose_tablets (int, optional)
-            - damaged_tablets (int, optional)
+            - damaged_tablets (int, optional; excluded from this total)
         packages_per_display: Number of packages per display (from product_details)
         tablets_per_package: Number of tablets per package (from product_details)
     
@@ -34,15 +38,14 @@ def calculate_packaged_submission_total(
     displays_made = submission.get('displays_made', 0) or 0
     packs_remaining = submission.get('packs_remaining', 0) or 0
     loose_tablets = submission.get('loose_tablets', 0) or 0
-    damaged_tablets = submission.get('damaged_tablets', 0) or 0
-    
+
     packages_per_display = packages_per_display or 0
     tablets_per_package = tablets_per_package or 0
-    
+
     displays_total = displays_made * packages_per_display * tablets_per_package
     packs_total = packs_remaining * tablets_per_package
-    
-    return displays_total + packs_total + loose_tablets + damaged_tablets
+
+    return displays_total + packs_total + loose_tablets
 
 
 def calculate_repack_output_good(

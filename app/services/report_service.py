@@ -434,13 +434,13 @@ class ProductionReportGenerator:
             package_tablets = (sub['packs_remaining'] or 0) * (sub['tablets_per_package'] or 0)
             loose_tablets = sub['loose_tablets'] or 0
             damaged_tablets = sub['damaged_tablets'] or 0
-            total_tablets = displays_tablets + package_tablets + loose_tablets + damaged_tablets
-            
-            # Overall totals
+            total_tablets = displays_tablets + package_tablets + loose_tablets
+
+            # Overall totals (damaged_tablets = cards re-opened; not tablet units)
             breakdown['total_displays'] += sub['displays_made'] or 0
             breakdown['total_packages'] += sub['packs_remaining'] or 0
             breakdown['total_loose'] += sub['loose_tablets'] or 0
-            breakdown['total_damaged'] += sub['damaged_tablets'] or 0
+            breakdown['total_damaged'] += damaged_tablets
             breakdown['total_tablets'] += total_tablets
             
             # By product
@@ -525,7 +525,7 @@ class ProductionReportGenerator:
             ['Total Purchase Orders', f"{summary['total_pos']:,}"],
             ['Total Tablets Ordered', f"{summary['total_ordered']:,}"],
             ['Total Tablets Produced', f"{summary['total_produced']:,}"],
-            ['Total Tablets Damaged', f"{summary['total_damaged']:,}"],
+            ['Cards re-opened (packaging loss)', f"{summary['total_damaged']:,}"],
             ['Production Efficiency', f"{summary['efficiency_rate']:.1f}%"],
             ['Average Pack Time', f"{summary['average_pack_time']:.1f} days" if summary['average_pack_time'] else "N/A"]
         ]
@@ -727,7 +727,7 @@ class ProductionReportGenerator:
                 ['Total Displays Made', f"{breakdown['total_displays']:,}"],
                 ['Packages Remaining', f"{breakdown['total_packages']:,}"],
                 ['Loose Tablets', f"{breakdown['total_loose']:,}"],
-                ['Damaged Tablets', f"{breakdown['total_damaged']:,}"],
+                ['Cards re-opened (packaging loss)', f"{breakdown['total_damaged']:,}"],
                 ['Total Tablets', f"{breakdown['total_tablets']:,}"],
                 ['Total Submissions', f"{len(po_data['submissions']):,}"]
             ]

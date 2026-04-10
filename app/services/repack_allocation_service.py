@@ -55,7 +55,7 @@ def _packaged_tablets_for_bag(conn, bag_id: int) -> int:
 
 
 def _damaged_tablets_for_bag(conn, bag_id: int) -> int:
-    """Sum damaged_tablets on submissions tied to this bag (packaging damage)."""
+    """Sum cards re-opened (``damaged_tablets``) on submissions for this bag (packaging loss)."""
     row = conn.execute(
         """
         SELECT COALESCE(SUM(COALESCE(ws.damaged_tablets, 0)), 0) AS total_dmg

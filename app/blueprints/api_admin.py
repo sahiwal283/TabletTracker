@@ -341,7 +341,8 @@ def admin_reassign_verified_submission(submission_id):
                 good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
                                submission['packs_remaining'] * tablets_per_package + 
                                submission['loose_tablets'])
-            damaged_tablets = 0 if submission_type in ('repack', 'bottle') else submission['damaged_tablets']
+            # damaged_tablets column = cards re-opened; not applied to PO damaged_count
+            damaged_tablets = 0
             
             if old_po_id:
                 old_line = conn.execute('''

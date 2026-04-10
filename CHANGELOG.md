@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.11] - 2026-04-09
+
+### ✨ Enhancement
+
+#### Receiving & bag review: close bag and push to Zoho from the bag submissions modal
+- **Manager/admin** footer on the **bag submissions** view: **Close & push to Zoho** runs the same close-then-push flow as receive details without navigating away first.
+- **`GET /api/bag/<id>/submissions`** returns enriched **`bag`** metadata (including packaged/received counts) and a minimal **`po`** summary for the UI.
+
+### 🐛 Fix
+
+#### Editing a submission from bag/details no longer reloads the receiving page
+- **Save** closes the edit modal and **reopens the submissions list with fresh data** via `viewPOSubmissions` (receive details modal and scroll position stay put).
+- **Submission details API** returns **`receive_name`** from the receiving row when linked through a bag; edit flow stores PO/bag/receive context in hidden fields so refresh uses the correct bag-scoped or PO-scoped modal.
+- **Dashboard**: opening **submission details** from the submissions list **no longer closes** the submissions modal first (aligned with receiving), preserving context.
+
+- **Versioning**: **PATCH** `2.52.10` → `2.52.11`.
+
+---
+
 ## [2.52.10] - 2026-04-09
 
 ### 🐛 Fix

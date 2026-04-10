@@ -691,7 +691,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                 const submissionType = sub.submission_type || 'packaged';
                 let typeBadge = '';
                 if (submissionType === 'machine') {
-                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+                    typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>';
                 } else if (submissionType === 'bag') {
                     typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
                 } else {
@@ -753,7 +753,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                                 <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
                             </div>
                             <div>
-                                <div class="text-xs text-gray-500">Damaged Tablets</div>
+                                <div class="text-xs text-gray-500">Cards re-opened</div>
                                 <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
                             </div>
                             `}
@@ -913,7 +913,7 @@ function filterSubmissionsInModal(filterType) {
         const submissionType = sub.submission_type || 'packaged';
         let typeBadge = '';
         if (submissionType === 'machine') {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>';
         } else if (submissionType === 'bag') {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
         } else {
@@ -962,7 +962,7 @@ function filterSubmissionsInModal(filterType) {
                         <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
                     </div>
                     <div>
-                        <div class="text-xs text-gray-500">Damaged Tablets</div>
+                        <div class="text-xs text-gray-500">Cards re-opened</div>
                         <div class="font-medium text-red-600">${sub.damaged_tablets || 0}</div>
                     </div>
                 </div>

@@ -506,6 +506,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         displays_made = int(data.get('displays_made', 0) or 0)
         packs_remaining = int(data.get('packs_remaining', 0) or 0)
         loose_tablets = int(data.get('loose_tablets', 0) or 0)
+        # Column name is legacy: value is cards re-opened (packaging loss), not tablets.
         damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
     except (ValueError, TypeError):
         raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for counts'})
@@ -709,6 +710,12 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
     except Exception as pragma_error:
         current_app.logger.error(f'Error checking table schema: {pragma_error}')
 
+    bag_start_for_order = None
+    try:
+        bag_start_for_order = parse_optional_eastern(data.get('bag_start_time'))
+    except ValueError as ve:
+        raise ProductionSubmissionError(400, {'error': f'Invalid bag start time: {ve}'})
+
     bag_end_time = None
     try:
         if data.get('bag_end_time'):
@@ -717,6 +724,12 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
             bag_end_time = utc_now_naive_string()
     except ValueError as ve:
         raise ProductionSubmissionError(400, {'error': f'Invalid bag end time: {ve}'})
+
+    if bag_start_for_order is not None and bag_end_time < bag_start_for_order:
+        raise ProductionSubmissionError(
+            400,
+            {'error': 'Bag end time cannot be before bag start time. Please correct the times.'},
+        )
 
     try:
         conn.execute(
