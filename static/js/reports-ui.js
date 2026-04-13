@@ -385,18 +385,34 @@
         });
     }
 
+    function ensureChartLibrary() {
+        if (typeof Chart !== 'undefined') return true;
+        showAnalyticsError(
+            'Chart library failed to load. Refresh the page, or allow scripts from unpkg.com (CSP / ad blocker).'
+        );
+        return false;
+    }
+
     async function loadAnalytics() {
         var loading = document.getElementById('reports_analytics_loading');
         showAnalyticsError('');
+        var dfEl = document.getElementById('reports_date_from');
+        var dtEl = document.getElementById('reports_date_to');
         var q = analyticsQueryParams();
-        if (!q || !document.getElementById('reports_date_from').value) {
+        if (!dfEl || !dtEl || !dfEl.value || !dtEl.value) {
+            showAnalyticsError('Choose both start and end dates.');
+            return;
+        }
+        if (!q) {
             showAnalyticsError('Choose a date range.');
             return;
         }
+        if (!ensureChartLibrary()) return;
         if (loading) loading.classList.remove('hidden');
         try {
             var trends = await apiCall('/api/reports/trends?' + q, { requestKey: 'reports-trends' });
             var dims = await apiCall('/api/reports/dimensions?' + q, { requestKey: 'reports-dimensions' });
+            if (!ensureChartLibrary()) return;
             renderTrendsChart(trends.series || []);
             renderTopFlavorsChart(dims.top_flavors || []);
             renderFlavorDailyChart(dims.selected_flavor_series || []);
@@ -428,7 +444,7 @@
         }
     }
 
-    async function init() {
+    function wireReportControls() {
         var df = document.getElementById('reports_date_from');
         var dt = document.getElementById('reports_date_to');
         if (df) {
@@ -442,6 +458,41 @@
             });
         }
 
+        var poSel = document.getElementById('reports_po_select');
+        if (poSel) poSel.addEventListener('change', loadPoBlocks);
+
+        var applyBtn = document.getElementById('reports_apply_analytics');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                loadAnalytics();
+            });
+        }
+
+        var vendor = document.getElementById('reports_vendor');
+        var flavor = document.getElementById('reports_flavor');
+        var apo = document.getElementById('reports_analytics_po');
+        if (vendor) vendor.addEventListener('change', loadAnalytics);
+        if (flavor) flavor.addEventListener('change', loadAnalytics);
+        if (apo) apo.addEventListener('change', loadAnalytics);
+    }
+
+    function schedulePoll() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(function () {
+            if (document.visibilityState !== 'visible') return;
+            refreshVersion().catch(function () { /* ignore */ });
+        }, 12000);
+    }
+
+    async function init() {
+        wireReportControls();
+        schedulePoll();
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') refreshVersion().catch(function () {});
+        });
+
         try {
             var data = await fetchFilters();
             populateFilterSelects(data);
@@ -451,32 +502,15 @@
         } catch (e) {
             showAnalyticsError(e.message || 'Failed to initialize');
         }
-
-        var poSel = document.getElementById('reports_po_select');
-        if (poSel) poSel.addEventListener('change', loadPoBlocks);
-
-        var applyBtn = document.getElementById('reports_apply_analytics');
-        if (applyBtn) applyBtn.addEventListener('click', loadAnalytics);
-
-        var vendor = document.getElementById('reports_vendor');
-        var flavor = document.getElementById('reports_flavor');
-        var apo = document.getElementById('reports_analytics_po');
-        if (vendor) vendor.addEventListener('change', loadAnalytics);
-        if (flavor) flavor.addEventListener('change', loadAnalytics);
-        if (apo) apo.addEventListener('change', loadAnalytics);
-
-        function schedulePoll() {
-            if (pollTimer) clearInterval(pollTimer);
-            pollTimer = setInterval(function () {
-                if (document.visibilityState !== 'visible') return;
-                refreshVersion().catch(function () { /* ignore */ });
-            }, 12000);
-        }
-        schedulePoll();
-        document.addEventListener('visibilitychange', function () {
-            if (document.visibilityState === 'visible') refreshVersion().catch(function () {});
-        });
     }
 
-    document.addEventListener('DOMContentLoaded', init);
+    function startReports() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    }
+
+    startReports();
 })();
