@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.12] - 2026-04-10
+
+### 🐛 Fix
+
+#### Bag submissions modal: footer and Push to Zoho stacking
+- **Submissions modal layout**: White panel uses **flex column** (`min-h-0`, scrollable body) so the **Close & push to Zoho** bar stays fully visible; only the submission list scrolls.
+- **Push to Zoho modal**: Overlay **`z-[75]`** (was `z-50`) so it appears **above** the submissions modal (`z-[60]`) when opened from bag submissions.
+
+- **Versioning**: **PATCH** `2.52.11` → `2.52.12`.
+
+---
+
 ## [2.52.11] - 2026-04-09
 
 ### ✨ Enhancement

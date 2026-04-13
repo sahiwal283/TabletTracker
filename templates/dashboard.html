@@ -1445,9 +1445,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         // Build modal content
         let modalContent = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" data-close-submissions-overlay>
-                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] min-h-0 flex flex-col overflow-hidden">
                     <!-- Header -->
-                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
+                    <div class="flex-shrink-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
                         <div class="flex justify-between items-center">
                                 ${receiveId && receiveName ? `
                                 <button data-close-submissions-modal 
@@ -1505,8 +1505,8 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                         </div>
                     </div>
                     
-                    <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                    <!-- Content (scrolls; header + footer stay visible) -->
+                    <div class="flex-1 min-h-0 overflow-y-auto p-6">
         `;
         
         if (filteredSubmissions.length === 0) {
@@ -1689,7 +1689,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         }
         
         const bagClosePushFooter = (bagId !== null && bagMeta && isAdminOrManager) ? `
-                    <div class="border-t border-gray-200 bg-gray-50 px-6 py-4 flex flex-wrap gap-3 justify-end items-center">
+                    <div class="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-6 py-4 flex flex-wrap gap-3 justify-end items-center">
                         <span class="text-sm text-gray-600 mr-auto">
                             ${bagMeta.status === 'Closed' ? '<span class="text-green-700 font-medium">Bag closed</span>' : '<span class="text-amber-700 font-medium">Bag open</span>'}
                             ${bagMeta.zoho_receive_pushed ? ' · <span class="text-green-700">Pushed to Zoho</span>' : ''}
