@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.53.1] - 2026-04-13
+
+### ✨ Enhancement
+
+#### Full run form: bag times aligned with workflow
+- **Bag start time** sits with the blister machine section and **defaults its date** from **Production date** so the date is not picked twice.
+- **Bag end time** moved below **Packaging counts** (end of bag at packaging).
+- **Versioning**: **PATCH** `2.53.0` → `2.53.1`.
+
+---
+
 ## [2.53.0] - 2026-04-13
 
 ### ✨ Enhancement

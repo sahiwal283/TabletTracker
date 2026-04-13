@@ -94,6 +94,10 @@
                 <label for="combined_blister_machine_count" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Blister machine count</label>
                 <input type="number" id="combined_blister_machine_count" class="form-input text-base" min="0" step="1" placeholder="Enter blister counter number">
                 <p class="text-xs text-gray-500">Optional when blister step was not run during this full run.</p>
+                <div>
+                    <label for="combined_bag_start_time" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Bag start time (Eastern)</label>
+                    <input type="datetime-local" id="combined_bag_start_time" name="bag_start_time" class="form-input text-base">
+                </div>
             </div>
 
             <h3 class="text-sm font-semibold text-gray-900">Sealing machines</h3>
@@ -122,18 +126,6 @@
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label for="combined_bag_start_time" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Bag start time (Eastern)</label>
-                    <input type="datetime-local" id="combined_bag_start_time" name="bag_start_time" class="form-input text-base">
-                </div>
-                <div>
-                    <label for="combined_bag_end_time" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Bag end time (Eastern)</label>
-                    <input type="datetime-local" id="combined_bag_end_time" name="bag_end_time" class="form-input text-base">
-                    <p class="text-xs text-gray-500 mt-1">Leave blank to use submit time for end.</p>
-                </div>
-            </div>
-
             <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-indigo-100 space-y-4">
                 <h3 class="text-lg font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">Packaging counts</h3>
                 <div>
@@ -149,6 +141,11 @@
                     <input type="number" id="combined_damaged_tablets" name="damaged_tablets" class="form-input" min="0" value="0" aria-describedby="combined-damaged-help">
                     <p id="combined-damaged-help" class="text-xs text-gray-500 mt-1">Blister cards ripped or destroyed (packaging loss). Count is in cards, not tablets; not included in total tablets.</p>
                 </div>
+            </div>
+            <div>
+                <label for="combined_bag_end_time" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Bag end time (Eastern)</label>
+                <input type="datetime-local" id="combined_bag_end_time" name="bag_end_time" class="form-input text-base">
+                <p class="text-xs text-gray-500 mt-1">Leave blank to use submit time for end.</p>
             </div>
 
             <div>
@@ -1773,13 +1770,36 @@ document.addEventListener('DOMContentLoaded', async function() {
     const combinedProductionForm = document.getElementById('combined-production-form-submit');
     const machineRowsContainer = document.getElementById('machine-count-rows');
     const combinedMachineRowsContainer = document.getElementById('combined-machine-count-rows');
+    const combinedCountDateInput = document.getElementById('combined_count_date');
     const combinedBlisterCountInput = document.getElementById('combined_blister_machine_count');
     const blisterMachineCountInput = document.getElementById('blister_machine_count');
+    const combinedBagStartTimeInput = document.getElementById('combined_bag_start_time');
     let machineCountSubmitting = false;
     let blisterCountSubmitting = false;
     let combinedFullRunSubmitting = false;
     let sealingMachines = [];
     let blisterMachines = [];
+    let lastCombinedProductionDate = (combinedCountDateInput && combinedCountDateInput.value) ? String(combinedCountDateInput.value).trim() : '';
+
+    function syncCombinedBagStartDateFromProductionDate(opts = {}) {
+        if (!combinedCountDateInput || !combinedBagStartTimeInput) return;
+        const force = !!opts.force;
+        const productionDate = String(combinedCountDateInput.value || '').trim();
+        if (!productionDate) return;
+        const currentStart = String(combinedBagStartTimeInput.value || '').trim();
+        if (!currentStart) {
+            combinedBagStartTimeInput.value = `${productionDate}T08:00`;
+            lastCombinedProductionDate = productionDate;
+            return;
+        }
+        const parts = currentStart.split('T');
+        const currentStartDate = parts[0] || '';
+        const currentStartTime = (parts[1] || '08:00').slice(0, 5);
+        if (force || !currentStartDate || currentStartDate === lastCombinedProductionDate) {
+            combinedBagStartTimeInput.value = `${productionDate}T${currentStartTime}`;
+        }
+        lastCombinedProductionDate = productionDate;
+    }
 
     function getSingleBlisterMachineId() {
         if (blisterMachines.length === 1) {
@@ -2208,6 +2228,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         const m = String(today.getMonth() + 1).padStart(2, '0');
         const d = String(today.getDate()).padStart(2, '0');
         el.value = `${y}-${m}-${d}`;
+        syncCombinedBagStartDateFromProductionDate({ force: true });
+    }
+
+    if (combinedCountDateInput) {
+        combinedCountDateInput.addEventListener('change', function () {
+            syncCombinedBagStartDateFromProductionDate();
+        });
     }
 
     const combinedResetAllBtn = document.getElementById('combined-production-reset-all');
@@ -2356,6 +2383,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     updateAllMachineRowUIs();
     loadMachines();
+    syncCombinedBagStartDateFromProductionDate();
     
     // Default: full run (machine + packaged in one submit)
     switchForm('full-run');
