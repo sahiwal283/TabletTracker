@@ -244,6 +244,7 @@ class SchemaManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine_name TEXT UNIQUE NOT NULL,
             cards_per_turn INTEGER NOT NULL DEFAULT 1,
+            machine_role TEXT NOT NULL DEFAULT 'sealing',
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -258,8 +259,8 @@ class SchemaManager:
             ]
             for machine_name, cards_per_turn in default_machines:
                 c.execute('''
-                    INSERT INTO machines (machine_name, cards_per_turn, is_active)
-                    VALUES (?, ?, TRUE)
+                    INSERT INTO machines (machine_name, cards_per_turn, machine_role, is_active)
+                    VALUES (?, ?, 'sealing', TRUE)
                 ''', (machine_name, cards_per_turn))
     
     def _create_employees_table(self, c):

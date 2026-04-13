@@ -13,6 +13,10 @@
         if (combinedProduct && typeof window.convertToTwoLevelDropdownByDataAttr === 'function') {
             window.convertToTwoLevelDropdownByDataAttr(combinedProduct, 'data-category');
         }
+        var blisterProduct = document.getElementById('blister_product');
+        if (blisterProduct && typeof window.convertToTwoLevelDropdownByDataAttr === 'function') {
+            window.convertToTwoLevelDropdownByDataAttr(blisterProduct, 'data-category');
+        }
 
         document.addEventListener('click', function (event) {
             var toggle = event.target.closest('[data-production-form]');

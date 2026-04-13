@@ -16,6 +16,7 @@ class MigrationRunner:
     
     def run_all(self):
         """Run all migrations"""
+        self._migrate_machines()
         self._migrate_purchase_orders()
         self._migrate_po_lines()
         self._migrate_tablet_types()
@@ -29,6 +30,20 @@ class MigrationRunner:
         self._migrate_small_boxes()
         self._migrate_machine_counts()
         self._migrate_submission_bag_deductions()
+
+    def _migrate_machines(self):
+        """Migrate machines table"""
+        self._add_column_if_not_exists(
+            'machines',
+            'machine_role',
+            "TEXT NOT NULL DEFAULT 'sealing'"
+        )
+        try:
+            self.c.execute(
+                "UPDATE machines SET machine_role = 'sealing' WHERE machine_role IS NULL OR TRIM(machine_role) = ''"
+            )
+        except sqlite3.Error as exc:
+            logger.warning("Could not backfill machines.machine_role: %s", exc)
     
     def _migrate_purchase_orders(self):
         """Migrate purchase_orders table"""

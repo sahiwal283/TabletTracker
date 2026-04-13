@@ -10,6 +10,10 @@
                 class="col-span-2 inline-flex items-center justify-center text-center min-h-[3rem] sm:min-h-0 px-2 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold text-xs sm:text-base leading-tight transition-all duration-300 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:shadow-xl w-full sm:max-w-md sm:mx-auto">
             Full run
         </button>
+        <button id="toggle-blister-count" data-production-form="blister-count" type="button"
+                class="inline-flex items-center justify-center text-center min-h-[3rem] sm:min-h-0 px-2 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold text-xs sm:text-base leading-tight transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300 w-full sm:flex-1 sm:min-w-[5.5rem]">
+            Blister
+        </button>
         <button id="toggle-machine-count" data-production-form="machine-count" type="button"
                 class="inline-flex items-center justify-center text-center min-h-[3rem] sm:min-h-0 px-2 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold text-xs sm:text-base leading-tight transition-all duration-300 bg-gray-200 text-gray-700 hover:bg-gray-300 w-full sm:flex-1 sm:min-w-[5.5rem]">
             Machine
@@ -85,6 +89,14 @@
                 <input type="text" id="combined_receipt_number" name="receipt_number" required class="form-input text-base" placeholder="Same receipt for machine + packaging">
             </div>
 
+            <div class="rounded-lg border border-indigo-100 bg-indigo-50/70 p-3 space-y-2">
+                <h3 class="text-sm font-semibold text-indigo-900">Blister machine</h3>
+                <label for="combined_blister_machine_count" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Blister machine count</label>
+                <input type="number" id="combined_blister_machine_count" class="form-input text-base" min="0" step="1" placeholder="Enter blister counter number">
+                <p class="text-xs text-gray-500">Optional when blister step was not run during this full run.</p>
+            </div>
+
+            <h3 class="text-sm font-semibold text-gray-900">Sealing machines</h3>
             <div id="combined-machine-count-rows" class="space-y-4">
                 <div class="machine-count-row rounded-lg border border-gray-200 bg-white/90 p-3 sm:p-4 space-y-3 shadow-sm">
                     <div class="flex justify-between items-center gap-2">
@@ -202,6 +214,7 @@
             const employeeInputs = [
                 document.getElementById('combined_employee_name'),
                 document.getElementById('machine_employee_name'),
+                document.getElementById('blister_employee_name'),
                 document.getElementById('packaged_employee_name'),
                 document.getElementById('bag_employee_name'),
                 document.getElementById('bottles_employee_name'),
@@ -210,6 +223,7 @@
             const employeeDisplays = [
                 document.getElementById('combined-employee-name-display'),
                 document.getElementById('machine-employee-name-display'),
+                document.getElementById('blister-employee-name-display'),
                 document.getElementById('packaged-employee-name-display'),
                 document.getElementById('bag-employee-name-display'),
                 document.getElementById('bottles-employee-name-display'),
@@ -353,6 +367,83 @@
         
         <!-- Success/Error Messages -->
         <div id="machine-count-form-messages" class="mt-4"></div>
+    </div>
+
+    <!-- Blister Count Form -->
+    <div id="blister-count-form" class="card hover-lift p-4 sm:p-8 hidden">
+        <div class="text-center mb-6 sm:mb-8">
+            <div class="mb-3 sm:mb-4 flex justify-center"><svg class="w-10 h-10 sm:w-12 sm:h-12" aria-hidden="true"><use href="#icon-gear" /></svg></div>
+            <h2 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Blister Count</h2>
+            {% if employee %}
+            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
+                <p class="text-green-800 font-semibold flex items-center justify-center text-base sm:text-lg">
+                    <span class="text-xl sm:text-2xl mr-2 sm:mr-3">👷</span>
+                    {{ gettext('Employee') }}: <span id="blister-employee-name-display">{{ employee.full_name }}</span>
+                </p>
+            </div>
+            {% endif %}
+            <div class="mt-3 sm:mt-0">
+                <label for="blister_employee_name" class="block text-sm sm:text-base font-medium text-gray-700 mb-2">Employee Name *</label>
+                <input type="text"
+                       id="blister_employee_name"
+                       name="employee_name"
+                       form="blister-count-form-submit"
+                       required
+                       class="form-input text-base"
+                       placeholder="Type your name (e.g., John Smith)"
+                       value="{{ employee.full_name if employee else '' }}">
+            </div>
+            <p class="text-sm sm:text-base text-gray-600">Track blister machine counter before sealing and packaging.</p>
+        </div>
+
+        <form id="blister-count-form-submit" class="space-y-4">
+            <div>
+                <label for="blister_product" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Product *</label>
+                <select id="blister_product" name="product_id" required class="form-input">
+                    <option value="">Select product...</option>
+                    {% for product in products %}
+                        <option value="{{ product.id }}"
+                                data-tablet-type="{{ product.tablet_type_id }}"
+                                data-category="{{ product.category or product.tablet_category or 'Other' }}">
+                            {{ product.product_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="blister_bag_number" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Bag Number *</label>
+                <input type="text" id="blister_bag_number" name="bag_number" required class="form-input text-base" placeholder="e.g., Cherry Bag 2">
+            </div>
+            <div>
+                <label for="blister_box_number" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Box Number <span class="text-xs text-gray-500 font-normal">(Optional)</span></label>
+                <input type="text" id="blister_box_number" name="box_number" class="form-input text-base" placeholder="Optional">
+            </div>
+            <div>
+                <label for="blister_receipt_number" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Receipt # *</label>
+                <input type="text" id="blister_receipt_number" name="receipt_number" required class="form-input text-base" placeholder="Enter receipt number">
+            </div>
+            <div>
+                <label for="blister_bag_start_time" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Start time (Eastern)</label>
+                <input type="datetime-local" id="blister_bag_start_time" name="bag_start_time" class="form-input text-base">
+            </div>
+            <div>
+                <label for="blister_machine_count" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Blister machine count *</label>
+                <input type="number" id="blister_machine_count" class="form-input text-base" min="0" step="1" required placeholder="Enter blister counter number">
+            </div>
+            <div>
+                <label for="blister_admin_notes" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                <textarea id="blister_admin_notes" name="admin_notes" rows="3" class="form-input text-base" placeholder="Add notes..."></textarea>
+            </div>
+            <button type="submit" class="w-full py-4 px-6 text-base sm:text-lg font-bold btn-primary mt-6 sm:mt-8 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" aria-hidden="true"><use href="#icon-send" /></svg>
+                Submit Blister Count
+            </button>
+            <button type="button" id="blister-count-reset-all"
+                    class="w-full mt-3 py-2 text-sm text-gray-600 hover:text-gray-900 underline underline-offset-2">
+                Clear entire form
+            </button>
+        </form>
+        <div id="blister-count-form-messages" class="mt-4"></div>
     </div>
 
     <!-- Packaged Form (Previously Production Submission) -->
@@ -858,12 +949,14 @@
 // Form switching function
 function switchForm(formType) {
     const combinedForm = document.getElementById('combined-production-form');
+    const blisterCountForm = document.getElementById('blister-count-form');
     const submissionForm = document.getElementById('production-submission-form');
     const bagCountForm = document.getElementById('bag-count-form');
     const machineCountForm = document.getElementById('machine-count-form');
     const bottlesForm = document.getElementById('bottles-form');
     const repackForm = document.getElementById('repack-form');
     const fullRunBtn = document.getElementById('toggle-full-run');
+    const blisterCountBtn = document.getElementById('toggle-blister-count');
     const submissionBtn = document.getElementById('toggle-production-submission');
     const bagCountBtn = document.getElementById('toggle-bag-count');
     const machineCountBtn = document.getElementById('toggle-machine-count');
@@ -873,6 +966,7 @@ function switchForm(formType) {
     
     // Hide all forms
     if (combinedForm) combinedForm.classList.add('hidden');
+    if (blisterCountForm) blisterCountForm.classList.add('hidden');
     submissionForm.classList.add('hidden');
     bagCountForm.classList.add('hidden');
     machineCountForm.classList.add('hidden');
@@ -880,7 +974,7 @@ function switchForm(formType) {
     repackForm.classList.add('hidden');
     
     // Reset all buttons
-    [fullRunBtn, submissionBtn, bagCountBtn, machineCountBtn, bottlesBtn, repackBtn].filter(Boolean).forEach(btn => {
+    [fullRunBtn, blisterCountBtn, submissionBtn, bagCountBtn, machineCountBtn, bottlesBtn, repackBtn].filter(Boolean).forEach(btn => {
         btn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
         btn.classList.add('bg-gray-200', 'text-gray-700');
     });
@@ -898,6 +992,13 @@ function switchForm(formType) {
         machineCountForm.classList.remove('hidden');
         machineCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
         machineCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+    } else if (formType === 'blister-count') {
+        if (advancedSplit) advancedSplit.open = true;
+        if (blisterCountForm) blisterCountForm.classList.remove('hidden');
+        if (blisterCountBtn) {
+            blisterCountBtn.classList.remove('bg-gray-200', 'text-gray-700');
+            blisterCountBtn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'text-white', 'shadow-lg');
+        }
     } else if (formType === 'submission') {
         if (advancedSplit) advancedSplit.open = true;
         submissionForm.classList.remove('hidden');
@@ -1668,12 +1769,29 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // Machine Count Form — multiple machine rows in one submission (shared UI with full-run form)
     const machineCountForm = document.getElementById('machine-count-form-submit');
+    const blisterCountForm = document.getElementById('blister-count-form-submit');
     const combinedProductionForm = document.getElementById('combined-production-form-submit');
     const machineRowsContainer = document.getElementById('machine-count-rows');
     const combinedMachineRowsContainer = document.getElementById('combined-machine-count-rows');
+    const combinedBlisterCountInput = document.getElementById('combined_blister_machine_count');
+    const blisterMachineCountInput = document.getElementById('blister_machine_count');
     let machineCountSubmitting = false;
+    let blisterCountSubmitting = false;
     let combinedFullRunSubmitting = false;
-    let machinesList = [];
+    let sealingMachines = [];
+    let blisterMachines = [];
+
+    function getSingleBlisterMachineId() {
+        if (blisterMachines.length === 1) {
+            return Number(blisterMachines[0].id);
+        }
+        if (blisterMachines.length === 0) {
+            showError('No active blister machine is configured. Ask an admin to add one in Product Config.');
+            return null;
+        }
+        showError('Multiple active blister machines found. Keep only one active blister machine in Product Config.');
+        return null;
+    }
 
     function machineRowRoots() {
         return [machineRowsContainer, combinedMachineRowsContainer].filter(Boolean);
@@ -1688,7 +1806,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     /** Cap rows at configured machines (or 1 row if none loaded yet / empty list). */
     function getMaxMachineRowCount() {
-        return machinesList.length > 0 ? machinesList.length : 1;
+        return sealingMachines.length > 0 ? sealingMachines.length : 1;
     }
 
     function trimMachineRowsToMax(container) {
@@ -1707,7 +1825,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const atCap = n >= maxN;
         btn.disabled = atCap;
         if (atCap) {
-            btn.title = machinesList.length > 0
+            btn.title = sealingMachines.length > 0
                 ? `At most ${maxN} row(s) — one per machine.`
                 : 'Configure machines in admin to add more rows.';
         } else {
@@ -1719,7 +1837,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!select) return;
         const prev = select.value;
         select.innerHTML = '<option value="">Select machine...</option>';
-        machinesList.forEach(machine => {
+        sealingMachines.forEach(machine => {
             const option = document.createElement('option');
             option.value = machine.id;
             option.textContent = `${machine.machine_name} (${machine.cards_per_turn} cards/turn)`;
@@ -1837,6 +1955,26 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
         return entries;
+    }
+
+    function buildBlisterEntryFromInput(inputEl, required = false) {
+        if (!inputEl) return required ? null : [];
+        const raw = String(inputEl.value || '').trim();
+        if (!raw) {
+            if (required) {
+                showError('Enter the blister machine count.');
+                return null;
+            }
+            return [];
+        }
+        const machineCount = parseInt(raw, 10);
+        if (Number.isNaN(machineCount) || machineCount < 0) {
+            showError('Blister machine count must be a valid non-negative number.');
+            return null;
+        }
+        const machineId = getSingleBlisterMachineId();
+        if (!machineId) return null;
+        return [{ machine_id: machineId, machine_count: machineCount }];
     }
 
     machineRowRoots().forEach(container => {
@@ -1961,12 +2099,103 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
+    if (blisterCountForm) blisterCountForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (blisterCountSubmitting) return;
+        blisterCountSubmitting = true;
+
+        const submitBtn = blisterCountForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        const formData = new FormData(blisterCountForm);
+        const data = Object.fromEntries(formData.entries());
+        const blisterEntries = buildBlisterEntryFromInput(blisterMachineCountInput, true);
+        if (!blisterEntries) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            blisterCountSubmitting = false;
+            return;
+        }
+
+        data.product_id = parseInt(data.product_id, 10);
+        data.machine_entries = blisterEntries;
+
+        try {
+            const sendBlisterSubmission = async (payload) => {
+                const response = await csrfFetch('/api/submissions/machine-count', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                return { response, result };
+            };
+
+            let { response, result } = await sendBlisterSubmission(data);
+            while (response.status === 409) {
+                if (result?.requires_reserved_override) {
+                    const confirmed = window.confirm(
+                        result.error || 'This bag is reserved for variety pack/bottle use. Continue anyway?'
+                    );
+                    if (confirmed) {
+                        data.confirm_reserved_override = true;
+                        ({ response, result } = await sendBlisterSubmission(data));
+                        continue;
+                    }
+                    showError('Submission cancelled.');
+                    return;
+                }
+                if (result?.requires_unassigned_confirmation) {
+                    const confirmed = window.confirm(
+                        result.error || 'Bag not found. Please double check bag information. Submit anyway?'
+                    );
+                    if (confirmed) {
+                        data.confirm_unassigned_submit = true;
+                        ({ response, result } = await sendBlisterSubmission(data));
+                        continue;
+                    }
+                    showError('Submission cancelled.');
+                    return;
+                }
+                break;
+            }
+
+            if (response.ok) {
+                const baseMsg = result.message || 'Blister count submitted successfully.';
+                const warn = result.warning ? ' ' + result.warning : '';
+                showSuccess(baseMsg + warn);
+                blisterCountForm.reset();
+                if (blisterMachineCountInput) blisterMachineCountInput.value = '';
+            } else {
+                showError(result.error || 'Submission failed');
+            }
+        } catch (error) {
+            showError('Network error: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            blisterCountSubmitting = false;
+        }
+    });
+
     const machineResetAllBtn = document.getElementById('machine-count-reset-all');
     if (machineResetAllBtn && machineCountForm) {
         machineResetAllBtn.addEventListener('click', function () {
             if (!window.confirm('Clear all fields—including receipt, product, and bag—for a new run?')) return;
             machineCountForm.reset();
             resetMachineRowsAfterSubmit(machineRowsContainer);
+            loadMachines();
+        });
+    }
+
+    const blisterResetAllBtn = document.getElementById('blister-count-reset-all');
+    if (blisterResetAllBtn && blisterCountForm) {
+        blisterResetAllBtn.addEventListener('click', function () {
+            if (!window.confirm('Clear all fields for a new blister run?')) return;
+            blisterCountForm.reset();
+            if (blisterMachineCountInput) blisterMachineCountInput.value = '';
             loadMachines();
         });
     }
@@ -2015,13 +2244,21 @@ document.addEventListener('DOMContentLoaded', async function() {
             data.count_date = `${year}-${month}-${day}`;
         }
 
-        const entries = buildMachineEntriesFromRows(combinedMachineRowsContainer);
-        if (!entries) {
+        const sealingEntries = buildMachineEntriesFromRows(combinedMachineRowsContainer);
+        if (!sealingEntries) {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
             combinedFullRunSubmitting = false;
             return;
         }
+        const blisterEntries = buildBlisterEntryFromInput(combinedBlisterCountInput, false);
+        if (blisterEntries === null) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+            combinedFullRunSubmitting = false;
+            return;
+        }
+        const entries = [...blisterEntries, ...sealingEntries];
 
         data.product_id = parseInt(data.product_id, 10);
         data.machine_entries = entries;
@@ -2106,7 +2343,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch('/api/machines');
             const data = await response.json();
             if (data.success && data.machines) {
-                machinesList = data.machines;
+                sealingMachines = data.machines.filter(m => (m.machine_role || 'sealing') === 'sealing');
+                blisterMachines = data.machines.filter(m => (m.machine_role || 'sealing') === 'blister');
                 machineRowRoots().forEach(c => trimMachineRowsToMax(c));
                 refreshAllMachineSelects();
                 updateAllMachineRowUIs();

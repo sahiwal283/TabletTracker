@@ -533,7 +533,7 @@
     <div id="content-machines" class="tab-content hidden">
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 class="font-semibold text-blue-900 mb-1">⚙️ What are Machines?</h3>
-            <p class="text-sm text-blue-800">Machines are used for production counting. Each machine can produce a different number of blister cards per turn of the crank.</p>
+            <p class="text-sm text-blue-800">Machines are used for production counting. Set each machine as Sealing or Blister so forms show the right counters for each production stage.</p>
         </div>
 
         <div class="bg-white rounded-lg shadow p-6">
@@ -570,6 +570,14 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Cards Per Turn <span class="text-red-600">*</span></label>
                 <input type="number" id="machine-cards-input" min="1" value="1" class="form-input w-full">
                 <p class="text-xs text-gray-500 mt-1">How many blister cards does this machine produce per crank turn?</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Machine Role <span class="text-red-600">*</span></label>
+                <select id="machine-role-input" class="form-input w-full">
+                    <option value="sealing">Sealing</option>
+                    <option value="blister">Blister</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Blister machine is used at blister packing; sealing machines are used before packaging.</p>
             </div>
             <div class="flex justify-end gap-3 pt-4 border-t">
                 <button data-close-machine-modal class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
@@ -1111,6 +1119,7 @@ function renderMachinesList() {
             <div class="flex items-center justify-between">
                 <div class="flex-1">
                     <div class="font-semibold text-gray-900">${machine.machine_name}</div>
+                    <div class="text-xs text-gray-600 mt-1">Role: ${(machine.machine_role || 'sealing') === 'blister' ? 'Blister' : 'Sealing'}</div>
                     <div class="text-sm text-gray-500">${machine.cards_per_turn} cards per turn</div>
                 </div>
                 <div class="flex items-center gap-3">
@@ -1129,6 +1138,7 @@ function openAddMachineModal() {
     document.getElementById('machine-modal-title').textContent = 'Add Machine';
     document.getElementById('machine-name-input').value = '';
     document.getElementById('machine-cards-input').value = '1';
+    document.getElementById('machine-role-input').value = 'sealing';
     document.getElementById('machine-modal').classList.remove('hidden');
 }
 
@@ -1140,6 +1150,7 @@ function openEditMachineModal(machineId) {
     document.getElementById('machine-modal-title').textContent = 'Edit Machine';
     document.getElementById('machine-name-input').value = machine.machine_name;
     document.getElementById('machine-cards-input').value = machine.cards_per_turn;
+    document.getElementById('machine-role-input').value = machine.machine_role || 'sealing';
     document.getElementById('machine-modal').classList.remove('hidden');
 }
 
@@ -1151,6 +1162,7 @@ function closeMachineModal() {
 async function saveMachine() {
     const name = document.getElementById('machine-name-input').value.trim();
     const cardsPerTurn = parseInt(document.getElementById('machine-cards-input').value);
+    const machineRole = (document.getElementById('machine-role-input').value || '').trim();
     
     if (!name) {
         showError('Machine name is required');
@@ -1159,6 +1171,10 @@ async function saveMachine() {
     
     if (!cardsPerTurn || cardsPerTurn < 1) {
         showError('Cards per turn must be at least 1');
+        return;
+    }
+    if (!['sealing', 'blister'].includes(machineRole)) {
+        showError('Select a valid machine role');
         return;
     }
     
@@ -1171,7 +1187,8 @@ async function saveMachine() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 machine_name: name,
-                cards_per_turn: cardsPerTurn
+                cards_per_turn: cardsPerTurn,
+                machine_role: machineRole
             })
         });
         

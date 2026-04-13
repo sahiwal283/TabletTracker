@@ -45,6 +45,7 @@ def run_comprehensive_migration(db_path='tablet_counter.db'):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 machine_name TEXT UNIQUE NOT NULL,
                 cards_per_turn INTEGER NOT NULL DEFAULT 1,
+                machine_role TEXT NOT NULL DEFAULT 'sealing',
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -153,6 +154,20 @@ def run_comprehensive_migration(db_path='tablet_counter.db'):
                 print(f"  ℹ bag_number: {e}")
         else:
             print("  ℹ machine_counts.bag_number already exists")
+
+        # Add machine_role to machines if missing
+        c.execute("PRAGMA table_info(machines)")
+        machines_cols = [row[1] for row in c.fetchall()]
+        if 'machine_role' not in machines_cols:
+            try:
+                c.execute("ALTER TABLE machines ADD COLUMN machine_role TEXT NOT NULL DEFAULT 'sealing'")
+                c.execute("UPDATE machines SET machine_role = 'sealing' WHERE machine_role IS NULL OR TRIM(machine_role) = ''")
+                print("✓ Added machines.machine_role")
+                migration_log.append("Added machines.machine_role")
+            except Exception as e:
+                print(f"  ⚠ Error adding machine_role: {e}")
+        else:
+            print("  ℹ machines.machine_role already exists")
         
         conn.commit()
         print()
@@ -171,8 +186,8 @@ def run_comprehensive_migration(db_path='tablet_counter.db'):
             ]
             for machine_name, cards_per_turn in machines:
                 c.execute('''
-                    INSERT INTO machines (machine_name, cards_per_turn, is_active)
-                    VALUES (?, ?, TRUE)
+                    INSERT INTO machines (machine_name, cards_per_turn, machine_role, is_active)
+                    VALUES (?, ?, 'sealing', TRUE)
                 ''', (machine_name, cards_per_turn))
                 print(f"✓ Added {machine_name} (cards_per_turn: {cards_per_turn})")
                 migration_log.append(f"Added {machine_name}")

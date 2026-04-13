@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.53.0] - 2026-04-13
+
+### ✨ Enhancement
+
+#### Blister machine tracking in Production flows
+- Added explicit machine roles (`sealing` and `blister`) in machine configuration and API filtering so sealing and blister counters stay separated by production stage.
+- Added a dedicated **Blister** production form with name, product (two-step dropdown), box/bag, receipt, start time, and blister machine count.
+- Updated **Full run** to include an optional blister machine count while keeping sealing machine rows for the downstream sealing stage.
+- **Versioning**: **MINOR** `2.52.13` → `2.53.0`.
+
+---
+
 ## [2.52.13] - 2026-04-10
 
 ### 🐛 Fix

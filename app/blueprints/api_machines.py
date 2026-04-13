@@ -6,6 +6,14 @@ from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import admin_required, employee_required
 
 bp = Blueprint('api_machines', __name__)
+VALID_MACHINE_ROLES = {'sealing', 'blister'}
+
+
+def _normalize_machine_role(raw_role, default='sealing'):
+    role = (raw_role or default or 'sealing').strip().lower()
+    if role not in VALID_MACHINE_ROLES:
+        return None
+    return role
 
 
 @bp.route('/api/machines', methods=['GET'])
@@ -13,12 +21,28 @@ bp = Blueprint('api_machines', __name__)
 def get_machines():
     """Get all active machines"""
     try:
+        role = request.args.get('role')
+        normalized_role = None
+        if role is not None and str(role).strip() != '':
+            normalized_role = _normalize_machine_role(role, default=None)
+            if not normalized_role:
+                return jsonify({'success': False, 'error': 'Invalid role. Use "sealing" or "blister".'}), 400
         with db_read_only() as conn:
-            machines = conn.execute('''
-                SELECT * FROM machines 
-                WHERE is_active = TRUE
-                ORDER BY machine_name
-            ''').fetchall()
+            if normalized_role:
+                machines = conn.execute(
+                    '''
+                    SELECT * FROM machines
+                    WHERE is_active = TRUE AND machine_role = ?
+                    ORDER BY machine_name
+                    ''',
+                    (normalized_role,),
+                ).fetchall()
+            else:
+                machines = conn.execute('''
+                    SELECT * FROM machines
+                    WHERE is_active = TRUE
+                    ORDER BY machine_name
+                ''').fetchall()
             
             machines_list = [dict(m) for m in machines]
             current_app.logger.info(f"GET /api/machines - Found {len(machines_list)} active machines")
@@ -36,9 +60,12 @@ def create_machine():
         data = request.get_json()
         machine_name = data.get('machine_name', '').strip()
         cards_per_turn = data.get('cards_per_turn')
+        machine_role = _normalize_machine_role(data.get('machine_role'), default='sealing')
         
         if not machine_name:
             return jsonify({'success': False, 'error': 'Machine name is required'}), 400
+        if not machine_role:
+            return jsonify({'success': False, 'error': 'Machine role must be "sealing" or "blister"'}), 400
         
         try:
             cards_per_turn = int(cards_per_turn)
@@ -53,9 +80,9 @@ def create_machine():
                 return jsonify({'success': False, 'error': 'Machine name already exists'}), 400
             
             conn.execute('''
-                INSERT INTO machines (machine_name, cards_per_turn, is_active)
-                VALUES (?, ?, TRUE)
-            ''', (machine_name, cards_per_turn))
+                INSERT INTO machines (machine_name, cards_per_turn, machine_role, is_active)
+                VALUES (?, ?, ?, TRUE)
+            ''', (machine_name, cards_per_turn, machine_role))
             
             return jsonify({'success': True, 'message': f'Machine "{machine_name}" created successfully'})
     except Exception as e:
@@ -71,9 +98,12 @@ def update_machine(machine_id):
         data = request.get_json()
         machine_name = data.get('machine_name', '').strip()
         cards_per_turn = data.get('cards_per_turn')
+        machine_role = _normalize_machine_role(data.get('machine_role'), default='sealing')
         
         if not machine_name:
             return jsonify({'success': False, 'error': 'Machine name is required'}), 400
+        if not machine_role:
+            return jsonify({'success': False, 'error': 'Machine role must be "sealing" or "blister"'}), 400
         
         try:
             cards_per_turn = int(cards_per_turn)
@@ -93,9 +123,9 @@ def update_machine(machine_id):
             
             conn.execute('''
                 UPDATE machines 
-                SET machine_name = ?, cards_per_turn = ?, updated_at = CURRENT_TIMESTAMP
+                SET machine_name = ?, cards_per_turn = ?, machine_role = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (machine_name, cards_per_turn, machine_id))
+            ''', (machine_name, cards_per_turn, machine_role, machine_id))
             
             return jsonify({'success': True, 'message': f'Machine "{machine_name}" updated successfully'})
     except Exception as e:
