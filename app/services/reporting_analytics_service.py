@@ -116,12 +116,27 @@ def _submission_report_rows(
     return out
 
 
-def _flavor_id_name(sub: Dict[str, Any]) -> Tuple[Optional[int], str]:
+def _flavor_id_name(
+    sub: Dict[str, Any], conn: Optional[sqlite3.Connection] = None
+) -> Tuple[Optional[int], str]:
+    """
+    Resolve flavor for a submission row. Prefer joined tablet_type_id / tablet_type_name
+    (query uses COALESCE(product, inventory fallback, bag tablet type)).
+    """
     tid = sub.get("tablet_type_id")
     name = sub.get("tablet_type_name")
-    if tid is not None and name:
-        return int(tid), str(name)
-    # fallback: product_name
+    if tid is not None:
+        tid = int(tid)
+        if name:
+            return tid, str(name)
+        if conn:
+            row = conn.execute(
+                "SELECT tablet_type_name FROM tablet_types WHERE id = ?",
+                (tid,),
+            ).fetchone()
+            if row and row["tablet_type_name"]:
+                return tid, str(row["tablet_type_name"])
+        return tid, (sub.get("product_name") or "Unknown").strip()
     return None, (sub.get("product_name") or "Unknown").strip()
 
 
@@ -328,7 +343,7 @@ def _packed_by_flavor_receive(
         tablets = packed_output_tablets(conn, sub)
         if tablets <= 0:
             continue
-        tid, _ = _flavor_id_name(sub)
+        tid, _ = _flavor_id_name(sub, conn)
         rid = sub.get("receive_id")
         if rid is None:
             rid = -1
@@ -645,7 +660,7 @@ def build_dimensions(
         n = packed_output_tablets(conn, sub)
         if n <= 0:
             continue
-        tid, fname = _flavor_id_name(sub)
+        tid, fname = _flavor_id_name(sub, conn)
         if tid is None:
             tid = -2
         by_flavor[tid] = by_flavor.get(tid, 0) + n

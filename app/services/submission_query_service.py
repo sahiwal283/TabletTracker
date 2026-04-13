@@ -64,9 +64,9 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
                pd.packages_per_display, 
                pd.tablets_per_package,
                COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
-               tt.inventory_item_id, 
-               tt.id as tablet_type_id, 
-               tt.tablet_type_name,
+               tt.inventory_item_id,
+               COALESCE(tt.id, tt_fallback.id, tt_bag.id) AS tablet_type_id,
+               COALESCE(tt.tablet_type_name, tt_fallback.tablet_type_name, tt_bag.tablet_type_name) AS tablet_type_name,
                COALESCE(ws.po_assignment_verified, 0) as po_verified,
                COALESCE(ws.needs_review, 0) as needs_review,
                ws.admin_notes,
@@ -87,6 +87,7 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
         LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
         LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id
         LEFT JOIN bags b ON ws.bag_id = b.id
+        LEFT JOIN tablet_types tt_bag ON b.tablet_type_id = tt_bag.id
         LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
         LEFT JOIN receiving r ON sb.receiving_id = r.id
     '''
