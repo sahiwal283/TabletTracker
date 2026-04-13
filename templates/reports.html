@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Reports &amp; Analytics{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8">
+    <div class="card hover-lift p-6">
+        {% with
+            title='Reports & Analytics',
+            icon_svg='#icon-chart',
+            icon_svg_class='w-7 h-7 mr-3',
+            wrapper_class='mb-2',
+            title_class='text-2xl font-bold bg-gradient-to-r from-[var(--wc-primary)] to-[#4F7C82] bg-clip-text text-transparent'
+        %}
+            {% include "components/section_title.html" %}
+        {% endwith %}
+        <p class="text-sm text-gray-600 mb-0">PO totals, shipment breakdowns, and flavor/vendor trends. Data refreshes automatically while this page is open.</p>
+    </div>
+
+    <!-- PO-focused block -->
+    <div class="card hover-lift p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-[var(--wc-primary)]" aria-hidden="true"><use href="#icon-cart" /></svg>
+            Purchase order detail
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+                <label for="reports_po_select" class="block text-xs font-medium text-gray-700 mb-1">Purchase order</label>
+                <select id="reports_po_select" class="form-input w-full text-sm">
+                    <option value="">Select a PO…</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <p id="reports_po_meta" class="text-xs text-gray-500 leading-relaxed"></p>
+            </div>
+        </div>
+
+        <div id="reports_po_loading" class="hidden text-sm text-gray-500 mb-2">Loading PO data…</div>
+        <div id="reports_po_error" class="hidden text-sm text-red-600 mb-2"></div>
+
+        <div id="reports_total_section" class="hidden mb-6">
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Total view (all shipments)</h4>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left font-medium text-gray-600">Flavor</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Ordered</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Received</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Packed</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Bags</th>
+                            <th class="px-3 py-2 text-right font-medium text-gray-600">Avg / bag</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports_total_tbody" class="divide-y divide-gray-100 bg-white"></tbody>
+                    <tfoot id="reports_total_tfoot" class="bg-gray-50 font-semibold"></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div id="reports_shipments_section" class="hidden">
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Shipment breakdown</h4>
+            <div id="reports_shipments_accordion" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- Analytics block -->
+    <div class="card hover-lift p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-[var(--wc-primary)]" aria-hidden="true"><use href="#icon-chart" /></svg>
+            Trends &amp; flavor analytics
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label for="reports_vendor" class="block text-xs font-medium text-gray-700 mb-1">Vendor</label>
+                <select id="reports_vendor" class="form-input w-full text-sm">
+                    <option value="">All vendors</option>
+                </select>
+            </div>
+            <div>
+                <label for="reports_flavor" class="block text-xs font-medium text-gray-700 mb-1">Flavor (tablet type)</label>
+                <select id="reports_flavor" class="form-input w-full text-sm">
+                    <option value="">All flavors</option>
+                </select>
+            </div>
+            <div>
+                <label for="reports_analytics_po" class="block text-xs font-medium text-gray-700 mb-1">Limit to PO (optional)</label>
+                <select id="reports_analytics_po" class="form-input w-full text-sm">
+                    <option value="">All POs</option>
+                </select>
+            </div>
+            <div>
+                <label for="reports_date_from" class="block text-xs font-medium text-gray-700 mb-1">From</label>
+                <input type="date" id="reports_date_from" class="form-input w-full text-sm" />
+            </div>
+            <div>
+                <label for="reports_date_to" class="block text-xs font-medium text-gray-700 mb-1">To</label>
+                <input type="date" id="reports_date_to" class="form-input w-full text-sm" />
+            </div>
+            <div class="flex items-end">
+                <button type="button" id="reports_apply_analytics" class="btn-primary w-full py-2 text-sm font-semibold">Apply</button>
+            </div>
+        </div>
+
+        <div id="reports_analytics_loading" class="hidden text-sm text-gray-500 mb-2">Loading charts…</div>
+        <div id="reports_analytics_error" class="hidden text-sm text-red-600 mb-2"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="rounded-xl border border-gray-200 p-4 bg-white/80">
+                <h4 class="text-sm font-semibold text-gray-700 mb-2">Packed vs received (by day)</h4>
+                <div class="h-72 relative">
+                    <canvas id="reports_chart_trends"></canvas>
+                </div>
+            </div>
+            <div class="rounded-xl border border-gray-200 p-4 bg-white/80">
+                <h4 class="text-sm font-semibold text-gray-700 mb-2">Top flavors (packed in range)</h4>
+                <div class="h-72 relative">
+                    <canvas id="reports_chart_flavors"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-gray-200 p-4 bg-white/80">
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Selected flavor — daily packed</h4>
+            <p id="reports_flavor_series_hint" class="text-xs text-gray-500 mb-2">Choose a flavor above to see its daily trend.</p>
+            <div class="h-56 relative">
+                <canvas id="reports_chart_flavor_daily"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-center text-xs text-gray-400 pb-4">
+        <span id="reports_live_status" class="inline-flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true"></span>
+            Live sync active (polls when tab visible)
+        </span>
+    </p>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/reports-ui.js') }}"></script>
+{% endblock %}

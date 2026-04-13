@@ -198,12 +198,14 @@ def _register_blueprints(app):
         production,
         purchase_orders,
         receiving,
+        reports,
         submissions,
     )
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(admin.bp)
     app.register_blueprint(dashboard.bp)
+    app.register_blueprint(reports.bp)
     app.register_blueprint(production.bp)
     app.register_blueprint(submissions.bp)
     app.register_blueprint(purchase_orders.bp)

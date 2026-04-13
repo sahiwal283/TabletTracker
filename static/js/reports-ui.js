@@ -1,0 +1,482 @@
+/**
+ * Reports & analytics page: PO tables, shipment breakdown, Chart.js trends, live polling.
+ */
+(function () {
+    'use strict';
+
+    var charts = { trends: null, flavors: null, flavorDaily: null };
+    var pollTimer = null;
+    var lastVersion = null;
+    var filtersCache = null;
+
+    function fmt(n) {
+        if (n == null || n === '') return '—';
+        var x = Number(n);
+        if (Number.isNaN(x)) return String(n);
+        return x.toLocaleString();
+    }
+
+    function showPoError(msg) {
+        var el = document.getElementById('reports_po_error');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.toggle('hidden', !msg);
+    }
+
+    function showAnalyticsError(msg) {
+        var el = document.getElementById('reports_analytics_error');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.toggle('hidden', !msg);
+    }
+
+    function destroyChart(key) {
+        if (charts[key]) {
+            try {
+                charts[key].destroy();
+            } catch (_) { /* ignore */ }
+            charts[key] = null;
+        }
+    }
+
+    function defaultDateRange(bounds) {
+        var to = bounds && bounds.max ? String(bounds.max).slice(0, 10) : new Date().toISOString().slice(0, 10);
+        var d = new Date(to + 'T12:00:00');
+        d.setDate(d.getDate() - 30);
+        var from = d.toISOString().slice(0, 10);
+        if (bounds && bounds.min && from < String(bounds.min).slice(0, 10)) {
+            from = String(bounds.min).slice(0, 10);
+        }
+        return { from: from, to: to };
+    }
+
+    async function fetchFilters() {
+        var data = await apiCall('/api/reports/filters', { requestKey: 'reports-filters' });
+        if (!data.success) throw new Error(data.error || 'Failed to load filters');
+        return data;
+    }
+
+    function populateFilterSelects(data) {
+        filtersCache = data;
+        var poSel = document.getElementById('reports_po_select');
+        var poA = document.getElementById('reports_analytics_po');
+        if (poSel) {
+            var cur = poSel.value;
+            poSel.innerHTML = '<option value="">Select a PO…</option>';
+            (data.pos || []).forEach(function (p) {
+                var opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = (p.po_number || '') + (p.vendor_name ? ' — ' + p.vendor_name : '');
+                poSel.appendChild(opt);
+            });
+            if (cur) poSel.value = cur;
+        }
+        if (poA) {
+            var curA = poA.value;
+            poA.innerHTML = '<option value="">All POs</option>';
+            (data.pos || []).forEach(function (p) {
+                var opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = (p.po_number || '') + (p.vendor_name ? ' — ' + p.vendor_name : '');
+                poA.appendChild(opt);
+            });
+            if (curA) poA.value = curA;
+        }
+        var vSel = document.getElementById('reports_vendor');
+        if (vSel) {
+            var cv = vSel.value;
+            vSel.innerHTML = '<option value="">All vendors</option>';
+            (data.vendors || []).forEach(function (v) {
+                var opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                vSel.appendChild(opt);
+            });
+            if (cv) vSel.value = cv;
+        }
+        var fSel = document.getElementById('reports_flavor');
+        if (fSel) {
+            var cf = fSel.value;
+            fSel.innerHTML = '<option value="">All flavors</option>';
+            (data.flavors || []).forEach(function (f) {
+                var opt = document.createElement('option');
+                opt.value = f.id;
+                opt.textContent = f.name;
+                fSel.appendChild(opt);
+            });
+            if (cf) fSel.value = cf;
+        }
+        var dr = defaultDateRange(data.date_bounds);
+        var df = document.getElementById('reports_date_from');
+        var dt = document.getElementById('reports_date_to');
+        if (df && !df.dataset.touched) df.value = dr.from;
+        if (dt && !dt.dataset.touched) dt.value = dr.to;
+    }
+
+    function renderTotalTable(payload) {
+        var tbody = document.getElementById('reports_total_tbody');
+        var tfoot = document.getElementById('reports_total_tfoot');
+        var sec = document.getElementById('reports_total_section');
+        if (!tbody || !tfoot || !sec) return;
+        tbody.innerHTML = '';
+        (payload.rows || []).forEach(function (row) {
+            var tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+            tr.innerHTML =
+                '<td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-elevated)] text-gray-800">' +
+                escapeHtml(row.flavor) +
+                '</span></td>' +
+                '<td class="px-3 py-2 text-right tabular-nums">' + fmt(row.ordered) + '</td>' +
+                '<td class="px-3 py-2 text-right tabular-nums">' + fmt(row.received) + '</td>' +
+                '<td class="px-3 py-2 text-right tabular-nums">' + fmt(row.packed) + '</td>' +
+                '<td class="px-3 py-2 text-right tabular-nums">' + fmt(row.bags_received) + '</td>' +
+                '<td class="px-3 py-2 text-right tabular-nums">' + (row.avg_packed_per_bag != null ? fmt(row.avg_packed_per_bag) : '—') + '</td>';
+            tbody.appendChild(tr);
+        });
+        var t = payload.totals || {};
+        tfoot.innerHTML =
+            '<tr><td class="px-3 py-2">Total</td>' +
+            '<td class="px-3 py-2 text-right">' + fmt(t.ordered) + '</td>' +
+            '<td class="px-3 py-2 text-right">' + fmt(t.received) + '</td>' +
+            '<td class="px-3 py-2 text-right">' + fmt(t.packed) + '</td>' +
+            '<td class="px-3 py-2 text-right">' + fmt(t.bags_received) + '</td>' +
+            '<td class="px-3 py-2 text-right">' + (t.avg_packed_per_bag != null ? fmt(t.avg_packed_per_bag) : '—') + '</td></tr>';
+        sec.classList.remove('hidden');
+    }
+
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function renderShipments(payload) {
+        var host = document.getElementById('reports_shipments_accordion');
+        var sec = document.getElementById('reports_shipments_section');
+        if (!host || !sec) return;
+        host.innerHTML = '';
+        var list = payload.shipments || [];
+        if (list.length === 0) {
+            sec.classList.add('hidden');
+            return;
+        }
+        list.forEach(function (sh) {
+            var details = document.createElement('details');
+            details.className = 'group border border-gray-200 rounded-lg bg-white overflow-hidden';
+            var sum = document.createElement('summary');
+            sum.className = 'px-4 py-3 cursor-pointer text-sm font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100 list-none flex justify-between items-center';
+            var tot = sh.totals || {};
+            sum.innerHTML =
+                '<span>' + escapeHtml(sh.label || 'Shipment') + '</span>' +
+                '<span class="text-xs font-normal text-gray-500">Recv ' + fmt(tot.received) + ' · Packed ' + fmt(tot.packed) + ' · Bags ' + fmt(tot.bags_received) + '</span>';
+            var inner = document.createElement('div');
+            inner.className = 'p-3 overflow-x-auto';
+            var table = document.createElement('table');
+            table.className = 'min-w-full divide-y divide-gray-200 text-sm';
+            table.innerHTML =
+                '<thead class="bg-gray-50"><tr>' +
+                '<th class="px-2 py-1 text-left text-xs font-medium text-gray-600">Flavor</th>' +
+                '<th class="px-2 py-1 text-right text-xs font-medium text-gray-600">Ordered</th>' +
+                '<th class="px-2 py-1 text-right text-xs font-medium text-gray-600">Received</th>' +
+                '<th class="px-2 py-1 text-right text-xs font-medium text-gray-600">Packed</th>' +
+                '<th class="px-2 py-1 text-right text-xs font-medium text-gray-600">Bags</th>' +
+                '<th class="px-2 py-1 text-right text-xs font-medium text-gray-600">Avg / bag</th>' +
+                '</tr></thead>';
+            var tb = document.createElement('tbody');
+            tb.className = 'divide-y divide-gray-100';
+            (sh.rows || []).forEach(function (row) {
+                var tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td class="px-2 py-1">' + escapeHtml(row.flavor) + '</td>' +
+                    '<td class="px-2 py-1 text-right tabular-nums">' + fmt(row.ordered) + '</td>' +
+                    '<td class="px-2 py-1 text-right tabular-nums">' + fmt(row.received) + '</td>' +
+                    '<td class="px-2 py-1 text-right tabular-nums">' + fmt(row.packed) + '</td>' +
+                    '<td class="px-2 py-1 text-right tabular-nums">' + fmt(row.bags_received) + '</td>' +
+                    '<td class="px-2 py-1 text-right tabular-nums">' + (row.avg_packed_per_bag != null ? fmt(row.avg_packed_per_bag) : '—') + '</td>';
+                tb.appendChild(tr);
+            });
+            table.appendChild(tb);
+            inner.appendChild(table);
+            details.appendChild(sum);
+            details.appendChild(inner);
+            host.appendChild(details);
+        });
+        sec.classList.remove('hidden');
+    }
+
+    async function loadPoBlocks() {
+        var poSel = document.getElementById('reports_po_select');
+        var meta = document.getElementById('reports_po_meta');
+        var loading = document.getElementById('reports_po_loading');
+        if (!poSel) return;
+        var poId = poSel.value;
+        showPoError('');
+        if (!poId) {
+            document.getElementById('reports_total_section').classList.add('hidden');
+            document.getElementById('reports_shipments_section').classList.add('hidden');
+            if (meta) meta.textContent = '';
+            return;
+        }
+        if (loading) loading.classList.remove('hidden');
+        try {
+            var overview = await apiCall('/api/reports/po-overview?po_id=' + encodeURIComponent(poId), {
+                requestKey: 'reports-po-overview',
+            });
+            var ship = await apiCall('/api/reports/po-shipments?po_id=' + encodeURIComponent(poId), {
+                requestKey: 'reports-po-shipments',
+            });
+            if (overview.po && meta) {
+                meta.textContent =
+                    (overview.po.po_number || '') +
+                    (overview.po.vendor_name ? ' · ' + overview.po.vendor_name : '') +
+                    (overview.po.tablet_type ? ' · ' + overview.po.tablet_type : '');
+            }
+            renderTotalTable(overview);
+            renderShipments(ship);
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            showPoError(e.message || 'Failed to load PO data');
+        } finally {
+            if (loading) loading.classList.add('hidden');
+        }
+    }
+
+    function analyticsQueryParams() {
+        var df = document.getElementById('reports_date_from');
+        var dt = document.getElementById('reports_date_to');
+        var v = document.getElementById('reports_vendor');
+        var f = document.getElementById('reports_flavor');
+        var po = document.getElementById('reports_analytics_po');
+        var q = [];
+        if (df && df.value) q.push('date_from=' + encodeURIComponent(df.value));
+        if (dt && dt.value) q.push('date_to=' + encodeURIComponent(dt.value));
+        if (v && v.value) q.push('vendor=' + encodeURIComponent(v.value));
+        if (f && f.value) q.push('tablet_type_id=' + encodeURIComponent(f.value));
+        if (po && po.value) q.push('po_id=' + encodeURIComponent(po.value));
+        return q.join('&');
+    }
+
+    function renderTrendsChart(series) {
+        destroyChart('trends');
+        var canvas = document.getElementById('reports_chart_trends');
+        if (!canvas || typeof Chart === 'undefined') return;
+        var labels = (series || []).map(function (s) {
+            return s.date;
+        });
+        var packed = (series || []).map(function (s) {
+            return s.packed || 0;
+        });
+        var received = (series || []).map(function (s) {
+            return s.received || 0;
+        });
+        charts.trends = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Packed (tablets)',
+                        data: packed,
+                        borderColor: 'rgb(79, 124, 130)',
+                        backgroundColor: 'rgba(79, 124, 130, 0.12)',
+                        tension: 0.2,
+                        fill: true,
+                    },
+                    {
+                        label: 'Received (bag labels)',
+                        data: received,
+                        borderColor: 'rgb(147, 177, 181)',
+                        backgroundColor: 'rgba(147, 177, 181, 0.1)',
+                        tension: 0.2,
+                        fill: true,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { beginAtZero: true },
+                },
+            },
+        });
+    }
+
+    function renderTopFlavorsChart(topFlavors) {
+        destroyChart('flavors');
+        var canvas = document.getElementById('reports_chart_flavors');
+        if (!canvas || typeof Chart === 'undefined') return;
+        var slice = (topFlavors || []).slice(0, 12);
+        var labels = slice.map(function (x) {
+            return x.flavor;
+        });
+        var data = slice.map(function (x) {
+            return x.packed || 0;
+        });
+        charts.flavors = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Packed tablets',
+                        data: data,
+                        backgroundColor: 'rgba(11, 46, 51, 0.75)',
+                    },
+                ],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true },
+                },
+            },
+        });
+    }
+
+    function renderFlavorDailyChart(series) {
+        destroyChart('flavorDaily');
+        var canvas = document.getElementById('reports_chart_flavor_daily');
+        var hint = document.getElementById('reports_flavor_series_hint');
+        if (!canvas || typeof Chart === 'undefined') return;
+        var s = series || [];
+        var flavorSel = document.getElementById('reports_flavor');
+        var hasFlavor = flavorSel && flavorSel.value;
+        if (s.length === 0) {
+            if (hint) {
+                hint.textContent = hasFlavor
+                    ? 'No packed data for this flavor in the selected range.'
+                    : 'Choose a flavor filter to see daily packed trend for that flavor.';
+                hint.classList.remove('hidden');
+            }
+            return;
+        }
+        if (hint) hint.classList.add('hidden');
+        charts.flavorDaily = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: s.map(function (x) {
+                    return x.date;
+                }),
+                datasets: [
+                    {
+                        label: 'Packed',
+                        data: s.map(function (x) {
+                            return x.packed || 0;
+                        }),
+                        backgroundColor: 'rgba(79, 124, 130, 0.85)',
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } },
+            },
+        });
+    }
+
+    async function loadAnalytics() {
+        var loading = document.getElementById('reports_analytics_loading');
+        showAnalyticsError('');
+        var q = analyticsQueryParams();
+        if (!q || !document.getElementById('reports_date_from').value) {
+            showAnalyticsError('Choose a date range.');
+            return;
+        }
+        if (loading) loading.classList.remove('hidden');
+        try {
+            var trends = await apiCall('/api/reports/trends?' + q, { requestKey: 'reports-trends' });
+            var dims = await apiCall('/api/reports/dimensions?' + q, { requestKey: 'reports-dimensions' });
+            renderTrendsChart(trends.series || []);
+            renderTopFlavorsChart(dims.top_flavors || []);
+            renderFlavorDailyChart(dims.selected_flavor_series || []);
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+            showAnalyticsError(e.message || 'Failed to load analytics');
+        } finally {
+            if (loading) loading.classList.add('hidden');
+        }
+    }
+
+    async function refreshVersion() {
+        var data = await apiCall('/api/reports/updates', { requestKey: 'reports-updates' });
+        if (!data.success || !data.version) return;
+        if (lastVersion && data.version !== lastVersion) {
+            await softReload();
+        }
+        lastVersion = data.version;
+    }
+
+    async function softReload() {
+        try {
+            var data = await fetchFilters();
+            populateFilterSelects(data);
+            await loadPoBlocks();
+            await loadAnalytics();
+        } catch (e) {
+            console.warn('reports soft reload', e);
+        }
+    }
+
+    async function init() {
+        var df = document.getElementById('reports_date_from');
+        var dt = document.getElementById('reports_date_to');
+        if (df) {
+            df.addEventListener('change', function () {
+                df.dataset.touched = '1';
+            });
+        }
+        if (dt) {
+            dt.addEventListener('change', function () {
+                dt.dataset.touched = '1';
+            });
+        }
+
+        try {
+            var data = await fetchFilters();
+            populateFilterSelects(data);
+            await loadAnalytics();
+            var up = await apiCall('/api/reports/updates', { requestKey: 'reports-updates-init' });
+            if (up.success) lastVersion = up.version;
+        } catch (e) {
+            showAnalyticsError(e.message || 'Failed to initialize');
+        }
+
+        var poSel = document.getElementById('reports_po_select');
+        if (poSel) poSel.addEventListener('change', loadPoBlocks);
+
+        var applyBtn = document.getElementById('reports_apply_analytics');
+        if (applyBtn) applyBtn.addEventListener('click', loadAnalytics);
+
+        var vendor = document.getElementById('reports_vendor');
+        var flavor = document.getElementById('reports_flavor');
+        var apo = document.getElementById('reports_analytics_po');
+        if (vendor) vendor.addEventListener('change', loadAnalytics);
+        if (flavor) flavor.addEventListener('change', loadAnalytics);
+        if (apo) apo.addEventListener('change', loadAnalytics);
+
+        function schedulePoll() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(function () {
+                if (document.visibilityState !== 'visible') return;
+                refreshVersion().catch(function () { /* ignore */ });
+            }, 12000);
+        }
+        schedulePoll();
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') refreshVersion().catch(function () {});
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+})();

@@ -8,6 +8,7 @@ from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
 from app.utils.cache_utils import get, set as cache_set
 from app.services.report_service import ProductionReportGenerator
+from app.services import reporting_analytics_service as analytics
 from config import Config
 
 PO_SUMMARY_CACHE_KEY = 'api_reports_po_summary'
@@ -170,4 +171,134 @@ def get_po_summary_for_reports():
             'error': f'Failed to get PO summary: {str(e)}',
             'trace': error_trace
         }), 500
+
+
+@bp.route('/api/reports/filters', methods=['GET'])
+@role_required('reports')
+def reports_filters():
+    """Vendors, flavors, PO list, submission date bounds for UI filters."""
+    try:
+        with db_read_only() as conn:
+            meta = analytics.get_filter_metadata(conn)
+            meta['success'] = True
+            return jsonify(meta)
+    except Exception as e:
+        current_app.logger.error('reports_filters: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/reports/receives', methods=['GET'])
+@role_required('reports')
+def reports_receives_for_po():
+    po_id = request.args.get('po_id', type=int)
+    if not po_id:
+        return jsonify({'success': False, 'error': 'po_id is required'}), 400
+    try:
+        with db_read_only() as conn:
+            receives = analytics.get_receives_for_po(conn, po_id)
+            return jsonify({'success': True, 'receives': receives})
+    except Exception as e:
+        current_app.logger.error('reports_receives: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/reports/po-overview', methods=['GET'])
+@role_required('reports')
+def reports_po_overview():
+    po_id = request.args.get('po_id', type=int)
+    if not po_id:
+        return jsonify({'success': False, 'error': 'po_id is required'}), 400
+    try:
+        with db_read_only() as conn:
+            data = analytics.build_po_overview(conn, po_id)
+            if not data.get('success'):
+                return jsonify(data), 404
+            return jsonify(data)
+    except Exception as e:
+        current_app.logger.error('reports_po_overview: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/reports/po-shipments', methods=['GET'])
+@role_required('reports')
+def reports_po_shipments():
+    po_id = request.args.get('po_id', type=int)
+    if not po_id:
+        return jsonify({'success': False, 'error': 'po_id is required'}), 400
+    try:
+        with db_read_only() as conn:
+            data = analytics.build_po_shipments(conn, po_id)
+            if not data.get('success'):
+                return jsonify(data), 404
+            return jsonify(data)
+    except Exception as e:
+        current_app.logger.error('reports_po_shipments: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/reports/trends', methods=['GET'])
+@role_required('reports')
+def reports_trends():
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    vendor_name = request.args.get('vendor') or None
+    po_id = request.args.get('po_id', type=int)
+    tablet_type_id = request.args.get('tablet_type_id', type=int)
+    bucket = request.args.get('bucket') or 'day'
+    try:
+        with db_read_only() as conn:
+            data = analytics.build_trends(
+                conn,
+                date_from or '',
+                date_to or '',
+                vendor_name=vendor_name,
+                po_id=po_id,
+                tablet_type_id=tablet_type_id,
+                bucket=bucket,
+            )
+            if not data.get('success'):
+                return jsonify(data), 400
+            return jsonify(data)
+    except Exception as e:
+        current_app.logger.error('reports_trends: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/reports/dimensions', methods=['GET'])
+@role_required('reports')
+def reports_dimensions():
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    vendor_name = request.args.get('vendor') or None
+    po_id = request.args.get('po_id', type=int)
+    tablet_type_id = request.args.get('tablet_type_id', type=int)
+    try:
+        with db_read_only() as conn:
+            data = analytics.build_dimensions(
+                conn,
+                date_from or '',
+                date_to or '',
+                vendor_name=vendor_name,
+                po_id=po_id,
+                tablet_type_id=tablet_type_id,
+            )
+            if not data.get('success'):
+                return jsonify(data), 400
+            return jsonify(data)
+    except Exception as e:
+        current_app.logger.error('reports_dimensions: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/reports/updates', methods=['GET'])
+@role_required('reports')
+def reports_updates():
+    """Poll-friendly fingerprint when submissions/bags change."""
+    try:
+        with db_read_only() as conn:
+            fp = analytics.get_report_fingerprint(conn)
+            return jsonify({'success': True, 'version': fp})
+    except Exception as e:
+        current_app.logger.error('reports_updates: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
