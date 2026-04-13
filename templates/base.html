@@ -4664,6 +4664,17 @@ function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedC
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
+/** Remove bag/PO submissions list modal if open (after successful Zoho push from that view). */
+function closeSubmissionsModalIfOpen() {
+    const el = document.getElementById('submissions-modal');
+    if (el) {
+        el.remove();
+    }
+    if (typeof window !== 'undefined') {
+        window.currentSubmissionsData = null;
+    }
+}
+
 function closePushToZohoModal(event) {
     if (!event || event.target === event.currentTarget) {
         const modal = document.getElementById('push-to-zoho-modal');
@@ -4703,7 +4714,12 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
         if (pushSaved) {
             // Close the push modal
             closePushToZohoModal();
-            
+            // Dismiss submissions list if we opened push from bag submissions (return to receive details)
+            closeSubmissionsModalIfOpen();
+            if (typeof closeSubmissionDetailsModal === 'function') {
+                closeSubmissionDetailsModal();
+            }
+
             // Show success message (longer so users can read receive IDs)
             const successMsg = document.createElement('div');
             successMsg.className = 'fixed top-4 right-4 max-w-md bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[200]';

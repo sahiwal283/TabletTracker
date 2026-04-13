@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.52.13] - 2026-04-10
+
+### 🐛 Fix
+
+#### After successful Push to Zoho from bag submissions, return to Receive Details
+- On successful push, the **submissions** modal is removed and any **submission details** overlay is closed, then **Receive Details** refreshes as before—so you land on the receive view with updated Zoho status instead of staying on the submissions list.
+
+- **Versioning**: **PATCH** `2.52.12` → `2.52.13`.
+
+---
+
 ## [2.52.12] - 2026-04-10
 
 ### 🐛 Fix
