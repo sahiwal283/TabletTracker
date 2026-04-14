@@ -232,13 +232,14 @@ def get_filter_metadata(conn: sqlite3.Connection) -> Dict[str, Any]:
             "SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name COLLATE NOCASE"
         ).fetchall()
     ]
-    pos = [
+    pos_all = [
         dict(r)
         for r in conn.execute(
             """
             SELECT id, po_number, COALESCE(vendor_name, '') AS vendor_name,
                    COALESCE(tablet_type, '') AS tablet_type,
-                   COALESCE(internal_status, 'Active') AS internal_status
+                   COALESCE(internal_status, 'Active') AS internal_status,
+                   COALESCE(closed, 0) AS closed
             FROM purchase_orders
             WHERE po_number IS NOT NULL
             ORDER BY created_at DESC
@@ -246,6 +247,10 @@ def get_filter_metadata(conn: sqlite3.Connection) -> Dict[str, Any]:
             """
         ).fetchall()
     ]
+    # Hide draft POs from analytics selectors entirely.
+    pos_all = [p for p in pos_all if (p.get("internal_status") or "").lower() != "draft"]
+    pos_open = [p for p in pos_all if not bool(p.get("closed"))]
+    pos_closed = [p for p in pos_all if bool(p.get("closed"))]
     bounds = conn.execute(
         """
         SELECT
@@ -258,7 +263,9 @@ def get_filter_metadata(conn: sqlite3.Connection) -> Dict[str, Any]:
     return {
         "vendors": vendors,
         "flavors": flavors,
-        "pos": pos,
+        "pos": pos_open,  # Backward-compatible key used by existing UI.
+        "pos_open": pos_open,
+        "pos_closed": pos_closed,
         "date_bounds": {
             "min": b.get("dmin"),
             "max": b.get("dmax"),

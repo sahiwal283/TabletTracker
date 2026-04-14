@@ -8,6 +8,7 @@
     var pollTimer = null;
     var lastVersion = null;
     var filtersCache = null;
+    var includeClosedPos = false;
 
     function fmt(n) {
         if (n == null || n === '') return '—';
@@ -80,32 +81,54 @@
         return data;
     }
 
+    function buildPoList(data) {
+        var open = data.pos_open || data.pos || [];
+        var closed = data.pos_closed || [];
+        return includeClosedPos ? open.concat(closed) : open;
+    }
+
+    function renderClosedPoToggle(data) {
+        var btn = document.getElementById('reports_toggle_closed_pos');
+        if (!btn) return;
+        var closedCount = (data.pos_closed || []).length;
+        if (!closedCount) {
+            btn.classList.add('hidden');
+            return;
+        }
+        btn.classList.remove('hidden');
+        btn.textContent = includeClosedPos
+            ? 'Hide closed POs'
+            : ('Show closed POs (' + fmt(closedCount) + ')');
+    }
+
     function populateFilterSelects(data) {
         filtersCache = data;
+        var poList = buildPoList(data);
         var poSel = document.getElementById('reports_po_select');
         var poA = document.getElementById('reports_analytics_po');
         if (poSel) {
             var cur = poSel.value;
             poSel.innerHTML = '<option value="">Select a PO…</option>';
-            (data.pos || []).forEach(function (p) {
+            poList.forEach(function (p) {
                 var opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = (p.po_number || '') + (p.vendor_name ? ' — ' + p.vendor_name : '');
                 poSel.appendChild(opt);
             });
-            if (cur) poSel.value = cur;
+            if (cur && poList.some(function (p) { return String(p.id) === String(cur); })) poSel.value = cur;
         }
         if (poA) {
             var curA = poA.value;
             poA.innerHTML = '<option value="">All POs</option>';
-            (data.pos || []).forEach(function (p) {
+            poList.forEach(function (p) {
                 var opt = document.createElement('option');
                 opt.value = p.id;
                 opt.textContent = (p.po_number || '') + (p.vendor_name ? ' — ' + p.vendor_name : '');
                 poA.appendChild(opt);
             });
-            if (curA) poA.value = curA;
+            if (curA && poList.some(function (p) { return String(p.id) === String(curA); })) poA.value = curA;
         }
+        renderClosedPoToggle(data);
         var vSel = document.getElementById('reports_vendor');
         if (vSel) {
             var cv = vSel.value;
@@ -573,6 +596,18 @@
 
         var poSel = document.getElementById('reports_po_select');
         if (poSel) poSel.addEventListener('change', loadPoBlocks);
+
+        var closedToggle = document.getElementById('reports_toggle_closed_pos');
+        if (closedToggle) {
+            closedToggle.addEventListener('click', function () {
+                includeClosedPos = !includeClosedPos;
+                if (filtersCache) {
+                    populateFilterSelects(filtersCache);
+                    loadPoBlocks();
+                    loadAnalytics();
+                }
+            });
+        }
 
         var applyBtn = document.getElementById('reports_apply_analytics');
         if (applyBtn) {
