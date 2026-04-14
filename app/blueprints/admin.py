@@ -1,8 +1,10 @@
 """
 Admin routes
 """
-import sqlite3
 import json
+import re
+import secrets
+import sqlite3
 import traceback
 from datetime import datetime, timedelta
 
@@ -16,6 +18,19 @@ from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 
 bp = Blueprint('admin', __name__)
+
+# QR / URL path–safe station scan tokens (embedded in /workflow/station/<token>)
+_STATION_SCAN_TOKEN_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
+
+
+def _allocate_unique_station_scan_token(conn: sqlite3.Connection) -> str:
+    for _ in range(40):
+        t = "seal-" + secrets.token_hex(8)
+        if not conn.execute(
+            "SELECT 1 FROM workflow_stations WHERE station_scan_token = ?", (t,)
+        ).fetchone():
+            return t
+    raise RuntimeError("could_not_allocate_station_token")
 
 @bp.route('/admin')
 def admin_panel():
@@ -381,6 +396,92 @@ def workflow_qr_map_station_machine():
         flash("Could not update mapping (database error).", "error")
     except Exception as e:
         current_app.logger.error("workflow_qr_map_station_machine: %s", e)
+        flash(str(e), "error")
+    return redirect(url_for("admin.workflow_qr_management"))
+
+
+@bp.route("/admin/workflow-qr/station", methods=["POST"])
+@admin_required
+def workflow_qr_add_station():
+    """Create a sealing station row (floor URL + optional machine link)."""
+    label = (request.form.get("label") or "").strip()
+    station_code = (request.form.get("station_code") or "").strip() or None
+    if station_code and len(station_code) > 64:
+        flash("Station code must be 64 characters or less.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+    token_in = (request.form.get("station_scan_token") or "").strip()
+    raw_mid = request.form.get("machine_id")
+    machine_id = None
+    if raw_mid is not None and str(raw_mid).strip() != "":
+        machine_id = int(str(raw_mid).strip())
+
+    if not label:
+        flash("Label is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    if token_in:
+        if not _STATION_SCAN_TOKEN_RE.match(token_in):
+            flash(
+                "Scan token may only use letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                "error",
+            )
+            return redirect(url_for("admin.workflow_qr_management"))
+        scan_token = token_in
+    else:
+        scan_token = None
+
+    try:
+        with db_transaction() as conn:
+            if scan_token is None:
+                scan_token = _allocate_unique_station_scan_token(conn)
+            else:
+                dup = conn.execute(
+                    "SELECT id FROM workflow_stations WHERE station_scan_token = ?",
+                    (scan_token,),
+                ).fetchone()
+                if dup:
+                    flash("That scan token is already used by another station.", "error")
+                    return redirect(url_for("admin.workflow_qr_management"))
+
+            if machine_id is not None:
+                m = conn.execute(
+                    """
+                    SELECT id FROM machines
+                    WHERE id = ? AND COALESCE(is_active, 1) = 1 AND machine_role = 'sealing'
+                    """,
+                    (machine_id,),
+                ).fetchone()
+                if not m:
+                    flash("Invalid or inactive sealing machine.", "error")
+                    return redirect(url_for("admin.workflow_qr_management"))
+
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO workflow_stations (station_scan_token, label, station_code, machine_id)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (scan_token, label, station_code, machine_id),
+                )
+            except sqlite3.OperationalError:
+                conn.execute(
+                    """
+                    INSERT INTO workflow_stations (station_scan_token, label, station_code)
+                    VALUES (?, ?, ?)
+                    """,
+                    (scan_token, label, station_code),
+                )
+        flash(
+            f"Sealing station added. Scan token: {scan_token} — use this in the station QR URL.",
+            "success",
+        )
+    except sqlite3.IntegrityError:
+        flash("Could not add station (duplicate scan token).", "error")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_add_station: %s", oe)
+        flash("Could not add station (database error). Is the workflow migration applied?", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_add_station: %s", e)
         flash(str(e), "error")
     return redirect(url_for("admin.workflow_qr_management"))
 

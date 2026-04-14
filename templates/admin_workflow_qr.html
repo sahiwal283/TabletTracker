@@ -26,7 +26,45 @@
       Each sealing station can be linked to a <strong>production machine</strong> (the same rows used on the
       Production <strong>Machine</strong> / full-run forms). Default seed maps <code class="text-xs">M1</code> →
       &ldquo;Machine 1&rdquo; and <code class="text-xs">M2</code> → &ldquo;Machine 2&rdquo; when those names exist.
+      Add a third machine in <strong>Product configuration</strong> / machines API if needed, then create a station here and map it.
     </p>
+
+    <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-6 bg-gray-50/80">
+      <h3 class="text-sm font-semibold text-gray-900 mb-3">Add sealing station</h3>
+      <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
+          <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Sealing station 3 (other room)"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Code</label>
+          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="e.g. M3"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
+          <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
+          <p class="text-xs text-gray-500 mt-1">Letters, numbers, <code class="text-xs">._-</code> only. Used in <code class="text-xs">/workflow/station/&lt;token&gt;</code> and QR codes.</p>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
+          {% if sealing_machines %}
+          <select name="machine_id" class="form-input text-sm max-w-md">
+            <option value="">— Link later —</option>
+            {% for m in sealing_machines %}
+            <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }})</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <p class="text-xs text-amber-700">No sealing machines in the database yet.</p>
+          {% endif %}
+        </div>
+        <div class="md:col-span-2">
+          <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
+        </div>
+      </form>
+    </div>
+
     {% if not stations %}
     <p class="text-sm text-gray-500">No stations in <code class="text-xs">workflow_stations</code> (run migrations / seed).</p>
     {% else %}
