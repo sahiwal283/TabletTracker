@@ -1,21 +1,145 @@
 """
 Submissions routes
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app
-from datetime import datetime
+import io
+import sqlite3
 import traceback
 import csv
-import io
-from app.utils.db_utils import db_read_only, db_transaction
-from app.utils.auth_utils import role_required
+from datetime import datetime, timezone
+
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app
+
+from app.services import workflow_constants as WC
 from app.services.submission_query_service import apply_resolved_bag_fields
 from app.services.submissions_view_service import (
     append_submission_common_filters,
     append_submission_archive_tab_filters,
     append_submission_sort,
 )
+from app.services.workflow_read import display_stage_label, mechanical_bag_facts, progress_summary
+from app.utils.auth_utils import role_required
+from app.utils.db_utils import db_read_only, db_transaction
+
+
+def _format_workflow_created_at_ms(ms) -> str:
+    if ms is None:
+        return "—"
+    try:
+        dt = datetime.fromtimestamp(int(ms) / 1000.0, tz=timezone.utc)
+        return dt.strftime("%Y-%m-%d %H:%M UTC")
+    except (ValueError, TypeError, OSError):
+        return str(ms)
 
 bp = Blueprint('submissions', __name__)
+
+
+def _empty_pagination():
+    return {
+        "page": 1,
+        "per_page": 15,
+        "total": 0,
+        "total_pages": 0,
+        "has_prev": False,
+        "has_next": False,
+        "prev_page": None,
+        "next_page": None,
+    }
+
+
+def _workflow_submissions_page(conn):
+    """Paginated workflow_bags list with stage/progress from workflow_read."""
+    page = request.args.get("page", 1, type=int) or 1
+    page = max(1, page)
+    per_page = 15
+    wf_status = (request.args.get("wf_status") or "").strip().lower()
+    if wf_status not in ("", "active", "finalized"):
+        wf_status = ""
+
+    where_clauses = []
+    params = []
+    if wf_status == "finalized":
+        where_clauses.append(
+            "EXISTS (SELECT 1 FROM workflow_events we WHERE we.workflow_bag_id = wb.id AND we.event_type = ?)"
+        )
+        params.append(WC.EVENT_BAG_FINALIZED)
+    elif wf_status == "active":
+        where_clauses.append(
+            "NOT EXISTS (SELECT 1 FROM workflow_events we WHERE we.workflow_bag_id = wb.id AND we.event_type = ?)"
+        )
+        params.append(WC.EVENT_BAG_FINALIZED)
+
+    where_sql = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    count_sql = f"SELECT COUNT(*) AS c FROM workflow_bags wb WHERE 1=1{where_sql}"
+    total = conn.execute(count_sql, params).fetchone()["c"]
+
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+
+    list_sql = f"""
+        SELECT wb.id, wb.created_at, wb.product_id, wb.box_number, wb.bag_number, wb.receipt_number,
+               wb.inventory_bag_id, pd.product_name
+        FROM workflow_bags wb
+        LEFT JOIN product_details pd ON wb.product_id = pd.id
+        WHERE 1=1
+        {where_sql}
+        ORDER BY wb.created_at DESC
+        LIMIT ? OFFSET ?
+    """
+    rows = conn.execute(list_sql, params + [per_page, offset]).fetchall()
+
+    workflow_bags = []
+    for r in rows:
+        d = dict(r)
+        bid = d["id"]
+        facts = mechanical_bag_facts(conn, bid)
+        d["stage_label"] = display_stage_label(facts)
+        d["progress_summary"] = progress_summary(facts)
+        d["created_at_display"] = _format_workflow_created_at_ms(d.get("created_at"))
+        d["is_finalized"] = any(
+            e["event_type"] == WC.EVENT_BAG_FINALIZED for e in facts["events"]
+        )
+        workflow_bags.append(d)
+
+    tp = total_pages
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": tp,
+        "has_prev": page > 1,
+        "has_next": page < tp,
+        "prev_page": page - 1 if page > 1 else None,
+        "next_page": page + 1 if page < tp else None,
+    }
+
+    return {"workflow_bags": workflow_bags, "wf_status": wf_status, "pagination": pagination}
+
+
+def _workflow_submissions_template_kwargs(workflow_bags, wf_status, pagination):
+    return {
+        "view": "workflow",
+        "submissions": [],
+        "workflow_bags": workflow_bags,
+        "wf_status": wf_status,
+        "pagination": pagination,
+        "filter_info": {},
+        "unverified_count": 0,
+        "tablet_types": [],
+        "filter_date_from": None,
+        "filter_date_to": None,
+        "filter_tablet_type_id": None,
+        "filter_submission_type": None,
+        "filter_receipt_number": None,
+        "sort_by": "created_at",
+        "sort_order": "desc",
+        "show_archived": False,
+        "active_tab": "packaged_machine",
+        "archived_count": 0,
+    }
+
 
 def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filter_submission_type=None):
     """
@@ -112,7 +236,43 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
 @bp.route('/submissions')
 @role_required('dashboard')
 def submissions_list():
-    """Full submissions page showing all submissions"""
+    """Full submissions page: warehouse submissions or QR workflow bags."""
+    view = (request.args.get('view') or 'warehouse').strip().lower()
+    if view not in ('warehouse', 'workflow'):
+        view = 'warehouse'
+
+    if view == 'workflow':
+        try:
+            with db_read_only() as conn:
+                try:
+                    conn.execute("SELECT 1 FROM workflow_bags LIMIT 1").fetchone()
+                except sqlite3.OperationalError:
+                    flash(
+                        "QR workflow tables are not available in this database.",
+                        "warning",
+                    )
+                    kwargs = _workflow_submissions_template_kwargs(
+                        [], "", _empty_pagination()
+                    )
+                    return render_template("submissions.html", **kwargs)
+
+                w = _workflow_submissions_page(conn)
+                kwargs = _workflow_submissions_template_kwargs(
+                    w["workflow_bags"], w["wf_status"], w["pagination"]
+                )
+                return render_template("submissions.html", **kwargs)
+        except Exception as e:
+            current_app.logger.error("Error in workflow submissions list: %s", e)
+            traceback.print_exc()
+            flash(
+                "An error occurred while loading workflow submissions. Please try again.",
+                "error",
+            )
+            kwargs = _workflow_submissions_template_kwargs(
+                [], "", _empty_pagination()
+            )
+            return render_template("submissions.html", **kwargs)
+
     try:
         with db_read_only() as conn:
             # Get filter parameters from query string
@@ -507,14 +667,41 @@ def submissions_list():
             '''
             archived_count = conn.execute(archived_count_query).fetchone()['count']
             
-            return render_template('submissions.html', submissions=submissions, pagination=pagination, filter_info=filter_info, unverified_count=unverified_count, tablet_types=tablet_types, 
-                                 filter_date_from=filter_date_from, filter_date_to=filter_date_to, filter_tablet_type_id=filter_tablet_type_id, filter_submission_type=filter_submission_type, filter_receipt_number=filter_receipt_number,
-                                 sort_by=sort_by, sort_order=sort_order, show_archived=show_archived, active_tab=active_tab, archived_count=archived_count)
+            return render_template(
+                'submissions.html',
+                view='warehouse',
+                submissions=submissions,
+                pagination=pagination,
+                filter_info=filter_info,
+                unverified_count=unverified_count,
+                tablet_types=tablet_types,
+                filter_date_from=filter_date_from,
+                filter_date_to=filter_date_to,
+                filter_tablet_type_id=filter_tablet_type_id,
+                filter_submission_type=filter_submission_type,
+                filter_receipt_number=filter_receipt_number,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                show_archived=show_archived,
+                active_tab=active_tab,
+                archived_count=archived_count,
+                workflow_bags=[],
+                wf_status='',
+            )
     except Exception as e:
         current_app.logger.error(f"Error in all_submissions: {e}")
         traceback.print_exc()
         flash('An error occurred while loading submissions. Please try again.', 'error')
-        return render_template('submissions.html', submissions=[], pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False}, filter_info={}, unverified_count=0)
+        return render_template(
+            'submissions.html',
+            view='warehouse',
+            submissions=[],
+            workflow_bags=[],
+            wf_status='',
+            pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False},
+            filter_info={},
+            unverified_count=0,
+        )
 
 @bp.route('/submissions/export')
 @role_required('dashboard')
