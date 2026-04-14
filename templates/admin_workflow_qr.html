@@ -38,8 +38,9 @@
           <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Sealing station 3 (other room)"/>
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Code</label>
-          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="e.g. M3"/>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
+          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="e.g. M3 — floor shorthand only"/>
+          <p class="text-xs text-gray-500 mt-1">Not used by the floor app. Identity is <strong>scan token</strong> + <strong>machine</strong> link.</p>
         </div>
         <div>
           <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
@@ -73,7 +74,7 @@
         <tr class="border-b border-gray-200 text-left text-gray-600">
           <th class="py-2 pr-4">ID</th>
           <th class="py-2 pr-4">Label</th>
-          <th class="py-2 pr-4">Code</th>
+          <th class="py-2 pr-4" title="Optional label only; not used by workflow APIs">Code</th>
           <th class="py-2 pr-4">Machine (production)</th>
           <th class="py-2 pr-4">Scan token</th>
           <th class="py-2">Floor URL</th>
