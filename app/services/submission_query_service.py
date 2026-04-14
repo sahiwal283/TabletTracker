@@ -82,7 +82,8 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
                COALESCE(b.bag_number, ws.bag_number) AS resolved_bag_number
         FROM warehouse_submissions ws
         LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
-        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        LEFT JOIN product_details pd
+               ON TRIM(LOWER(ws.product_name)) = TRIM(LOWER(pd.product_name))
         LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
         LEFT JOIN tablet_types tt_fallback ON ws.inventory_item_id = tt_fallback.inventory_item_id
         LEFT JOIN product_details pd_fallback ON tt_fallback.id = pd_fallback.tablet_type_id

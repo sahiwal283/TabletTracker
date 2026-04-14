@@ -30,6 +30,13 @@
         el.classList.toggle('hidden', !msg);
     }
 
+    function setHint(id, msg) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.toggle('hidden', !msg);
+    }
+
     function destroyChart(key) {
         if (charts[key]) {
             try {
@@ -261,6 +268,7 @@
 
     function renderTrendsChart(series) {
         destroyChart('trends');
+        setHint('reports_trends_hint', '');
         var canvas = document.getElementById('reports_chart_trends');
         if (!canvas || typeof Chart === 'undefined') return;
         var labels = (series || []).map(function (s) {
@@ -272,6 +280,9 @@
         var received = (series || []).map(function (s) {
             return s.received || 0;
         });
+        if (!labels.length) {
+            setHint('reports_trends_hint', 'No trend data found for the selected filters/date range.');
+        }
         charts.trends = new Chart(canvas.getContext('2d'), {
             type: 'line',
             data: {
@@ -309,6 +320,7 @@
 
     function renderTopFlavorsChart(topFlavors) {
         destroyChart('flavors');
+        setHint('reports_top_flavors_hint', '');
         var canvas = document.getElementById('reports_chart_flavors');
         if (!canvas || typeof Chart === 'undefined') return;
         var slice = (topFlavors || []).slice(0, 12);
@@ -318,6 +330,9 @@
         var data = slice.map(function (x) {
             return x.packed || 0;
         });
+        if (!slice.length) {
+            setHint('reports_top_flavors_hint', 'No flavor totals found for the selected filters/date range.');
+        }
         charts.flavors = new Chart(canvas.getContext('2d'), {
             type: 'bar',
             data: {
@@ -387,6 +402,8 @@
 
     function ensureChartLibrary() {
         if (typeof Chart !== 'undefined') return true;
+        setHint('reports_trends_hint', 'Chart library unavailable.');
+        setHint('reports_top_flavors_hint', 'Chart library unavailable.');
         showAnalyticsError(
             'Chart library failed to load. Refresh the page, or allow scripts from unpkg.com (CSP / ad blocker).'
         );

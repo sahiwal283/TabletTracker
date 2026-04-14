@@ -108,12 +108,14 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div class="rounded-xl border border-gray-200 p-4 bg-white/80">
                 <h4 class="text-sm font-semibold text-gray-700 mb-2">Packed vs received (by day)</h4>
+                <p id="reports_trends_hint" class="text-xs text-gray-500 mb-2 hidden"></p>
                 <div class="h-72 relative">
                     <canvas id="reports_chart_trends"></canvas>
                 </div>
             </div>
             <div class="rounded-xl border border-gray-200 p-4 bg-white/80">
                 <h4 class="text-sm font-semibold text-gray-700 mb-2">Top flavors (packed in range)</h4>
+                <p id="reports_top_flavors_hint" class="text-xs text-gray-500 mb-2 hidden"></p>
                 <div class="h-72 relative">
                     <canvas id="reports_chart_flavors"></canvas>
                 </div>
@@ -139,5 +141,12 @@
 
 {% block page_scripts %}
 <script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+if (typeof Chart === 'undefined') {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+    document.head.appendChild(s);
+}
+</script>
 <script src="{{ url_for('static', filename='js/reports-ui.js') }}"></script>
 {% endblock %}

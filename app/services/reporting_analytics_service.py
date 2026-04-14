@@ -59,7 +59,11 @@ def packed_output_tablets(conn: sqlite3.Connection, sub: Dict[str, Any]) -> int:
         pn = sub.get("product_name")
         if pn:
             cfg = conn.execute(
-                "SELECT tablets_per_bottle FROM product_details WHERE product_name = ?",
+                """
+                SELECT tablets_per_bottle
+                FROM product_details
+                WHERE TRIM(LOWER(product_name)) = TRIM(LOWER(?))
+                """,
                 (pn,),
             ).fetchone()
             if cfg:
