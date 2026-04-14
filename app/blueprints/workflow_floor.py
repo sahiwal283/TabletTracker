@@ -18,6 +18,7 @@ from app.services.workflow_read import (
     progress_summary,
 )
 from app.services.workflow_txn import run_with_busy_retry
+from app.services.workflow_warehouse_bridge import sync_if_packaging_snapshot
 from app.utils.db_utils import get_db
 
 LOGGER = logging.getLogger(__name__)
@@ -206,9 +207,23 @@ def api_append_event():
             )
         except ValueError as ve:
             return workflow_json("WORKFLOW_VALIDATION", str(ve), details={"hint": "payload_keys"})
+        pl = payload if isinstance(payload, dict) else {}
+        bridge_result = None
+        try:
+            bridge_result = sync_if_packaging_snapshot(conn, bag_id, event_type, pl)
+        except Exception as sync_exc:
+            LOGGER.exception(
+                "workflow warehouse bridge failed workflow_bag_id=%s: %s", bag_id, sync_exc
+            )
+            conn.rollback()
+            return workflow_json(
+                "WORKFLOW_WAREHOUSE_SYNC",
+                "Could not sync packaging to warehouse submissions.",
+                status=500,
+            )
         conn.commit()
         facts = mechanical_bag_facts(conn, bag_id)
-        return {
+        out = {
             "ok": True,
             "workflow_bag_id": bag_id,
             "facts": {
@@ -218,6 +233,9 @@ def api_append_event():
                 "progress_summary": progress_summary(facts),
             },
         }
+        if bridge_result is not None:
+            out["warehouse_sync"] = bridge_result
+        return out
     except sqlite3.OperationalError as oe:
         conn.rollback()
         if "locked" in str(oe).lower():
