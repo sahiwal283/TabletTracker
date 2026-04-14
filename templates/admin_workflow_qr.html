@@ -22,6 +22,11 @@
 
   <div class="card p-5 mb-8 overflow-x-auto">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Sealing stations</h2>
+    <p class="text-sm text-gray-600 mb-4">
+      Each sealing station can be linked to a <strong>production machine</strong> (the same rows used on the
+      Production <strong>Machine</strong> / full-run forms). Default seed maps <code class="text-xs">M1</code> →
+      &ldquo;Machine 1&rdquo; and <code class="text-xs">M2</code> → &ldquo;Machine 2&rdquo; when those names exist.
+    </p>
     {% if not stations %}
     <p class="text-sm text-gray-500">No stations in <code class="text-xs">workflow_stations</code> (run migrations / seed).</p>
     {% else %}
@@ -31,16 +36,35 @@
           <th class="py-2 pr-4">ID</th>
           <th class="py-2 pr-4">Label</th>
           <th class="py-2 pr-4">Code</th>
+          <th class="py-2 pr-4">Machine (production)</th>
           <th class="py-2 pr-4">Scan token</th>
           <th class="py-2">Floor URL</th>
         </tr>
       </thead>
       <tbody>
         {% for s in stations %}
-        <tr class="border-b border-gray-100">
+        <tr class="border-b border-gray-100 align-top">
           <td class="py-2 pr-4 font-mono">{{ s.id }}</td>
           <td class="py-2 pr-4">{{ s.label }}</td>
           <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
+          <td class="py-2 pr-4">
+            {% if sealing_machines %}
+            <form method="post" action="{{ url_for('admin.workflow_qr_map_station_machine') }}" class="flex flex-col sm:flex-row sm:items-center gap-2 max-w-md">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="station_id" value="{{ s.id }}"/>
+              <select name="machine_id" class="form-input text-xs py-1 flex-1 min-w-[10rem]" aria-label="Production machine for station {{ s.id }}">
+                <option value="">— Not linked —</option>
+                {% for m in sealing_machines %}
+                <option value="{{ m.id }}" {% if s.machine_id == m.id %}selected{% endif %}>{{ m.machine_name }} (id {{ m.id }})</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">Save</button>
+            </form>
+            {% else %}
+            <span class="text-gray-400 text-xs">{{ s.machine_name or "—" }}</span>
+            <p class="text-xs text-amber-700 mt-1">No <code class="text-xs">machines</code> with role <code class="text-xs">sealing</code>.</p>
+            {% endif %}
+          </td>
           <td class="py-2 pr-4 font-mono text-xs break-all max-w-xs">{{ s.station_scan_token }}</td>
           <td class="py-2">
             <a class="text-blue-600 hover:underline text-xs break-all"

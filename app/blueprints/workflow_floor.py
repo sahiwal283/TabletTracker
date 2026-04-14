@@ -39,13 +39,26 @@ def _log_floor_correlation(route: str, data: dict) -> None:
 
 
 def _resolve_station(conn, station_token: str):
-    return conn.execute(
-        """
-        SELECT id, label, station_scan_token FROM workflow_stations
-        WHERE station_scan_token = ?
-        """,
-        (station_token,),
-    ).fetchone()
+    """Resolve station row; includes linked production machine name when ``machine_id`` is set."""
+    try:
+        return conn.execute(
+            """
+            SELECT ws.id, ws.label, ws.station_scan_token, m.machine_name AS machine_name
+            FROM workflow_stations ws
+            LEFT JOIN machines m ON m.id = ws.machine_id
+            WHERE ws.station_scan_token = ?
+            """,
+            (station_token,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return conn.execute(
+            """
+            SELECT id, label, station_scan_token, NULL AS machine_name
+            FROM workflow_stations
+            WHERE station_scan_token = ?
+            """,
+            (station_token,),
+        ).fetchone()
 
 
 def _resolve_card(conn, card_token: str):
@@ -69,11 +82,13 @@ def station_page(station_token: str):
         row = _resolve_station(conn, station_token)
         if not row:
             return render_template("error.html", error_message="Unknown station token"), 404
+        r = dict(row)
         return render_template(
             "workflow_station.html",
             station_token=station_token,
             station_id=int(row["id"]),
             station_label=row["label"],
+            machine_name=r.get("machine_name"),
         )
     finally:
         conn.close()
@@ -92,11 +107,15 @@ def api_resolve_station():
     conn.close()
     if not row:
         return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station token", status=404)
-    return {
+    payload = {
         "ok": True,
         "station_id": row["id"],
         "label": row["label"],
     }
+    r = dict(row)
+    if r.get("machine_name"):
+        payload["machine_name"] = r["machine_name"]
+    return payload
 
 
 @bp.route("/floor/api/bag", methods=["POST"])

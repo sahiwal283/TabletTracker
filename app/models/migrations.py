@@ -365,6 +365,11 @@ class MigrationRunner:
                 WHERE inventory_bag_id IS NOT NULL
                 """
             )
+            self._add_column_if_not_exists(
+                "workflow_stations",
+                "machine_id",
+                "INTEGER REFERENCES machines(id)",
+            )
             # Dev seed when empty (idempotent)
             n = self.c.execute("SELECT COUNT(*) AS c FROM workflow_stations").fetchone()
             cnt = n[0] if n else 0
@@ -391,6 +396,23 @@ class MigrationRunner:
                         """,
                         (f"Card {i}", f"dev-card-{i}"),
                     )
+            try:
+                self.c.execute(
+                    """
+                    UPDATE workflow_stations SET machine_id = (
+                        SELECT id FROM machines WHERE machine_name = 'Machine 1' LIMIT 1
+                    ) WHERE station_code = 'M1' AND machine_id IS NULL
+                    """
+                )
+                self.c.execute(
+                    """
+                    UPDATE workflow_stations SET machine_id = (
+                        SELECT id FROM machines WHERE machine_name = 'Machine 2' LIMIT 1
+                    ) WHERE station_code = 'M2' AND machine_id IS NULL
+                    """
+                )
+            except sqlite3.Error:
+                pass
         except sqlite3.Error as exc:
             logger.warning("workflow migration: %s", exc)
 

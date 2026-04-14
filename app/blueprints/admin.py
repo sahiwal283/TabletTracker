@@ -227,15 +227,41 @@ def workflow_qr_management():
         with db_read_only() as conn:
             stations = []
             cards = []
+            sealing_machines = []
             try:
                 stations = conn.execute(
                     """
-                    SELECT id, label, station_scan_token, station_code
-                    FROM workflow_stations
-                    ORDER BY id
+                    SELECT ws.id, ws.label, ws.station_scan_token, ws.station_code, ws.machine_id,
+                           m.machine_name AS machine_name
+                    FROM workflow_stations ws
+                    LEFT JOIN machines m ON m.id = ws.machine_id
+                    ORDER BY ws.id
                     """
                 ).fetchall()
                 stations = [dict(r) for r in stations]
+            except sqlite3.OperationalError:
+                try:
+                    stations = conn.execute(
+                        """
+                        SELECT id, label, station_scan_token, station_code, NULL AS machine_id,
+                               NULL AS machine_name
+                        FROM workflow_stations
+                        ORDER BY id
+                        """
+                    ).fetchall()
+                    stations = [dict(r) for r in stations]
+                except sqlite3.OperationalError:
+                    pass
+            try:
+                sealing_machines = conn.execute(
+                    """
+                    SELECT id, machine_name
+                    FROM machines
+                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'sealing'
+                    ORDER BY machine_name
+                    """
+                ).fetchall()
+                sealing_machines = [dict(r) for r in sealing_machines]
             except sqlite3.OperationalError:
                 pass
             try:
@@ -254,6 +280,7 @@ def workflow_qr_management():
         return render_template(
             "admin_workflow_qr.html",
             stations=stations,
+            sealing_machines=sealing_machines,
             cards=cards,
         )
     except Exception as e:
@@ -263,6 +290,7 @@ def workflow_qr_management():
         return render_template(
             "admin_workflow_qr.html",
             stations=[],
+            sealing_machines=[],
             cards=[],
         )
 
@@ -308,5 +336,51 @@ def workflow_qr_release_card():
             flash(f"Released QR card #{qr_card_id} from workflow bag #{workflow_bag_id}.", "success")
     finally:
         conn.close()
+    return redirect(url_for("admin.workflow_qr_management"))
+
+
+@bp.route("/admin/workflow-qr/station-machine", methods=["POST"])
+@admin_required
+def workflow_qr_map_station_machine():
+    """Link a workflow sealing station to a production machine (machine count form)."""
+    station_id = request.form.get("station_id", type=int)
+    raw_mid = request.form.get("machine_id")
+    machine_id = None
+    if raw_mid is not None and str(raw_mid).strip() != "":
+        machine_id = int(str(raw_mid).strip())
+    if not station_id:
+        flash("station_id is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    try:
+        with db_transaction() as conn:
+            st = conn.execute(
+                "SELECT id FROM workflow_stations WHERE id = ?", (station_id,)
+            ).fetchone()
+            if not st:
+                flash("Unknown sealing station.", "error")
+                return redirect(url_for("admin.workflow_qr_management"))
+            if machine_id is not None:
+                m = conn.execute(
+                    """
+                    SELECT id FROM machines
+                    WHERE id = ? AND COALESCE(is_active, 1) = 1 AND machine_role = 'sealing'
+                    """,
+                    (machine_id,),
+                ).fetchone()
+                if not m:
+                    flash("Invalid or inactive sealing machine.", "error")
+                    return redirect(url_for("admin.workflow_qr_management"))
+            conn.execute(
+                "UPDATE workflow_stations SET machine_id = ? WHERE id = ?",
+                (machine_id, station_id),
+            )
+        flash("Sealing station ↔ machine mapping saved.", "success")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_map_station_machine: %s", oe)
+        flash("Could not update mapping (database error).", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_map_station_machine: %s", e)
+        flash(str(e), "error")
     return redirect(url_for("admin.workflow_qr_management"))
 
