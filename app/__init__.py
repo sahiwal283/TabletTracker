@@ -19,7 +19,7 @@ from config import Config
 LANGUAGES = {"en": "English", "es": "Español"}
 CSP_POLICY = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com; "
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; "
     "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
     "img-src 'self' data: https:; "
     "font-src 'self' data:; "

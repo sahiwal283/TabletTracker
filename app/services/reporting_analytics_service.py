@@ -100,7 +100,7 @@ def _submission_report_rows(
         clauses.append("po.vendor_name = ?")
         params.append(vendor_name)
     if tablet_type_id is not None:
-        clauses.append("COALESCE(tt.id, tt_fallback.id) = ?")
+        clauses.append("COALESCE(tt.id, tt_fallback.id, tt_bag.id) = ?")
         params.append(tablet_type_id)
     if date_from:
         clauses.append("COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?")
@@ -141,6 +141,38 @@ def _flavor_id_name(
             if row and row["tablet_type_name"]:
                 return tid, str(row["tablet_type_name"])
         return tid, (sub.get("product_name") or "Unknown").strip()
+
+    # Last-resort mapping for legacy rows where SQL joins fail:
+    # normalize product_name and match against both product_details.product_name
+    # and tablet_types.tablet_type_name.
+    product_name = (sub.get("product_name") or "").strip()
+    if conn and product_name:
+        norm_expr = (
+            "REPLACE(REPLACE(REPLACE(LOWER(TRIM({})), '-', ''), ' ', ''), '_', '')"
+        )
+        row = conn.execute(
+            f"""
+            SELECT tt.id, tt.tablet_type_name
+            FROM product_details pd
+            JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            WHERE {norm_expr.format('pd.product_name')} = {norm_expr.format('?')}
+            LIMIT 1
+            """,
+            (product_name,),
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                f"""
+                SELECT id, tablet_type_name
+                FROM tablet_types
+                WHERE {norm_expr.format('tablet_type_name')} = {norm_expr.format('?')}
+                LIMIT 1
+                """,
+                (product_name,),
+            ).fetchone()
+        if row:
+            return int(row["id"]), str(row["tablet_type_name"])
+
     return None, (sub.get("product_name") or "Unknown").strip()
 
 
