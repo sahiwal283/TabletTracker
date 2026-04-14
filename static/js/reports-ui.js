@@ -48,12 +48,7 @@
 
     function defaultDateRange(bounds) {
         var to = bounds && bounds.max ? String(bounds.max).slice(0, 10) : new Date().toISOString().slice(0, 10);
-        var d = new Date(to + 'T12:00:00');
-        d.setDate(d.getDate() - 30);
-        var from = d.toISOString().slice(0, 10);
-        if (bounds && bounds.min && from < String(bounds.min).slice(0, 10)) {
-            from = String(bounds.min).slice(0, 10);
-        }
+        var from = bounds && bounds.min ? String(bounds.min).slice(0, 10) : to;
         return { from: from, to: to };
     }
 
@@ -479,6 +474,26 @@
         });
     }
 
+    function renderKpis(trendsSeries, topFlavors) {
+        var packed = 0;
+        var received = 0;
+        var days = (trendsSeries || []).length;
+        (trendsSeries || []).forEach(function (x) {
+            packed += Number(x.packed || 0);
+            received += Number(x.received || 0);
+        });
+        var top = (topFlavors || [])[0];
+        var topLabel = top ? (top.flavor + ' (' + fmt(top.packed) + ')') : '—';
+        var elPacked = document.getElementById('reports_kpi_total_packed');
+        var elReceived = document.getElementById('reports_kpi_total_received');
+        var elTop = document.getElementById('reports_kpi_top_flavor');
+        var elDays = document.getElementById('reports_kpi_days');
+        if (elPacked) elPacked.textContent = fmt(packed);
+        if (elReceived) elReceived.textContent = fmt(received);
+        if (elTop) elTop.textContent = topLabel;
+        if (elDays) elDays.textContent = fmt(days);
+    }
+
     function ensureChartLibrary() {
         if (typeof Chart !== 'undefined') return true;
         setHint('reports_trends_hint', 'Chart library unavailable.');
@@ -503,16 +518,17 @@
             showAnalyticsError('Choose a date range.');
             return;
         }
-        if (!ensureChartLibrary()) return;
         if (loading) loading.classList.remove('hidden');
         try {
             var trends = await apiCall('/api/reports/trends?' + q, { requestKey: 'reports-trends' });
             var dims = await apiCall('/api/reports/dimensions?' + q, { requestKey: 'reports-dimensions' });
-            if (!ensureChartLibrary()) return;
-            renderTrendsChart(trends.series || []);
-            renderTopFlavorsChart(dims.top_flavors || []);
-            renderFlavorDailyChart(dims.selected_flavor_series || []);
+            renderKpis(trends.series || [], dims.top_flavors || []);
             renderThroughput(dims.throughput_summary || {}, dims.throughput_series || []);
+            if (ensureChartLibrary()) {
+                renderTrendsChart(trends.series || []);
+                renderTopFlavorsChart(dims.top_flavors || []);
+                renderFlavorDailyChart(dims.selected_flavor_series || []);
+            }
         } catch (e) {
             if (e.name === 'AbortError') return;
             showAnalyticsError(e.message || 'Failed to load analytics');
