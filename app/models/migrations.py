@@ -387,13 +387,13 @@ class MigrationRunner:
                 self.c.execute(
                     """
                     INSERT INTO workflow_stations (station_scan_token, label, station_code)
-                    VALUES ('dev-station-seal-1', 'Sealing station 1', 'M1')
+                    VALUES ('seal-dev-station-1', 'Sealing station 1', 'M1')
                     """
                 )
                 self.c.execute(
                     """
                     INSERT INTO workflow_stations (station_scan_token, label, station_code)
-                    VALUES ('dev-station-seal-2', 'Sealing station 2', 'M2')
+                    VALUES ('seal-dev-station-2', 'Sealing station 2', 'M2')
                     """
                 )
             nc = self.c.execute("SELECT COUNT(*) AS c FROM qr_cards").fetchone()
@@ -404,7 +404,7 @@ class MigrationRunner:
                         INSERT INTO qr_cards (label, scan_token, status)
                         VALUES (?, ?, 'idle')
                         """,
-                        (f"Card {i}", f"dev-card-{i}"),
+                        (f"Card {i}", f"bag-dev-{i}"),
                     )
             try:
                 self.c.execute(

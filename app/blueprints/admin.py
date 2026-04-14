@@ -24,27 +24,6 @@ bp = Blueprint('admin', __name__)
 # QR / URL path–safe scan tokens (stations: /workflow/station/<token>; bag cards: floor API card_token)
 _STATION_SCAN_TOKEN_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 
-
-def _allocate_unique_card_scan_token(conn: sqlite3.Connection) -> str:
-    for _ in range(40):
-        t = "card-" + secrets.token_hex(8)
-        if not conn.execute(
-            "SELECT 1 FROM qr_cards WHERE scan_token = ?", (t,)
-        ).fetchone():
-            return t
-    raise RuntimeError("could_not_allocate_card_token")
-
-
-def _allocate_unique_station_scan_token(conn: sqlite3.Connection) -> str:
-    for _ in range(40):
-        t = "seal-" + secrets.token_hex(8)
-        if not conn.execute(
-            "SELECT 1 FROM workflow_stations WHERE station_scan_token = ?", (t,)
-        ).fetchone():
-            return t
-    raise RuntimeError("could_not_allocate_station_token")
-
-
 _VALID_STATION_KINDS = frozenset({"sealing", "blister", "packaging", "combined"})
 _STATION_KIND_ORDER = ["sealing", "blister", "packaging", "combined"]
 
@@ -54,6 +33,50 @@ def _normalize_station_kind(raw) -> str:
     if k in _VALID_STATION_KINDS:
         return k
     return "sealing"
+
+
+def _station_scan_token_prefix(station_kind: str) -> str:
+    """URL token prefix for workflow station scan tokens (matches station type)."""
+    k = _normalize_station_kind(station_kind)
+    return {
+        "sealing": "seal-",
+        "blister": "blister-",
+        "packaging": "packaging-",
+        "combined": "combined-",
+    }.get(k, "seal-")
+
+
+def _validate_station_scan_token_for_kind(station_kind: str, token: str) -> bool:
+    if not _STATION_SCAN_TOKEN_RE.match(token):
+        return False
+    return token.startswith(_station_scan_token_prefix(station_kind))
+
+
+def _validate_bag_card_scan_token(token: str) -> bool:
+    if not _STATION_SCAN_TOKEN_RE.match(token):
+        return False
+    return token.startswith("bag-")
+
+
+def _allocate_unique_card_scan_token(conn: sqlite3.Connection) -> str:
+    for _ in range(40):
+        t = "bag-" + secrets.token_hex(8)
+        if not conn.execute(
+            "SELECT 1 FROM qr_cards WHERE scan_token = ?", (t,)
+        ).fetchone():
+            return t
+    raise RuntimeError("could_not_allocate_card_token")
+
+
+def _allocate_unique_station_scan_token(conn: sqlite3.Connection, station_kind: str) -> str:
+    prefix = _station_scan_token_prefix(station_kind)
+    for _ in range(40):
+        t = prefix + secrets.token_hex(8)
+        if not conn.execute(
+            "SELECT 1 FROM workflow_stations WHERE station_scan_token = ?", (t,)
+        ).fetchone():
+            return t
+    raise RuntimeError("could_not_allocate_station_token")
 
 
 def _machine_allowed_for_station_kind(
@@ -454,9 +477,9 @@ def workflow_qr_add_card():
         return redirect(url_for("admin.workflow_qr_management"))
     token_in = (request.form.get("scan_token") or "").strip()
     if token_in:
-        if not _STATION_SCAN_TOKEN_RE.match(token_in):
+        if not _validate_bag_card_scan_token(token_in):
             flash(
-                "Scan token may only use letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                "Bag card scan token must start with bag- and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
                 "error",
             )
             return redirect(url_for("admin.workflow_qr_management"))
@@ -537,6 +560,130 @@ def workflow_qr_remove_card():
     return redirect(url_for("admin.workflow_qr_management"))
 
 
+@bp.route("/admin/workflow-qr/edit-station-token", methods=["POST"])
+@admin_required
+def workflow_qr_edit_station_scan_token():
+    """Update workflow_stations.station_scan_token (floor URL path)."""
+    station_id = request.form.get("station_id", type=int)
+    new_scan = (request.form.get("station_scan_token") or "").strip()
+    if not station_id:
+        flash("station_id is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+    if not new_scan:
+        flash("Scan token is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    try:
+        with db_transaction() as conn:
+            try:
+                row = conn.execute(
+                    """
+                    SELECT id, station_scan_token, COALESCE(station_kind, 'sealing') AS station_kind
+                    FROM workflow_stations WHERE id = ?
+                    """,
+                    (station_id,),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                row = conn.execute(
+                    """
+                    SELECT id, station_scan_token, 'sealing' AS station_kind
+                    FROM workflow_stations WHERE id = ?
+                    """,
+                    (station_id,),
+                ).fetchone()
+            if not row:
+                flash("Unknown workflow station.", "error")
+                return redirect(url_for("admin.workflow_qr_management"))
+            r = dict(row)
+            sk = _normalize_station_kind(r.get("station_kind"))
+            if new_scan == r["station_scan_token"]:
+                flash("No change to scan token.", "info")
+                return redirect(url_for("admin.workflow_qr_management"))
+            if not _validate_station_scan_token_for_kind(sk, new_scan):
+                pfx = _station_scan_token_prefix(sk)
+                flash(
+                    f"Scan token must start with {pfx} for this station type, and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                    "error",
+                )
+                return redirect(url_for("admin.workflow_qr_management"))
+            dup = conn.execute(
+                "SELECT id FROM workflow_stations WHERE station_scan_token = ? AND id != ?",
+                (new_scan, station_id),
+            ).fetchone()
+            if dup:
+                flash("That scan token is already used by another station.", "error")
+                return redirect(url_for("admin.workflow_qr_management"))
+            conn.execute(
+                "UPDATE workflow_stations SET station_scan_token = ? WHERE id = ?",
+                (new_scan, station_id),
+            )
+        flash(f"Station #{station_id} scan token updated.", "success")
+    except sqlite3.IntegrityError:
+        flash("That scan token is already in use.", "error")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_edit_station_scan_token: %s", oe)
+        flash("Could not update scan token (database error).", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_edit_station_scan_token: %s", e)
+        flash(str(e), "error")
+    return redirect(url_for("admin.workflow_qr_management"))
+
+
+@bp.route("/admin/workflow-qr/edit-card-token", methods=["POST"])
+@admin_required
+def workflow_qr_edit_card_scan_token():
+    """Update qr_cards.scan_token (bag QR value)."""
+    qr_card_id = request.form.get("qr_card_id", type=int)
+    new_scan = (request.form.get("scan_token") or "").strip()
+    if not qr_card_id:
+        flash("qr_card_id is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+    if not new_scan:
+        flash("Scan token is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    try:
+        with db_transaction() as conn:
+            row = conn.execute(
+                "SELECT id, scan_token FROM qr_cards WHERE id = ?",
+                (qr_card_id,),
+            ).fetchone()
+            if not row:
+                flash("Unknown QR card.", "error")
+                return redirect(url_for("admin.workflow_qr_management"))
+            r = dict(row)
+            if new_scan == r["scan_token"]:
+                flash("No change to scan token.", "info")
+                return redirect(url_for("admin.workflow_qr_management"))
+            if not _validate_bag_card_scan_token(new_scan):
+                flash(
+                    "Bag card scan token must start with bag- and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                    "error",
+                )
+                return redirect(url_for("admin.workflow_qr_management"))
+            dup = conn.execute(
+                "SELECT id FROM qr_cards WHERE scan_token = ? AND id != ?",
+                (new_scan, qr_card_id),
+            ).fetchone()
+            if dup:
+                flash("That scan token is already used by another card.", "error")
+                return redirect(url_for("admin.workflow_qr_management"))
+            conn.execute(
+                "UPDATE qr_cards SET scan_token = ? WHERE id = ?",
+                (new_scan, qr_card_id),
+            )
+        flash(f"Bag QR card #{qr_card_id} scan token updated.", "success")
+    except sqlite3.IntegrityError:
+        flash("That scan token is already in use.", "error")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_edit_card_scan_token: %s", oe)
+        flash("Could not update scan token (database error).", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_edit_card_scan_token: %s", e)
+        flash(str(e), "error")
+    return redirect(url_for("admin.workflow_qr_management"))
+
+
 @bp.route("/admin/workflow-qr/station-machine", methods=["POST"])
 @admin_required
 def workflow_qr_map_station_machine():
@@ -611,9 +758,10 @@ def workflow_qr_add_station():
         return redirect(url_for("admin.workflow_qr_management"))
 
     if token_in:
-        if not _STATION_SCAN_TOKEN_RE.match(token_in):
+        if not _validate_station_scan_token_for_kind(station_kind, token_in):
+            pfx = _station_scan_token_prefix(station_kind)
             flash(
-                "Scan token may only use letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                f"Scan token must start with {pfx} for this station type, and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
                 "error",
             )
             return redirect(url_for("admin.workflow_qr_management"))
@@ -624,7 +772,7 @@ def workflow_qr_add_station():
     try:
         with db_transaction() as conn:
             if scan_token is None:
-                scan_token = _allocate_unique_station_scan_token(conn)
+                scan_token = _allocate_unique_station_scan_token(conn, station_kind)
             else:
                 dup = conn.execute(
                     "SELECT id FROM workflow_stations WHERE station_scan_token = ?",

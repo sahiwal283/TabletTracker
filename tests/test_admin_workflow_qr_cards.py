@@ -63,7 +63,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
             ("Admin test card",),
         ).fetchone()
         self.assertIsNotNone(row)
-        self.assertTrue(str(row["scan_token"]).startswith("card-"))
+        self.assertTrue(str(row["scan_token"]).startswith("bag-"))
         cid = row["id"]
         conn.close()
 
@@ -86,7 +86,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
             data={
                 "csrf_token": csrf,
                 "label": "Custom",
-                "scan_token": "my-bag-card-99",
+                "scan_token": "bag-custom-test-99",
             },
             follow_redirects=True,
         )
@@ -96,7 +96,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
             "SELECT scan_token FROM qr_cards WHERE label = ?", ("Custom",)
         ).fetchone()[0]
         conn.close()
-        self.assertEqual(tok, "my-bag-card-99")
+        self.assertEqual(tok, "bag-custom-test-99")
 
     def test_remove_rejects_assigned_card(self):
         conn = sqlite3.connect(self._db_path)
@@ -127,6 +127,28 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         n = conn.execute("SELECT COUNT(*) FROM qr_cards WHERE id = ?", (cid,)).fetchone()[0]
         conn.close()
         self.assertEqual(n, 1)
+
+    def test_edit_station_scan_token(self):
+        conn = sqlite3.connect(self._db_path)
+        sid = conn.execute("SELECT id FROM workflow_stations LIMIT 1").fetchone()[0]
+        conn.close()
+        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        r = self.client.post(
+            "/admin/workflow-qr/edit-station-token",
+            data={
+                "csrf_token": csrf,
+                "station_id": sid,
+                "station_scan_token": "seal-renamed-integration-test",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(r.status_code, 200)
+        conn = sqlite3.connect(self._db_path)
+        tok = conn.execute(
+            "SELECT station_scan_token FROM workflow_stations WHERE id = ?", (sid,)
+        ).fetchone()[0]
+        conn.close()
+        self.assertEqual(tok, "seal-renamed-integration-test")
 
 
 if __name__ == "__main__":

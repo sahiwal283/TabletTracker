@@ -84,7 +84,7 @@
       <div>
         <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
         <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
-        <p class="text-xs text-gray-500 mt-1">Letters, numbers, <code class="text-xs">._-</code> only. Encoded in QR → this URL path.</p>
+        <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> / <strong>combined-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
       </div>
       <div class="md:col-span-2">
         <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
@@ -128,7 +128,7 @@
           <th class="py-2 pr-4">Label</th>
           <th class="py-2 pr-4" title="Optional">Code</th>
           <th class="py-2 pr-4">Machine (production)</th>
-          <th class="py-2 pr-4">Scan token</th>
+          <th class="py-2 pr-4">Scan token <span class="text-gray-500 font-normal">(edit)</span></th>
           <th class="py-2">Floor URL</th>
         </tr>
       </thead>
@@ -139,7 +139,20 @@
           <td class="py-2 pr-4">{{ s.label }}</td>
           <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
           <td class="py-2 pr-4">{{ station_machine_cell(s) }}</td>
-          <td class="py-2 pr-4 font-mono text-xs break-all max-w-xs">{{ s.station_scan_token }}</td>
+          <td class="py-2 pr-4">
+            <form method="post" action="{{ url_for('admin.workflow_qr_edit_station_scan_token') }}" class="flex flex-col gap-1 max-w-[18rem]">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="station_id" value="{{ s.id }}"/>
+              <input type="text" name="station_scan_token" value="{{ s.station_scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full" autocomplete="off" aria-label="Scan token for station {{ s.id }}"/>
+              <p class="text-[10px] text-gray-500 leading-tight">Prefix:
+                {% if kind == 'sealing' %}<code class="text-[10px]">seal-</code>
+                {% elif kind == 'blister' %}<code class="text-[10px]">blister-</code>
+                {% elif kind == 'packaging' %}<code class="text-[10px]">packaging-</code>
+                {% else %}<code class="text-[10px]">combined-</code>{% endif %}
+              </p>
+              <button type="submit" class="btn-secondary text-xs py-1 px-2 self-start">Save token</button>
+            </form>
+          </td>
           <td class="py-2">
             <a class="text-blue-600 hover:underline text-xs break-all"
                href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
@@ -155,7 +168,7 @@
 
   <div class="card p-5 overflow-x-auto">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
-    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>.</p>
+    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>. Tokens use the <strong>bag-</strong> prefix (auto-generated or manual).</p>
 
     <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="flex flex-wrap items-end gap-3 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -165,7 +178,7 @@
       </div>
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Scan token (optional)</label>
-        <input type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 font-mono" placeholder="Leave blank to auto-generate" autocomplete="off"/>
+        <input type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 font-mono" placeholder="bag-… or leave blank" autocomplete="off"/>
       </div>
       <button type="submit" class="btn-primary text-sm py-2 px-4">Add card</button>
     </form>
@@ -179,7 +192,7 @@
           <th class="py-2 pr-3">Card ID</th>
           <th class="py-2 pr-3">Label</th>
           <th class="py-2 pr-3">Status</th>
-          <th class="py-2 pr-3">Scan token</th>
+          <th class="py-2 pr-3">Scan token <span class="text-gray-500 font-normal">(edit)</span></th>
           <th class="py-2 pr-3">Workflow bag #</th>
           <th class="py-2 pr-3">Inventory bag #</th>
           <th class="py-2">Action</th>
@@ -191,7 +204,15 @@
           <td class="py-2 pr-3 font-mono">{{ c.id }}</td>
           <td class="py-2 pr-3">{{ c.label or "—" }}</td>
           <td class="py-2 pr-3">{{ c.status }}</td>
-          <td class="py-2 pr-3 font-mono text-xs break-all max-w-[12rem]">{{ c.scan_token }}</td>
+          <td class="py-2 pr-3">
+            <form method="post" action="{{ url_for('admin.workflow_qr_edit_card_scan_token') }}" class="flex flex-col gap-1 max-w-[16rem]">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
+              <input type="text" name="scan_token" value="{{ c.scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full break-all" autocomplete="off" aria-label="Scan token for card {{ c.id }}"/>
+              <p class="text-[10px] text-gray-500">Prefix <code class="text-[10px]">bag-</code></p>
+              <button type="submit" class="btn-secondary text-xs py-1 px-2 self-start">Save token</button>
+            </form>
+          </td>
           <td class="py-2 pr-3 font-mono">{{ c.assigned_workflow_bag_id or "—" }}</td>
           <td class="py-2 pr-3 font-mono">{{ c.inventory_bag_id or "—" }}</td>
           <td class="py-2">
