@@ -43,7 +43,8 @@ def _resolve_station(conn, station_token: str):
     try:
         return conn.execute(
             """
-            SELECT ws.id, ws.label, ws.station_scan_token, m.machine_name AS machine_name
+            SELECT ws.id, ws.label, ws.station_scan_token, m.machine_name AS machine_name,
+                   COALESCE(ws.station_kind, 'sealing') AS station_kind
             FROM workflow_stations ws
             LEFT JOIN machines m ON m.id = ws.machine_id
             WHERE ws.station_scan_token = ?
@@ -53,7 +54,7 @@ def _resolve_station(conn, station_token: str):
     except sqlite3.OperationalError:
         return conn.execute(
             """
-            SELECT id, label, station_scan_token, NULL AS machine_name
+            SELECT id, label, station_scan_token, NULL AS machine_name, 'sealing' AS station_kind
             FROM workflow_stations
             WHERE station_scan_token = ?
             """,
@@ -89,6 +90,7 @@ def station_page(station_token: str):
             station_id=int(row["id"]),
             station_label=row["label"],
             machine_name=r.get("machine_name"),
+            station_kind=r.get("station_kind") or "sealing",
         )
     finally:
         conn.close()
@@ -115,6 +117,8 @@ def api_resolve_station():
     r = dict(row)
     if r.get("machine_name"):
         payload["machine_name"] = r["machine_name"]
+    if r.get("station_kind"):
+        payload["station_kind"] = r["station_kind"]
     return payload
 
 

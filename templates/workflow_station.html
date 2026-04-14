@@ -8,6 +8,7 @@
   {% else %}
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
+  <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
   <p class="text-sm text-gray-600 mb-4">Token in URL. Scan card QR or enter values below.</p>
   <div id="wf-status" class="mb-4 p-3 rounded border bg-gray-50 text-sm"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>

@@ -370,6 +370,16 @@ class MigrationRunner:
                 "machine_id",
                 "INTEGER REFERENCES machines(id)",
             )
+            self._add_column_if_not_exists("workflow_stations", "station_kind", "TEXT")
+            try:
+                self.c.execute(
+                    """
+                    UPDATE workflow_stations SET station_kind = 'sealing'
+                    WHERE station_kind IS NULL OR TRIM(station_kind) = ''
+                    """
+                )
+            except sqlite3.Error:
+                pass
             # Dev seed when empty (idempotent)
             n = self.c.execute("SELECT COUNT(*) AS c FROM workflow_stations").fetchone()
             cnt = n[0] if n else 0

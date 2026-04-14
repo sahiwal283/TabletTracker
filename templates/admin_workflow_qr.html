@@ -1,5 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Workflow — QR cards & stations{% endblock %}
+
+{% macro station_machine_cell(s) %}
+  {% if s.station_kind == 'blister' %}
+    {% set mlist = blister_machines %}
+  {% elif s.station_kind == 'packaging' or s.station_kind == 'combined' %}
+    {% set mlist = all_machines %}
+  {% else %}
+    {% set mlist = sealing_machines %}
+  {% endif %}
+  {% if mlist %}
+  <form method="post" action="{{ url_for('admin.workflow_qr_map_station_machine') }}" class="flex flex-col sm:flex-row sm:items-center gap-2 max-w-md">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="station_id" value="{{ s.id }}"/>
+    <select name="machine_id" class="form-input text-xs py-1 flex-1 min-w-[10rem]" aria-label="Production machine for station {{ s.id }}">
+      <option value="">— Not linked —</option>
+      {% for m in mlist %}
+      <option value="{{ m.id }}" {% if s.machine_id == m.id %}selected{% endif %}>
+        {{ m.machine_name }} (id {{ m.id }}){% if m.machine_role %} · {{ m.machine_role }}{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">Save</button>
+  </form>
+  {% else %}
+  <span class="text-gray-400 text-xs">{{ s.machine_name or "—" }}</span>
+  <p class="text-xs text-amber-700 mt-1">No matching machines. Add machines under Product configuration.</p>
+  {% endif %}
+{% endmacro %}
+
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 py-6">
   <div class="mb-6">
@@ -20,90 +49,96 @@
     </p>
   </div>
 
-  <div class="card p-5 mb-8 overflow-x-auto">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">Sealing stations</h2>
-    <p class="text-sm text-gray-600 mb-4">
-      Each sealing station can be linked to a <strong>production machine</strong> (the same rows used on the
-      Production <strong>Machine</strong> / full-run forms). Default seed maps <code class="text-xs">M1</code> →
-      &ldquo;Machine 1&rdquo; and <code class="text-xs">M2</code> → &ldquo;Machine 2&rdquo; when those names exist.
-      Need a third physical sealer? Add a <strong>sealing</strong> machine under <a href="{{ url_for('admin.product_config') }}" class="text-blue-600 underline">Admin → Product configuration → Machines</a>, then add a station here and map it.
+  <div class="card p-5 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-2">About floor stations (blister, sealing, packaging)</h2>
+    <p class="text-sm text-gray-600">
+      All of these use the same <code class="text-xs">workflow_stations</code> table: each row is one <strong>QR / URL</strong>
+      (<code class="text-xs">/workflow/station/&lt;scan_token&gt;</code>) that opens the floor tablet UI. The
+      <strong>Station type</strong> only organizes the admin view and controls which <strong>production machine</strong> role you can link
+      (sealing vs blister; packaging can reference any machine for your own tracking). Physical bags still use the
+      <strong>QR cards</strong> table below.
     </p>
+  </div>
 
-    <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-6 bg-gray-50/80">
-      <h3 class="text-sm font-semibold text-gray-900 mb-3">Add sealing station</h3>
-      <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
-          <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Sealing station 3 (other room)"/>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
-          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="e.g. M3 — floor shorthand only"/>
-          <p class="text-xs text-gray-500 mt-1">Not used by the floor app. Identity is <strong>scan token</strong> + <strong>machine</strong> link.</p>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
-          <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
-          <p class="text-xs text-gray-500 mt-1">Letters, numbers, <code class="text-xs">._-</code> only. Used in <code class="text-xs">/workflow/station/&lt;token&gt;</code> and QR codes.</p>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
-          {% if sealing_machines %}
-          <select name="machine_id" class="form-input text-sm max-w-md">
-            <option value="">— Link later —</option>
-            {% for m in sealing_machines %}
-            <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }})</option>
-            {% endfor %}
-          </select>
-          {% else %}
-          <p class="text-xs text-amber-700">No sealing machines in the database yet.</p>
-          {% endif %}
-        </div>
-        <div class="md:col-span-2">
-          <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
-        </div>
-      </form>
-    </div>
+  <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-8 bg-gray-50/80">
+    <h3 class="text-sm font-semibold text-gray-900 mb-3">Add workflow station</h3>
+    <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-gray-700 mb-1">Station type <span class="text-red-600">*</span></label>
+        <select name="station_kind" class="form-input text-sm max-w-md" required>
+          {% for k in station_kind_options %}
+          <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% elif k == 'packaging' %}packaging bench (machine link optional){% else %}all workflow steps on one device{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
+        <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Blister line A, Packaging table 1"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
+        <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="Floor shorthand"/>
+        <p class="text-xs text-gray-500 mt-1">Not used by APIs; optional sticker shorthand.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
+        <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
+        <p class="text-xs text-gray-500 mt-1">Letters, numbers, <code class="text-xs">._-</code> only. Encoded in QR → this URL path.</p>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
+        <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above (sealing vs blister). Packaging may leave blank or link any machine.</p>
+        {% if all_machines %}
+        <select name="machine_id" class="form-input text-sm max-w-lg">
+          <option value="">— Link later —</option>
+          {% for m in all_machines %}
+          <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }}) · {{ m.machine_role }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <p class="text-xs text-amber-700">No machines in the database.</p>
+        {% endif %}
+      </div>
+      <div class="md:col-span-2">
+        <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
+      </div>
+    </form>
+  </div>
 
-    {% if not stations %}
-    <p class="text-sm text-gray-500">No stations in <code class="text-xs">workflow_stations</code> (run migrations / seed).</p>
+  {% set section_meta = [
+    ('sealing', 'Sealing stations', 'Link to a machine with role <code class="text-xs">sealing</code> (same as Production Machine / full run).'),
+    ('blister', 'Blister stations', 'Link to a machine with role <code class="text-xs">blister</code>. Add blister machines under Product configuration if needed.'),
+    ('packaging', 'Packaging stations', 'Final packaging / bench. Machine link is optional; you can use any machine row for reference.'),
+    ('combined', 'Combined stations', 'One QR where operators may run every step (blister → seal → pack) from the same tablet.'),
+  ] %}
+
+  {% for kind, title, blurb in section_meta %}
+  <div class="card p-5 mb-8 overflow-x-auto">
+    <h2 class="text-lg font-semibold text-gray-900 mb-2">{{ title }}</h2>
+    <p class="text-sm text-gray-600 mb-4">{{ blurb | safe }}</p>
+    {% set rows = stations_by_kind.get(kind, []) %}
+    {% if not rows %}
+    <p class="text-sm text-gray-500">No {{ title|lower }} yet. Add one above.</p>
     {% else %}
     <table class="min-w-full text-sm">
       <thead>
         <tr class="border-b border-gray-200 text-left text-gray-600">
           <th class="py-2 pr-4">ID</th>
           <th class="py-2 pr-4">Label</th>
-          <th class="py-2 pr-4" title="Optional label only; not used by workflow APIs">Code</th>
+          <th class="py-2 pr-4" title="Optional">Code</th>
           <th class="py-2 pr-4">Machine (production)</th>
           <th class="py-2 pr-4">Scan token</th>
           <th class="py-2">Floor URL</th>
         </tr>
       </thead>
       <tbody>
-        {% for s in stations %}
+        {% for s in rows %}
         <tr class="border-b border-gray-100 align-top">
           <td class="py-2 pr-4 font-mono">{{ s.id }}</td>
           <td class="py-2 pr-4">{{ s.label }}</td>
           <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
-          <td class="py-2 pr-4">
-            {% if sealing_machines %}
-            <form method="post" action="{{ url_for('admin.workflow_qr_map_station_machine') }}" class="flex flex-col sm:flex-row sm:items-center gap-2 max-w-md">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <input type="hidden" name="station_id" value="{{ s.id }}"/>
-              <select name="machine_id" class="form-input text-xs py-1 flex-1 min-w-[10rem]" aria-label="Production machine for station {{ s.id }}">
-                <option value="">— Not linked —</option>
-                {% for m in sealing_machines %}
-                <option value="{{ m.id }}" {% if s.machine_id == m.id %}selected{% endif %}>{{ m.machine_name }} (id {{ m.id }})</option>
-                {% endfor %}
-              </select>
-              <button type="submit" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">Save</button>
-            </form>
-            {% else %}
-            <span class="text-gray-400 text-xs">{{ s.machine_name or "—" }}</span>
-            <p class="text-xs text-amber-700 mt-1">No <code class="text-xs">machines</code> with role <code class="text-xs">sealing</code>.</p>
-            {% endif %}
-          </td>
+          <td class="py-2 pr-4">{{ station_machine_cell(s) }}</td>
           <td class="py-2 pr-4 font-mono text-xs break-all max-w-xs">{{ s.station_scan_token }}</td>
           <td class="py-2">
             <a class="text-blue-600 hover:underline text-xs break-all"
@@ -116,9 +151,11 @@
     </table>
     {% endif %}
   </div>
+  {% endfor %}
 
   <div class="card p-5 overflow-x-auto">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards</h2>
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
+    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above.</p>
     {% if not cards %}
     <p class="text-sm text-gray-500">No cards in <code class="text-xs">qr_cards</code>.</p>
     {% else %}
