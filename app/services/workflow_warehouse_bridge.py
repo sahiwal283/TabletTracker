@@ -1,5 +1,8 @@
 """
 Sync QR workflow packaging counts into warehouse_submissions (packaged) for bag / PO totals.
+
+Also syncs sealing and blister station scans into ``warehouse_submissions`` / ``machine_counts``
+(machine submission rows) keyed by receipt ``WORKFLOW-<workflow_bag_id>-seal`` / ``-blister``.
 """
 
 from __future__ import annotations
@@ -10,6 +13,10 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from app.services import workflow_constants as WC
+from app.services.production_submission_helpers import (
+    execute_machine_submission,
+    refresh_purchase_order_header_aggregates,
+)
 from app.utils.eastern_datetime import utc_now_naive_string
 from app.utils.receive_tracking import find_bag_for_submission
 
@@ -236,3 +243,354 @@ def sync_if_packaging_snapshot(
     return upsert_packaged_from_workflow_packaging(
         conn, workflow_bag_id, displays_made=dm
     )
+
+
+def workflow_machine_lane_receipt_number(workflow_bag_id: int, lane: str) -> str:
+    """Stable receipt for one workflow bag + lane (``seal`` or ``blister``)."""
+    key = (lane or "").strip().lower()
+    if key not in ("seal", "blister"):
+        raise ValueError("lane must be 'seal' or 'blister'")
+    return f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}-{key}"
+
+
+def _tablet_type_for_product(conn: sqlite3.Connection, product_id: int) -> Optional[int]:
+    row = conn.execute(
+        "SELECT tablet_type_id FROM product_details WHERE id = ?",
+        (int(product_id),),
+    ).fetchone()
+    if not row:
+        return None
+    r = dict(row)
+    tid = r.get("tablet_type_id")
+    return int(tid) if tid is not None else None
+
+
+def _machine_role(conn: sqlite3.Connection, machine_id: Optional[int]) -> Optional[str]:
+    if not machine_id:
+        return None
+    row = conn.execute(
+        "SELECT machine_role FROM machines WHERE id = ?",
+        (int(machine_id),),
+    ).fetchone()
+    if not row:
+        return None
+    return (dict(row).get("machine_role") or "sealing").strip().lower()
+
+
+def _delete_matching_workflow_machine_count(
+    conn: sqlite3.Connection,
+    tablet_type_id: int,
+    ws_row: Dict[str, Any],
+) -> None:
+    """Remove the ``machine_counts`` row most likely paired with this warehouse submission."""
+    mid = ws_row.get("machine_id")
+    mc_n = ws_row.get("displays_made")
+    emp = ws_row.get("employee_name") or "QR workflow"
+    cdate = ws_row.get("submission_date")
+    box = ws_row.get("box_number")
+    bag = ws_row.get("bag_number")
+
+    if mid is not None:
+        try:
+            conn.execute(
+                """
+                DELETE FROM machine_counts WHERE id = (
+                    SELECT id FROM machine_counts
+                    WHERE tablet_type_id = ?
+                      AND machine_id = ?
+                      AND machine_count = ?
+                      AND employee_name = ?
+                      AND count_date = ?
+                      AND COALESCE(CAST(box_number AS TEXT), '') = COALESCE(CAST(? AS TEXT), '')
+                      AND COALESCE(CAST(bag_number AS TEXT), '') = COALESCE(CAST(? AS TEXT), '')
+                    ORDER BY id DESC LIMIT 1
+                )
+                """,
+                (tablet_type_id, mid, mc_n, emp, cdate, box, bag),
+            )
+            return
+        except sqlite3.OperationalError:
+            conn.execute(
+                """
+                DELETE FROM machine_counts WHERE id = (
+                    SELECT id FROM machine_counts
+                    WHERE tablet_type_id = ?
+                      AND machine_id = ?
+                      AND machine_count = ?
+                      AND employee_name = ?
+                      AND count_date = ?
+                    ORDER BY id DESC LIMIT 1
+                )
+                """,
+                (tablet_type_id, mid, mc_n, emp, cdate),
+            )
+            return
+
+    try:
+        conn.execute(
+            """
+            DELETE FROM machine_counts WHERE id = (
+                SELECT id FROM machine_counts
+                WHERE tablet_type_id = ?
+                  AND machine_id IS NULL
+                  AND machine_count = ?
+                  AND employee_name = ?
+                  AND count_date = ?
+                  AND COALESCE(CAST(box_number AS TEXT), '') = COALESCE(CAST(? AS TEXT), '')
+                  AND COALESCE(CAST(bag_number AS TEXT), '') = COALESCE(CAST(? AS TEXT), '')
+                ORDER BY id DESC LIMIT 1
+            )
+            """,
+            (tablet_type_id, mc_n, emp, cdate, box, bag),
+        )
+    except sqlite3.OperationalError:
+        conn.execute(
+            """
+            DELETE FROM machine_counts WHERE id = (
+                SELECT id FROM machine_counts
+                WHERE tablet_type_id = ?
+                  AND machine_id IS NULL
+                  AND machine_count = ?
+                  AND employee_name = ?
+                  AND count_date = ?
+                ORDER BY id DESC LIMIT 1
+            )
+            """,
+            (tablet_type_id, mc_n, emp, cdate),
+        )
+
+
+def _reverse_po_line_for_tablets(conn: sqlite3.Connection, assigned_po_id: int, inventory_item_id, tablets: int) -> None:
+    if not assigned_po_id or not inventory_item_id or not tablets or tablets <= 0:
+        return
+    line = conn.execute(
+        """
+        SELECT id, machine_good_count FROM po_lines
+        WHERE po_id = ? AND inventory_item_id = ?
+        LIMIT 1
+        """,
+        (int(assigned_po_id), inventory_item_id),
+    ).fetchone()
+    if not line:
+        return
+    lid = dict(line)["id"]
+    conn.execute(
+        """
+        UPDATE po_lines
+        SET machine_good_count = CASE
+            WHEN machine_good_count >= ? THEN machine_good_count - ?
+            ELSE 0
+        END
+        WHERE id = ?
+        """,
+        (tablets, tablets, lid),
+    )
+
+
+def _delete_workflow_machine_lane_rows(conn: sqlite3.Connection, receipt_number: str, tablet_type_id: int) -> Dict[str, Any]:
+    """Remove machine submissions for this receipt, reverse PO deltas, drop paired machine_counts."""
+    rows = conn.execute(
+        """
+        SELECT id, tablets_pressed_into_cards, assigned_po_id, inventory_item_id,
+               displays_made, machine_id, submission_date, employee_name,
+               box_number, bag_number
+        FROM warehouse_submissions
+        WHERE receipt_number = ? AND submission_type = 'machine'
+        """,
+        (receipt_number,),
+    ).fetchall()
+    po_ids: set = set()
+    deleted_ws = 0
+    for row in rows:
+        r = dict(row)
+        tid = int(r.get("tablets_pressed_into_cards") or 0)
+        apo = r.get("assigned_po_id")
+        inv = r.get("inventory_item_id")
+        _reverse_po_line_for_tablets(conn, int(apo) if apo is not None else 0, inv, tid)
+        _delete_matching_workflow_machine_count(conn, tablet_type_id, r)
+        if apo:
+            po_ids.add(int(apo))
+        deleted_ws += 1
+
+    conn.execute(
+        """
+        DELETE FROM warehouse_submissions
+        WHERE receipt_number = ? AND submission_type = 'machine'
+        """,
+        (receipt_number,),
+    )
+    for po_id in po_ids:
+        refresh_purchase_order_header_aggregates(conn, po_id)
+
+    return {"deleted_warehouse_rows": deleted_ws, "po_ids_refreshed": sorted(po_ids)}
+
+
+def upsert_machine_from_workflow_scan(
+    conn: sqlite3.Connection,
+    workflow_bag_id: int,
+    *,
+    count_total: int,
+    station_row: Dict[str, Any],
+    lane: str,
+    expected_machine_role: str,
+) -> Dict[str, Any]:
+    """
+    Replace the single machine submission for this workflow bag + lane (sealing or blister).
+
+    ``station_row`` must include ``machine_id``, ``station_kind`` when available, and ``id``.
+    """
+    key = (lane or "").strip().lower()
+    if key not in ("seal", "blister"):
+        return {"ok": False, "reason": "invalid_lane", "skipped": True}
+    exp = (expected_machine_role or "").strip().lower()
+    if exp not in ("sealing", "blister"):
+        return {"ok": False, "reason": "invalid_expected_role", "skipped": True}
+
+    wb = conn.execute(
+        "SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)
+    ).fetchone()
+    if not wb:
+        return {"ok": False, "reason": "workflow_bag_not_found", "skipped": True}
+    wb = dict(wb)
+    product_id = wb.get("product_id")
+    if not product_id:
+        LOGGER.warning(
+            "workflow warehouse bridge: workflow_bag %s has no product_id; skip machine sync",
+            workflow_bag_id,
+        )
+        return {"ok": False, "reason": "no_product_id", "skipped": True}
+
+    tablet_type_id = _tablet_type_for_product(conn, int(product_id))
+    if not tablet_type_id:
+        return {"ok": False, "reason": "product_not_found", "skipped": True}
+
+    station_kind = (station_row.get("station_kind") or "sealing").strip().lower()
+    if key == "seal" and station_kind not in ("sealing", "combined"):
+        return {
+            "ok": False,
+            "reason": "station_kind_mismatch",
+            "skipped": True,
+            "detail": "sealing event requires a sealing or combined station",
+        }
+    if key == "blister" and station_kind not in ("blister", "combined"):
+        return {
+            "ok": False,
+            "reason": "station_kind_mismatch",
+            "skipped": True,
+            "detail": "blister event requires a blister or combined station",
+        }
+
+    machine_id = station_row.get("machine_id")
+    if machine_id is None or machine_id == "":
+        LOGGER.warning(
+            "workflow warehouse bridge: station %s has no machine_id; skip machine sync",
+            station_row.get("id"),
+        )
+        return {"ok": False, "reason": "no_station_machine_id", "skipped": True}
+    machine_id = int(machine_id)
+
+    role = _machine_role(conn, machine_id) or "sealing"
+    if role != exp:
+        return {
+            "ok": False,
+            "reason": "machine_role_mismatch",
+            "skipped": True,
+            "detail": f"station machine role is {role}, expected {exp}",
+        }
+
+    receipt = workflow_machine_lane_receipt_number(workflow_bag_id, key)
+    lane_label = "sealing" if key == "seal" else "blister"
+    admin_notes = (
+        f"QR workflow {lane_label} sync (workflow_bag_id={workflow_bag_id}, station_id={station_row.get('id')})"
+    )
+
+    if count_total < 0:
+        return {"ok": False, "reason": "invalid_count_total", "skipped": True}
+
+    if count_total == 0:
+        cleared = _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
+        return {"ok": True, "cleared": True, "receipt_number": receipt, **cleared}
+
+    box_number = wb.get("box_number")
+    bag_number = wb.get("bag_number")
+    _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
+
+    data: Dict[str, Any] = {
+        "product_id": int(product_id),
+        "box_number": box_number,
+        "bag_number": bag_number,
+        "count_date": datetime.now().date().isoformat(),
+        "machine_id": machine_id,
+        "receipt_number": receipt,
+        "confirm_reserved_override": True,
+        "confirm_unassigned_submit": True,
+        "machine_admin_notes": admin_notes,
+    }
+
+    entries = [{"machine_id": machine_id, "machine_count": int(count_total)}]
+    result = execute_machine_submission(conn, data, "QR workflow", entries)
+    if not result.get("success"):
+        return {"ok": False, "reason": "execute_machine_failed", "detail": result}
+
+    LOGGER.info(
+        "workflow warehouse bridge: machine %s sync workflow_bag=%s receipt=%s count=%s",
+        lane_label,
+        workflow_bag_id,
+        receipt,
+        count_total,
+    )
+    return {
+        "ok": True,
+        "receipt_number": receipt,
+        "machine_id": machine_id,
+        "count_total": int(count_total),
+    }
+
+
+def sync_workflow_warehouse_events(
+    conn: sqlite3.Connection,
+    workflow_bag_id: int,
+    event_type: str,
+    payload: Dict[str, Any],
+    station_row: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """
+    Run packaging and/or machine bridges for floor events.
+
+    ``station_row`` is the resolved ``workflow_stations`` row (dict), including ``machine_id`` when set.
+    """
+    out: Dict[str, Any] = {}
+
+    packaged = sync_if_packaging_snapshot(conn, workflow_bag_id, event_type, payload)
+    if packaged is not None:
+        out["packaged"] = packaged
+
+    try:
+        ct = int(payload.get("count_total") or 0)
+    except (TypeError, ValueError):
+        ct = 0
+
+    if event_type == WC.EVENT_SEALING_COMPLETE:
+        out["machine_sealing"] = upsert_machine_from_workflow_scan(
+            conn,
+            workflow_bag_id,
+            count_total=ct,
+            station_row=station_row,
+            lane="seal",
+            expected_machine_role="sealing",
+        )
+    elif event_type == WC.EVENT_BLISTER_COMPLETE:
+        out["machine_blister"] = upsert_machine_from_workflow_scan(
+            conn,
+            workflow_bag_id,
+            count_total=ct,
+            station_row=station_row,
+            lane="blister",
+            expected_machine_role="blister",
+        )
+
+    if not out:
+        return None
+    if len(out) == 1:
+        return next(iter(out.values()))
+    return out

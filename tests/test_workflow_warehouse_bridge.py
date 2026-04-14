@@ -3,9 +3,12 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from app.services.workflow_warehouse_bridge import (
+    upsert_machine_from_workflow_scan,
     upsert_packaged_from_workflow_packaging,
+    workflow_machine_lane_receipt_number,
     workflow_packaged_receipt_number,
 )
 
@@ -177,6 +180,176 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
             (receipt,),
         ).fetchone()[0]
         self.assertEqual(dm, 4)
+
+
+class TestWorkflowWarehouseMachineBridge(unittest.TestCase):
+    """Sealing/blister bridge wiring (execute_machine_submission is mocked)."""
+
+    def setUp(self):
+        self._path = tempfile.mkstemp(suffix=".db")[1]
+        conn = sqlite3.connect(self._path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(_MINIMAL_SCHEMA)
+        conn.executescript(
+            """
+            CREATE TABLE machines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_name TEXT NOT NULL,
+                cards_per_turn INTEGER NOT NULL DEFAULT 1,
+                machine_role TEXT NOT NULL DEFAULT 'sealing',
+                is_active INTEGER DEFAULT 1
+            );
+            CREATE TABLE machine_counts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tablet_type_id INTEGER,
+                machine_id INTEGER,
+                machine_count INTEGER NOT NULL,
+                employee_name TEXT NOT NULL,
+                count_date TEXT,
+                box_number INTEGER,
+                bag_number INTEGER
+            );
+            CREATE TABLE po_lines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                po_id INTEGER NOT NULL,
+                inventory_item_id TEXT,
+                quantity_ordered INTEGER DEFAULT 0,
+                good_count INTEGER DEFAULT 0,
+                damaged_count INTEGER DEFAULT 0,
+                machine_good_count INTEGER DEFAULT 0,
+                machine_damaged_count INTEGER DEFAULT 0
+            );
+            ALTER TABLE purchase_orders ADD COLUMN ordered_quantity INTEGER DEFAULT 0;
+            ALTER TABLE purchase_orders ADD COLUMN current_good_count INTEGER DEFAULT 0;
+            ALTER TABLE purchase_orders ADD COLUMN current_damaged_count INTEGER DEFAULT 0;
+            ALTER TABLE purchase_orders ADD COLUMN remaining_quantity INTEGER DEFAULT 0;
+            ALTER TABLE purchase_orders ADD COLUMN machine_good_count INTEGER DEFAULT 0;
+            ALTER TABLE purchase_orders ADD COLUMN machine_damaged_count INTEGER DEFAULT 0;
+            ALTER TABLE purchase_orders ADD COLUMN updated_at TEXT;
+            ALTER TABLE warehouse_submissions ADD COLUMN machine_id INTEGER;
+            ALTER TABLE warehouse_submissions ADD COLUMN tablets_pressed_into_cards INTEGER DEFAULT 0;
+            ALTER TABLE warehouse_submissions ADD COLUMN bag_start_time TEXT;
+            """
+        )
+        conn.execute(
+            "INSERT INTO tablet_types (tablet_type_name, inventory_item_id) VALUES ('T', 'inv-x')"
+        )
+        tid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package)
+            VALUES ('P', ?, 12, 10)
+            """,
+            (tid,),
+        )
+        pid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO purchase_orders (po_number, closed) VALUES ('PO1', 0)"
+        )
+        poid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute("INSERT INTO po_lines (po_id, inventory_item_id, quantity_ordered) VALUES (?, 'inv-x', 10000)", (poid,))
+        conn.execute(
+            "INSERT INTO receiving (po_id, receive_name, received_date) VALUES (?, 'R', '2026-01-01')",
+            (poid,),
+        )
+        rid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute("INSERT INTO small_boxes (receiving_id, box_number) VALUES (?, 1)", (rid,))
+        sbid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status, po_id)
+            VALUES (?, 2, 5000, ?, 'Available', ?)
+            """,
+            (sbid, tid, poid),
+        )
+        bid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO workflow_bags (created_at, product_id, box_number, bag_number, inventory_bag_id)
+            VALUES (1700000000000, ?, 1, 2, ?)
+            """,
+            (pid, bid),
+        )
+        self._wf_bag_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO machines (machine_name, cards_per_turn, machine_role) VALUES ('Sealer', 1, 'sealing')"
+        )
+        self._machine_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.commit()
+        conn.close()
+        self.conn = sqlite3.connect(self._path)
+        self.conn.row_factory = sqlite3.Row
+
+    def tearDown(self):
+        self.conn.close()
+        try:
+            os.unlink(self._path)
+        except OSError:
+            pass
+
+    @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
+    def test_sealing_calls_execute_with_workflow_receipt(self, m_exec):
+        m_exec.return_value = {"success": True}
+        wid = self._wf_bag_id
+        st = {"id": 1, "machine_id": self._machine_id, "station_kind": "sealing"}
+        r = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=2,
+            station_row=st,
+            lane="seal",
+            expected_machine_role="sealing",
+        )
+        self.assertTrue(r.get("ok"), r)
+        self.assertEqual(
+            m_exec.call_args[0][1].get("receipt_number"),
+            workflow_machine_lane_receipt_number(wid, "seal"),
+        )
+        self.assertEqual(m_exec.call_args[0][3][0]["machine_count"], 2)
+
+    @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
+    def test_clear_count_deletes_without_execute(self, m_exec):
+        wid = self._wf_bag_id
+        receipt = workflow_machine_lane_receipt_number(wid, "seal")
+        self.conn.execute(
+            """
+            INSERT INTO warehouse_submissions (
+                employee_name, product_name, inventory_item_id, box_number, bag_number,
+                displays_made, packs_remaining, tablets_pressed_into_cards, submission_date,
+                submission_type, bag_id, assigned_po_id, needs_review, machine_id,
+                receipt_number
+            ) VALUES ('QR workflow', 'P', 'inv-x', 1, 2, 1, 1, 10, '2026-01-01',
+                'machine', 1, 1, 0, ?, ?)
+            """,
+            (self._machine_id, receipt),
+        )
+        self.conn.execute(
+            """
+            INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date, box_number, bag_number)
+            VALUES (1, ?, 1, 'QR workflow', '2026-01-01', 1, 2)
+            """,
+            (self._machine_id,),
+        )
+        self.conn.execute(
+            "UPDATE po_lines SET machine_good_count = 10 WHERE id = 1",
+        )
+        st = {"id": 1, "machine_id": self._machine_id, "station_kind": "sealing"}
+        r = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=0,
+            station_row=st,
+            lane="seal",
+            expected_machine_role="sealing",
+        )
+        self.assertTrue(r.get("ok"), r)
+        self.assertTrue(r.get("cleared"))
+        m_exec.assert_not_called()
+        n = self.conn.execute(
+            "SELECT COUNT(*) FROM warehouse_submissions WHERE receipt_number = ?",
+            (receipt,),
+        ).fetchone()[0]
+        self.assertEqual(n, 0)
 
 
 if __name__ == "__main__":

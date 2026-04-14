@@ -18,7 +18,8 @@ from app.services.workflow_read import (
     progress_summary,
 )
 from app.services.workflow_txn import run_with_busy_retry
-from app.services.workflow_warehouse_bridge import sync_if_packaging_snapshot
+from app.services.production_submission_helpers import ProductionSubmissionError
+from app.services.workflow_warehouse_bridge import sync_workflow_warehouse_events
 from app.utils.db_utils import get_db
 
 LOGGER = logging.getLogger(__name__)
@@ -44,7 +45,8 @@ def _resolve_station(conn, station_token: str):
     try:
         return conn.execute(
             """
-            SELECT ws.id, ws.label, ws.station_scan_token, m.machine_name AS machine_name,
+            SELECT ws.id, ws.label, ws.station_scan_token, ws.machine_id AS machine_id,
+                   m.machine_name AS machine_name,
                    COALESCE(ws.station_kind, 'sealing') AS station_kind
             FROM workflow_stations ws
             LEFT JOIN machines m ON m.id = ws.machine_id
@@ -55,7 +57,8 @@ def _resolve_station(conn, station_token: str):
     except sqlite3.OperationalError:
         return conn.execute(
             """
-            SELECT id, label, station_scan_token, NULL AS machine_name, 'sealing' AS station_kind
+            SELECT id, label, station_scan_token, NULL AS machine_id, NULL AS machine_name,
+                   'sealing' AS station_kind
             FROM workflow_stations
             WHERE station_scan_token = ?
             """,
@@ -120,6 +123,8 @@ def api_resolve_station():
         payload["machine_name"] = r["machine_name"]
     if r.get("station_kind"):
         payload["station_kind"] = r["station_kind"]
+    if r.get("machine_id") is not None:
+        payload["machine_id"] = int(r["machine_id"])
     return payload
 
 
@@ -210,7 +215,19 @@ def api_append_event():
         pl = payload if isinstance(payload, dict) else {}
         bridge_result = None
         try:
-            bridge_result = sync_if_packaging_snapshot(conn, bag_id, event_type, pl)
+            bridge_result = sync_workflow_warehouse_events(
+                conn, bag_id, event_type, pl, dict(st)
+            )
+        except ProductionSubmissionError as pse:
+            conn.rollback()
+            body = pse.body if isinstance(pse.body, dict) else {}
+            msg = body.get("error") or "Machine submission could not be saved."
+            return workflow_json(
+                "WORKFLOW_MACHINE_SYNC",
+                msg,
+                status=pse.status_code or 400,
+                details={k: v for k, v in body.items() if k != "error"},
+            )
         except Exception as sync_exc:
             LOGGER.exception(
                 "workflow warehouse bridge failed workflow_bag_id=%s: %s", bag_id, sync_exc
@@ -218,7 +235,7 @@ def api_append_event():
             conn.rollback()
             return workflow_json(
                 "WORKFLOW_WAREHOUSE_SYNC",
-                "Could not sync packaging to warehouse submissions.",
+                "Could not sync workflow to warehouse submissions.",
                 status=500,
             )
         conn.commit()

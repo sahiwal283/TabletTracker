@@ -1,6 +1,7 @@
 """
 Shared execution logic for machine, packaged, and combined production submissions.
 """
+import sqlite3
 from datetime import datetime
 
 from flask import current_app
@@ -18,6 +19,104 @@ class ProductionSubmissionError(Exception):
         self.status_code = status_code
         self.body = body
         super().__init__(str(body))
+
+
+def refresh_purchase_order_header_aggregates(conn, po_id: int) -> None:
+    """Recompute ``purchase_orders`` header columns from ``po_lines`` (machine/packaged paths)."""
+    totals = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+            COALESCE(SUM(good_count), 0) as total_good,
+            COALESCE(SUM(damaged_count), 0) as total_damaged,
+            COALESCE(SUM(machine_good_count), 0) as total_machine_good,
+            COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
+        FROM po_lines
+        WHERE po_id = ?
+        """,
+        (po_id,),
+    ).fetchone()
+    remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
+    conn.execute(
+        """
+        UPDATE purchase_orders
+        SET ordered_quantity = ?, current_good_count = ?,
+            current_damaged_count = ?, remaining_quantity = ?,
+            machine_good_count = ?, machine_damaged_count = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            totals['total_ordered'],
+            totals['total_good'],
+            totals['total_damaged'],
+            remaining,
+            totals['total_machine_good'],
+            totals['total_machine_damaged'],
+            po_id,
+        ),
+    )
+
+
+def _insert_machine_counts_row(
+    conn,
+    tablet_type_id: int,
+    machine_id,
+    machine_count_int: int,
+    employee_name: str,
+    count_date,
+    box_number,
+    bag_number,
+) -> None:
+    """Insert ``machine_counts``; include box/bag when columns exist (for workflow sync reversal)."""
+    if machine_id:
+        try:
+            conn.execute(
+                """
+                INSERT INTO machine_counts (
+                    tablet_type_id, machine_id, machine_count, employee_name, count_date,
+                    box_number, bag_number
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tablet_type_id,
+                    machine_id,
+                    machine_count_int,
+                    employee_name,
+                    count_date,
+                    box_number,
+                    bag_number,
+                ),
+            )
+            return
+        except sqlite3.OperationalError:
+            conn.execute(
+                """
+                INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (tablet_type_id, machine_id, machine_count_int, employee_name, count_date),
+            )
+            return
+    try:
+        conn.execute(
+            """
+            INSERT INTO machine_counts (
+                tablet_type_id, machine_count, employee_name, count_date, box_number, bag_number
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (tablet_type_id, machine_count_int, employee_name, count_date, box_number, bag_number),
+        )
+    except sqlite3.OperationalError:
+        conn.execute(
+            """
+            INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
+            VALUES (?, ?, ?, ?)
+            """,
+            (tablet_type_id, machine_count_int, employee_name, count_date),
+        )
 
 
 def parse_machine_submission_entries(data):
@@ -294,22 +393,16 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
         cards_per_turn = cards_per_turn_for(machine_id)
         tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package
 
-        if machine_id:
-            conn.execute(
-                """
-                INSERT INTO machine_counts (tablet_type_id, machine_id, machine_count, employee_name, count_date)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (tablet_type_id, machine_id, machine_count_int, employee_name, count_date),
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO machine_counts (tablet_type_id, machine_count, employee_name, count_date)
-                VALUES (?, ?, ?, ?)
-                """,
-                (tablet_type_id, machine_count_int, employee_name, count_date),
-            )
+        _insert_machine_counts_row(
+            conn,
+            tablet_type_id,
+            machine_id,
+            machine_count_int,
+            employee_name,
+            count_date,
+            box_number,
+            bag_number,
+        )
 
         cards_made = machine_count_int * cards_per_turn
         conn.execute(
@@ -357,42 +450,7 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
         updated_pos = set()
         for line in assigned_po_lines:
             if line['po_id'] not in updated_pos:
-                totals = conn.execute(
-                    """
-                    SELECT
-                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                        COALESCE(SUM(good_count), 0) as total_good,
-                        COALESCE(SUM(damaged_count), 0) as total_damaged,
-                        COALESCE(SUM(machine_good_count), 0) as total_machine_good,
-                        COALESCE(SUM(machine_damaged_count), 0) as total_machine_damaged
-                    FROM po_lines
-                    WHERE po_id = ?
-                    """,
-                    (line['po_id'],),
-                ).fetchone()
-
-                remaining = totals['total_ordered'] - totals['total_good'] - totals['total_damaged']
-
-                conn.execute(
-                    """
-                    UPDATE purchase_orders
-                    SET ordered_quantity = ?, current_good_count = ?,
-                        current_damaged_count = ?, remaining_quantity = ?,
-                        machine_good_count = ?, machine_damaged_count = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                    (
-                        totals['total_ordered'],
-                        totals['total_good'],
-                        totals['total_damaged'],
-                        remaining,
-                        totals['total_machine_good'],
-                        totals['total_machine_damaged'],
-                        line['po_id'],
-                    ),
-                )
-
+                refresh_purchase_order_header_aggregates(conn, line['po_id'])
                 updated_pos.add(line['po_id'])
 
     if not assigned_po_id:
