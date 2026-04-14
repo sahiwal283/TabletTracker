@@ -714,6 +714,7 @@ def build_dimensions(
     by_day_by_flavor: Dict[int, Dict[str, int]] = {}
     throughput_rows: List[Tuple[str, float, float, int]] = []
     # tuple: (day, duration_minutes, tablets_per_hour, tablets_packed)
+    throughput_groups: Dict[str, Dict[str, Any]] = {}
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
@@ -730,17 +731,30 @@ def build_dimensions(
             by_day_by_flavor[tid] = {}
         by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + n
 
-        # Throughput derived from bag start/end times (when available).
-        start_dt = _parse_dt(sub.get("bag_start_time"))
-        end_dt = _parse_dt(sub.get("bag_end_time"))
-        if not start_dt or not end_dt:
-            continue
-        minutes = (end_dt - start_dt).total_seconds() / 60.0
-        # Guardrails against invalid/outlier durations.
-        if minutes <= 0 or minutes > (12 * 60):
-            continue
-        tph = (n / (minutes / 60.0)) if minutes > 0 else 0.0
-        throughput_rows.append((day, minutes, tph, n))
+        # Throughput can span multiple rows: machine row captures start time,
+        # packaged row captures end time. Group by bag_id/receipt to pair them.
+        group_key = None
+        if sub.get("bag_id"):
+            group_key = f"bag:{sub.get('bag_id')}"
+        elif sub.get("receipt_number"):
+            group_key = f"receipt:{sub.get('receipt_number')}"
+        if group_key:
+            if group_key not in throughput_groups:
+                throughput_groups[group_key] = {
+                    "start": None,
+                    "end": None,
+                    "day": day,
+                    "tablets": 0,
+                }
+            g = throughput_groups[group_key]
+            start_dt = _parse_dt(sub.get("bag_start_time"))
+            end_dt = _parse_dt(sub.get("bag_end_time"))
+            if start_dt and (g["start"] is None or start_dt < g["start"]):
+                g["start"] = start_dt
+            if end_dt and (g["end"] is None or end_dt > g["end"]):
+                g["end"] = end_dt
+                g["day"] = str(end_dt.date())
+            g["tablets"] += n
 
     flavor_list = []
     for tid, total in sorted(by_flavor.items(), key=lambda x: -x[1]):
@@ -762,6 +776,19 @@ def build_dimensions(
             selected_series.append(
                 {"date": d, "packed": by_day_by_flavor[tablet_type_id].get(d, 0)}
             )
+
+    # Finalize grouped throughput samples.
+    for g in throughput_groups.values():
+        if not g.get("start") or not g.get("end"):
+            continue
+        minutes = (g["end"] - g["start"]).total_seconds() / 60.0
+        if minutes <= 0 or minutes > (12 * 60):
+            continue
+        tabs = int(g.get("tablets") or 0)
+        if tabs <= 0:
+            continue
+        tph = tabs / (minutes / 60.0)
+        throughput_rows.append((g["day"], minutes, tph, tabs))
 
     throughput_summary = {
         "samples": 0,
