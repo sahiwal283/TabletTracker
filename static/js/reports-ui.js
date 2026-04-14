@@ -57,6 +57,28 @@
         return { from: from, to: to };
     }
 
+    function resetTwoLevelSelect(selectEl) {
+        if (!selectEl || !selectEl.id) return;
+        var groupSelect = document.getElementById(selectEl.id + '_group');
+        var itemSelect = document.getElementById(selectEl.id + '_item');
+        if (groupSelect && groupSelect.parentNode) groupSelect.parentNode.removeChild(groupSelect);
+        if (itemSelect && itemSelect.parentNode) itemSelect.parentNode.removeChild(itemSelect);
+        selectEl.style.display = '';
+        selectEl.dataset.twoLevelConverted = 'false';
+        selectEl.dataset.twoLevelConverting = 'false';
+        var rev = parseInt(selectEl.dataset.twoLevelRevision || '0', 10) || 0;
+        selectEl.dataset.twoLevelRevision = String(rev + 1);
+    }
+
+    function applyTwoLevelFlavorDropdown() {
+        var flavorSelect = document.getElementById('reports_flavor');
+        if (!flavorSelect) return;
+        resetTwoLevelSelect(flavorSelect);
+        if (typeof window.convertToTwoLevelDropdown === 'function') {
+            window.convertToTwoLevelDropdown(flavorSelect);
+        }
+    }
+
     async function fetchFilters() {
         var data = await apiCall('/api/reports/filters', { requestKey: 'reports-filters' });
         if (!data.success) throw new Error(data.error || 'Failed to load filters');
@@ -112,6 +134,7 @@
                 fSel.appendChild(opt);
             });
             if (cf) fSel.value = cf;
+            applyTwoLevelFlavorDropdown();
         }
         var dr = defaultDateRange(data.date_bounds);
         var df = document.getElementById('reports_date_from');
