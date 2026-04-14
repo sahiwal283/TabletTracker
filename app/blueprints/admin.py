@@ -12,6 +12,7 @@ from typing import Optional
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
 
 from config import Config
+from app.services import workflow_constants as WC
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required
@@ -20,8 +21,18 @@ from app.utils.route_helpers import ensure_app_settings_table
 
 bp = Blueprint('admin', __name__)
 
-# QR / URL path–safe station scan tokens (embedded in /workflow/station/<token>)
+# QR / URL path–safe scan tokens (stations: /workflow/station/<token>; bag cards: floor API card_token)
 _STATION_SCAN_TOKEN_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
+
+
+def _allocate_unique_card_scan_token(conn: sqlite3.Connection) -> str:
+    for _ in range(40):
+        t = "card-" + secrets.token_hex(8)
+        if not conn.execute(
+            "SELECT 1 FROM qr_cards WHERE scan_token = ?", (t,)
+        ).fetchone():
+            return t
+    raise RuntimeError("could_not_allocate_card_token")
 
 
 def _allocate_unique_station_scan_token(conn: sqlite3.Connection) -> str:
@@ -430,6 +441,99 @@ def workflow_qr_release_card():
             flash(f"Released QR card #{qr_card_id} from workflow bag #{workflow_bag_id}.", "success")
     finally:
         conn.close()
+    return redirect(url_for("admin.workflow_qr_management"))
+
+
+@bp.route("/admin/workflow-qr/add-card", methods=["POST"])
+@admin_required
+def workflow_qr_add_card():
+    """Insert an idle row in qr_cards (physical bag QR inventory)."""
+    label = (request.form.get("label") or "").strip() or None
+    if label and len(label) > 128:
+        flash("Label must be 128 characters or less.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+    token_in = (request.form.get("scan_token") or "").strip()
+    if token_in:
+        if not _STATION_SCAN_TOKEN_RE.match(token_in):
+            flash(
+                "Scan token may only use letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                "error",
+            )
+            return redirect(url_for("admin.workflow_qr_management"))
+        scan_token = token_in
+    else:
+        scan_token = None
+
+    try:
+        with db_transaction() as conn:
+            if scan_token is None:
+                scan_token = _allocate_unique_card_scan_token(conn)
+            else:
+                dup = conn.execute(
+                    "SELECT id FROM qr_cards WHERE scan_token = ?",
+                    (scan_token,),
+                ).fetchone()
+                if dup:
+                    flash("That scan token is already used by another card.", "error")
+                    return redirect(url_for("admin.workflow_qr_management"))
+            conn.execute(
+                """
+                INSERT INTO qr_cards (label, scan_token, status)
+                VALUES (?, ?, ?)
+                """,
+                (label, scan_token, WC.QR_CARD_STATUS_IDLE),
+            )
+        flash(
+            f"Bag QR card added. Scan token: {scan_token} — use as card_token on the floor.",
+            "success",
+        )
+    except sqlite3.IntegrityError:
+        flash("Could not add card (duplicate scan token).", "error")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_add_card: %s", oe)
+        flash("Could not add card (database error). Is the workflow migration applied?", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_add_card: %s", e)
+        flash(str(e), "error")
+    return redirect(url_for("admin.workflow_qr_management"))
+
+
+@bp.route("/admin/workflow-qr/remove-card", methods=["POST"])
+@admin_required
+def workflow_qr_remove_card():
+    """Delete a qr_cards row only when idle and not linked to a workflow bag."""
+    qr_card_id = request.form.get("qr_card_id", type=int)
+    if not qr_card_id:
+        flash("qr_card_id is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    try:
+        with db_transaction() as conn:
+            row = conn.execute(
+                """
+                SELECT id, status, assigned_workflow_bag_id
+                FROM qr_cards WHERE id = ?
+                """,
+                (qr_card_id,),
+            ).fetchone()
+            if not row:
+                flash("Unknown QR card.", "error")
+                return redirect(url_for("admin.workflow_qr_management"))
+            r = dict(row)
+            if r.get("status") != WC.QR_CARD_STATUS_IDLE or r.get("assigned_workflow_bag_id") is not None:
+                flash(
+                    "Only idle cards with no assigned bag can be removed. Release the card first if it is in use.",
+                    "error",
+                )
+                return redirect(url_for("admin.workflow_qr_management"))
+            conn.execute("DELETE FROM qr_cards WHERE id = ?", (qr_card_id,))
+        flash(f"Removed bag QR card #{qr_card_id}.", "success")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_remove_card: %s", oe)
+        flash("Could not remove card (database error).", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_remove_card: %s", e)
+        flash(str(e), "error")
     return redirect(url_for("admin.workflow_qr_management"))
 
 

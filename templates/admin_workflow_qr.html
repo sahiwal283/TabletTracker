@@ -155,7 +155,21 @@
 
   <div class="card p-5 overflow-x-auto">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
-    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above.</p>
+    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>.</p>
+
+    <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="flex flex-wrap items-end gap-3 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Label (optional)</label>
+        <input type="text" name="label" maxlength="128" class="form-input text-sm w-48" placeholder="e.g. Floor card 12" autocomplete="off"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Scan token (optional)</label>
+        <input type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 font-mono" placeholder="Leave blank to auto-generate" autocomplete="off"/>
+      </div>
+      <button type="submit" class="btn-primary text-sm py-2 px-4">Add card</button>
+    </form>
+
     {% if not cards %}
     <p class="text-sm text-gray-500">No cards in <code class="text-xs">qr_cards</code>.</p>
     {% else %}
@@ -189,6 +203,13 @@
               <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
               <input type="hidden" name="reason" value="admin_panel_undo"/>
               <button type="submit" class="btn-secondary text-xs py-1 px-2">Release</button>
+            </form>
+            {% elif c.status == 'idle' %}
+            <form method="post" action="{{ url_for('admin.workflow_qr_remove_card') }}" class="inline"
+                  onsubmit="return confirm('Remove idle bag QR card #{{ c.id }}? This cannot be undone.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
+              <button type="submit" class="text-xs py-1 px-2 rounded border border-red-200 text-red-800 hover:bg-red-50">Remove</button>
             </form>
             {% else %}
             <span class="text-gray-400 text-xs">—</span>
