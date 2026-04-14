@@ -30,6 +30,7 @@ class MigrationRunner:
         self._migrate_small_boxes()
         self._migrate_machine_counts()
         self._migrate_submission_bag_deductions()
+        self._migrate_workflow()
 
     def _migrate_machines(self):
         """Migrate machines table"""
@@ -278,6 +279,109 @@ class MigrationRunner:
         except Exception as e:
             logger.warning(f"Could not create submission_bag_deductions table: {str(e)}")
     
+
+
+    def _migrate_workflow(self):
+        """QR workflow tables — mirrors Alembic f8e9a0b1c2d3 (CREATE IF NOT EXISTS)."""
+        try:
+            self.c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workflow_stations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    station_scan_token TEXT NOT NULL UNIQUE,
+                    label TEXT NOT NULL,
+                    station_code TEXT
+                )
+                """
+            )
+            self.c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workflow_bags (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at INTEGER NOT NULL,
+                    product_id INTEGER REFERENCES product_details(id),
+                    box_number TEXT,
+                    bag_number TEXT,
+                    receipt_number TEXT
+                )
+                """
+            )
+            self.c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS qr_cards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    label TEXT,
+                    scan_token TEXT NOT NULL UNIQUE,
+                    status TEXT NOT NULL DEFAULT 'idle',
+                    assigned_workflow_bag_id INTEGER REFERENCES workflow_bags(id)
+                )
+                """
+            )
+            self.c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workflow_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    occurred_at INTEGER NOT NULL,
+                    workflow_bag_id INTEGER NOT NULL REFERENCES workflow_bags(id),
+                    station_id INTEGER REFERENCES workflow_stations(id),
+                    user_id INTEGER REFERENCES employees(id),
+                    device_id TEXT
+                )
+                """
+            )
+            self.c.execute(
+                "CREATE INDEX IF NOT EXISTS ix_workflow_events_bag ON workflow_events(workflow_bag_id)"
+            )
+            self.c.execute(
+                "CREATE INDEX IF NOT EXISTS ix_workflow_events_occurred ON workflow_events(occurred_at)"
+            )
+            self.c.execute(
+                "CREATE INDEX IF NOT EXISTS ix_workflow_events_type ON workflow_events(event_type)"
+            )
+            self.c.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ix_workflow_events_bag_occurred_id
+                ON workflow_events(workflow_bag_id, occurred_at, id)
+                """
+            )
+            self.c.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_events_one_bag_finalized
+                ON workflow_events(workflow_bag_id)
+                WHERE event_type = 'BAG_FINALIZED'
+                """
+            )
+            # Dev seed when empty (idempotent)
+            n = self.c.execute("SELECT COUNT(*) AS c FROM workflow_stations").fetchone()
+            cnt = n[0] if n else 0
+            if cnt == 0:
+                self.c.execute(
+                    """
+                    INSERT INTO workflow_stations (station_scan_token, label, station_code)
+                    VALUES ('dev-station-seal-1', 'Sealing station 1', 'M1')
+                    """
+                )
+                self.c.execute(
+                    """
+                    INSERT INTO workflow_stations (station_scan_token, label, station_code)
+                    VALUES ('dev-station-seal-2', 'Sealing station 2', 'M2')
+                    """
+                )
+            nc = self.c.execute("SELECT COUNT(*) AS c FROM qr_cards").fetchone()
+            if nc and nc[0] == 0:
+                for i in range(1, 6):
+                    self.c.execute(
+                        """
+                        INSERT INTO qr_cards (label, scan_token, status)
+                        VALUES (?, ?, 'idle')
+                        """,
+                        (f"Card {i}", f"dev-card-{i}"),
+                    )
+        except sqlite3.Error as exc:
+            logger.warning("workflow migration: %s", exc)
+
     def _column_exists(self, table_name, column_name):
         """Check if a column exists in a table"""
         try:

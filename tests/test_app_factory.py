@@ -24,7 +24,8 @@ class TestAppFactory(unittest.TestCase):
         blueprint_names = [bp.name for bp in self.app.blueprints.values()]
         
         expected_blueprints = ['auth', 'admin', 'dashboard', 'production', 
-                              'submissions', 'purchase_orders', 'receiving', 'api']
+                              'submissions', 'purchase_orders', 'receiving', 'api',
+                              'workflow_floor', 'workflow_staff']
         
         for bp_name in expected_blueprints:
             self.assertIn(bp_name, blueprint_names, 

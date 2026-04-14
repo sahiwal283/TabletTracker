@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Workflow manual entry{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto p-4">
+  <h1 class="text-2xl font-bold mb-4">Manual entry</h1>
+  <p class="text-sm text-gray-600 mb-4">Paste a station token and open the <a class="text-blue-600 underline" href="#" id="open-link">station page</a>.</p>
+  <label class="block text-sm font-medium mb-1">Station token</label>
+  <input id="station-token" class="form-input mb-3" placeholder="dev-station-seal-1" />
+  <button type="button" id="go" class="btn-primary px-6 py-4">Open station</button>
+</div>
+<script>
+  const inp = document.getElementById('station-token');
+  const link = document.getElementById('open-link');
+  const base = {{ (request.script_root or '') | tojson }};
+  function href() {
+    const t = (inp.value || '').trim();
+    return base + '/workflow/station/' + encodeURIComponent(t);
+  }
+  link.addEventListener('click', (e) => { e.preventDefault(); window.location.href = href(); });
+  document.getElementById('go').addEventListener('click', () => { window.location.href = href(); });
+</script>
+{% endblock %}

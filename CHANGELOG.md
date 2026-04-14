@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.0] - 2026-04-14
+
+### Added
+
+#### QR workflow tracking (event-sourced floor + staff)
+- Append-only `workflow_events`, identity `workflow_bags`, `workflow_stations`, mutex/cache `qr_cards`; partial UNIQUE on `BAG_FINALIZED` per bag; Alembic `f8e9a0b1c2d3` plus `MigrationRunner` mirror and dev seed stations/cards.
+- `workflow_read`, `append_workflow_event`, `workflow_finalize` (`try_finalize`, `force_release_card`, `create_workflow_bag_with_card`), bounded `SQLITE_BUSY` retries, per-bag locks for finalize vs force-release.
+- Floor JSON under `/workflow/floor/api/*` (CSRF-exempt), rate limit `WORKFLOW_RATE_LIMITED` + HTTP 429, station and manual token pages, `static/js/workflow-ui.js` with `device_id` and per-load `page_session_id` for log correlation.
+- Staff routes `/workflow/staff/new-bag`, force-release, `/workflow/reports/workflow`; nav **Workflow** link; `Permissions-Policy` `camera=(self)` for QR; `AGENTS.md` runbook SQL.
+- Tests in `tests/test_workflow.py`; version **3.0.0** (major: new subsystem and routes).
+
+---
+
 ## [2.53.1] - 2026-04-13
 
 ### ✨ Enhancement

@@ -12,6 +12,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
+csrf = CSRFProtect()
+
 from app.utils.perf_utils import add_server_timing_header, log_request_duration
 from config import Config
 
@@ -100,7 +102,6 @@ def _initialize_extensions(app):
     babel = Babel()
     babel.init_app(app, locale_selector=_build_locale_selector(app))
 
-    csrf = CSRFProtect()
     csrf.init_app(app)
 
     Limiter(
@@ -167,7 +168,7 @@ def _register_request_hooks(app, config_class):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(self)"
         response.headers["Content-Security-Policy"] = CSP_POLICY
 
         if config_class.ENV == "production":
@@ -200,6 +201,8 @@ def _register_blueprints(app):
         receiving,
         reports,
         submissions,
+        workflow_floor,
+        workflow_staff,
     )
 
     app.register_blueprint(auth.bp)
@@ -218,6 +221,9 @@ def _register_blueprints(app):
     app.register_blueprint(api_machines.bp)
     app.register_blueprint(api_reports.bp)
     app.register_blueprint(api_submissions.bp)
+    app.register_blueprint(workflow_floor.bp)
+    app.register_blueprint(workflow_staff.bp)
+    csrf.exempt(workflow_floor.bp)
 
 
 def _initialize_database(app):

@@ -1,0 +1,267 @@
+
+"""Anonymous floor JSON API + station HTML (no CSRF on JSON)."""
+
+from __future__ import annotations
+
+import logging
+import sqlite3
+
+from flask import Blueprint, render_template, request
+
+from app.services import workflow_constants as WC
+from app.services.workflow_append import append_workflow_event
+from app.services.workflow_finalize import try_finalize
+from app.services.workflow_http import rate_limit_floor, read_json_body, workflow_json
+from app.services.workflow_read import (
+    display_stage_label,
+    mechanical_bag_facts,
+    progress_summary,
+)
+from app.services.workflow_txn import run_with_busy_retry
+from app.utils.db_utils import get_db
+
+LOGGER = logging.getLogger(__name__)
+
+bp = Blueprint("workflow_floor", __name__, url_prefix="/workflow")
+
+
+def _log_floor_correlation(route: str, data: dict) -> None:
+    """Log device_id / page_session_id for support correlation only (not identity)."""
+    device_id = (data.get("device_id") or "").strip() or None
+    page_session_id = (data.get("page_session_id") or "").strip() or None
+    if device_id or page_session_id:
+        LOGGER.info(
+            "workflow_floor %s device_id=%s page_session_id=%s",
+            route,
+            device_id,
+            page_session_id,
+        )
+
+
+def _resolve_station(conn, station_token: str):
+    return conn.execute(
+        """
+        SELECT id, label, station_scan_token FROM workflow_stations
+        WHERE station_scan_token = ?
+        """,
+        (station_token,),
+    ).fetchone()
+
+
+def _resolve_card(conn, card_token: str):
+    return conn.execute(
+        "SELECT * FROM qr_cards WHERE scan_token = ?",
+        (card_token,),
+    ).fetchone()
+
+
+@bp.route("/manual")
+def manual_station():
+    """Paste station / card tokens without scanning."""
+    return render_template("workflow_manual.html")
+
+
+@bp.route("/station/<path:station_token>")
+def station_page(station_token: str):
+    """Per-station floor UI (camera allowed via Permissions-Policy)."""
+    conn = get_db()
+    try:
+        row = _resolve_station(conn, station_token)
+        if not row:
+            return render_template("error.html", error_message="Unknown station token"), 404
+        return render_template(
+            "workflow_station.html",
+            station_token=station_token,
+            station_id=int(row["id"]),
+            station_label=row["label"],
+        )
+    finally:
+        conn.close()
+
+
+@bp.route("/floor/api/station", methods=["POST"])
+@rate_limit_floor
+def api_resolve_station():
+    data = read_json_body(request)
+    _log_floor_correlation("api_resolve_station", data)
+    token = (data.get("station_token") or "").strip()
+    if not token:
+        return workflow_json("WORKFLOW_VALIDATION", "station_token required")
+    conn = get_db()
+    row = _resolve_station(conn, token)
+    conn.close()
+    if not row:
+        return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station token", status=404)
+    return {
+        "ok": True,
+        "station_id": row["id"],
+        "label": row["label"],
+    }
+
+
+@bp.route("/floor/api/bag", methods=["POST"])
+@rate_limit_floor
+def api_bag_status():
+    data = read_json_body(request)
+    _log_floor_correlation("api_bag_status", data)
+    station_token = (data.get("station_token") or "").strip()
+    card_token = (data.get("card_token") or "").strip()
+    if not station_token or not card_token:
+        return workflow_json("WORKFLOW_VALIDATION", "station_token and card_token required")
+    conn = get_db()
+    try:
+        st = _resolve_station(conn, station_token)
+        if not st:
+            return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station", status=404)
+        card = _resolve_card(conn, card_token)
+        if not card:
+            return workflow_json("WORKFLOW_BAG_NOT_FOUND", "Unknown card token", status=404)
+        if card["status"] != WC.QR_CARD_STATUS_ASSIGNED or card["assigned_workflow_bag_id"] is None:
+            return workflow_json(
+                "WORKFLOW_VALIDATION",
+                "Card is not assigned to a bag",
+                details={"status": card["status"]},
+            )
+        bag_id = int(card["assigned_workflow_bag_id"])
+        facts = mechanical_bag_facts(conn, bag_id)
+        payload = {
+            "ok": True,
+            "workflow_bag_id": bag_id,
+            "qr_card_id": int(card["id"]),
+            "station_id": int(st["id"]),
+            "facts": {
+                "event_counts_by_type": facts["event_counts_by_type"],
+                "latest_event_type": facts["latest_event_type"],
+                "display_stage_label": display_stage_label(facts),
+                "progress_summary": progress_summary(facts),
+            },
+        }
+        return payload
+    finally:
+        conn.close()
+
+
+@bp.route("/floor/api/event", methods=["POST"])
+@rate_limit_floor
+def api_append_event():
+    data = read_json_body(request)
+    _log_floor_correlation("api_append_event", data)
+    station_token = (data.get("station_token") or "").strip()
+    card_token = (data.get("card_token") or "").strip()
+    event_type = (data.get("event_type") or "").strip()
+    payload = data.get("payload") or {}
+    device_id = (data.get("device_id") or "").strip() or None
+
+    if not station_token or not card_token or not event_type:
+        return workflow_json("WORKFLOW_VALIDATION", "station_token, card_token, event_type required")
+
+    if event_type in (WC.EVENT_BAG_FINALIZED, WC.EVENT_CARD_FORCE_RELEASED):
+        return workflow_json(
+            "WORKFLOW_VALIDATION",
+            "Use /floor/api/finalize or staff force-release for terminal events",
+        )
+
+    conn = get_db()
+    try:
+        st = _resolve_station(conn, station_token)
+        if not st:
+            return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station", status=404)
+        card = _resolve_card(conn, card_token)
+        if not card:
+            return workflow_json("WORKFLOW_BAG_NOT_FOUND", "Unknown card", status=404)
+        if card["assigned_workflow_bag_id"] is None:
+            return workflow_json("WORKFLOW_VALIDATION", "Card not assigned")
+        bag_id = int(card["assigned_workflow_bag_id"])
+        try:
+            append_workflow_event(
+                conn,
+                event_type,
+                payload,
+                bag_id,
+                station_id=int(st["id"]),
+                device_id=device_id,
+            )
+        except ValueError as ve:
+            return workflow_json("WORKFLOW_VALIDATION", str(ve), details={"hint": "payload_keys"})
+        conn.commit()
+        facts = mechanical_bag_facts(conn, bag_id)
+        return {
+            "ok": True,
+            "workflow_bag_id": bag_id,
+            "facts": {
+                "event_counts_by_type": facts["event_counts_by_type"],
+                "latest_event_type": facts["latest_event_type"],
+                "display_stage_label": display_stage_label(facts),
+                "progress_summary": progress_summary(facts),
+            },
+        }
+    except sqlite3.OperationalError as oe:
+        conn.rollback()
+        if "locked" in str(oe).lower():
+            LOGGER.error("WORKFLOW_BUSY_RETRY event append: %s", oe)
+            return workflow_json(
+                "WORKFLOW_BUSY_RETRY",
+                "Database busy; retry once after a short wait",
+                status=503,
+            )
+        raise
+    finally:
+        conn.close()
+
+
+@bp.route("/floor/api/finalize", methods=["POST"])
+@rate_limit_floor
+def api_finalize():
+    data = read_json_body(request)
+    _log_floor_correlation("api_finalize", data)
+    station_token = (data.get("station_token") or "").strip()
+    card_token = (data.get("card_token") or "").strip()
+    device_id = (data.get("device_id") or "").strip() or None
+    if not station_token or not card_token:
+        return workflow_json("WORKFLOW_VALIDATION", "station_token and card_token required")
+
+    conn = get_db()
+    try:
+        st = _resolve_station(conn, station_token)
+        if not st:
+            return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station", status=404)
+        card = _resolve_card(conn, card_token)
+        if not card or card["assigned_workflow_bag_id"] is None:
+            return workflow_json("WORKFLOW_VALIDATION", "Card not assigned to a bag")
+        bag_id = int(card["assigned_workflow_bag_id"])
+
+        def _run():
+            return try_finalize(
+                conn,
+                bag_id,
+                station_id=int(st["id"]),
+                device_id=device_id,
+            )
+
+        try:
+            status, body = run_with_busy_retry(_run, op_name="floor_finalize")
+        except sqlite3.OperationalError as oe:
+            if "locked" in str(oe).lower():
+                return workflow_json(
+                    "WORKFLOW_BUSY_RETRY",
+                    "Database busy; retry once after a short wait",
+                    status=503,
+                )
+            raise
+
+        if status == "reject":
+            code = body.get("code", "WORKFLOW_VALIDATION")
+            if code == "WORKFLOW_ALREADY_FINALIZED":
+                return workflow_json(code, "Already finalized", status=400)
+            return workflow_json(code, "Cannot finalize", details=body.get("details"), status=400)
+        if status == "duplicate":
+            return {"ok": True, **body}
+        if status == "ok":
+            conn.commit()
+            return {"ok": True, **body}
+        return workflow_json("WORKFLOW_VALIDATION", "Unexpected finalize state")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
