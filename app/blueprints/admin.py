@@ -1,13 +1,18 @@
 """
 Admin routes
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
-from datetime import datetime, timedelta
+import sqlite3
 import json
 import traceback
+from datetime import datetime, timedelta
+
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
+
 from config import Config
-from app.utils.db_utils import db_read_only, db_transaction
+from app.services.workflow_finalize import force_release_card
+from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required
+from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 
 bp = Blueprint('admin', __name__)
@@ -212,4 +217,96 @@ def manage_employees():
         traceback.print_exc()
         flash('An error occurred while loading employees', 'error')
         return render_template('employee_management.html', employees=[])
+
+
+@bp.route("/admin/workflow-qr")
+@admin_required
+def workflow_qr_management():
+    """List workflow stations and QR cards; release card↔bag assignments."""
+    try:
+        with db_read_only() as conn:
+            stations = []
+            cards = []
+            try:
+                stations = conn.execute(
+                    """
+                    SELECT id, label, station_scan_token, station_code
+                    FROM workflow_stations
+                    ORDER BY id
+                    """
+                ).fetchall()
+                stations = [dict(r) for r in stations]
+            except sqlite3.OperationalError:
+                pass
+            try:
+                cards = conn.execute(
+                    """
+                    SELECT qc.id, qc.label, qc.scan_token, qc.status, qc.assigned_workflow_bag_id,
+                           wb.inventory_bag_id
+                    FROM qr_cards qc
+                    LEFT JOIN workflow_bags wb ON wb.id = qc.assigned_workflow_bag_id
+                    ORDER BY qc.id
+                    """
+                ).fetchall()
+                cards = [dict(r) for r in cards]
+            except sqlite3.OperationalError:
+                pass
+        return render_template(
+            "admin_workflow_qr.html",
+            stations=stations,
+            cards=cards,
+        )
+    except Exception as e:
+        current_app.logger.error("workflow_qr_management: %s", e)
+        traceback.print_exc()
+        flash("Could not load workflow QR data.", "error")
+        return render_template(
+            "admin_workflow_qr.html",
+            stations=[],
+            cards=[],
+        )
+
+
+@bp.route("/admin/workflow-qr/release", methods=["POST"])
+@admin_required
+def workflow_qr_release_card():
+    """Undo card assignment (same policy as staff force-release)."""
+    workflow_bag_id = request.form.get("workflow_bag_id", type=int)
+    qr_card_id = request.form.get("qr_card_id", type=int)
+    reason = (request.form.get("reason") or "admin_panel_release").strip()
+    uid = session.get("employee_id")
+    if session.get("admin_authenticated"):
+        uid = None
+    if not workflow_bag_id or not qr_card_id:
+        flash("workflow_bag_id and qr_card_id are required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    conn = get_db()
+    try:
+
+        def _run():
+            return force_release_card(
+                conn,
+                workflow_bag_id=workflow_bag_id,
+                qr_card_id=qr_card_id,
+                reason=reason,
+                user_id=uid,
+            )
+
+        try:
+            st, body = run_with_busy_retry(_run, op_name="admin_force_release")
+        except sqlite3.OperationalError:
+            flash("Database busy; retry.", "error")
+            return redirect(url_for("admin.workflow_qr_management"))
+
+        if st == "reject":
+            flash(body.get("code", "release rejected"), "error")
+        elif st == "duplicate":
+            flash("Card was already idle (no change).", "info")
+        else:
+            conn.commit()
+            flash(f"Released QR card #{qr_card_id} from workflow bag #{workflow_bag_id}.", "success")
+    finally:
+        conn.close()
+    return redirect(url_for("admin.workflow_qr_management"))
 

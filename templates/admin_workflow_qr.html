@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Workflow — QR cards & stations{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <div class="mb-6">
+    <a href="{{ url_for('admin.admin_panel') }}" class="text-sm text-blue-600 hover:underline">&larr; Admin panel</a>
+    <h1 class="text-2xl font-bold text-gray-900 mt-2">Workflow: stations &amp; QR cards</h1>
+    <p class="text-gray-600 text-sm mt-1">Manage floor hardware metadata without editing code or SQL.</p>
+  </div>
+
+  <div class="card p-5 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-2">Undo a test assignment</h2>
+    <p class="text-sm text-gray-600 mb-3">
+      If you linked a bag to the wrong card, use <strong>Release</strong> on that row below. This runs the same
+      <code class="text-xs bg-gray-100 px-1 rounded">force_release</code> flow as staff: the card returns to <strong>idle</strong>
+      and can be assigned again; the workflow bag record stays for audit.
+    </p>
+    <p class="text-xs text-gray-500">
+      You need both <strong>workflow bag id</strong> and <strong>qr card id</strong> (shown in the cards table when assigned).
+    </p>
+  </div>
+
+  <div class="card p-5 mb-8 overflow-x-auto">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Sealing stations</h2>
+    {% if not stations %}
+    <p class="text-sm text-gray-500">No stations in <code class="text-xs">workflow_stations</code> (run migrations / seed).</p>
+    {% else %}
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-200 text-left text-gray-600">
+          <th class="py-2 pr-4">ID</th>
+          <th class="py-2 pr-4">Label</th>
+          <th class="py-2 pr-4">Code</th>
+          <th class="py-2 pr-4">Scan token</th>
+          <th class="py-2">Floor URL</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in stations %}
+        <tr class="border-b border-gray-100">
+          <td class="py-2 pr-4 font-mono">{{ s.id }}</td>
+          <td class="py-2 pr-4">{{ s.label }}</td>
+          <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
+          <td class="py-2 pr-4 font-mono text-xs break-all max-w-xs">{{ s.station_scan_token }}</td>
+          <td class="py-2">
+            <a class="text-blue-600 hover:underline text-xs break-all"
+               href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
+               target="_blank" rel="noopener">Open station page</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <div class="card p-5 overflow-x-auto">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards</h2>
+    {% if not cards %}
+    <p class="text-sm text-gray-500">No cards in <code class="text-xs">qr_cards</code>.</p>
+    {% else %}
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-200 text-left text-gray-600">
+          <th class="py-2 pr-3">Card ID</th>
+          <th class="py-2 pr-3">Label</th>
+          <th class="py-2 pr-3">Status</th>
+          <th class="py-2 pr-3">Scan token</th>
+          <th class="py-2 pr-3">Workflow bag #</th>
+          <th class="py-2 pr-3">Inventory bag #</th>
+          <th class="py-2">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cards %}
+        <tr class="border-b border-gray-100 align-top">
+          <td class="py-2 pr-3 font-mono">{{ c.id }}</td>
+          <td class="py-2 pr-3">{{ c.label or "—" }}</td>
+          <td class="py-2 pr-3">{{ c.status }}</td>
+          <td class="py-2 pr-3 font-mono text-xs break-all max-w-[12rem]">{{ c.scan_token }}</td>
+          <td class="py-2 pr-3 font-mono">{{ c.assigned_workflow_bag_id or "—" }}</td>
+          <td class="py-2 pr-3 font-mono">{{ c.inventory_bag_id or "—" }}</td>
+          <td class="py-2">
+            {% if c.assigned_workflow_bag_id %}
+            <form method="post" action="{{ url_for('admin.workflow_qr_release_card') }}" class="inline"
+                  onsubmit="return confirm('Release card #{{ c.id }} from workflow bag #{{ c.assigned_workflow_bag_id }}?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="workflow_bag_id" value="{{ c.assigned_workflow_bag_id }}"/>
+              <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
+              <input type="hidden" name="reason" value="admin_panel_undo"/>
+              <button type="submit" class="btn-secondary text-xs py-1 px-2">Release</button>
+            </form>
+            {% else %}
+            <span class="text-gray-400 text-xs">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

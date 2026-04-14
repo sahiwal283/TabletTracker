@@ -52,6 +52,22 @@
             </div>
         </div>
 
+        <!-- Workflow QR & stations -->
+        <div class="card hover-lift w-full sm:w-80">
+            <div class="p-6">
+                <div class="flex items-center justify-center w-12 h-12 bg-slate-100 rounded-lg mx-auto mb-4">
+                    <svg class="w-7 h-7 text-primary" aria-hidden="true"><use href="#icon-mobile" /></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Workflow QR &amp; stations</h3>
+                <p class="text-sm text-gray-600 text-center mb-4">View sealing stations and QR cards; release test assignments</p>
+                <a href="{{ url_for('admin.workflow_qr_management') }}"
+                   class="block w-full text-center btn-primary text-sm py-2.5 flex items-center justify-center">
+                    <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-mobile" /></svg>
+                    Open workflow hardware
+                </a>
+            </div>
+        </div>
+
     </div>
 
     <!-- System Tools -->
