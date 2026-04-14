@@ -8,6 +8,7 @@ import sqlite3
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_by_flavor_box_bag
 from app.services.workflow_finalize import assign_inventory_bag_to_card, force_release_card
 from app.services.workflow_read import production_day_for_event_ms
 from app.services.workflow_txn import run_with_busy_retry
@@ -19,6 +20,38 @@ LOGGER = logging.getLogger(__name__)
 bp = Blueprint("workflow_staff", __name__, url_prefix="/workflow")
 
 
+def _load_workflow_products(conn):
+    rows = conn.execute(
+        """
+        SELECT pd.id, pd.product_name, pd.tablet_type_id,
+               pd.category,
+               tt.category AS tablet_category
+        FROM product_details pd
+        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        WHERE COALESCE(pd.is_variety_pack, 0) = 0
+        AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
+        ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
+        LIMIT 500
+        """
+    ).fetchall()
+    return [dict(p) for p in rows]
+
+
+def _parse_nonneg_int(raw):
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        v = int(s)
+    except ValueError:
+        return None
+    if v < 0:
+        return None
+    return v
+
+
 @bp.route("/staff/new-bag", methods=["GET", "POST"])
 @employee_required
 def new_bag():
@@ -26,50 +59,78 @@ def new_bag():
     conn = get_db()
     try:
         if request.method == "GET":
-            products = conn.execute(
-                """
-                SELECT pd.id, pd.product_name, pd.tablet_type_id,
-                       pd.category,
-                       tt.category AS tablet_category
-                FROM product_details pd
-                LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                WHERE COALESCE(pd.is_variety_pack, 0) = 0
-                AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
-                ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
-                LIMIT 500
-                """
-            ).fetchall()
-            products = [dict(p) for p in products]
-            eligible_bags = conn.execute(
-                """
-                SELECT b.id, b.bag_number, sb.box_number, b.tablet_type_id,
-                       tt.tablet_type_name, r.id AS receiving_id, po.po_number, r.received_date
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN receiving r ON sb.receiving_id = r.id
-                LEFT JOIN purchase_orders po ON r.po_id = po.id
-                JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                LEFT JOIN workflow_bags wb ON wb.inventory_bag_id = b.id
-                WHERE wb.id IS NULL AND b.tablet_type_id IS NOT NULL
-                ORDER BY r.received_date DESC, po.po_number, sb.box_number, b.bag_number
-                LIMIT 500
-                """
-            ).fetchall()
-            eligible_bags = [dict(r) for r in eligible_bags]
+            products = _load_workflow_products(conn)
             return render_template(
                 "workflow_new_bag.html",
                 products=products,
-                eligible_bags=eligible_bags,
+                ambiguous_matches=None,
+                form_product_id=None,
+                form_box_number=None,
+                form_bag_number=None,
             )
 
-        inventory_bag_id = request.form.get("inventory_bag_id", type=int)
         product_id = request.form.get("product_id", type=int)
+        box_number = _parse_nonneg_int(request.form.get("box_number"))
+        bag_number = _parse_nonneg_int(request.form.get("bag_number"))
+        inventory_bag_id = request.form.get("inventory_bag_id", type=int)
+        disambiguate = (request.form.get("disambiguate") or "").strip() == "1"
+
         uid = session.get("employee_id")
         if session.get("admin_authenticated"):
             uid = None
 
-        if not inventory_bag_id or not product_id:
-            flash("Shipment bag and product are required.", "error")
+        if not product_id or box_number is None or bag_number is None:
+            flash("Product, box number, and bag number are required.", "error")
+            return redirect(url_for("workflow_staff.new_bag"))
+
+        prow = conn.execute(
+            """
+            SELECT id, tablet_type_id FROM product_details
+            WHERE id = ?
+            AND COALESCE(is_variety_pack, 0) = 0
+            AND (is_bottle_product = 0 OR is_bottle_product IS NULL)
+            """,
+            (product_id,),
+        ).fetchone()
+        if not prow or prow["tablet_type_id"] is None:
+            flash("Invalid product for workflow assignment.", "error")
+            return redirect(url_for("workflow_staff.new_bag"))
+
+        tablet_type_id = int(prow["tablet_type_id"])
+
+        matches = find_unassigned_inventory_bags_by_flavor_box_bag(
+            conn,
+            tablet_type_id=tablet_type_id,
+            box_number=box_number,
+            bag_number=bag_number,
+        )
+
+        if disambiguate and inventory_bag_id is not None:
+            valid_ids = {int(m["id"]) for m in matches}
+            if inventory_bag_id not in valid_ids:
+                flash("That bag is no longer available for assignment. Try again.", "error")
+                return redirect(url_for("workflow_staff.new_bag"))
+        elif not disambiguate:
+            if len(matches) == 0:
+                flash(
+                    "No unassigned bag found for that flavor, box, and bag number "
+                    "(check receiving is open, or the bag may already be linked to a workflow).",
+                    "error",
+                )
+                return redirect(url_for("workflow_staff.new_bag"))
+            if len(matches) > 1:
+                products = _load_workflow_products(conn)
+                return render_template(
+                    "workflow_new_bag.html",
+                    products=products,
+                    ambiguous_matches=matches,
+                    form_product_id=product_id,
+                    form_box_number=box_number,
+                    form_bag_number=bag_number,
+                )
+            inventory_bag_id = int(matches[0]["id"])
+        else:
+            flash("Select which bag to use.", "error")
             return redirect(url_for("workflow_staff.new_bag"))
 
         def _run():
