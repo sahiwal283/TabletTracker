@@ -17,6 +17,7 @@ from app.services.workflow_read import (
     mechanical_bag_facts,
 )
 from app.services.workflow_txn import immediate_transaction, run_with_busy_retry
+from app.utils.db_utils import BagRepository
 
 LOGGER = logging.getLogger(__name__)
 
@@ -203,6 +204,7 @@ def create_workflow_bag_with_card(
     bag_number: Optional[str],
     receipt_number: Optional[str],
     user_id: Optional[int],
+    inventory_bag_id: Optional[int] = None,
 ) -> Tuple[int, int]:
     """
     Claim one idle card, insert workflow_bags, emit CARD_ASSIGNED, update qr_cards — one txn.
@@ -222,10 +224,12 @@ def create_workflow_bag_with_card(
         now = utc_ms_now()
         cur = conn.execute(
             """
-            INSERT INTO workflow_bags (created_at, product_id, box_number, bag_number, receipt_number)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO workflow_bags (
+                created_at, product_id, box_number, bag_number, receipt_number, inventory_bag_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (now, product_id, box_number, bag_number, receipt_number),
+            (now, product_id, box_number, bag_number, receipt_number, inventory_bag_id),
         )
         bag_id = int(cur.lastrowid)
         upd = conn.execute(
@@ -246,3 +250,56 @@ def create_workflow_bag_with_card(
             user_id=user_id,
         )
     return bag_id, qr_card_id
+
+
+def assign_inventory_bag_to_card(
+    conn: sqlite3.Connection,
+    *,
+    inventory_bag_id: int,
+    product_id: int,
+    user_id: Optional[int],
+) -> Tuple[int, int]:
+    """
+    Link a receiving/shipment bag (``bags`` row) to the next idle QR card.
+
+    Creates ``workflow_bags`` with ``inventory_bag_id`` set; denormalizes box/bag/receipt from receiving.
+    """
+    dup = conn.execute(
+        "SELECT id FROM workflow_bags WHERE inventory_bag_id = ?",
+        (inventory_bag_id,),
+    ).fetchone()
+    if dup is not None:
+        raise RuntimeError("inventory_bag_already_assigned")
+
+    inv = BagRepository.get_by_id(conn, inventory_bag_id)
+    if not inv:
+        raise RuntimeError("inventory_bag_not_found")
+    if inv.get("tablet_type_id") is None:
+        raise RuntimeError("inventory_bag_missing_tablet_type")
+
+    prow = conn.execute(
+        """
+        SELECT tablet_type_id FROM product_details
+        WHERE id = ? AND COALESCE(is_variety_pack, 0) = 0
+        AND (is_bottle_product = 0 OR is_bottle_product IS NULL)
+        """,
+        (product_id,),
+    ).fetchone()
+    if prow is None:
+        raise RuntimeError("invalid_product")
+    if int(prow["tablet_type_id"]) != int(inv["tablet_type_id"]):
+        raise RuntimeError("product_bag_tablet_type_mismatch")
+
+    box_number = str(inv["box_number"]) if inv.get("box_number") is not None else None
+    bag_number = str(inv["bag_number"]) if inv.get("bag_number") is not None else None
+    receipt_number = (inv.get("receive_name") or "").strip() or None
+
+    return create_workflow_bag_with_card(
+        conn,
+        product_id=product_id,
+        box_number=box_number,
+        bag_number=bag_number,
+        receipt_number=receipt_number,
+        user_id=user_id,
+        inventory_bag_id=inventory_bag_id,
+    )

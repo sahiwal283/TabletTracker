@@ -3,7 +3,7 @@
 ## QR workflow (v3.0+)
 
 - **Reads:** use `app/services/workflow_read.py` only for routes and reports. Do not scatter raw `workflow_events` SQL in blueprints or Jinja.
-- **Writes:** `append_workflow_event` (events) and `try_finalize` / `create_workflow_bag_with_card` / `force_release_card` (policy plus `qr_cards` mutex). Terminal policy lives in `workflow_finalize.py`, not the read layer.
+- **Writes:** `append_workflow_event` (events) and `try_finalize` / `create_workflow_bag_with_card` / `assign_inventory_bag_to_card` (staff: link receiving `bags` row → workflow + card) / `force_release_card` (policy plus `qr_cards` mutex). Terminal policy lives in `workflow_finalize.py`, not the read layer.
 - **Do not** add policy booleans (`is_complete`, etc.) to `workflow_read` return shapes. Presentation strings (`display_stage_label`, `progress_summary`) are cosmetic only. Branch the floor UI on API **codes** and machine-readable **facts**, not labels.
 - **Floor JSON** (`/workflow/floor/api/*`) is CSRF-exempt. **Staff** forms under `/workflow/staff/*` require session plus CSRF.
 - **`device_id` / `page_session_id`:** accepted on floor JSON bodies for **logging correlation only** (see `workflow_floor._log_floor_correlation`). They are **not** identity, authorization, or reporting dimensions. They must not appear in `workflow_read` DTOs used for analytics.

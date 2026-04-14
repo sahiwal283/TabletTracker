@@ -353,6 +353,18 @@ class MigrationRunner:
                 WHERE event_type = 'BAG_FINALIZED'
                 """
             )
+            self._add_column_if_not_exists(
+                "workflow_bags",
+                "inventory_bag_id",
+                "INTEGER REFERENCES bags(id)",
+            )
+            self.c.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_bags_inventory_bag_id
+                ON workflow_bags(inventory_bag_id)
+                WHERE inventory_bag_id IS NOT NULL
+                """
+            )
             # Dev seed when empty (idempotent)
             n = self.c.execute("SELECT COUNT(*) AS c FROM workflow_stations").fetchone()
             cnt = n[0] if n else 0

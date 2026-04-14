@@ -27,7 +27,8 @@ def _bootstrap(conn: sqlite3.Connection) -> None:
             product_id INTEGER,
             box_number TEXT,
             bag_number TEXT,
-            receipt_number TEXT
+            receipt_number TEXT,
+            inventory_bag_id INTEGER
         );
         CREATE TABLE IF NOT EXISTS qr_cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
