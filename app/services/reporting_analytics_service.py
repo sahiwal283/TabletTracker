@@ -724,22 +724,11 @@ def build_dimensions(
     throughput_groups: Dict[str, Dict[str, Any]] = {}
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
-        if st in ("bag", "machine"):
-            continue
         n = packed_output_tablets(conn, sub)
-        if n <= 0:
-            continue
-        tid, fname = _flavor_id_name(sub, conn)
-        if tid is None:
-            tid = -2
-        by_flavor[tid] = by_flavor.get(tid, 0) + n
         day = str(sub.get("filter_date") or sub.get("created_at", ""))[:10]
-        if tid not in by_day_by_flavor:
-            by_day_by_flavor[tid] = {}
-        by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + n
 
-        # Throughput can span multiple rows: machine row captures start time,
-        # packaged row captures end time. Group by bag_id/receipt to pair them.
+        # Throughput can span multiple rows: machine/bag rows may capture start,
+        # while packaged rows may capture end and packed output.
         group_key = None
         if sub.get("bag_id"):
             group_key = f"bag:{sub.get('bag_id')}"
@@ -761,7 +750,19 @@ def build_dimensions(
             if end_dt and (g["end"] is None or end_dt > g["end"]):
                 g["end"] = end_dt
                 g["day"] = str(end_dt.date())
-            g["tablets"] += n
+            if n > 0:
+                g["tablets"] += n
+
+        # Flavor/day packed totals should only include positive packed output rows.
+        if st in ("bag", "machine") or n <= 0:
+            continue
+        tid, _fname = _flavor_id_name(sub, conn)
+        if tid is None:
+            tid = -2
+        by_flavor[tid] = by_flavor.get(tid, 0) + n
+        if tid not in by_day_by_flavor:
+            by_day_by_flavor[tid] = {}
+        by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + n
 
     flavor_list = []
     for tid, total in sorted(by_flavor.items(), key=lambda x: -x[1]):
