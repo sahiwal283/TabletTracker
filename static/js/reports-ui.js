@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    var charts = { trends: null, flavors: null, flavorDaily: null };
+    var charts = { trends: null, flavors: null, flavorDaily: null, throughput: null };
     var pollTimer = null;
     var lastVersion = null;
     var filtersCache = null;
@@ -423,6 +423,62 @@
         });
     }
 
+    function renderThroughput(summary, series) {
+        var samplesEl = document.getElementById('reports_tp_samples');
+        var avgMinEl = document.getElementById('reports_tp_avg_min');
+        var medMinEl = document.getElementById('reports_tp_median_min');
+        var tphEl = document.getElementById('reports_tp_tph');
+        if (samplesEl) samplesEl.textContent = fmt((summary || {}).samples || 0);
+        if (avgMinEl) avgMinEl.textContent = (summary && summary.avg_minutes != null) ? fmt(summary.avg_minutes) : '—';
+        if (medMinEl) medMinEl.textContent = (summary && summary.median_minutes != null) ? fmt(summary.median_minutes) : '—';
+        if (tphEl) tphEl.textContent = (summary && summary.avg_tablets_per_hour != null) ? fmt(summary.avg_tablets_per_hour) : '—';
+
+        destroyChart('throughput');
+        setHint('reports_throughput_hint', '');
+        var canvas = document.getElementById('reports_chart_throughput');
+        if (!canvas || typeof Chart === 'undefined') return;
+        var s = series || [];
+        if (!s.length) {
+            setHint('reports_throughput_hint', 'No throughput samples with valid bag start/end times in this range.');
+        }
+        charts.throughput = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: s.map(function (x) { return x.date; }),
+                datasets: [
+                    {
+                        label: 'Avg cycle (minutes)',
+                        data: s.map(function (x) { return x.avg_minutes || 0; }),
+                        borderColor: 'rgb(11, 46, 51)',
+                        backgroundColor: 'rgba(11, 46, 51, 0.12)',
+                        yAxisID: 'y',
+                        tension: 0.2,
+                        fill: true
+                    },
+                    {
+                        label: 'Avg tablets / hour',
+                        data: s.map(function (x) { return x.avg_tablets_per_hour || 0; }),
+                        borderColor: 'rgb(79, 124, 130)',
+                        backgroundColor: 'rgba(79, 124, 130, 0.12)',
+                        yAxisID: 'y1',
+                        tension: 0.2,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Minutes' } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Tablets/hour' } }
+                }
+            }
+        });
+    }
+
     function ensureChartLibrary() {
         if (typeof Chart !== 'undefined') return true;
         setHint('reports_trends_hint', 'Chart library unavailable.');
@@ -456,6 +512,7 @@
             renderTrendsChart(trends.series || []);
             renderTopFlavorsChart(dims.top_flavors || []);
             renderFlavorDailyChart(dims.selected_flavor_series || []);
+            renderThroughput(dims.throughput_summary || {}, dims.throughput_series || []);
         } catch (e) {
             if (e.name === 'AbortError') return;
             showAnalyticsError(e.message || 'Failed to load analytics');

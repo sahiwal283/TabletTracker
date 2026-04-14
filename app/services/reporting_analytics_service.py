@@ -24,6 +24,29 @@ def _parse_date(s: Optional[str]) -> Optional[str]:
         return None
 
 
+def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    v = str(value).strip()
+    if not v:
+        return None
+    # Handle common UTC-naive and ISO variants used in submissions.
+    candidates = [v]
+    if "T" in v and " " not in v:
+        candidates.append(v.replace("T", " "))
+    for c in candidates:
+        try:
+            return datetime.fromisoformat(c)
+        except ValueError:
+            pass
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                return datetime.strptime(c, fmt)
+            except ValueError:
+                continue
+    return None
+
+
 def _safe_avg(packed: int, bags: int) -> Optional[float]:
     if bags <= 0 or packed <= 0:
         return None
@@ -689,6 +712,8 @@ def build_dimensions(
     )
     by_flavor: Dict[int, int] = {}
     by_day_by_flavor: Dict[int, Dict[str, int]] = {}
+    throughput_rows: List[Tuple[str, float, float, int]] = []
+    # tuple: (day, duration_minutes, tablets_per_hour, tablets_packed)
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
@@ -704,6 +729,18 @@ def build_dimensions(
         if tid not in by_day_by_flavor:
             by_day_by_flavor[tid] = {}
         by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + n
+
+        # Throughput derived from bag start/end times (when available).
+        start_dt = _parse_dt(sub.get("bag_start_time"))
+        end_dt = _parse_dt(sub.get("bag_end_time"))
+        if not start_dt or not end_dt:
+            continue
+        minutes = (end_dt - start_dt).total_seconds() / 60.0
+        # Guardrails against invalid/outlier durations.
+        if minutes <= 0 or minutes > (12 * 60):
+            continue
+        tph = (n / (minutes / 60.0)) if minutes > 0 else 0.0
+        throughput_rows.append((day, minutes, tph, n))
 
     flavor_list = []
     for tid, total in sorted(by_flavor.items(), key=lambda x: -x[1]):
@@ -726,8 +763,53 @@ def build_dimensions(
                 {"date": d, "packed": by_day_by_flavor[tablet_type_id].get(d, 0)}
             )
 
+    throughput_summary = {
+        "samples": 0,
+        "avg_minutes": None,
+        "median_minutes": None,
+        "avg_tablets_per_hour": None,
+        "total_tablets_measured": 0,
+    }
+    throughput_series: List[Dict[str, Any]] = []
+    if throughput_rows:
+        minutes_values = sorted(x[1] for x in throughput_rows)
+        tph_values = [x[2] for x in throughput_rows]
+        total_tabs = sum(x[3] for x in throughput_rows)
+
+        median = minutes_values[len(minutes_values) // 2]
+        if len(minutes_values) % 2 == 0:
+            median = (minutes_values[len(minutes_values) // 2 - 1] + minutes_values[len(minutes_values) // 2]) / 2.0
+
+        throughput_summary = {
+            "samples": len(throughput_rows),
+            "avg_minutes": round(sum(minutes_values) / len(minutes_values), 2),
+            "median_minutes": round(median, 2),
+            "avg_tablets_per_hour": round(sum(tph_values) / len(tph_values), 2),
+            "total_tablets_measured": int(total_tabs),
+        }
+
+        by_day_t: Dict[str, Dict[str, float]] = {}
+        for day, minutes, tph, _tabs in throughput_rows:
+            if day not in by_day_t:
+                by_day_t[day] = {"count": 0.0, "minutes_total": 0.0, "tph_total": 0.0}
+            by_day_t[day]["count"] += 1.0
+            by_day_t[day]["minutes_total"] += minutes
+            by_day_t[day]["tph_total"] += tph
+        for day in sorted(by_day_t.keys()):
+            agg = by_day_t[day]
+            throughput_series.append(
+                {
+                    "date": day,
+                    "avg_minutes": round(agg["minutes_total"] / agg["count"], 2),
+                    "avg_tablets_per_hour": round(agg["tph_total"] / agg["count"], 2),
+                    "samples": int(agg["count"]),
+                }
+            )
+
     return {
         "success": True,
         "top_flavors": flavor_list[:25],
         "selected_flavor_series": selected_series,
+        "throughput_summary": throughput_summary,
+        "throughput_series": throughput_series,
     }
