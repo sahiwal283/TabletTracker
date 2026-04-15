@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.7] - 2026-04-15
+
+### Added
+- Workflow submissions view now supports deleting test workflow bags (admin/manager): releases linked card to idle, removes bag events, and deletes the `workflow_bags` row so the same inventory bag can be reused during testing.
+
+### Changed
+- Staff workflow bag assignment now uses an explicit scanned/manual bag card token (`card_scan_token`) instead of auto-claiming the next idle card.
+- Success/error copy now uses PO-shipment-box-bag naming and clearer card-token validation feedback.
+
+---
+
 ## [3.0.0] - 2026-04-14
 
 ### Added

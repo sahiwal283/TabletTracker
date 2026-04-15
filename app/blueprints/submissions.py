@@ -7,7 +7,7 @@ import traceback
 import csv
 from datetime import datetime, timezone
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app, session
 
 from app.services import workflow_constants as WC
 from app.services.submission_query_service import apply_resolved_bag_fields
@@ -139,6 +139,87 @@ def _workflow_submissions_template_kwargs(workflow_bags, wf_status, pagination):
         "active_tab": "packaged_machine",
         "archived_count": 0,
     }
+
+
+def _workflow_bag_label(conn, workflow_bag_id: int) -> str:
+    row = conn.execute(
+        """
+        SELECT wb.id, po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
+               sb.box_number, b.bag_number
+        FROM workflow_bags wb
+        LEFT JOIN bags b ON b.id = wb.inventory_bag_id
+        LEFT JOIN small_boxes sb ON sb.id = b.small_box_id
+        LEFT JOIN receiving r ON r.id = sb.receiving_id
+        LEFT JOIN purchase_orders po ON po.id = r.po_id
+        WHERE wb.id = ?
+        """,
+        (workflow_bag_id,),
+    ).fetchone()
+    if not row:
+        return f"workflow bag #{workflow_bag_id}"
+    if row["po_number"] and row["box_number"] is not None and row["bag_number"] is not None:
+        return f"{row['po_number']}-{int(row['shipment_number'])}-{row['box_number']}-{row['bag_number']}"
+    return f"workflow bag #{workflow_bag_id}"
+
+
+@bp.route("/submissions/workflow/<int:workflow_bag_id>/delete", methods=["POST"])
+@role_required("dashboard")
+def delete_workflow_bag(workflow_bag_id: int):
+    """Testing helper: remove one workflow bag + timeline and release any linked card."""
+    is_admin = bool(session.get("admin_authenticated"))
+    role = (session.get("employee_role") or "").strip().lower()
+    if not is_admin and role not in {"admin", "manager"}:
+        flash("Only admin/manager can delete workflow bags.", "error")
+        return redirect(url_for("submissions.submissions_list", view="workflow"))
+
+    next_view = request.form.get("view") or "workflow"
+    next_wf_status = (request.form.get("wf_status") or "").strip().lower()
+    next_page = request.form.get("page", type=int)
+
+    try:
+        with db_transaction() as conn:
+            row = conn.execute(
+                "SELECT id FROM workflow_bags WHERE id = ?",
+                (workflow_bag_id,),
+            ).fetchone()
+            if not row:
+                flash("Workflow bag not found.", "error")
+            else:
+                bag_label = _workflow_bag_label(conn, workflow_bag_id)
+                # If a card still points to this bag, release it to idle.
+                conn.execute(
+                    """
+                    UPDATE qr_cards
+                    SET status = ?, assigned_workflow_bag_id = NULL
+                    WHERE assigned_workflow_bag_id = ?
+                    """,
+                    (WC.QR_CARD_STATUS_IDLE, workflow_bag_id),
+                )
+                conn.execute(
+                    "DELETE FROM workflow_events WHERE workflow_bag_id = ?",
+                    (workflow_bag_id,),
+                )
+                conn.execute(
+                    "DELETE FROM workflow_bags WHERE id = ?",
+                    (workflow_bag_id,),
+                )
+                flash(
+                    f"Deleted workflow bag {bag_label} for testing.",
+                    "success",
+                )
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("delete_workflow_bag: %s", oe)
+        flash("Could not delete workflow bag (database busy/error).", "error")
+    except Exception as e:
+        current_app.logger.error("delete_workflow_bag: %s", e)
+        flash("Could not delete workflow bag.", "error")
+
+    q = {"view": next_view}
+    if next_wf_status in {"active", "finalized"}:
+        q["wf_status"] = next_wf_status
+    if next_page and next_page > 1:
+        q["page"] = next_page
+    return redirect(url_for("submissions.submissions_list", **q))
 
 
 def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filter_submission_type=None):
