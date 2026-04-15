@@ -8,7 +8,7 @@
   <details class="mb-6 border border-neutral-border rounded-lg p-4 bg-surface-2">
     <summary class="cursor-pointer font-semibold text-slate-800">QR codes: stations vs bags</summary>
     <div class="mt-3 text-sm text-slate-600 space-y-2">
-      <p><strong>Shipment bags</strong> — Choose the <strong>flavor (product)</strong> and enter <strong>box</strong> and <strong>bag</strong> numbers, same as other warehouse forms. The app finds the matching receiving bag and assigns the next idle QR card.</p>
+      <p><strong>Shipment bags</strong> — Choose the <strong>flavor (product)</strong> and enter <strong>box</strong> and <strong>bag</strong> numbers, same as other warehouse forms. Then scan (or type) the exact bag card token to assign.</p>
       <p><strong>Station</strong> — Each sealing station has a QR whose URL is <code class="text-xs bg-white px-1 rounded">/workflow/station/&lt;station_scan_token&gt;</code>. Scanning it opens the floor station page for that station. You can also paste the station token on <a class="text-blue-600 underline" href="{{ url_for('workflow_floor.manual_station') }}">manual entry</a>.</p>
       <p><strong>Bag / card</strong> — The physical card&rsquo;s <code class="text-xs bg-white px-1 rounded">scan_token</code> identifies the workflow bag on the station page together with the station.</p>
     </div>
@@ -24,6 +24,7 @@
       <input type="hidden" name="product_id" value="{{ form_product_id }}"/>
       <input type="hidden" name="box_number" value="{{ form_box_number }}"/>
       <input type="hidden" name="bag_number" value="{{ form_bag_number }}"/>
+      <input type="hidden" name="card_scan_token" value="{{ form_card_scan_token or '' }}"/>
       <div class="space-y-2">
         {% for m in ambiguous_matches %}
         <label class="flex items-start gap-2 cursor-pointer text-sm">
@@ -44,6 +45,22 @@
   {% else %}
   <form method="post" class="space-y-4">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="wv_card_scan_token">Bag card scan token</label>
+      <div class="flex flex-wrap gap-2 mb-2">
+        <button type="button" id="wv-scan-card" class="btn-secondary px-3 py-2">Scan Card QR</button>
+        <button type="button" id="wv-scan-stop" class="btn-secondary px-3 py-2 hidden">Stop scan</button>
+      </div>
+      <div id="wv-cardqr-reader-wrap" class="mb-3 hidden">
+        <div id="wv-cardqr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
+        <p class="text-xs text-gray-500 mt-1">Point camera at the bag card QR code.</p>
+      </div>
+      <input id="wv_card_scan_token" name="card_scan_token" required class="form-input font-mono"
+             placeholder="e.g. bag-card-12"
+             value="{{ form_card_scan_token or '' }}"
+             autocomplete="off"/>
+      <p class="text-xs text-gray-500 mt-1">You can scan or type the token manually.</p>
+    </div>
     <div>
       <label class="block text-sm font-medium mb-1" for="wv_assign_product">Product (flavor)</label>
       <select id="wv_assign_product" name="product_id" required class="form-input">
@@ -91,6 +108,72 @@
     if (el && typeof convertToTwoLevelDropdownByDataAttr === 'function') {
       convertToTwoLevelDropdownByDataAttr(el, 'data-category');
     }
+
+    var scanBtn = document.getElementById('wv-scan-card');
+    var stopBtn = document.getElementById('wv-scan-stop');
+    var wrap = document.getElementById('wv-cardqr-reader-wrap');
+    var input = document.getElementById('wv_card_scan_token');
+    var qr = null;
+    var scanDone = false;
+
+    function setScanUi(active) {
+      if (wrap) wrap.classList.toggle('hidden', !active);
+      if (scanBtn) scanBtn.classList.toggle('hidden', active);
+      if (stopBtn) stopBtn.classList.toggle('hidden', !active);
+    }
+
+    async function stopScan() {
+      scanDone = false;
+      if (!qr) {
+        setScanUi(false);
+        return;
+      }
+      try { await qr.stop(); } catch (_e) {}
+      try { await qr.clear(); } catch (_e2) {}
+      qr = null;
+      setScanUi(false);
+    }
+
+    async function startScan() {
+      if (typeof Html5Qrcode === 'undefined') {
+        alert('Scanner failed to load. Refresh and try again.');
+        return;
+      }
+      await stopScan();
+      scanDone = false;
+      qr = new Html5Qrcode('wv-cardqr-reader');
+      setScanUi(true);
+      var cfg = { fps: 10, qrbox: { width: 250, height: 250 } };
+      function onSuccess(decodedText) {
+        if (scanDone) return;
+        var t = String(decodedText || '').trim();
+        if (!t) return;
+        scanDone = true;
+        if (input) input.value = t;
+        stopScan();
+      }
+      function onFailure() {}
+      try {
+        await qr.start({ facingMode: 'environment' }, cfg, onSuccess, onFailure);
+      } catch (e1) {
+        try {
+          var cameras = await Html5Qrcode.getCameras();
+          var back = (cameras || []).find(function (d) {
+            return /back|rear|environment|wide/i.test(d.label || '');
+          }) || (cameras || [])[0];
+          if (!back) throw e1;
+          await qr.start(back.id, cfg, onSuccess, onFailure);
+        } catch (_e2) {
+          await stopScan();
+          alert('Could not start camera. Check permissions and try again.');
+        }
+      }
+    }
+
+    if (scanBtn) scanBtn.addEventListener('click', function () { startScan(); });
+    if (stopBtn) stopBtn.addEventListener('click', function () { stopScan(); });
+    window.addEventListener('beforeunload', function () { stopScan(); });
   });
 </script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 {% endblock %}

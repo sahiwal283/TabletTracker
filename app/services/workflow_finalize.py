@@ -205,22 +205,25 @@ def create_workflow_bag_with_card(
     receipt_number: Optional[str],
     user_id: Optional[int],
     inventory_bag_id: Optional[int] = None,
+    qr_card_id: Optional[int] = None,
 ) -> Tuple[int, int]:
     """
-    Claim one idle card, insert workflow_bags, emit CARD_ASSIGNED, update qr_cards — one txn.
+    Claim a specific idle card (or next idle), insert workflow_bags, emit CARD_ASSIGNED,
+    update qr_cards — one txn.
     """
     from app.services.workflow_append import utc_ms_now
 
     with immediate_transaction(conn):
-        row = conn.execute(
-            """
-            SELECT id FROM qr_cards WHERE status = ? ORDER BY id LIMIT 1
-            """,
-            (WC.QR_CARD_STATUS_IDLE,),
-        ).fetchone()
-        if row is None:
-            raise RuntimeError("no_idle_card")
-        qr_card_id = int(row["id"])
+        if qr_card_id is None:
+            row = conn.execute(
+                """
+                SELECT id FROM qr_cards WHERE status = ? ORDER BY id LIMIT 1
+                """,
+                (WC.QR_CARD_STATUS_IDLE,),
+            ).fetchone()
+            if row is None:
+                raise RuntimeError("no_idle_card")
+            qr_card_id = int(row["id"])
         now = utc_ms_now()
         cur = conn.execute(
             """
@@ -258,6 +261,7 @@ def assign_inventory_bag_to_card(
     inventory_bag_id: int,
     product_id: int,
     user_id: Optional[int],
+    card_scan_token: Optional[str] = None,
 ) -> Tuple[int, int]:
     """
     Link a receiving/shipment bag (``bags`` row) to the next idle QR card.
@@ -294,6 +298,23 @@ def assign_inventory_bag_to_card(
     bag_number = str(inv["bag_number"]) if inv.get("bag_number") is not None else None
     receipt_number = (inv.get("receive_name") or "").strip() or None
 
+    selected_qr_card_id: Optional[int] = None
+    tok = (card_scan_token or "").strip()
+    if tok:
+        card = conn.execute(
+            """
+            SELECT id, status, assigned_workflow_bag_id
+            FROM qr_cards
+            WHERE scan_token = ?
+            """,
+            (tok,),
+        ).fetchone()
+        if card is None:
+            raise RuntimeError("card_token_not_found")
+        if card["status"] != WC.QR_CARD_STATUS_IDLE or card["assigned_workflow_bag_id"] is not None:
+            raise RuntimeError("card_not_idle")
+        selected_qr_card_id = int(card["id"])
+
     return create_workflow_bag_with_card(
         conn,
         product_id=product_id,
@@ -302,4 +323,5 @@ def assign_inventory_bag_to_card(
         receipt_number=receipt_number,
         user_id=user_id,
         inventory_bag_id=inventory_bag_id,
+        qr_card_id=selected_qr_card_id,
     )

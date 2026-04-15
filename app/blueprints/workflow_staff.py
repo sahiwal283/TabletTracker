@@ -20,6 +20,26 @@ LOGGER = logging.getLogger(__name__)
 bp = Blueprint("workflow_staff", __name__, url_prefix="/workflow")
 
 
+def _bag_display_name(conn: sqlite3.Connection, inventory_bag_id: int) -> str:
+    """PO-shipment-box-bag display used across receiving/workflow UI."""
+    row = conn.execute(
+        """
+        SELECT po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
+               sb.box_number, b.bag_number
+        FROM bags b
+        JOIN small_boxes sb ON b.small_box_id = sb.id
+        JOIN receiving r ON sb.receiving_id = r.id
+        LEFT JOIN purchase_orders po ON r.po_id = po.id
+        WHERE b.id = ?
+        """,
+        (inventory_bag_id,),
+    ).fetchone()
+    if not row:
+        return f"bag-{inventory_bag_id}"
+    po_num = (row["po_number"] or f"REC{inventory_bag_id}").strip()
+    return f"{po_num}-{int(row['shipment_number'])}-{row['box_number']}-{row['bag_number']}"
+
+
 def _load_workflow_products(conn):
     rows = conn.execute(
         """
@@ -55,7 +75,7 @@ def _parse_nonneg_int(raw):
 @bp.route("/staff/new-bag", methods=["GET", "POST"])
 @employee_required
 def new_bag():
-    """Assign a receiving/shipment bag to the next idle QR card (same transaction)."""
+    """Assign a receiving/shipment bag to a specific scanned/manual QR card token."""
     conn = get_db()
     try:
         if request.method == "GET":
@@ -67,11 +87,13 @@ def new_bag():
                 form_product_id=None,
                 form_box_number=None,
                 form_bag_number=None,
+                form_card_scan_token=None,
             )
 
         product_id = request.form.get("product_id", type=int)
         box_number = _parse_nonneg_int(request.form.get("box_number"))
         bag_number = _parse_nonneg_int(request.form.get("bag_number"))
+        card_scan_token = (request.form.get("card_scan_token") or "").strip()
         inventory_bag_id = request.form.get("inventory_bag_id", type=int)
         disambiguate = (request.form.get("disambiguate") or "").strip() == "1"
 
@@ -81,6 +103,9 @@ def new_bag():
 
         if not product_id or box_number is None or bag_number is None:
             flash("Product, box number, and bag number are required.", "error")
+            return redirect(url_for("workflow_staff.new_bag"))
+        if not card_scan_token:
+            flash("Scan or enter the bag card token before assigning.", "error")
             return redirect(url_for("workflow_staff.new_bag"))
 
         prow = conn.execute(
@@ -127,6 +152,7 @@ def new_bag():
                     form_product_id=product_id,
                     form_box_number=box_number,
                     form_bag_number=bag_number,
+                    form_card_scan_token=card_scan_token,
                 )
             inventory_bag_id = int(matches[0]["id"])
         else:
@@ -139,6 +165,7 @@ def new_bag():
                 inventory_bag_id=inventory_bag_id,
                 product_id=product_id,
                 user_id=uid,
+                card_scan_token=card_scan_token,
             )
 
         try:
@@ -148,14 +175,29 @@ def new_bag():
             if "no_idle_card" in err:
                 flash("No idle QR cards available. Add cards or finalize existing bags.", "error")
                 return redirect(url_for("workflow_staff.new_bag"))
+            if "card_token_not_found" in err:
+                flash(f"Card token '{card_scan_token}' was not found. Scan the bag card QR again.", "error")
+                return redirect(url_for("workflow_staff.new_bag"))
+            if "card_not_idle" in err:
+                flash(
+                    f"Card token '{card_scan_token}' is already in use. Release/finalize it first, then retry.",
+                    "error",
+                )
+                return redirect(url_for("workflow_staff.new_bag"))
             if "card_claim_failed" in err:
                 flash("Could not claim card (concurrency). Retry.", "error")
                 return redirect(url_for("workflow_staff.new_bag"))
             if "inventory_bag_already_assigned" in err:
-                flash("That shipment bag is already linked to a workflow.", "error")
+                flash(
+                    f"Bag {_bag_display_name(conn, inventory_bag_id)} is already linked to a workflow.",
+                    "error",
+                )
                 return redirect(url_for("workflow_staff.new_bag"))
             if "inventory_bag_not_found" in err:
-                flash("Shipment bag not found.", "error")
+                flash(
+                    f"Bag {_bag_display_name(conn, inventory_bag_id)} was not found.",
+                    "error",
+                )
                 return redirect(url_for("workflow_staff.new_bag"))
             if "inventory_bag_missing_tablet_type" in err:
                 flash("That bag has no tablet type; fix receiving data first.", "error")
@@ -174,8 +216,14 @@ def new_bag():
             raise
 
         conn.commit()
+        card_row = conn.execute(
+            "SELECT scan_token FROM qr_cards WHERE id = ?",
+            (card_id,),
+        ).fetchone()
+        card_token = card_row["scan_token"] if card_row else card_scan_token
+        bag_name = _bag_display_name(conn, inventory_bag_id)
         flash(
-            f"Assigned shipment bag to workflow #{bag_id} and QR card #{card_id}.",
+            f"Assigned bag {bag_name} to QR card {card_token}.",
             "success",
         )
         return redirect(url_for("workflow_staff.new_bag"))

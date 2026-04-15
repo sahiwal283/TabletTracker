@@ -179,18 +179,20 @@
     <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
     <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>. Enter any URL-safe token you like (letters, numbers, <code class="text-xs">._-</code>), or leave blank to auto-generate one with a <strong>bag-</strong> prefix.</p>
 
-    <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="flex flex-wrap items-end gap-3 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+    <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Label (optional)</label>
-        <input type="text" name="label" maxlength="128" class="form-input text-sm w-48" placeholder="e.g. Floor card 12" autocomplete="off"/>
+      <div class="flex flex-wrap items-end gap-4">
+        <div class="flex flex-col gap-1 min-w-0">
+          <label for="wf-add-card-label" class="text-xs font-medium text-gray-600">Label (optional)</label>
+          <input id="wf-add-card-label" type="text" name="label" maxlength="128" class="form-input text-sm w-48 max-w-full" placeholder="e.g. Floor card 12" autocomplete="off"/>
+        </div>
+        <div class="flex flex-col gap-1 min-w-0">
+          <label for="wf-add-card-token" class="text-xs font-medium text-gray-600">Scan token (optional)</label>
+          <input id="wf-add-card-token" type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 max-w-full font-mono" placeholder="test-1" autocomplete="off" title="URL-safe characters only; leave blank for auto bag-…"/>
+        </div>
+        <button type="submit" class="btn-primary text-sm py-2 px-4 shrink-0">Add card</button>
       </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Scan token (optional)</label>
-        <input type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 font-mono" placeholder="e.g. test-card-1 or bag-abc" autocomplete="off"/>
-        <p class="text-[10px] text-gray-500 mt-1">Leave blank for a random <code class="text-[10px]">bag-…</code> token only.</p>
-      </div>
-      <button type="submit" class="btn-primary text-sm py-2 px-4">Add card</button>
+      <p class="text-[10px] text-gray-500 mt-2">Leave scan token blank for a random <code class="text-[10px]">bag-…</code> value.</p>
     </form>
 
     {% if not cards %}
