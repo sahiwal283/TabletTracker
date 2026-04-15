@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.10] - 2026-04-15
+
+### Fixed
+- Workflow bag delete now tolerates unexpected/legacy child foreign-key references and non-critical warehouse cleanup failures, so test bags can still be removed during QR workflow iteration.
+
+---
+
 ## [3.5.9] - 2026-04-15
 
 ### Fixed

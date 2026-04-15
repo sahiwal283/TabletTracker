@@ -164,6 +164,52 @@ def _workflow_bag_label(conn, workflow_bag_id: int) -> str:
     return f"workflow bag #{workflow_bag_id}"
 
 
+def _quote_sqlite_ident(name: str) -> str:
+    return '"' + str(name).replace('"', '""') + '"'
+
+
+def _best_effort_cleanup_workflow_children(conn, workflow_bag_id: int) -> None:
+    """
+    Remove unknown child rows that reference this bag/events in older/custom DBs.
+
+    This keeps delete usable for testing even when extra tables/constraints exist.
+    """
+    table_rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    table_names = [r["name"] for r in table_rows]
+    for table_name in table_names:
+        if table_name in {"workflow_bags", "workflow_events"}:
+            continue
+        try:
+            fk_rows = conn.execute(f"PRAGMA foreign_key_list({_quote_sqlite_ident(table_name)})").fetchall()
+        except sqlite3.Error:
+            continue
+
+        for fk in fk_rows:
+            parent = (fk["table"] or "").strip().lower()
+            from_col = fk["from"]
+            if not from_col:
+                continue
+            q_table = _quote_sqlite_ident(table_name)
+            q_col = _quote_sqlite_ident(from_col)
+            if parent == "workflow_bags":
+                conn.execute(
+                    f"DELETE FROM {q_table} WHERE {q_col} = ?",
+                    (workflow_bag_id,),
+                )
+            elif parent == "workflow_events":
+                conn.execute(
+                    f"""
+                    DELETE FROM {q_table}
+                    WHERE {q_col} IN (
+                        SELECT id FROM workflow_events WHERE workflow_bag_id = ?
+                    )
+                    """,
+                    (workflow_bag_id,),
+                )
+
+
 @bp.route("/submissions/workflow/<int:workflow_bag_id>/delete", methods=["POST"])
 @role_required("dashboard")
 def delete_workflow_bag(workflow_bag_id: int):
@@ -188,7 +234,14 @@ def delete_workflow_bag(workflow_bag_id: int):
                 if not row:
                     return ""
                 bag_label = _workflow_bag_label(conn, workflow_bag_id)
-                delete_synced_warehouse_artifacts_for_workflow_bag(conn, workflow_bag_id)
+                try:
+                    delete_synced_warehouse_artifacts_for_workflow_bag(conn, workflow_bag_id)
+                except Exception:
+                    # Do not block test cleanup if optional warehouse sync cleanup fails.
+                    current_app.logger.exception(
+                        "delete_workflow_bag: warehouse artifact cleanup skipped for bag=%s",
+                        workflow_bag_id,
+                    )
                 # If a card still points to this bag, release it to idle.
                 conn.execute(
                     """
@@ -202,6 +255,7 @@ def delete_workflow_bag(workflow_bag_id: int):
                     "DELETE FROM workflow_events WHERE workflow_bag_id = ?",
                     (workflow_bag_id,),
                 )
+                _best_effort_cleanup_workflow_children(conn, workflow_bag_id)
                 conn.execute(
                     "DELETE FROM workflow_bags WHERE id = ?",
                     (workflow_bag_id,),
