@@ -23,6 +23,44 @@
   function productInput() {
     return document.getElementById('product_input');
   }
+  function countInput() {
+    return document.getElementById('wf-count-total');
+  }
+  function stationKind() {
+    const el = document.getElementById('wf-station-kind');
+    return ((el && el.value) || window.WF_STATION_KIND || 'sealing').toString().trim().toLowerCase();
+  }
+  function selectedCountTotal() {
+    const raw = countInput() ? String(countInput().value || '').trim() : '';
+    if (!raw) throw new Error('Enter a machine count total first.');
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+      throw new Error('Machine count must be a whole number 0 or greater.');
+    }
+    return n;
+  }
+  function configureStationActions() {
+    const kind = stationKind();
+    const hint = document.getElementById('wf-station-hint');
+    const saveBtn = document.getElementById('wf-save-count');
+    const pauseBtn = document.getElementById('wf-pause-count');
+    if (!saveBtn || !pauseBtn) return;
+    if (kind === 'blister') {
+      saveBtn.textContent = 'Submit blister count';
+      pauseBtn.textContent = 'Pause blister bag';
+      if (hint) hint.textContent = 'Blister lane: claim bag, submit blister machine count, or pause with current count.';
+    } else if (kind === 'sealing') {
+      saveBtn.textContent = 'Submit sealing count';
+      pauseBtn.textContent = 'Pause sealing bag';
+      if (hint) hint.textContent = 'Sealing lane: claim bag, submit sealing machine count, or pause with current count.';
+    } else if (kind === 'packaging') {
+      saveBtn.textContent = 'Save packaging displays';
+      pauseBtn.textContent = 'Pause packaging bag';
+      if (hint) hint.textContent = 'Packaging lane: claim bag, save display count snapshot, or pause for handoff.';
+    } else {
+      if (hint) hint.textContent = 'Combined lane: claim bag and submit machine count for your lane.';
+    }
+  }
   function stationReady() {
     const t = document.getElementById('wf-station-token');
     const v = t && t.value ? String(t.value).trim() : '';
@@ -166,6 +204,71 @@
     });
     statusLine(JSON.stringify(data.facts, null, 2));
   }
+  async function claimBag() {
+    const kind = stationKind();
+    const data = await emitEvent('BAG_CLAIMED', {
+      station_id: window.WF_STATION_ID || 0,
+      station_kind: kind,
+      note: 'claimed_on_station',
+    });
+    statusLine(JSON.stringify(data.facts, null, 2));
+  }
+  async function saveCountAndContinue() {
+    const kind = stationKind();
+    const countTotal = selectedCountTotal();
+    if (kind === 'blister' || kind === 'combined') {
+      const data = await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+      statusLine(JSON.stringify(data.facts, null, 2));
+      return;
+    }
+    if (kind === 'sealing') {
+      const data = await emitEvent('SEALING_COMPLETE', {
+        station_id: window.WF_STATION_ID || 1,
+        count_total: countTotal,
+      });
+      statusLine(JSON.stringify(data.facts, null, 2));
+      return;
+    }
+    if (kind === 'packaging') {
+      const data = await emitEvent('PACKAGING_SNAPSHOT', {
+        display_count: countTotal,
+        reason: 'live_count',
+      });
+      statusLine(JSON.stringify(data.facts, null, 2));
+      return;
+    }
+    throw new Error('Unsupported station kind: ' + kind);
+  }
+  async function pauseWithCount() {
+    const kind = stationKind();
+    const countTotal = selectedCountTotal();
+    if (kind === 'blister' || kind === 'combined') {
+      const data = await emitEvent('BLISTER_COMPLETE', {
+        count_total: countTotal,
+        metadata: { paused: true, reason: 'end_of_day' },
+      });
+      statusLine('Paused with saved blister count. ' + JSON.stringify(data.facts));
+      return;
+    }
+    if (kind === 'sealing') {
+      const data = await emitEvent('SEALING_COMPLETE', {
+        station_id: window.WF_STATION_ID || 1,
+        count_total: countTotal,
+        metadata: { paused: true, reason: 'end_of_day' },
+      });
+      statusLine('Paused with saved sealing count. ' + JSON.stringify(data.facts));
+      return;
+    }
+    if (kind === 'packaging') {
+      const data = await emitEvent('PACKAGING_SNAPSHOT', {
+        display_count: countTotal,
+        reason: 'paused_end_of_day',
+      });
+      statusLine('Paused with saved packaging count. ' + JSON.stringify(data.facts));
+      return;
+    }
+    throw new Error('Unsupported station kind: ' + kind);
+  }
   async function emitEvent(eventType, payload) {
     const stationToken = document.getElementById('wf-station-token').value;
     const inp = productInput();
@@ -192,14 +295,15 @@
     statusLine(JSON.stringify(data, null, 2));
   }
   document.addEventListener('DOMContentLoaded', () => {
+    configureStationActions();
     const r = document.getElementById('wf-refresh');
     if (r) r.addEventListener('click', () => refresh().catch((e) => statusLine(String(e))));
-    const b = document.getElementById('wf-blister');
-    if (b) b.addEventListener('click', () => emitEvent('BLISTER_COMPLETE', { count_total: 1 }).then((d) => statusLine(JSON.stringify(d.facts))).catch((e) => statusLine(String(e))));
-    const s = document.getElementById('wf-seal');
-    if (s) s.addEventListener('click', () => emitEvent('SEALING_COMPLETE', { station_id: window.WF_STATION_ID || 1, count_total: 1 }).then((d) => statusLine(JSON.stringify(d.facts))).catch((e) => statusLine(String(e))));
-    const p = document.getElementById('wf-pack');
-    if (p) p.addEventListener('click', () => emitEvent('PACKAGING_SNAPSHOT', { display_count: 1, reason: 'sample' }).then((d) => statusLine(JSON.stringify(d.facts))).catch((e) => statusLine(String(e))));
+    const c = document.getElementById('wf-claim');
+    if (c) c.addEventListener('click', () => claimBag().catch((e) => statusLine(String(e))));
+    const save = document.getElementById('wf-save-count');
+    if (save) save.addEventListener('click', () => saveCountAndContinue().catch((e) => statusLine(String(e))));
+    const pause = document.getElementById('wf-pause-count');
+    if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e))));
     const f = document.getElementById('wf-finalize');
     if (f) f.addEventListener('click', () => finalize().catch((e) => statusLine(String(e))));
     const sp = document.getElementById('wf-scan-product');

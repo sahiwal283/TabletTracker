@@ -9,7 +9,7 @@
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
   <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
-  <p class="text-sm text-gray-600 mb-4">Token in URL. Scan product/bag QR or enter values below.</p>
+  <p class="text-sm text-gray-600 mb-4">Scan the bag card token, then claim/save counts for this station lane.</p>
   <div id="wf-status" class="mb-4 p-3 rounded border bg-gray-50 text-sm"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>
   <div class="flex gap-2 mb-2">
@@ -21,14 +21,18 @@
     <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
   </div>
   <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
+  <label for="wf-count-total" class="block text-sm font-medium mb-1">Machine count total</label>
+  <input id="wf-count-total" type="number" min="0" step="1" class="form-input mb-3" placeholder="Enter end count (e.g. 240)" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
+  <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
   <div class="flex flex-wrap gap-2 mb-4">
-    <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Load bag</button>
-    <button type="button" id="wf-blister" class="btn-secondary px-4 py-2">Blister done</button>
-    <button type="button" id="wf-seal" class="btn-secondary px-4 py-2">Sealing done</button>
-    <button type="button" id="wf-pack" class="btn-secondary px-4 py-2">Packaging</button>
+    <button type="button" id="wf-claim" class="btn-secondary px-4 py-2">Claim bag</button>
+    <button type="button" id="wf-save-count" class="btn-secondary px-4 py-2">Save count (continue)</button>
+    <button type="button" id="wf-pause-count" class="btn-secondary px-4 py-2">Pause bag (end of day)</button>
+    <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Refresh bag status</button>
     <button type="button" id="wf-finalize" class="btn-primary px-4 py-2">Finalize</button>
   </div>
+  <p id="wf-station-hint" class="text-xs text-gray-500 mb-3"></p>
   <p class="text-xs text-gray-500">device_id is generated in localStorage for log correlation only.</p>
 </div>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -36,5 +40,6 @@
 <script>
   window.WF_STATION_TOKEN = {{ station_token | tojson }};
   window.WF_STATION_ID = {{ station_id | int }};
+  window.WF_STATION_KIND = {{ (station_kind or 'sealing') | tojson }};
 </script>
 {% endblock %}

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.12] - 2026-04-15
+
+### Changed
+- Station floor UI now enforces lane-specific actions: blister/sealing/packaging pages only submit their own event types, with explicit `Claim bag`, `Submit count`, and `Pause bag` actions and count input.
+
+### Fixed
+- Floor API now rejects cross-lane events (for example, sealing/packaging from a blister station), preventing accidental mixed-stage submissions from the wrong station token.
+
+---
+
 ## [3.5.11] - 2026-04-15
 
 ### Fixed

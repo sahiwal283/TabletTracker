@@ -73,6 +73,20 @@ def _resolve_card(conn, card_token: str):
     ).fetchone()
 
 
+def _is_event_allowed_for_station(station_kind: str, event_type: str) -> bool:
+    kind = (station_kind or "sealing").strip().lower()
+    et = (event_type or "").strip().upper()
+    if et == WC.EVENT_BAG_CLAIMED:
+        return True
+    allowed = {
+        "blister": {WC.EVENT_BLISTER_COMPLETE},
+        "sealing": {WC.EVENT_SEALING_COMPLETE},
+        "packaging": {WC.EVENT_PACKAGING_SNAPSHOT},
+        "combined": {WC.EVENT_BLISTER_COMPLETE, WC.EVENT_SEALING_COMPLETE},
+    }
+    return et in allowed.get(kind, set())
+
+
 @bp.route("/manual")
 def manual_station():
     """Paste station / card tokens without scanning."""
@@ -201,6 +215,14 @@ def api_append_event():
         if card["assigned_workflow_bag_id"] is None:
             return workflow_json("WORKFLOW_VALIDATION", "Card not assigned")
         bag_id = int(card["assigned_workflow_bag_id"])
+        st_dict = dict(st)
+        station_kind = (st_dict.get("station_kind") or "sealing").strip().lower()
+        if not _is_event_allowed_for_station(station_kind, event_type):
+            return workflow_json(
+                "WORKFLOW_VALIDATION",
+                f"{event_type} is not allowed for station type '{station_kind}'",
+                status=400,
+            )
         try:
             append_workflow_event(
                 conn,
@@ -216,7 +238,7 @@ def api_append_event():
         bridge_result = None
         try:
             bridge_result = sync_workflow_warehouse_events(
-                conn, bag_id, event_type, pl, dict(st)
+                conn, bag_id, event_type, pl, st_dict
             )
         except ProductionSubmissionError as pse:
             conn.rollback()

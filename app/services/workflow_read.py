@@ -91,6 +91,7 @@ def display_stage_label(facts: Dict[str, Any]) -> str:
         return "No events"
     pretty = {
         WC.EVENT_CARD_ASSIGNED: "Card assigned",
+        WC.EVENT_BAG_CLAIMED: "Bag claimed",
         WC.EVENT_BLISTER_COMPLETE: "Blister",
         WC.EVENT_SEALING_COMPLETE: "Sealing",
         WC.EVENT_PACKAGING_SNAPSHOT: "Packaging",
@@ -104,6 +105,8 @@ def progress_summary(facts: Dict[str, Any]) -> str:
     """Human summary from counts — cosmetic; do not use as API contract for rules."""
     c = facts.get("event_counts_by_type") or {}
     parts = []
+    if c.get(WC.EVENT_BAG_CLAIMED):
+        parts.append(f"claimed×{c[WC.EVENT_BAG_CLAIMED]}")
     if c.get(WC.EVENT_BLISTER_COMPLETE):
         parts.append(f"blister×{c[WC.EVENT_BLISTER_COMPLETE]}")
     if c.get(WC.EVENT_SEALING_COMPLETE):
