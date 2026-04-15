@@ -594,3 +594,75 @@ def sync_workflow_warehouse_events(
     if len(out) == 1:
         return next(iter(out.values()))
     return out
+
+
+def delete_synced_warehouse_artifacts_for_workflow_bag(
+    conn: sqlite3.Connection, workflow_bag_id: int
+) -> None:
+    """
+    Remove packaged + machine warehouse rows keyed by this bag's WORKFLOW-<id> receipts.
+
+    Call before deleting a ``workflow_bags`` row so PO aggregates and paired ``machine_counts``
+    stay consistent with the bridge's upsert/delete behavior.
+    """
+    wf = int(workflow_bag_id)
+    packaged_receipt = workflow_packaged_receipt_number(wf)
+    rows = conn.execute(
+        """
+        SELECT assigned_po_id FROM warehouse_submissions
+        WHERE receipt_number = ? AND submission_type = 'packaged'
+        """,
+        (packaged_receipt,),
+    ).fetchall()
+    po_ids: set = set()
+    for row in rows:
+        r = dict(row)
+        apo = r.get("assigned_po_id")
+        if apo is not None:
+            po_ids.add(int(apo))
+    conn.execute(
+        """
+        DELETE FROM warehouse_submissions
+        WHERE receipt_number = ? AND submission_type = 'packaged'
+        """,
+        (packaged_receipt,),
+    )
+    for po_id in po_ids:
+        refresh_purchase_order_header_aggregates(conn, po_id)
+
+    wb = conn.execute(
+        "SELECT product_id FROM workflow_bags WHERE id = ?", (wf,)
+    ).fetchone()
+    pid = None
+    if wb:
+        pid = dict(wb).get("product_id")
+    tid = _tablet_type_for_product(conn, int(pid)) if pid else None
+    seal_r = workflow_machine_lane_receipt_number(wf, "seal")
+    blist_r = workflow_machine_lane_receipt_number(wf, "blister")
+    if tid:
+        _delete_workflow_machine_lane_rows(conn, seal_r, tid)
+        _delete_workflow_machine_lane_rows(conn, blist_r, tid)
+        return
+    for r in (seal_r, blist_r):
+        n = conn.execute(
+            """
+            SELECT COUNT(*) AS c FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine'
+            """,
+            (r,),
+        ).fetchone()
+        if not n or int(n["c"]) == 0:
+            continue
+        LOGGER.warning(
+            "workflow warehouse bridge: bag %s has machine rows but no tablet_type_id; "
+            "dropping receipt %s without full PO/machine_count pairing",
+            wf,
+            r,
+        )
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine'
+            """,
+            (r,),
+        )

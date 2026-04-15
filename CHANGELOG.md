@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.9] - 2026-04-15
+
+### Fixed
+- Workflow bag delete: broader SQLITE busy detection (messages that omit the word "locked"), removal of synced `WORKFLOW-<id>` warehouse rows before deleting the bag, clearer handling for integrity vs other database errors.
+
+---
+
 ## [3.5.8] - 2026-04-15
 
 ### Fixed

@@ -17,7 +17,8 @@ from app.services.submissions_view_service import (
     append_submission_sort,
 )
 from app.services.workflow_read import display_stage_label, mechanical_bag_facts, progress_summary
-from app.services.workflow_txn import run_with_busy_retry
+from app.services.workflow_txn import is_sqlite_busy_retryable, run_with_busy_retry
+from app.services.workflow_warehouse_bridge import delete_synced_warehouse_artifacts_for_workflow_bag
 from app.utils.auth_utils import role_required
 from app.utils.db_utils import db_read_only, db_transaction
 
@@ -187,6 +188,7 @@ def delete_workflow_bag(workflow_bag_id: int):
                 if not row:
                     return ""
                 bag_label = _workflow_bag_label(conn, workflow_bag_id)
+                delete_synced_warehouse_artifacts_for_workflow_bag(conn, workflow_bag_id)
                 # If a card still points to this bag, release it to idle.
                 conn.execute(
                     """
@@ -216,12 +218,16 @@ def delete_workflow_bag(workflow_bag_id: int):
             )
     except sqlite3.OperationalError as oe:
         current_app.logger.error("delete_workflow_bag: %s", oe)
-        if "locked" in str(oe).lower():
+        if is_sqlite_busy_retryable(oe):
             flash("Could not delete workflow bag right now (database busy). Retry once.", "error")
         else:
+            current_app.logger.error("delete_workflow_bag (non-busy OperationalError): %r", oe)
             flash("Could not delete workflow bag (database error).", "error")
+    except sqlite3.IntegrityError as ie:
+        current_app.logger.error("delete_workflow_bag integrity: %s", ie, exc_info=True)
+        flash("Could not delete workflow bag (related records still reference it).", "error")
     except Exception as e:
-        current_app.logger.error("delete_workflow_bag: %s", e)
+        current_app.logger.error("delete_workflow_bag: %s", e, exc_info=True)
         flash("Could not delete workflow bag.", "error")
 
     q = {"view": next_view}

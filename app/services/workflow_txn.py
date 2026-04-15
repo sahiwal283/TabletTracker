@@ -24,6 +24,25 @@ def _jitter_ms() -> float:
     return random.uniform(BACKOFF_MIN_MS, BACKOFF_MAX_MS) / 1000.0
 
 
+def _is_retryable_sqlite_busy(exc: sqlite3.OperationalError) -> bool:
+    """True when SQLite reports contention that may clear after a short wait."""
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code == sqlite3.SQLITE_BUSY:
+        return True
+    msg = str(exc).lower()
+    if "database is locked" in msg or "locked" in msg:
+        return True
+    # Some builds / WAL paths surface busy without the word "locked" (e.g. "database is busy").
+    if "busy" in msg:
+        return True
+    return False
+
+
+def is_sqlite_busy_retryable(exc: BaseException) -> bool:
+    """Public helper for user-facing messages (matches ``run_with_busy_retry`` detection)."""
+    return isinstance(exc, sqlite3.OperationalError) and _is_retryable_sqlite_busy(exc)
+
+
 def run_with_busy_retry(
     fn: Callable[[], T],
     *,
@@ -36,7 +55,7 @@ def run_with_busy_retry(
             return fn()
         except sqlite3.OperationalError as e:
             last_exc = e
-            if "database is locked" not in str(e).lower() and "locked" not in str(e).lower():
+            if not _is_retryable_sqlite_busy(e):
                 raise
             if attempt >= MAX_BUSY_ATTEMPTS:
                 LOGGER.error("%s SQLITE_BUSY exhausted after %s attempts", op_name, attempt)
