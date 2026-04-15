@@ -9,18 +9,18 @@
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
   <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
-  <p class="text-sm text-gray-600 mb-4">Token in URL. Scan card QR or enter values below.</p>
+  <p class="text-sm text-gray-600 mb-4">Token in URL. Scan product/bag QR or enter values below.</p>
   <div id="wf-status" class="mb-4 p-3 rounded border bg-gray-50 text-sm"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>
   <div class="flex gap-2 mb-2">
-    <button type="button" id="wf-scan-open" class="btn-secondary px-3 py-2">Scan card QR</button>
-    <button type="button" id="wf-scan-close" class="btn-secondary px-3 py-2 hidden">Stop scan</button>
+    <button type="button" id="wf-scan-product" class="btn-secondary px-3 py-2">Scan Product QR</button>
+    <button type="button" id="wf-scan-stop" class="btn-secondary px-3 py-2 hidden">Stop scan</button>
   </div>
-  <div id="wf-scanner-wrap" class="mb-3 hidden">
-    <video id="wf-scanner-video" class="w-full rounded border bg-black" autoplay playsinline muted></video>
+  <div id="wf-productqr-reader-wrap" class="mb-3 hidden">
+    <div id="wf-productqr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
     <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
   </div>
-  <input id="wf-card-token" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
+  <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <div class="flex flex-wrap gap-2 mb-4">
     <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Load bag</button>
@@ -31,6 +31,7 @@
   </div>
   <p class="text-xs text-gray-500">device_id is generated in localStorage for log correlation only.</p>
 </div>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="{{ url_for('static', filename='js/workflow-ui.js') }}"></script>
 <script>
   window.WF_STATION_TOKEN = {{ station_token | tojson }};

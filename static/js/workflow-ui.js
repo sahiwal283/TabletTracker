@@ -1,8 +1,7 @@
 
 (function () {
-  let scannerStream = null;
-  let scannerRaf = null;
-  let scannerDetector = null;
+  let html5QrCode = null;
+  let productScanDone = false;
 
   const WF_PAGE_SESSION = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + '-' + Math.random());
   function pageSessionId() {
@@ -21,68 +20,121 @@
     const el = document.getElementById('wf-status');
     if (el) el.textContent = msg;
   }
-  function setScannerVisible(visible) {
-    const wrap = document.getElementById('wf-scanner-wrap');
-    const openBtn = document.getElementById('wf-scan-open');
-    const closeBtn = document.getElementById('wf-scan-close');
-    if (wrap) wrap.classList.toggle('hidden', !visible);
-    if (openBtn) openBtn.classList.toggle('hidden', visible);
-    if (closeBtn) closeBtn.classList.toggle('hidden', !visible);
+  function productInput() {
+    return document.getElementById('product_input');
   }
-  function stopScanner() {
-    if (scannerRaf) {
-      cancelAnimationFrame(scannerRaf);
-      scannerRaf = null;
-    }
-    const video = document.getElementById('wf-scanner-video');
-    if (video) video.srcObject = null;
-    if (scannerStream) {
-      scannerStream.getTracks().forEach((track) => track.stop());
-      scannerStream = null;
-    }
-    setScannerVisible(false);
+  function stationReady() {
+    const t = document.getElementById('wf-station-token');
+    const v = t && t.value ? String(t.value).trim() : '';
+    return v.length > 0;
   }
-  async function scanLoop() {
-    const video = document.getElementById('wf-scanner-video');
-    if (!video || !scannerDetector) return;
-    try {
-      const codes = await scannerDetector.detect(video);
-      if (codes && codes.length > 0) {
-        const raw = (codes[0] && codes[0].rawValue) ? String(codes[0].rawValue).trim() : '';
-        if (raw) {
-          const tokenInput = document.getElementById('wf-card-token');
-          if (tokenInput) tokenInput.value = raw;
-          statusLine('QR scanned. Card token loaded.');
-          stopScanner();
-          return;
-        }
+  function setScanUi(scanning) {
+    const wrap = document.getElementById('wf-productqr-reader-wrap');
+    const stopBtn = document.getElementById('wf-scan-stop');
+    const scanBtn = document.getElementById('wf-scan-product');
+    if (wrap) wrap.classList.toggle('hidden', !scanning);
+    if (stopBtn) stopBtn.classList.toggle('hidden', !scanning);
+    if (scanBtn) scanBtn.classList.toggle('hidden', scanning);
+  }
+  async function stopProductQrScanner() {
+    productScanDone = false;
+    if (html5QrCode) {
+      try {
+        await html5QrCode.stop();
+      } catch (_e) {
+        /* already stopped */
       }
-    } catch (_e) {
-      // Keep scanning; transient detector errors are expected on some devices.
+      try {
+        await html5QrCode.clear();
+      } catch (_e) {
+        /* */
+      }
+      html5QrCode = null;
     }
-    scannerRaf = requestAnimationFrame(scanLoop);
+    setScanUi(false);
   }
-  async function openScanner() {
-    if (!window.BarcodeDetector) {
-      statusLine('Camera QR scanning is not supported in this browser. Use the Camera app and paste the token here.');
+  async function startProductQrScan() {
+    if (!stationReady()) {
+      statusLine('Error: open this page from your station QR first. Station token is missing.');
       return;
     }
+    if (typeof Html5Qrcode === 'undefined') {
+      statusLine('Scanner failed to load. Check your connection and refresh the page.');
+      return;
+    }
+    await stopProductQrScanner();
+    productScanDone = false;
+    const readerId = 'wf-productqr-reader';
+    const el = document.getElementById(readerId);
+    if (!el) return;
+    html5QrCode = new Html5Qrcode(readerId);
+    setScanUi(true);
+    statusLine('Point the camera at the product/bag QR code.');
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+    };
+    function onScanSuccess(decodedText) {
+      if (productScanDone) return;
+      const text = String(decodedText || '').trim();
+      if (!text) return;
+      productScanDone = true;
+      setTimeout(function () {
+        (async function () {
+          try {
+            await stopProductQrScanner();
+            const inp = productInput();
+            if (inp) inp.value = text;
+            try {
+              if (navigator.vibrate) navigator.vibrate(15);
+            } catch (_v) {
+              /* */
+            }
+            statusLine('Product QR captured — loading bag…');
+            await refresh();
+          } catch (err) {
+            statusLine(String(err));
+          }
+        })();
+      }, 0);
+    }
+    function onScanFailure() {
+      /* per-frame noise; ignore */
+    }
     try {
-      scannerDetector = new BarcodeDetector({ formats: ['qr_code'] });
-      scannerStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
-      const video = document.getElementById('wf-scanner-video');
-      if (!video) return;
-      video.srcObject = scannerStream;
-      await video.play();
-      setScannerVisible(true);
-      statusLine('Scanning... align the QR code inside the camera preview.');
-      scannerRaf = requestAnimationFrame(scanLoop);
-    } catch (e) {
-      stopScanner();
-      statusLine('Could not start camera scanner: ' + (e && e.message ? e.message : String(e)));
+      await html5QrCode.start({ facingMode: 'environment' }, config, onScanSuccess, onScanFailure);
+    } catch (e1) {
+      try {
+        await html5QrCode.stop();
+      } catch (_s) {
+        /* */
+      }
+      try {
+        await html5QrCode.clear();
+      } catch (_c) {
+        /* */
+      }
+      html5QrCode = null;
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices || devices.length === 0) {
+          throw e1;
+        }
+        const back =
+          devices.find(function (d) {
+            return /back|rear|environment|wide/i.test(d.label || '');
+          }) || devices[0];
+        html5QrCode = new Html5Qrcode(readerId);
+        await html5QrCode.start(back.id, config, onScanSuccess, onScanFailure);
+      } catch (e2) {
+        await stopProductQrScanner();
+        const msg = (e1 && e1.message) || String(e1);
+        if (/Permission|NotAllowed|denied/i.test(msg)) {
+          statusLine('Camera permission denied. Allow camera access in Safari settings and try again.');
+        } else {
+          statusLine('Could not start camera: ' + msg);
+        }
+      }
     }
   }
   async function postJson(path, body) {
@@ -100,8 +152,12 @@
   }
   async function refresh() {
     const stationToken = document.getElementById('wf-station-token').value;
-    const cardToken = document.getElementById('wf-card-token').value.trim();
-    if (!cardToken) { statusLine('Enter card token'); return; }
+    const inp = productInput();
+    const cardToken = inp ? inp.value.trim() : '';
+    if (!cardToken) {
+      statusLine('Enter card token');
+      return;
+    }
     const data = await postJson('/workflow/floor/api/bag', {
       station_token: stationToken,
       card_token: cardToken,
@@ -112,7 +168,8 @@
   }
   async function emitEvent(eventType, payload) {
     const stationToken = document.getElementById('wf-station-token').value;
-    const cardToken = document.getElementById('wf-card-token').value.trim();
+    const inp = productInput();
+    const cardToken = inp ? inp.value.trim() : '';
     return postJson('/workflow/floor/api/event', {
       station_token: stationToken,
       card_token: cardToken,
@@ -124,7 +181,8 @@
   }
   async function finalize() {
     const stationToken = document.getElementById('wf-station-token').value;
-    const cardToken = document.getElementById('wf-card-token').value.trim();
+    const inp = productInput();
+    const cardToken = inp ? inp.value.trim() : '';
     const data = await postJson('/workflow/floor/api/finalize', {
       station_token: stationToken,
       card_token: cardToken,
@@ -144,10 +202,12 @@
     if (p) p.addEventListener('click', () => emitEvent('PACKAGING_SNAPSHOT', { display_count: 1, reason: 'sample' }).then((d) => statusLine(JSON.stringify(d.facts))).catch((e) => statusLine(String(e))));
     const f = document.getElementById('wf-finalize');
     if (f) f.addEventListener('click', () => finalize().catch((e) => statusLine(String(e))));
-    const so = document.getElementById('wf-scan-open');
-    if (so) so.addEventListener('click', () => openScanner().catch((e) => statusLine(String(e))));
-    const sc = document.getElementById('wf-scan-close');
-    if (sc) sc.addEventListener('click', () => stopScanner());
-    window.addEventListener('beforeunload', stopScanner);
+    const sp = document.getElementById('wf-scan-product');
+    if (sp) sp.addEventListener('click', () => startProductQrScan().catch((e) => statusLine(String(e))));
+    const st = document.getElementById('wf-scan-stop');
+    if (st) st.addEventListener('click', () => stopProductQrScanner().catch((e) => statusLine(String(e))));
+    window.addEventListener('beforeunload', () => {
+      stopProductQrScanner().catch(() => {});
+    });
   });
 })();
