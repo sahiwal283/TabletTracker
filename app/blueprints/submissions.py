@@ -144,19 +144,37 @@ def _workflow_submissions_template_kwargs(workflow_bags, wf_status, pagination):
 
 
 def _workflow_bag_label(conn, workflow_bag_id: int) -> str:
-    row = conn.execute(
-        """
-        SELECT wb.id, po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
-               sb.box_number, b.bag_number
-        FROM workflow_bags wb
-        LEFT JOIN bags b ON b.id = wb.inventory_bag_id
-        LEFT JOIN small_boxes sb ON sb.id = b.small_box_id
-        LEFT JOIN receiving r ON r.id = sb.receiving_id
-        LEFT JOIN purchase_orders po ON po.id = r.po_id
-        WHERE wb.id = ?
-        """,
-        (workflow_bag_id,),
-    ).fetchone()
+    try:
+        row = conn.execute(
+            """
+            SELECT wb.id, po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
+                   sb.box_number, b.bag_number
+            FROM workflow_bags wb
+            LEFT JOIN bags b ON b.id = wb.inventory_bag_id
+            LEFT JOIN small_boxes sb ON sb.id = b.small_box_id
+            LEFT JOIN receiving r ON r.id = sb.receiving_id
+            LEFT JOIN purchase_orders po ON po.id = r.po_id
+            WHERE wb.id = ?
+            """,
+            (workflow_bag_id,),
+        ).fetchone()
+    except sqlite3.OperationalError as oe:
+        # Some older production DBs do not have receiving.shipment_number yet.
+        if "shipment_number" not in str(oe).lower():
+            raise
+        row = conn.execute(
+            """
+            SELECT wb.id, po.po_number, 1 AS shipment_number,
+                   sb.box_number, b.bag_number
+            FROM workflow_bags wb
+            LEFT JOIN bags b ON b.id = wb.inventory_bag_id
+            LEFT JOIN small_boxes sb ON sb.id = b.small_box_id
+            LEFT JOIN receiving r ON r.id = sb.receiving_id
+            LEFT JOIN purchase_orders po ON po.id = r.po_id
+            WHERE wb.id = ?
+            """,
+            (workflow_bag_id,),
+        ).fetchone()
     if not row:
         return f"workflow bag #{workflow_bag_id}"
     if row["po_number"] and row["box_number"] is not None and row["bag_number"] is not None:

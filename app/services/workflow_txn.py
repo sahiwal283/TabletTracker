@@ -15,6 +15,7 @@ LOGGER = logging.getLogger(__name__)
 T = TypeVar("T")
 
 SQLITE_BUSY = "SQLITE_BUSY"
+SQLITE_BUSY_CODE = getattr(sqlite3, "SQLITE_BUSY", 5)
 MAX_BUSY_ATTEMPTS = 5
 BACKOFF_MIN_MS = 50
 BACKOFF_MAX_MS = 150
@@ -27,7 +28,7 @@ def _jitter_ms() -> float:
 def _is_retryable_sqlite_busy(exc: sqlite3.OperationalError) -> bool:
     """True when SQLite reports contention that may clear after a short wait."""
     code = getattr(exc, "sqlite_errorcode", None)
-    if code == sqlite3.SQLITE_BUSY:
+    if code == SQLITE_BUSY_CODE:
         return True
     msg = str(exc).lower()
     if "database is locked" in msg or "locked" in msg:
