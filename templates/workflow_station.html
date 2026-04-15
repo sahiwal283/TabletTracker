@@ -12,6 +12,14 @@
   <p class="text-sm text-gray-600 mb-4">Token in URL. Scan card QR or enter values below.</p>
   <div id="wf-status" class="mb-4 p-3 rounded border bg-gray-50 text-sm"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>
+  <div class="flex gap-2 mb-2">
+    <button type="button" id="wf-scan-open" class="btn-secondary px-3 py-2">Scan card QR</button>
+    <button type="button" id="wf-scan-close" class="btn-secondary px-3 py-2 hidden">Stop scan</button>
+  </div>
+  <div id="wf-scanner-wrap" class="mb-3 hidden">
+    <video id="wf-scanner-video" class="w-full rounded border bg-black" autoplay playsinline muted></video>
+    <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
+  </div>
   <input id="wf-card-token" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <div class="flex flex-wrap gap-2 mb-4">
