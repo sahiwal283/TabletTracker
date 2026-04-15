@@ -9,7 +9,7 @@
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
   <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
-  <p class="text-sm text-gray-600 mb-4">Scan the bag card token, then claim/save counts for this station lane.</p>
+  <p class="text-sm text-gray-600 mb-4">Scan the bag card token, then run actions for this station lane.</p>
   <div id="wf-status" class="mb-4 p-3 rounded border bg-gray-50 text-sm"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>
   <div class="flex gap-2 mb-2">
@@ -21,13 +21,15 @@
     <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
   </div>
   <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
-  <label for="wf-count-total" class="block text-sm font-medium mb-1">Machine count total</label>
+  <label for="wf-count-total" id="wf-count-label" class="block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="form-input mb-3" placeholder="Enter end count (e.g. 240)" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
   <div class="flex flex-wrap gap-2 mb-4">
     <button type="button" id="wf-claim" class="btn-secondary px-4 py-2">Claim bag</button>
-    <button type="button" id="wf-save-count" class="btn-secondary px-4 py-2">Save count (continue)</button>
+    <button type="button" id="wf-save-count" class="btn-secondary px-4 py-2">Submit count</button>
+    <button type="button" id="wf-save-blister" class="btn-secondary px-4 py-2 hidden">Submit blister count</button>
+    <button type="button" id="wf-save-seal" class="btn-secondary px-4 py-2 hidden">Submit sealing count</button>
     <button type="button" id="wf-pause-count" class="btn-secondary px-4 py-2">Pause bag (end of day)</button>
     <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Refresh bag status</button>
     <button type="button" id="wf-finalize" class="btn-primary px-4 py-2">Finalize</button>

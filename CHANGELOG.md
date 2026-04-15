@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.13] - 2026-04-15
+
+### Changed
+- Workflow station pages now fully wire per-lane actions, including dedicated combined-station controls for separate blister and sealing submissions, lane-specific count labels, and clearer action copy.
+
+---
+
 ## [3.5.12] - 2026-04-15
 
 ### Changed

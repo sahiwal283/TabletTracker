@@ -42,22 +42,39 @@
   function configureStationActions() {
     const kind = stationKind();
     const hint = document.getElementById('wf-station-hint');
+    const countLabel = document.getElementById('wf-count-label');
     const saveBtn = document.getElementById('wf-save-count');
+    const saveBlisterBtn = document.getElementById('wf-save-blister');
+    const saveSealBtn = document.getElementById('wf-save-seal');
     const pauseBtn = document.getElementById('wf-pause-count');
     if (!saveBtn || !pauseBtn) return;
+    saveBtn.classList.remove('hidden');
+    if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
+    if (saveSealBtn) saveSealBtn.classList.add('hidden');
     if (kind === 'blister') {
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
+      if (countLabel) countLabel.textContent = 'Blister machine count total';
       if (hint) hint.textContent = 'Blister lane: claim bag, submit blister machine count, or pause with current count.';
     } else if (kind === 'sealing') {
       saveBtn.textContent = 'Submit sealing count';
       pauseBtn.textContent = 'Pause sealing bag';
+      if (countLabel) countLabel.textContent = 'Sealing machine count total';
       if (hint) hint.textContent = 'Sealing lane: claim bag, submit sealing machine count, or pause with current count.';
     } else if (kind === 'packaging') {
       saveBtn.textContent = 'Save packaging displays';
       pauseBtn.textContent = 'Pause packaging bag';
+      if (countLabel) countLabel.textContent = 'Packaging display count';
       if (hint) hint.textContent = 'Packaging lane: claim bag, save display count snapshot, or pause for handoff.';
+    } else if (kind === 'combined') {
+      saveBtn.classList.add('hidden');
+      if (saveBlisterBtn) saveBlisterBtn.classList.remove('hidden');
+      if (saveSealBtn) saveSealBtn.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause combined bag';
+      if (countLabel) countLabel.textContent = 'Machine count total';
+      if (hint) hint.textContent = 'Combined lane: claim bag, submit blister or sealing count, or pause with current count.';
     } else {
+      if (countLabel) countLabel.textContent = 'Machine count total';
       if (hint) hint.textContent = 'Combined lane: claim bag and submit machine count for your lane.';
     }
   }
@@ -239,6 +256,19 @@
     }
     throw new Error('Unsupported station kind: ' + kind);
   }
+  async function saveBlisterCountOnly() {
+    const countTotal = selectedCountTotal();
+    const data = await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+    statusLine(JSON.stringify(data.facts, null, 2));
+  }
+  async function saveSealingCountOnly() {
+    const countTotal = selectedCountTotal();
+    const data = await emitEvent('SEALING_COMPLETE', {
+      station_id: window.WF_STATION_ID || 1,
+      count_total: countTotal,
+    });
+    statusLine(JSON.stringify(data.facts, null, 2));
+  }
   async function pauseWithCount() {
     const kind = stationKind();
     const countTotal = selectedCountTotal();
@@ -302,6 +332,10 @@
     if (c) c.addEventListener('click', () => claimBag().catch((e) => statusLine(String(e))));
     const save = document.getElementById('wf-save-count');
     if (save) save.addEventListener('click', () => saveCountAndContinue().catch((e) => statusLine(String(e))));
+    const saveBlister = document.getElementById('wf-save-blister');
+    if (saveBlister) saveBlister.addEventListener('click', () => saveBlisterCountOnly().catch((e) => statusLine(String(e))));
+    const saveSeal = document.getElementById('wf-save-seal');
+    if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e))));
     const pause = document.getElementById('wf-pause-count');
     if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e))));
     const f = document.getElementById('wf-finalize');
