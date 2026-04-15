@@ -17,6 +17,7 @@ from app.services.submissions_view_service import (
     append_submission_sort,
 )
 from app.services.workflow_read import display_stage_label, mechanical_bag_facts, progress_summary
+from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import role_required
 from app.utils.db_utils import db_read_only, db_transaction
 
@@ -177,14 +178,14 @@ def delete_workflow_bag(workflow_bag_id: int):
     next_page = request.form.get("page", type=int)
 
     try:
-        with db_transaction() as conn:
-            row = conn.execute(
-                "SELECT id FROM workflow_bags WHERE id = ?",
-                (workflow_bag_id,),
-            ).fetchone()
-            if not row:
-                flash("Workflow bag not found.", "error")
-            else:
+        def _run_delete() -> str:
+            with db_transaction() as conn:
+                row = conn.execute(
+                    "SELECT id FROM workflow_bags WHERE id = ?",
+                    (workflow_bag_id,),
+                ).fetchone()
+                if not row:
+                    return ""
                 bag_label = _workflow_bag_label(conn, workflow_bag_id)
                 # If a card still points to this bag, release it to idle.
                 conn.execute(
@@ -203,13 +204,22 @@ def delete_workflow_bag(workflow_bag_id: int):
                     "DELETE FROM workflow_bags WHERE id = ?",
                     (workflow_bag_id,),
                 )
-                flash(
-                    f"Deleted workflow bag {bag_label} for testing.",
-                    "success",
-                )
+                return bag_label
+
+        bag_label = run_with_busy_retry(_run_delete, op_name="delete_workflow_bag")
+        if not bag_label:
+            flash("Workflow bag not found.", "error")
+        else:
+            flash(
+                f"Deleted workflow bag {bag_label} for testing.",
+                "success",
+            )
     except sqlite3.OperationalError as oe:
         current_app.logger.error("delete_workflow_bag: %s", oe)
-        flash("Could not delete workflow bag (database busy/error).", "error")
+        if "locked" in str(oe).lower():
+            flash("Could not delete workflow bag right now (database busy). Retry once.", "error")
+        else:
+            flash("Could not delete workflow bag (database error).", "error")
     except Exception as e:
         current_app.logger.error("delete_workflow_bag: %s", e)
         flash("Could not delete workflow bag.", "error")

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.8] - 2026-04-15
+
+### Fixed
+- Workflow bag delete action now uses bounded SQLITE busy retry handling, reducing transient "database busy/error" failures during test cleanup.
+
+---
+
 ## [3.5.7] - 2026-04-15
 
 ### Added
