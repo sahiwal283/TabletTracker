@@ -177,7 +177,7 @@
 
   <div class="card p-5 overflow-x-auto">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
-    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>. Tokens use the <strong>bag-</strong> prefix (auto-generated or manual).</p>
+    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>. Enter any URL-safe token you like (letters, numbers, <code class="text-xs">._-</code>), or leave blank to auto-generate one with a <strong>bag-</strong> prefix.</p>
 
     <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="flex flex-wrap items-end gap-3 mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -187,7 +187,8 @@
       </div>
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Scan token (optional)</label>
-        <input type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 font-mono" placeholder="bag-… or leave blank" autocomplete="off"/>
+        <input type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 font-mono" placeholder="e.g. test-card-1 or bag-abc" autocomplete="off"/>
+        <p class="text-[10px] text-gray-500 mt-1">Leave blank for a random <code class="text-[10px]">bag-…</code> token only.</p>
       </div>
       <button type="submit" class="btn-primary text-sm py-2 px-4">Add card</button>
     </form>
@@ -223,7 +224,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
                 <input type="text" name="scan_token" value="{{ c.scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full break-all" autocomplete="off" aria-label="Scan token for card {{ c.id }}"/>
-                <p class="text-[10px] text-gray-500">Prefix <code class="text-[10px]">bag-</code></p>
+                <p class="text-[10px] text-gray-500">Letters, numbers, <code class="text-[10px]">._-</code> only (1–128 chars).</p>
                 <div class="flex flex-wrap gap-2">
                   <button type="submit" class="btn-secondary text-xs py-1 px-2">Save token</button>
                   <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-cancel-btn">Cancel</button>

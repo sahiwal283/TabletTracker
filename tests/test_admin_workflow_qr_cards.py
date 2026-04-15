@@ -98,6 +98,66 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         conn.close()
         self.assertEqual(tok, "bag-custom-test-99")
 
+    def test_add_card_manual_token_without_bag_prefix(self):
+        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        r = self.client.post(
+            "/admin/workflow-qr/add-card",
+            data={
+                "csrf_token": csrf,
+                "label": "Manual token",
+                "scan_token": "test-card-1",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(r.status_code, 200)
+        conn = sqlite3.connect(self._db_path)
+        tok = conn.execute(
+            "SELECT scan_token FROM qr_cards WHERE label = ?", ("Manual token",)
+        ).fetchone()[0]
+        conn.close()
+        self.assertEqual(tok, "test-card-1")
+
+    def test_add_card_normalizes_unicode_hyphen_in_token(self):
+        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        r = self.client.post(
+            "/admin/workflow-qr/add-card",
+            data={
+                "csrf_token": csrf,
+                "label": "Unicode dash",
+                # U+2011 non-breaking hyphen (common from word processors)
+                "scan_token": "test\u2011card\u2011uni",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(r.status_code, 200)
+        conn = sqlite3.connect(self._db_path)
+        tok = conn.execute(
+            "SELECT scan_token FROM qr_cards WHERE label = ?", ("Unicode dash",)
+        ).fetchone()[0]
+        conn.close()
+        self.assertEqual(tok, "test-card-uni")
+
+    def test_add_card_invalid_scan_token_shows_error_and_skips_insert(self):
+        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        r = self.client.post(
+            "/admin/workflow-qr/add-card",
+            data={
+                "csrf_token": csrf,
+                "label": "Should not exist",
+                "scan_token": "bad token spaces",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(r.status_code, 200)
+        html = r.get_data(as_text=True)
+        self.assertIn("Scan token is not valid", html)
+        conn = sqlite3.connect(self._db_path)
+        n = conn.execute(
+            "SELECT COUNT(*) FROM qr_cards WHERE label = ?", ("Should not exist",)
+        ).fetchone()[0]
+        conn.close()
+        self.assertEqual(n, 0)
+
     def test_remove_rejects_assigned_card(self):
         conn = sqlite3.connect(self._db_path)
         cur = conn.execute(

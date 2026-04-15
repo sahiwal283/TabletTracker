@@ -6,6 +6,7 @@ import re
 import secrets
 import sqlite3
 import traceback
+import unicodedata
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -53,9 +54,27 @@ def _validate_station_scan_token_for_kind(station_kind: str, token: str) -> bool
 
 
 def _validate_bag_card_scan_token(token: str) -> bool:
-    if not _STATION_SCAN_TOKEN_RE.match(token):
-        return False
-    return token.startswith("bag-")
+    """Manual bag card tokens: URL/path safe (same charset as station tokens); any prefix is allowed."""
+    return bool(_STATION_SCAN_TOKEN_RE.match(token))
+
+
+# Shown when manual scan_token fails validation (missing bag- is not an error — only charset/length).
+_BAG_CARD_SCAN_TOKEN_INVALID_FLASH = (
+    "Scan token is not valid: use only letters, numbers, periods (.), underscores (_), and hyphens (-), "
+    "1–128 characters. Spaces and other special characters are not allowed. "
+    "Leave the scan token blank to auto-generate a token with a bag- prefix."
+)
+
+
+def _normalize_bag_scan_token_input(raw: str) -> str:
+    """Strip, drop invisible format chars, map unicode dashes to ASCII (copy-paste from docs)."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Cf")
+    for u in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212", "\uff0d"):
+        s = s.replace(u, "-")
+    return s.strip()
 
 
 def _allocate_unique_card_scan_token(conn: sqlite3.Connection) -> str:
@@ -391,7 +410,19 @@ def workflow_qr_management():
                 ).fetchall()
                 cards = [dict(r) for r in cards]
             except sqlite3.OperationalError:
-                pass
+                # Older DBs may lack workflow_bags.inventory_bag_id; still list cards.
+                try:
+                    cards = conn.execute(
+                        """
+                        SELECT qc.id, qc.label, qc.scan_token, qc.status, qc.assigned_workflow_bag_id,
+                               NULL AS inventory_bag_id
+                        FROM qr_cards qc
+                        ORDER BY qc.id
+                        """
+                    ).fetchall()
+                    cards = [dict(r) for r in cards]
+                except sqlite3.OperationalError:
+                    pass
         stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
@@ -475,13 +506,13 @@ def workflow_qr_add_card():
     if label and len(label) > 128:
         flash("Label must be 128 characters or less.", "error")
         return redirect(url_for("admin.workflow_qr_management"))
-    token_in = (request.form.get("scan_token") or "").strip()
+    token_in = _normalize_bag_scan_token_input(request.form.get("scan_token") or "")
     if token_in:
+        if len(token_in) > 128:
+            flash("Scan token is too long (maximum 128 characters).", "error")
+            return redirect(url_for("admin.workflow_qr_management"))
         if not _validate_bag_card_scan_token(token_in):
-            flash(
-                "Bag card scan token must start with bag- and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
-                "error",
-            )
+            flash(_BAG_CARD_SCAN_TOKEN_INVALID_FLASH, "error")
             return redirect(url_for("admin.workflow_qr_management"))
         scan_token = token_in
     else:
@@ -634,12 +665,19 @@ def workflow_qr_edit_station_scan_token():
 def workflow_qr_edit_card_scan_token():
     """Update qr_cards.scan_token (bag QR value)."""
     qr_card_id = request.form.get("qr_card_id", type=int)
-    new_scan = (request.form.get("scan_token") or "").strip()
+    new_scan = _normalize_bag_scan_token_input(request.form.get("scan_token") or "")
     if not qr_card_id:
         flash("qr_card_id is required.", "error")
         return redirect(url_for("admin.workflow_qr_management"))
     if not new_scan:
         flash("Scan token is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+
+    if len(new_scan) > 128:
+        flash("Scan token is too long (maximum 128 characters).", "error")
+        return redirect(url_for("admin.workflow_qr_management"))
+    if not _validate_bag_card_scan_token(new_scan):
+        flash(_BAG_CARD_SCAN_TOKEN_INVALID_FLASH, "error")
         return redirect(url_for("admin.workflow_qr_management"))
 
     try:
@@ -654,12 +692,6 @@ def workflow_qr_edit_card_scan_token():
             r = dict(row)
             if new_scan == r["scan_token"]:
                 flash("No change to scan token.", "info")
-                return redirect(url_for("admin.workflow_qr_management"))
-            if not _validate_bag_card_scan_token(new_scan):
-                flash(
-                    "Bag card scan token must start with bag- and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
-                    "error",
-                )
                 return redirect(url_for("admin.workflow_qr_management"))
             dup = conn.execute(
                 "SELECT id FROM qr_cards WHERE scan_token = ? AND id != ?",
