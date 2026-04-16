@@ -15,6 +15,7 @@ from app.services.workflow_finalize import try_finalize
 from app.services.workflow_http import rate_limit_floor, read_json_body, workflow_json
 from app.services.workflow_read import (
     display_stage_label,
+    floor_bag_verification,
     mechanical_bag_facts,
     progress_summary,
 )
@@ -158,6 +159,7 @@ def _station_facts_payload(
         "claim_required": not station_claimed,
         "station_needs_resume": station_needs_resume,
         "resume_required": bool(station_claimed and station_needs_resume),
+        "bag_verification": floor_bag_verification(conn, workflow_bag_id),
     }
 
 

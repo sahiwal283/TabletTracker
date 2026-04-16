@@ -10,6 +10,11 @@
   {% endif %}
   <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
   <p class="text-sm text-gray-600 mb-4">Scan the bag card token, then run actions for this station lane.</p>
+  <div id="wf-bag-verification" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm" aria-label="Active bag details">
+    <p class="font-semibold text-slate-900 mb-2">Bag you are working on</p>
+    <p class="text-xs text-slate-500 mb-2">Confirm this matches the physical bag before counting.</p>
+    <dl id="wf-bag-verification-body" class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-left"></dl>
+  </div>
   <div id="wf-feedback" class="hidden mb-4 p-3 rounded-xl border text-sm" role="status" aria-live="polite"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>
   <div class="flex gap-2 mb-2">

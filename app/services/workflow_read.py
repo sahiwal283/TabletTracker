@@ -84,6 +84,89 @@ def mechanical_bag_facts(conn: sqlite3.Connection, workflow_bag_id: int) -> Dict
     }
 
 
+def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Dict[str, Any]:
+    """Human-readable bag identity for floor verification (product, box, bag, PO, shipment).
+
+    Denormalized ``workflow_bags`` fields are used; when ``inventory_bag_id`` is set, receiving/PO
+    data supplements or overrides missing PO/shipment labels.
+    """
+    wid = int(workflow_bag_id)
+    try:
+        row = conn.execute(
+            """
+            SELECT wb.product_id, wb.box_number, wb.bag_number, wb.receipt_number, wb.inventory_bag_id,
+                   pd.product_name AS product_name
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (wid,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return {}
+    if not row:
+        return {}
+    wb = dict(row)
+    product_name = (wb.get("product_name") or "").strip() or None
+    box_raw = wb.get("box_number")
+    bag_raw = wb.get("bag_number")
+    box_s = str(box_raw).strip() if box_raw is not None and str(box_raw).strip() else None
+    bag_s = str(bag_raw).strip() if bag_raw is not None and str(bag_raw).strip() else None
+    receipt_fallback = (wb.get("receipt_number") or "").strip() or None
+
+    po_number: Optional[str] = None
+    shipment_label: Optional[str] = receipt_fallback
+
+    inv_id = wb.get("inventory_bag_id")
+    if inv_id:
+        try:
+            inv = conn.execute(
+                """
+                SELECT po.po_number AS po_number,
+                       r.receive_name AS receive_name,
+                       sb.box_number AS inv_box,
+                       b.bag_number AS inv_bag
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                LEFT JOIN purchase_orders po ON r.po_id = po.id
+                WHERE b.id = ?
+                """,
+                (int(inv_id),),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            inv = None
+        if inv:
+            invd = dict(inv)
+            po = invd.get("po_number")
+            if po is not None and str(po).strip():
+                po_number = str(po).strip()
+            rn = invd.get("receive_name")
+            if rn is not None and str(rn).strip():
+                shipment_label = str(rn).strip()
+            if not box_s:
+                ib = invd.get("inv_box")
+                if ib is not None and str(ib).strip():
+                    box_s = str(ib).strip()
+            if not bag_s:
+                ig = invd.get("inv_bag")
+                if ig is not None and str(ig).strip():
+                    bag_s = str(ig).strip()
+
+    def _fmt_box_bag(label: str, raw: Optional[str]) -> Optional[str]:
+        if not raw:
+            return None
+        return f"{label} {raw}"
+
+    return {
+        "product_name": product_name,
+        "box_display": _fmt_box_bag("Box", box_s),
+        "bag_display": _fmt_box_bag("Bag", bag_s),
+        "po_number": po_number,
+        "shipment_label": shipment_label,
+    }
+
+
 def display_stage_label(facts: Dict[str, Any]) -> str:
     """Cosmetic label from latest event type string — formatting only."""
     lt = facts.get("latest_event_type")

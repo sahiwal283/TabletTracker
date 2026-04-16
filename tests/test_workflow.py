@@ -126,6 +126,28 @@ class TestWorkflowCore(unittest.TestCase):
             with self.assertRaises(ValueError):
                 append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 1, "oops": 1}, bag_id)
 
+    def test_floor_bag_verification_denormalized(self):
+        from app.services.workflow_read import floor_bag_verification
+
+        self.conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS product_details (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_name TEXT
+            );
+            INSERT INTO product_details (id, product_name) VALUES (501, 'Test Product A');
+            INSERT INTO workflow_bags (id, created_at, product_id, box_number, bag_number, receipt_number)
+            VALUES (501, 1, 501, '2', '9', 'PO-77-2');
+            """
+        )
+        self.conn.commit()
+        v = floor_bag_verification(self.conn, 501)
+        self.assertEqual(v.get("product_name"), "Test Product A")
+        self.assertEqual(v.get("box_display"), "Box 2")
+        self.assertEqual(v.get("bag_display"), "Bag 9")
+        self.assertEqual(v.get("shipment_label"), "PO-77-2")
+        self.assertIsNone(v.get("po_number"))
+
     def test_production_day(self):
         from app.services.workflow_read import production_day_for_event_ms
         from datetime import date

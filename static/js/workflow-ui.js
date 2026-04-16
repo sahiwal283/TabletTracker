@@ -80,6 +80,42 @@
       document.getElementById('wf-station-hint'),
     ].filter(Boolean);
   }
+  function renderBagVerification(facts) {
+    var wrap = document.getElementById('wf-bag-verification');
+    var inner = document.getElementById('wf-bag-verification-body');
+    if (!wrap || !inner) return;
+    var bv = facts && facts.bag_verification;
+    inner.innerHTML = '';
+    if (!bv) {
+      wrap.classList.add('hidden');
+      return;
+    }
+    var rows = [
+      ['Product', bv.product_name],
+      ['Box', bv.box_display],
+      ['Bag', bv.bag_display],
+      ['PO #', bv.po_number],
+      ['Shipment', bv.shipment_label],
+    ];
+    var any = false;
+    rows.forEach(function (pair) {
+      if (!pair[1]) return;
+      any = true;
+      var dt = document.createElement('dt');
+      dt.className = 'text-slate-500';
+      dt.textContent = pair[0];
+      inner.appendChild(dt);
+      var dd = document.createElement('dd');
+      dd.className = 'text-slate-900 font-medium';
+      dd.textContent = String(pair[1]);
+      inner.appendChild(dd);
+    });
+    if (!any) {
+      wrap.classList.add('hidden');
+    } else {
+      wrap.classList.remove('hidden');
+    }
+  }
   function applyStationFacts(data) {
     if (!data || !data.facts) {
       return;
@@ -88,6 +124,7 @@
       stationClaimed = !!data.facts.station_claimed;
     }
     stationNeedsResume = !!data.facts.resume_required;
+    renderBagVerification(data.facts);
   }
   function setBagLoadedUi(loaded) {
     if (!loaded) {
@@ -181,6 +218,7 @@
     hasLoadedBag = false;
     stationClaimed = false;
     stationNeedsResume = false;
+    renderBagVerification(null);
     clearAllActionCooldowns();
     setBagLoadedUi(false);
     setActionsEnabled(false);
