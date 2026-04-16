@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from app.services import workflow_constants as WC
 from app.services.workflow_warehouse_bridge import (
+    _station_session_start_occurred_at_ms,
     upsert_machine_from_workflow_scan,
     upsert_packaged_from_workflow_packaging,
     workflow_machine_lane_receipt_number,
@@ -204,6 +206,61 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
             workflow_packaged_receipt_number(wid, 102),
             r2.get("receipt_number"),
         )
+
+    def test_packaged_stores_employee_name(self):
+        wid = self._wf_bag_id
+        r = upsert_packaged_from_workflow_packaging(
+            self.conn, wid, displays_made=2, employee_name="claudia"
+        )
+        self.assertTrue(r.get("ok"))
+        self.conn.commit()
+        receipt = workflow_packaged_receipt_number(wid)
+        row = self.conn.execute(
+            "SELECT employee_name FROM warehouse_submissions WHERE receipt_number = ?",
+            (receipt,),
+        ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["employee_name"], "claudia")
+
+
+class TestWorkflowSessionStartTiming(unittest.TestCase):
+    """Bag session start for bridge timing: latest of claim or resume at/before sync."""
+
+    def test_session_start_is_latest_claim_or_resume(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """
+            CREATE TABLE workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                workflow_bag_id INTEGER NOT NULL,
+                station_id INTEGER,
+                payload TEXT
+            )
+            """
+        )
+        wid = 1
+        sid = 10
+        conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, occurred_at, workflow_bag_id, station_id, payload)
+            VALUES (?, 1000, ?, ?, '{}')
+            """,
+            (WC.EVENT_BAG_CLAIMED, wid, sid),
+        )
+        conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, occurred_at, workflow_bag_id, station_id, payload)
+            VALUES (?, 2000, ?, ?, '{}')
+            """,
+            (WC.EVENT_STATION_RESUMED, wid, sid),
+        )
+        t = _station_session_start_occurred_at_ms(conn, wid, sid, 3000)
+        self.assertEqual(t, 2000)
+        t2 = _station_session_start_occurred_at_ms(conn, wid, sid, 1500)
+        self.assertEqual(t2, 1000)
 
 
 class TestWorkflowWarehouseMachineBridge(unittest.TestCase):

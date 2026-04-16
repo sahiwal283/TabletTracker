@@ -72,12 +72,29 @@ def _event_occurred_at_ms(conn: sqlite3.Connection, event_id: Optional[int]) -> 
     return int(dict(row).get("occurred_at") or 0) or None
 
 
-def _station_claim_occurred_at_ms(
+def _employee_name_from_payload(payload: Optional[Dict[str, Any]]) -> str:
+    """Display name for warehouse_submissions.employee_name from floor event payload."""
+    if not payload:
+        return "QR workflow"
+    raw = payload.get("employee_name")
+    if raw is None:
+        return "QR workflow"
+    s = str(raw).strip()
+    if not s:
+        return "QR workflow"
+    return s[:128]
+
+
+def _station_session_start_occurred_at_ms(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
     station_id: Optional[int],
     up_to_occurred_at_ms: Optional[int],
 ) -> Optional[int]:
+    """Start of the current work session at this station: latest BAG_CLAIMED or STATION_RESUMED at or before the sync event.
+
+    After a pause, ``STATION_RESUMED`` becomes the session start for ``bag_start_time`` on submissions.
+    """
     if not station_id:
         return None
     try:
@@ -88,7 +105,7 @@ def _station_claim_occurred_at_ms(
                 FROM workflow_events
                 WHERE workflow_bag_id = ?
                   AND station_id = ?
-                  AND event_type = ?
+                  AND event_type IN (?, ?)
                   AND occurred_at <= ?
                 ORDER BY occurred_at DESC, id DESC
                 LIMIT 1
@@ -97,6 +114,7 @@ def _station_claim_occurred_at_ms(
                     int(workflow_bag_id),
                     int(station_id),
                     WC.EVENT_BAG_CLAIMED,
+                    WC.EVENT_STATION_RESUMED,
                     int(up_to_occurred_at_ms),
                 ),
             ).fetchone()
@@ -107,11 +125,16 @@ def _station_claim_occurred_at_ms(
                 FROM workflow_events
                 WHERE workflow_bag_id = ?
                   AND station_id = ?
-                  AND event_type = ?
+                  AND event_type IN (?, ?)
                 ORDER BY occurred_at DESC, id DESC
                 LIMIT 1
                 """,
-                (int(workflow_bag_id), int(station_id), WC.EVENT_BAG_CLAIMED),
+                (
+                    int(workflow_bag_id),
+                    int(station_id),
+                    WC.EVENT_BAG_CLAIMED,
+                    WC.EVENT_STATION_RESUMED,
+                ),
             ).fetchone()
     except sqlite3.OperationalError:
         return None
@@ -161,6 +184,7 @@ def upsert_packaged_from_workflow_packaging(
     displays_made: int,
     station_row: Optional[Dict[str, Any]] = None,
     event_id: Optional[int] = None,
+    employee_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Upsert packaged submission for this workflow bag.
@@ -302,6 +326,7 @@ def upsert_packaged_from_workflow_packaging(
         )
 
     submission_date = datetime.now().date().isoformat()
+    emp = employee_name or "QR workflow"
     admin_notes = f"QR workflow packaging sync (workflow_bag_id={workflow_bag_id}"
     if event_id is not None:
         admin_notes += f", workflow_event_id={event_id})"
@@ -317,7 +342,7 @@ def upsert_packaged_from_workflow_packaging(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
         """,
         (
-            "QR workflow",
+            emp,
             product_name,
             inv,
             box_number,
@@ -339,7 +364,7 @@ def upsert_packaged_from_workflow_packaging(
     sid = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
     station_id = int(station_row.get("id")) if station_row and station_row.get("id") else None
     end_ms = _event_occurred_at_ms(conn, event_id)
-    start_ms = _station_claim_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
+    start_ms = _station_session_start_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
     _update_receipt_station_times(
         conn,
         receipt_number=receipt,
@@ -384,6 +409,7 @@ def sync_if_packaging_snapshot(
         displays_made=dm,
         station_row=station_row,
         event_id=event_id,
+        employee_name=_employee_name_from_payload(payload),
     )
 
 
@@ -585,6 +611,7 @@ def upsert_machine_from_workflow_scan(
     lane: str,
     expected_machine_role: str,
     event_id: Optional[int] = None,
+    employee_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Upsert machine submission for this workflow bag + lane (sealing or blister).
@@ -670,6 +697,7 @@ def upsert_machine_from_workflow_scan(
         cleared = _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
         return {"ok": True, "cleared": True, "receipt_number": receipt, **cleared}
 
+    emp = employee_name or "QR workflow"
     box_number = wb.get("box_number")
     bag_number = wb.get("bag_number")
     if event_id is None:
@@ -688,13 +716,13 @@ def upsert_machine_from_workflow_scan(
     }
 
     entries = [{"machine_id": machine_id, "machine_count": int(count_total)}]
-    result = execute_machine_submission(conn, data, "QR workflow", entries)
+    result = execute_machine_submission(conn, data, emp, entries)
     if not result.get("success"):
         return {"ok": False, "reason": "execute_machine_failed", "detail": result}
 
     station_id = int(station_row.get("id")) if station_row.get("id") is not None else None
     end_ms = _event_occurred_at_ms(conn, event_id)
-    start_ms = _station_claim_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
+    start_ms = _station_session_start_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
     _update_receipt_station_times(
         conn,
         receipt_number=receipt,
@@ -750,6 +778,7 @@ def sync_workflow_warehouse_events(
     except (TypeError, ValueError):
         ct = 0
 
+    emp = _employee_name_from_payload(payload)
     if event_type == WC.EVENT_SEALING_COMPLETE:
         out["machine_sealing"] = upsert_machine_from_workflow_scan(
             conn,
@@ -759,6 +788,7 @@ def sync_workflow_warehouse_events(
             lane="seal",
             expected_machine_role="sealing",
             event_id=event_id,
+            employee_name=emp,
         )
     elif event_type == WC.EVENT_BLISTER_COMPLETE:
         out["machine_blister"] = upsert_machine_from_workflow_scan(
@@ -769,6 +799,7 @@ def sync_workflow_warehouse_events(
             lane="blister",
             expected_machine_role="blister",
             event_id=event_id,
+            employee_name=emp,
         )
 
     if not out:

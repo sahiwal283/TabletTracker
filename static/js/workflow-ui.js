@@ -13,6 +13,7 @@
   var cooldownTimers = {};
 
   const WF_PAGE_SESSION = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + '-' + Math.random());
+  var WF_EMPLOYEE_STORAGE_KEY = 'wf_employee_name';
   function pageSessionId() {
     return WF_PAGE_SESSION;
   }
@@ -67,6 +68,8 @@
     return [
       document.getElementById('wf-count-label'),
       document.getElementById('wf-count-total'),
+      document.getElementById('wf-employee-name-label'),
+      document.getElementById('wf-employee-name'),
       document.getElementById('wf-claim'),
       document.getElementById('wf-save-count'),
       document.getElementById('wf-save-blister'),
@@ -196,6 +199,37 @@
   function countInput() {
     return document.getElementById('wf-count-total');
   }
+  function employeeNameInput() {
+    return document.getElementById('wf-employee-name');
+  }
+  function loadEmployeeNameFromStorage() {
+    var el = employeeNameInput();
+    if (!el) return;
+    try {
+      var v = localStorage.getItem(WF_EMPLOYEE_STORAGE_KEY);
+      if (v) el.value = v;
+    } catch (_e) {
+      /* */
+    }
+  }
+  function persistEmployeeName() {
+    var el = employeeNameInput();
+    if (!el) return;
+    try {
+      var s = String(el.value || '').trim();
+      if (s) localStorage.setItem(WF_EMPLOYEE_STORAGE_KEY, s);
+    } catch (_e) {
+      /* */
+    }
+  }
+  function requiredEmployeeName() {
+    var el = employeeNameInput();
+    var s = el && String(el.value || '').trim();
+    if (!s) {
+      throw new Error('Enter your name (for submissions history).');
+    }
+    return s;
+  }
   function stationKind() {
     const el = document.getElementById('wf-station-kind');
     return ((el && el.value) || window.WF_STATION_KIND || 'sealing').toString().trim().toLowerCase();
@@ -221,8 +255,12 @@
     const saveSealBtn = document.getElementById('wf-save-seal');
     const pauseBtn = document.getElementById('wf-pause-count');
     const resumeBtn = document.getElementById('wf-resume-bag');
+    const empLabel = document.getElementById('wf-employee-name-label');
+    const empInput = document.getElementById('wf-employee-name');
     if (!saveBtn || !pauseBtn || !claimBtn || !countTotal) return;
     if (resumeBtn) resumeBtn.classList.add('hidden');
+    if (empLabel) empLabel.classList.add('hidden');
+    if (empInput) empInput.classList.add('hidden');
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
     if (finalizeBtn) finalizeBtn.classList.add('hidden');
@@ -257,6 +295,8 @@
     }
     countLabel && countLabel.classList.remove('hidden');
     countTotal.classList.remove('hidden');
+    if (empLabel) empLabel.classList.remove('hidden');
+    if (empInput) empInput.classList.remove('hidden');
     saveBtn.classList.remove('hidden');
     pauseBtn.classList.remove('hidden');
     if (kind === 'blister') {
@@ -473,8 +513,12 @@
     const kind = stationKind();
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
-      await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+      await emitEvent('BLISTER_COMPLETE', {
+        count_total: countTotal,
+        employee_name: requiredEmployeeName(),
+      });
       clearCountField();
+      persistEmployeeName();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Blister count submitted.', 'success');
@@ -484,8 +528,10 @@
       await emitEvent('SEALING_COMPLETE', {
         station_id: window.WF_STATION_ID || 1,
         count_total: countTotal,
+        employee_name: requiredEmployeeName(),
       });
       clearCountField();
+      persistEmployeeName();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Sealing count submitted.', 'success');
@@ -495,8 +541,10 @@
       await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
         reason: 'live_count',
+        employee_name: requiredEmployeeName(),
       });
       clearCountField();
+      persistEmployeeName();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Packaging count snapshot saved.', 'success');
@@ -508,8 +556,12 @@
     ensureLoadedBag();
     assertActionCooldown('submitBlister');
     const countTotal = selectedCountTotal();
-    await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+    await emitEvent('BLISTER_COMPLETE', {
+      count_total: countTotal,
+      employee_name: requiredEmployeeName(),
+    });
     clearCountField();
+    persistEmployeeName();
     configureStationActions();
     startCooldownAfterSuccess('submitBlister');
     statusLine('Blister count submitted.', 'success');
@@ -521,8 +573,10 @@
     await emitEvent('SEALING_COMPLETE', {
       station_id: window.WF_STATION_ID || 1,
       count_total: countTotal,
+      employee_name: requiredEmployeeName(),
     });
     clearCountField();
+    persistEmployeeName();
     configureStationActions();
     startCooldownAfterSuccess('submitSeal');
     statusLine('Sealing count submitted.', 'success');
@@ -535,9 +589,11 @@
     if (kind === 'blister' || kind === 'combined') {
       await emitEvent('BLISTER_COMPLETE', {
         count_total: countTotal,
+        employee_name: requiredEmployeeName(),
         metadata: { paused: true, reason: 'end_of_day' },
       });
       clearCountField();
+      persistEmployeeName();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — blister count saved for end of day.', 'success');
@@ -547,9 +603,11 @@
       await emitEvent('SEALING_COMPLETE', {
         station_id: window.WF_STATION_ID || 1,
         count_total: countTotal,
+        employee_name: requiredEmployeeName(),
         metadata: { paused: true, reason: 'end_of_day' },
       });
       clearCountField();
+      persistEmployeeName();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — sealing count saved for end of day.', 'success');
@@ -559,8 +617,10 @@
       await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
         reason: 'paused_end_of_day',
+        employee_name: requiredEmployeeName(),
       });
       clearCountField();
+      persistEmployeeName();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — packaging snapshot saved for end of day.', 'success');
@@ -613,6 +673,7 @@
     statusLine('Bag finalized.', 'success');
   }
   document.addEventListener('DOMContentLoaded', () => {
+    loadEmployeeNameFromStorage();
     resetLoadedBagState(true);
     configureStationActions();
     const inp = productInput();
@@ -621,6 +682,8 @@
         resetLoadedBagState(false);
       });
     }
+    const emp = employeeNameInput();
+    if (emp) emp.addEventListener('blur', () => persistEmployeeName());
     const r = document.getElementById('wf-refresh');
     if (r) r.addEventListener('click', () => refresh().catch((e) => {
       resetLoadedBagState(false);

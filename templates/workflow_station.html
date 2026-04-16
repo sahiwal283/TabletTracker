@@ -23,6 +23,8 @@
   <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
   <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
+  <label for="wf-employee-name" id="wf-employee-name-label" class="hidden block text-sm font-medium mb-1">Your name</label>
+  <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="Shown on submissions (e.g. Claudia)" autocomplete="name" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
   <div class="flex flex-wrap gap-2 mb-4">
