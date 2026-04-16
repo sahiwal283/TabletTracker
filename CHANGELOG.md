@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.14] - 2026-04-15
+
+### Fixed
+- Restored legacy Production page access in desktop navigation while QR workflow rollout is in progress, and added quick links on the workflow assignment page so staff can switch between Production forms and QR workflow during testing.
+
+---
+
 ## [3.5.13] - 2026-04-15
 
 ### Changed

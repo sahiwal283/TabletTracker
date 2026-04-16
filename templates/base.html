@@ -1642,7 +1642,10 @@ async function convertToTwoLevelDropdown(selectElement) {
                     </a>
                     {% endif %}
                     
-                    <!-- Production - Always visible for employees -->
+                    <!-- Production + Workflow - both visible during migration -->
+                    <a href="{{ url_for('production.production_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Production
+                    </a>
                     <a href="{{ url_for('workflow_staff.new_bag') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-mobile" /></svg> Workflow
                     </a>
