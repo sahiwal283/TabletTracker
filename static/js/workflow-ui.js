@@ -18,9 +18,32 @@
     }
     return v;
   }
-  function statusLine(msg) {
-    const el = document.getElementById('wf-status');
-    if (el) el.textContent = msg;
+  function statusLine(msg, variant) {
+    const fb = document.getElementById('wf-feedback');
+    if (fb) {
+      fb.textContent = msg || '';
+      fb.classList.remove('hidden');
+      fb.classList.remove(
+        'border-red-200',
+        'bg-red-50',
+        'text-red-800',
+        'border-emerald-200',
+        'bg-emerald-50',
+        'text-emerald-900',
+        'border-slate-200',
+        'bg-slate-50',
+        'text-slate-800'
+      );
+      if (variant === 'error') {
+        fb.classList.add('border-red-200', 'bg-red-50', 'text-red-800');
+      } else if (variant === 'success') {
+        fb.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-900');
+      } else {
+        fb.classList.add('border-slate-200', 'bg-slate-50', 'text-slate-800');
+      }
+    }
+    const legacy = document.getElementById('wf-status');
+    if (legacy) legacy.textContent = msg;
   }
   function actionButtons() {
     return [
@@ -68,7 +91,7 @@
     setBagLoadedUi(false);
     setActionsEnabled(false);
     if (showHint) {
-      statusLine('Scan or enter bag card token, then tap Refresh bag status.');
+      statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
     }
   }
   function ensureLoadedBag() {
@@ -205,11 +228,11 @@
   }
   async function startProductQrScan() {
     if (!stationReady()) {
-      statusLine('Error: open this page from your station QR first. Station token is missing.');
+      statusLine('Error: open this page from your station QR first. Station token is missing.', 'error');
       return;
     }
     if (typeof Html5Qrcode === 'undefined') {
-      statusLine('Scanner failed to load. Check your connection and refresh the page.');
+      statusLine('Scanner failed to load. Check your connection and refresh the page.', 'error');
       return;
     }
     await stopProductQrScanner();
@@ -219,7 +242,7 @@
     if (!el) return;
     html5QrCode = new Html5Qrcode(readerId);
     setScanUi(true);
-    statusLine('Point the camera at the product/bag QR code.');
+    statusLine('Point the camera at the product/bag QR code.', 'info');
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
@@ -240,10 +263,10 @@
             } catch (_v) {
               /* */
             }
-            statusLine('Product QR captured — loading bag…');
+            statusLine('Product QR captured — loading bag…', 'info');
             await refresh();
           } catch (err) {
-            statusLine(String(err));
+            statusLine(String(err), 'error');
           }
         })();
       }, 0);
@@ -280,9 +303,9 @@
         await stopProductQrScanner();
         const msg = (e1 && e1.message) || String(e1);
         if (/Permission|NotAllowed|denied/i.test(msg)) {
-          statusLine('Camera permission denied. Allow camera access in Safari settings and try again.');
+          statusLine('Camera permission denied. Allow camera access in Safari settings and try again.', 'error');
         } else {
-          statusLine('Could not start camera: ' + msg);
+          statusLine('Could not start camera: ' + msg, 'error');
         }
       }
     }
@@ -305,7 +328,7 @@
     const inp = productInput();
     const cardToken = inp ? inp.value.trim() : '';
     if (!cardToken) {
-      statusLine('Enter card token');
+      statusLine('Enter card token', 'error');
       return;
     }
     const data = await postJson('/workflow/floor/api/bag', {
@@ -320,9 +343,9 @@
     setActionsEnabled(true);
     configureStationActions();
     if (!stationClaimed) {
-      statusLine('Bag loaded. Claim it at this station to continue.');
+      statusLine('Bag loaded. Claim it at this station to continue.', 'info');
     } else {
-      statusLine('Bag loaded.');
+      statusLine('Bag loaded.', 'success');
     }
   }
   async function claimBag() {
@@ -335,7 +358,7 @@
     });
     stationClaimed = !!(data && data.facts && data.facts.station_claimed);
     configureStationActions();
-    statusLine('Bag claimed at this station.');
+    statusLine('Bag claimed at this station.', 'success');
   }
   async function saveCountAndContinue() {
     ensureLoadedBag();
@@ -343,7 +366,7 @@
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
       const data = await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
-      statusLine('Blister count submitted.');
+      statusLine('Blister count submitted.', 'success');
       return;
     }
     if (kind === 'sealing') {
@@ -351,7 +374,7 @@
         station_id: window.WF_STATION_ID || 1,
         count_total: countTotal,
       });
-      statusLine('Sealing count submitted.');
+      statusLine('Sealing count submitted.', 'success');
       return;
     }
     if (kind === 'packaging') {
@@ -359,7 +382,7 @@
         display_count: countTotal,
         reason: 'live_count',
       });
-      statusLine('Packaging count snapshot saved.');
+      statusLine('Packaging count snapshot saved.', 'success');
       return;
     }
     throw new Error('Unsupported station kind: ' + kind);
@@ -368,7 +391,7 @@
     ensureLoadedBag();
     const countTotal = selectedCountTotal();
     await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
-    statusLine('Blister count submitted.');
+    statusLine('Blister count submitted.', 'success');
   }
   async function saveSealingCountOnly() {
     ensureLoadedBag();
@@ -377,35 +400,35 @@
       station_id: window.WF_STATION_ID || 1,
       count_total: countTotal,
     });
-    statusLine('Sealing count submitted.');
+    statusLine('Sealing count submitted.', 'success');
   }
   async function pauseWithCount() {
     ensureLoadedBag();
     const kind = stationKind();
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
-      const data = await emitEvent('BLISTER_COMPLETE', {
+      await emitEvent('BLISTER_COMPLETE', {
         count_total: countTotal,
         metadata: { paused: true, reason: 'end_of_day' },
       });
-      statusLine('Paused with saved blister count. ' + JSON.stringify(data.facts));
+      statusLine('Paused — blister count saved for end of day.', 'success');
       return;
     }
     if (kind === 'sealing') {
-      const data = await emitEvent('SEALING_COMPLETE', {
+      await emitEvent('SEALING_COMPLETE', {
         station_id: window.WF_STATION_ID || 1,
         count_total: countTotal,
         metadata: { paused: true, reason: 'end_of_day' },
       });
-      statusLine('Paused with saved sealing count. ' + JSON.stringify(data.facts));
+      statusLine('Paused — sealing count saved for end of day.', 'success');
       return;
     }
     if (kind === 'packaging') {
-      const data = await emitEvent('PACKAGING_SNAPSHOT', {
+      await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
         reason: 'paused_end_of_day',
       });
-      statusLine('Paused with saved packaging count. ' + JSON.stringify(data.facts));
+      statusLine('Paused — packaging snapshot saved for end of day.', 'success');
       return;
     }
     throw new Error('Unsupported station kind: ' + kind);
@@ -434,7 +457,7 @@
       device_id: deviceId(),
       page_session_id: pageSessionId(),
     });
-    statusLine(JSON.stringify(data, null, 2));
+    statusLine('Bag finalized.', 'success');
   }
   document.addEventListener('DOMContentLoaded', () => {
     resetLoadedBagState(true);
@@ -448,24 +471,24 @@
     const r = document.getElementById('wf-refresh');
     if (r) r.addEventListener('click', () => refresh().catch((e) => {
       resetLoadedBagState(false);
-      statusLine(String(e));
+      statusLine(String(e), 'error');
     }));
     const c = document.getElementById('wf-claim');
-    if (c) c.addEventListener('click', () => claimBag().catch((e) => statusLine(String(e))));
+    if (c) c.addEventListener('click', () => claimBag().catch((e) => statusLine(String(e), 'error')));
     const save = document.getElementById('wf-save-count');
-    if (save) save.addEventListener('click', () => saveCountAndContinue().catch((e) => statusLine(String(e))));
+    if (save) save.addEventListener('click', () => saveCountAndContinue().catch((e) => statusLine(String(e), 'error')));
     const saveBlister = document.getElementById('wf-save-blister');
-    if (saveBlister) saveBlister.addEventListener('click', () => saveBlisterCountOnly().catch((e) => statusLine(String(e))));
+    if (saveBlister) saveBlister.addEventListener('click', () => saveBlisterCountOnly().catch((e) => statusLine(String(e), 'error')));
     const saveSeal = document.getElementById('wf-save-seal');
-    if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e))));
+    if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e), 'error')));
     const pause = document.getElementById('wf-pause-count');
-    if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e))));
+    if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e), 'error')));
     const f = document.getElementById('wf-finalize');
-    if (f) f.addEventListener('click', () => finalize().catch((e) => statusLine(String(e))));
+    if (f) f.addEventListener('click', () => finalize().catch((e) => statusLine(String(e), 'error')));
     const sp = document.getElementById('wf-scan-product');
-    if (sp) sp.addEventListener('click', () => startProductQrScan().catch((e) => statusLine(String(e))));
+    if (sp) sp.addEventListener('click', () => startProductQrScan().catch((e) => statusLine(String(e), 'error')));
     const st = document.getElementById('wf-scan-stop');
-    if (st) st.addEventListener('click', () => stopProductQrScanner().catch((e) => statusLine(String(e))));
+    if (st) st.addEventListener('click', () => stopProductQrScanner().catch((e) => statusLine(String(e), 'error')));
     window.addEventListener('beforeunload', () => {
       stopProductQrScanner().catch(() => {});
     });

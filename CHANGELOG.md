@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.21] - 2026-04-15
+
+### Fixed
+- QR station page: restored visible operator feedback (success/error/info) after removing the raw JSON panel — pause/submit/claim actions now show clear confirmation or error text instead of appearing to do nothing.
+
+---
+
 ## [3.5.20] - 2026-04-15
 
 ### Fixed
