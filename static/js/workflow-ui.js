@@ -5,6 +5,11 @@
   let hasLoadedBag = false;
   let stationClaimed = false;
 
+  /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
+  var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
+  var cooldownUntil = {};
+  var cooldownTimers = {};
+
   const WF_PAGE_SESSION = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + '-' + Math.random());
   function pageSessionId() {
     return WF_PAGE_SESSION;
@@ -78,16 +83,88 @@
       configureStationActions();
     }
   }
+  function clearAllActionCooldowns() {
+    Object.keys(cooldownTimers).forEach(function (k) {
+      clearTimeout(cooldownTimers[k]);
+      delete cooldownTimers[k];
+    });
+    Object.keys(cooldownUntil).forEach(function (k) {
+      delete cooldownUntil[k];
+    });
+  }
+
+  function clearCountField() {
+    var el = countInput();
+    if (el) el.value = '';
+  }
+
+  function assertActionCooldown(actionKey) {
+    var until = cooldownUntil[actionKey];
+    if (until && Date.now() < until) {
+      var sec = Math.ceil((until - Date.now()) / 1000);
+      throw new Error('Please wait ' + sec + 's before repeating this action.');
+    }
+  }
+
+  function applyActionCooldownUi() {
+    var now = Date.now();
+    var pairs = [
+      ['submit', 'wf-save-count'],
+      ['pause', 'wf-pause-count'],
+      ['submitBlister', 'wf-save-blister'],
+      ['submitSeal', 'wf-save-seal'],
+    ];
+    pairs.forEach(function (pair) {
+      var key = pair[0];
+      var btn = document.getElementById(pair[1]);
+      if (!btn) return;
+      var until = cooldownUntil[key];
+      if (until && now < until) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        var sec = Math.ceil((until - now) / 1000);
+        btn.setAttribute('title', 'Wait ' + sec + 's before repeating this action');
+      } else {
+        if (until && now >= until) {
+          delete cooldownUntil[key];
+        }
+        btn.removeAttribute('title');
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    });
+  }
+
+  function startCooldownAfterSuccess(actionKey) {
+    cooldownUntil[actionKey] = Date.now() + SUBMIT_PAUSE_COOLDOWN_MS;
+    if (cooldownTimers[actionKey]) {
+      clearTimeout(cooldownTimers[actionKey]);
+    }
+    cooldownTimers[actionKey] = setTimeout(function () {
+      delete cooldownTimers[actionKey];
+      delete cooldownUntil[actionKey];
+      if (hasLoadedBag) {
+        setActionsEnabled(true);
+        configureStationActions();
+      }
+    }, SUBMIT_PAUSE_COOLDOWN_MS);
+    applyActionCooldownUi();
+  }
+
   function setActionsEnabled(enabled) {
     actionButtons().forEach(function (btn) {
       btn.disabled = !enabled;
       btn.classList.toggle('opacity-50', !enabled);
       btn.classList.toggle('cursor-not-allowed', !enabled);
     });
+    if (enabled) {
+      applyActionCooldownUi();
+    }
   }
   function resetLoadedBagState(showHint) {
     hasLoadedBag = false;
     stationClaimed = false;
+    clearAllActionCooldowns();
     setBagLoadedUi(false);
     setActionsEnabled(false);
     if (showHint) {
@@ -358,30 +435,38 @@
     });
     stationClaimed = !!(data && data.facts && data.facts.station_claimed);
     configureStationActions();
+    setActionsEnabled(true);
     statusLine('Bag claimed at this station.', 'success');
   }
   async function saveCountAndContinue() {
     ensureLoadedBag();
+    assertActionCooldown('submit');
     const kind = stationKind();
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
-      const data = await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+      await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+      clearCountField();
+      startCooldownAfterSuccess('submit');
       statusLine('Blister count submitted.', 'success');
       return;
     }
     if (kind === 'sealing') {
-      const data = await emitEvent('SEALING_COMPLETE', {
+      await emitEvent('SEALING_COMPLETE', {
         station_id: window.WF_STATION_ID || 1,
         count_total: countTotal,
       });
+      clearCountField();
+      startCooldownAfterSuccess('submit');
       statusLine('Sealing count submitted.', 'success');
       return;
     }
     if (kind === 'packaging') {
-      const data = await emitEvent('PACKAGING_SNAPSHOT', {
+      await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
         reason: 'live_count',
       });
+      clearCountField();
+      startCooldownAfterSuccess('submit');
       statusLine('Packaging count snapshot saved.', 'success');
       return;
     }
@@ -389,21 +474,28 @@
   }
   async function saveBlisterCountOnly() {
     ensureLoadedBag();
+    assertActionCooldown('submitBlister');
     const countTotal = selectedCountTotal();
     await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
+    clearCountField();
+    startCooldownAfterSuccess('submitBlister');
     statusLine('Blister count submitted.', 'success');
   }
   async function saveSealingCountOnly() {
     ensureLoadedBag();
+    assertActionCooldown('submitSeal');
     const countTotal = selectedCountTotal();
     await emitEvent('SEALING_COMPLETE', {
       station_id: window.WF_STATION_ID || 1,
       count_total: countTotal,
     });
+    clearCountField();
+    startCooldownAfterSuccess('submitSeal');
     statusLine('Sealing count submitted.', 'success');
   }
   async function pauseWithCount() {
     ensureLoadedBag();
+    assertActionCooldown('pause');
     const kind = stationKind();
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
@@ -411,6 +503,8 @@
         count_total: countTotal,
         metadata: { paused: true, reason: 'end_of_day' },
       });
+      clearCountField();
+      startCooldownAfterSuccess('pause');
       statusLine('Paused — blister count saved for end of day.', 'success');
       return;
     }
@@ -420,6 +514,8 @@
         count_total: countTotal,
         metadata: { paused: true, reason: 'end_of_day' },
       });
+      clearCountField();
+      startCooldownAfterSuccess('pause');
       statusLine('Paused — sealing count saved for end of day.', 'success');
       return;
     }
@@ -428,6 +524,8 @@
         display_count: countTotal,
         reason: 'paused_end_of_day',
       });
+      clearCountField();
+      startCooldownAfterSuccess('pause');
       statusLine('Paused — packaging snapshot saved for end of day.', 'success');
       return;
     }

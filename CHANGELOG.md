@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.22] - 2026-04-15
+
+### Fixed
+- QR station floor: after a successful submit or pause, the count field clears and each action type (`submit` vs `pause` vs combined lane submit buttons) has a 90s cooldown to prevent duplicate submissions; changing the card token still resets cooldown state.
+
+---
+
 ## [3.5.21] - 2026-04-15
 
 ### Fixed
