@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.19] - 2026-04-15
+
+### Fixed
+- Enforced claim-first station flow: after loading a bag, stations now require a BAG_CLAIMED event at that station before count/pause events are allowed; UI only shows `Claim bag` until claimed, then reveals count/pause actions on subsequent scans.
+
+---
+
 ## [3.5.18] - 2026-04-15
 
 ### Fixed

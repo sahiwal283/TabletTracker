@@ -73,6 +73,38 @@ def _resolve_card(conn, card_token: str):
     ).fetchone()
 
 
+def _station_has_claimed_bag(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
+) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM workflow_events
+        WHERE workflow_bag_id = ?
+          AND event_type = ?
+          AND station_id = ?
+        LIMIT 1
+        """,
+        (workflow_bag_id, WC.EVENT_BAG_CLAIMED, station_id),
+    ).fetchone()
+    return bool(row)
+
+
+def _station_facts_payload(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
+) -> dict:
+    facts = mechanical_bag_facts(conn, workflow_bag_id)
+    station_claimed = _station_has_claimed_bag(conn, workflow_bag_id, station_id)
+    return {
+        "event_counts_by_type": facts["event_counts_by_type"],
+        "latest_event_type": facts["latest_event_type"],
+        "display_stage_label": display_stage_label(facts),
+        "progress_summary": progress_summary(facts),
+        "station_claimed": station_claimed,
+        "claim_required": not station_claimed,
+    }
+
+
 def _is_event_allowed_for_station(station_kind: str, event_type: str) -> bool:
     kind = (station_kind or "sealing").strip().lower()
     et = (event_type or "").strip().upper()
@@ -166,18 +198,13 @@ def api_bag_status():
                 details={"status": card["status"]},
             )
         bag_id = int(card["assigned_workflow_bag_id"])
-        facts = mechanical_bag_facts(conn, bag_id)
+        station_id = int(st["id"])
         payload = {
             "ok": True,
             "workflow_bag_id": bag_id,
             "qr_card_id": int(card["id"]),
-            "station_id": int(st["id"]),
-            "facts": {
-                "event_counts_by_type": facts["event_counts_by_type"],
-                "latest_event_type": facts["latest_event_type"],
-                "display_stage_label": display_stage_label(facts),
-                "progress_summary": progress_summary(facts),
-            },
+            "station_id": station_id,
+            "facts": _station_facts_payload(conn, bag_id, station_id),
         }
         return payload
     finally:
@@ -223,13 +250,28 @@ def api_append_event():
                 f"{event_type} is not allowed for station type '{station_kind}'",
                 status=400,
             )
+        station_id = int(st["id"])
+        station_claimed = _station_has_claimed_bag(conn, bag_id, station_id)
+        if event_type != WC.EVENT_BAG_CLAIMED and not station_claimed:
+            return workflow_json(
+                "WORKFLOW_VALIDATION",
+                "Bag must be claimed at this station before submitting counts.",
+                status=400,
+            )
+        if event_type == WC.EVENT_BAG_CLAIMED and station_claimed:
+            return {
+                "ok": True,
+                "workflow_bag_id": bag_id,
+                "facts": _station_facts_payload(conn, bag_id, station_id),
+                "idempotent_duplicate": True,
+            }
         try:
             append_workflow_event(
                 conn,
                 event_type,
                 payload,
                 bag_id,
-                station_id=int(st["id"]),
+                station_id=station_id,
                 device_id=device_id,
             )
         except ValueError as ve:
@@ -261,16 +303,10 @@ def api_append_event():
                 status=500,
             )
         conn.commit()
-        facts = mechanical_bag_facts(conn, bag_id)
         out = {
             "ok": True,
             "workflow_bag_id": bag_id,
-            "facts": {
-                "event_counts_by_type": facts["event_counts_by_type"],
-                "latest_event_type": facts["latest_event_type"],
-                "display_stage_label": display_stage_label(facts),
-                "progress_summary": progress_summary(facts),
-            },
+            "facts": _station_facts_payload(conn, bag_id, station_id),
         }
         if bridge_result is not None:
             out["warehouse_sync"] = bridge_result
