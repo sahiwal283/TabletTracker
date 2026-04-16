@@ -12,6 +12,11 @@
   var cooldownUntil = {};
   var cooldownTimers = {};
 
+  /** Appended after successful count / submit actions (not pause). */
+  var MSG_SCAN_NEXT_CARD = ' Scan the next card when ready.';
+  /** Shown after end-of-day pause saves the current counts. */
+  var MSG_PAUSE_RESUME_TOMORROW = 'Scan same card tomorrow to resume. Have a nice day.';
+
   const WF_PAGE_SESSION = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + '-' + Math.random());
   var WF_EMPLOYEE_STORAGE_KEY = 'wf_employee_name';
   function pageSessionId() {
@@ -645,7 +650,7 @@
       clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('submit');
-      statusLine('Blister count submitted.', 'success');
+      statusLine('Blister count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
       return;
     }
     if (kind === 'sealing') {
@@ -658,7 +663,7 @@
       clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('submit');
-      statusLine('Sealing count submitted.', 'success');
+      statusLine('Sealing count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
       return;
     }
     if (kind === 'packaging') {
@@ -679,7 +684,7 @@
     clearEmployeeNameField();
     configureStationActions();
     startCooldownAfterSuccess('submitBlister');
-    statusLine('Blister count submitted.', 'success');
+    statusLine('Blister count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
   }
   async function saveSealingCountOnly() {
     ensureLoadedBag();
@@ -694,7 +699,7 @@
     clearEmployeeNameField();
     configureStationActions();
     startCooldownAfterSuccess('submitSeal');
-    statusLine('Sealing count submitted.', 'success');
+    statusLine('Sealing count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
   }
   async function pauseWithCount() {
     ensureLoadedBag();
@@ -711,7 +716,7 @@
       clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('pause');
-      statusLine('Paused — blister count saved for end of day.', 'success');
+      statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
       return;
     }
     if (kind === 'sealing') {
@@ -725,7 +730,7 @@
       clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('pause');
-      statusLine('Paused — sealing count saved for end of day.', 'success');
+      statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
       return;
     }
     if (kind === 'packaging') {
@@ -741,7 +746,7 @@
       clearPackagingSnapshotFields();
       configureStationActions();
       startCooldownAfterSuccess('pause');
-      statusLine('Paused — packaging snapshot saved for end of day.', 'success');
+      statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
       return;
     }
     throw new Error('Unsupported station kind: ' + kind);
@@ -773,7 +778,7 @@
     resetLoadedBagState(false);
     configureStationActions();
     startCooldownAfterSuccess('submit');
-    statusLine('Packaging counts saved and bag finalized. Scan the next card when ready.', 'success');
+    statusLine('Packaging counts saved and bag finalized.' + MSG_SCAN_NEXT_CARD, 'success');
   }
   async function takenForDelivery() {
     ensureLoadedBag();
@@ -792,7 +797,7 @@
     configureStationActions();
     setActionsEnabled(true);
     startCooldownAfterSuccess('taken');
-    statusLine('Taken-for-order displays recorded.', 'success');
+    statusLine('Taken-for-order displays recorded.' + MSG_SCAN_NEXT_CARD, 'success');
   }
   async function emitEvent(eventType, payload) {
     const stationToken = document.getElementById('wf-station-token').value;
