@@ -92,6 +92,7 @@ def display_stage_label(facts: Dict[str, Any]) -> str:
     pretty = {
         WC.EVENT_CARD_ASSIGNED: "Card assigned",
         WC.EVENT_BAG_CLAIMED: "Bag claimed",
+        WC.EVENT_STATION_RESUMED: "Station resumed",
         WC.EVENT_BLISTER_COMPLETE: "Blister",
         WC.EVENT_SEALING_COMPLETE: "Sealing",
         WC.EVENT_PACKAGING_SNAPSHOT: "Packaging",

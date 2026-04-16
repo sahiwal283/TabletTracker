@@ -4,6 +4,8 @@
   let productScanDone = false;
   let hasLoadedBag = false;
   let stationClaimed = false;
+  /** When true, bag was paused at this station — submit/pause blocked until Resume (server: resume_required). */
+  let stationNeedsResume = false;
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
   var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
@@ -51,6 +53,7 @@
     if (legacy) legacy.textContent = msg;
   }
   function actionButtons() {
+    /* Resume is not in this list so a submit/pause cooldown cannot block the next-day Resume action. */
     return [
       document.getElementById('wf-claim'),
       document.getElementById('wf-save-count'),
@@ -69,9 +72,19 @@
       document.getElementById('wf-save-blister'),
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
+      document.getElementById('wf-resume-bag'),
       document.getElementById('wf-finalize'),
       document.getElementById('wf-station-hint'),
     ].filter(Boolean);
+  }
+  function applyStationFacts(data) {
+    if (!data || !data.facts) {
+      return;
+    }
+    if (data.facts.station_claimed !== undefined) {
+      stationClaimed = !!data.facts.station_claimed;
+    }
+    stationNeedsResume = !!data.facts.resume_required;
   }
   function setBagLoadedUi(loaded) {
     if (!loaded) {
@@ -164,6 +177,7 @@
   function resetLoadedBagState(showHint) {
     hasLoadedBag = false;
     stationClaimed = false;
+    stationNeedsResume = false;
     clearAllActionCooldowns();
     setBagLoadedUi(false);
     setActionsEnabled(false);
@@ -206,7 +220,9 @@
     const saveBlisterBtn = document.getElementById('wf-save-blister');
     const saveSealBtn = document.getElementById('wf-save-seal');
     const pauseBtn = document.getElementById('wf-pause-count');
+    const resumeBtn = document.getElementById('wf-resume-bag');
     if (!saveBtn || !pauseBtn || !claimBtn || !countTotal) return;
+    if (resumeBtn) resumeBtn.classList.add('hidden');
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
     if (finalizeBtn) finalizeBtn.classList.add('hidden');
@@ -223,6 +239,19 @@
       if (hint) {
         hint.classList.remove('hidden');
         hint.textContent = 'Claim bag at this station to unlock count and pause actions.';
+      }
+      return;
+    }
+    if (stationNeedsResume) {
+      if (resumeBtn) {
+        resumeBtn.classList.remove('hidden');
+        resumeBtn.disabled = false;
+        resumeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+      if (hint) {
+        hint.classList.remove('hidden');
+        hint.textContent =
+          'This bag was paused — confirm the card is still loaded, then tap Resume to continue.';
       }
       return;
     }
@@ -415,7 +444,7 @@
       page_session_id: pageSessionId(),
     });
     hasLoadedBag = true;
-    stationClaimed = !!(data && data.facts && data.facts.station_claimed);
+    applyStationFacts(data);
     setBagLoadedUi(true);
     setActionsEnabled(true);
     configureStationActions();
@@ -433,7 +462,7 @@
       station_kind: kind,
       note: 'claimed_on_station',
     });
-    stationClaimed = !!(data && data.facts && data.facts.station_claimed);
+    applyStationFacts(data);
     configureStationActions();
     setActionsEnabled(true);
     statusLine('Bag claimed at this station.', 'success');
@@ -446,6 +475,7 @@
     if (kind === 'blister' || kind === 'combined') {
       await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
       clearCountField();
+      configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Blister count submitted.', 'success');
       return;
@@ -456,6 +486,7 @@
         count_total: countTotal,
       });
       clearCountField();
+      configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Sealing count submitted.', 'success');
       return;
@@ -466,6 +497,7 @@
         reason: 'live_count',
       });
       clearCountField();
+      configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Packaging count snapshot saved.', 'success');
       return;
@@ -478,6 +510,7 @@
     const countTotal = selectedCountTotal();
     await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
     clearCountField();
+    configureStationActions();
     startCooldownAfterSuccess('submitBlister');
     statusLine('Blister count submitted.', 'success');
   }
@@ -490,6 +523,7 @@
       count_total: countTotal,
     });
     clearCountField();
+    configureStationActions();
     startCooldownAfterSuccess('submitSeal');
     statusLine('Sealing count submitted.', 'success');
   }
@@ -504,6 +538,7 @@
         metadata: { paused: true, reason: 'end_of_day' },
       });
       clearCountField();
+      configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — blister count saved for end of day.', 'success');
       return;
@@ -515,6 +550,7 @@
         metadata: { paused: true, reason: 'end_of_day' },
       });
       clearCountField();
+      configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — sealing count saved for end of day.', 'success');
       return;
@@ -525,6 +561,7 @@
         reason: 'paused_end_of_day',
       });
       clearCountField();
+      configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — packaging snapshot saved for end of day.', 'success');
       return;
@@ -535,7 +572,7 @@
     const stationToken = document.getElementById('wf-station-token').value;
     const inp = productInput();
     const cardToken = inp ? inp.value.trim() : '';
-    return postJson('/workflow/floor/api/event', {
+    const data = await postJson('/workflow/floor/api/event', {
       station_token: stationToken,
       card_token: cardToken,
       device_id: deviceId(),
@@ -543,6 +580,24 @@
       event_type: eventType,
       payload: payload || {},
     });
+    applyStationFacts(data);
+    return data;
+  }
+  async function resumeBag() {
+    ensureLoadedBag();
+    const kind = stationKind();
+    const data = await emitEvent('STATION_RESUMED', {
+      station_id: window.WF_STATION_ID || 0,
+      station_kind: kind,
+      note: 'resumed_after_pause',
+    });
+    if (data.idempotent_duplicate) {
+      statusLine('Station already resumed.', 'success');
+    } else {
+      statusLine('Station resumed — enter counts for this run.', 'success');
+    }
+    configureStationActions();
+    setActionsEnabled(true);
   }
   async function finalize() {
     ensureLoadedBag();
@@ -581,6 +636,8 @@
     if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e), 'error')));
     const pause = document.getElementById('wf-pause-count');
     if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e), 'error')));
+    const resume = document.getElementById('wf-resume-bag');
+    if (resume) resume.addEventListener('click', () => resumeBag().catch((e) => statusLine(String(e), 'error')));
     const f = document.getElementById('wf-finalize');
     if (f) f.addEventListener('click', () => finalize().catch((e) => statusLine(String(e), 'error')));
     const sp = document.getElementById('wf-scan-product');

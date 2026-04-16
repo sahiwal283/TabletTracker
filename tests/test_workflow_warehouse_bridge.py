@@ -181,6 +181,30 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
         ).fetchone()[0]
         self.assertEqual(dm, 4)
 
+    def test_per_event_packaging_appends_distinct_receipts(self):
+        wid = self._wf_bag_id
+        r1 = upsert_packaged_from_workflow_packaging(
+            self.conn, wid, displays_made=1, event_id=101
+        )
+        r2 = upsert_packaged_from_workflow_packaging(
+            self.conn, wid, displays_made=2, event_id=102
+        )
+        self.assertTrue(r1.get("ok"))
+        self.assertTrue(r2.get("ok"))
+        self.conn.commit()
+        n = self.conn.execute(
+            "SELECT COUNT(*) FROM warehouse_submissions WHERE submission_type = 'packaged'",
+        ).fetchone()[0]
+        self.assertEqual(n, 2)
+        self.assertEqual(
+            workflow_packaged_receipt_number(wid, 101),
+            r1.get("receipt_number"),
+        )
+        self.assertEqual(
+            workflow_packaged_receipt_number(wid, 102),
+            r2.get("receipt_number"),
+        )
+
 
 class TestWorkflowWarehouseMachineBridge(unittest.TestCase):
     """Sealing/blister bridge wiring (execute_machine_submission is mocked)."""
@@ -306,6 +330,26 @@ class TestWorkflowWarehouseMachineBridge(unittest.TestCase):
             workflow_machine_lane_receipt_number(wid, "seal"),
         )
         self.assertEqual(m_exec.call_args[0][3][0]["machine_count"], 2)
+
+    @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
+    def test_sealing_per_event_distinct_receipt(self, m_exec):
+        m_exec.return_value = {"success": True}
+        wid = self._wf_bag_id
+        st = {"id": 1, "machine_id": self._machine_id, "station_kind": "sealing"}
+        r = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=3,
+            station_row=st,
+            lane="seal",
+            expected_machine_role="sealing",
+            event_id=77,
+        )
+        self.assertTrue(r.get("ok"), r)
+        self.assertEqual(
+            m_exec.call_args[0][1].get("receipt_number"),
+            workflow_machine_lane_receipt_number(wid, "seal", 77),
+        )
 
     @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
     def test_clear_count_deletes_without_execute(self, m_exec):

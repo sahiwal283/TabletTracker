@@ -1,8 +1,10 @@
 """
 Sync QR workflow packaging counts into warehouse_submissions (packaged) for bag / PO totals.
 
-Also syncs sealing and blister station scans into ``warehouse_submissions`` / ``machine_counts``
-(machine submission rows) keyed by receipt ``WORKFLOW-<workflow_bag_id>-seal`` / ``-blister``.
+Also syncs sealing and blister station scans into ``warehouse_submissions`` / ``machine_counts``.
+Legacy receipts are ``WORKFLOW-<workflow_bag_id>-seal`` / ``-blister``; each floor event may use
+a distinct receipt suffix (``-e<workflow_event_id>``) so multiple pauses keep separate rows.
+Packaged snapshots use ``WORKFLOW-<id>-pkg-e<event_id>`` when synced from an event id.
 """
 
 from __future__ import annotations
@@ -25,8 +27,14 @@ LOGGER = logging.getLogger(__name__)
 WORKFLOW_RECEIPT_PREFIX = "WORKFLOW-"
 
 
-def workflow_packaged_receipt_number(workflow_bag_id: int) -> str:
-    return f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}"
+def workflow_packaged_receipt_number(
+    workflow_bag_id: int, event_id: Optional[int] = None
+) -> str:
+    """Packaged receipt: legacy ``WORKFLOW-<id>`` or one row per snapshot when ``event_id`` is set."""
+    base = f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}"
+    if event_id is not None:
+        return f"{base}-pkg-e{int(event_id)}"
+    return base
 
 
 def _coerce_int_opt(val) -> Optional[int]:
@@ -155,7 +163,10 @@ def upsert_packaged_from_workflow_packaging(
     event_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Replace the single packaged submission for this workflow bag (receipt WORKFLOW-<id>).
+    Upsert packaged submission for this workflow bag.
+
+    Without ``event_id``, replaces the legacy single receipt ``WORKFLOW-<id>``.
+    With ``event_id``, inserts a distinct receipt per snapshot event so repeated pauses keep history.
 
     Counts feed the same aggregates as the production form (displays × packages/display × tablets/package).
     """
@@ -280,17 +291,22 @@ def upsert_packaged_from_workflow_packaging(
         )
         return {"ok": False, "reason": "no_bag_resolution", "skipped": True}
 
-    receipt = workflow_packaged_receipt_number(workflow_bag_id)
-    conn.execute(
-        """
-        DELETE FROM warehouse_submissions
-        WHERE receipt_number = ? AND submission_type = 'packaged'
-        """,
-        (receipt,),
-    )
+    receipt = workflow_packaged_receipt_number(workflow_bag_id, event_id)
+    if event_id is None:
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'packaged'
+            """,
+            (receipt,),
+        )
 
     submission_date = datetime.now().date().isoformat()
-    admin_notes = f"QR workflow packaging sync (workflow_bag_id={workflow_bag_id})"
+    admin_notes = f"QR workflow packaging sync (workflow_bag_id={workflow_bag_id}"
+    if event_id is not None:
+        admin_notes += f", workflow_event_id={event_id})"
+    else:
+        admin_notes += ")"
 
     conn.execute(
         """
@@ -371,12 +387,21 @@ def sync_if_packaging_snapshot(
     )
 
 
-def workflow_machine_lane_receipt_number(workflow_bag_id: int, lane: str) -> str:
-    """Stable receipt for one workflow bag + lane (``seal`` or ``blister``)."""
+def workflow_machine_lane_receipt_number(
+    workflow_bag_id: int, lane: str, event_id: Optional[int] = None
+) -> str:
+    """Receipt for one workflow bag + lane (``seal`` or ``blister``).
+
+    Without ``event_id``: legacy single lane receipt (replaced on each sync).
+    With ``event_id``: distinct receipt per floor event (multiple pauses / submissions preserved).
+    """
     key = (lane or "").strip().lower()
     if key not in ("seal", "blister"):
         raise ValueError("lane must be 'seal' or 'blister'")
-    return f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}-{key}"
+    base = f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}-{key}"
+    if event_id is not None:
+        return f"{base}-e{int(event_id)}"
+    return base
 
 
 def _tablet_type_for_product(conn: sqlite3.Connection, product_id: int) -> Optional[int]:
@@ -562,7 +587,10 @@ def upsert_machine_from_workflow_scan(
     event_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Replace the single machine submission for this workflow bag + lane (sealing or blister).
+    Upsert machine submission for this workflow bag + lane (sealing or blister).
+
+    Without ``event_id``, replaces the legacy single receipt for that lane.
+    With ``event_id``, each sync uses a distinct receipt so multiple pauses keep separate rows.
 
     ``station_row`` must include ``machine_id``, ``station_kind`` when available, and ``id``.
     """
@@ -625,11 +653,15 @@ def upsert_machine_from_workflow_scan(
             "detail": f"station machine role is {role}, expected {exp}",
         }
 
-    receipt = workflow_machine_lane_receipt_number(workflow_bag_id, key)
+    receipt = workflow_machine_lane_receipt_number(workflow_bag_id, key, event_id)
     lane_label = "sealing" if key == "seal" else "blister"
     admin_notes = (
-        f"QR workflow {lane_label} sync (workflow_bag_id={workflow_bag_id}, station_id={station_row.get('id')})"
+        f"QR workflow {lane_label} sync (workflow_bag_id={workflow_bag_id}, "
+        f"station_id={station_row.get('id')}"
     )
+    if event_id is not None:
+        admin_notes += f", workflow_event_id={event_id}"
+    admin_notes += ")"
 
     if count_total < 0:
         return {"ok": False, "reason": "invalid_count_total", "skipped": True}
@@ -640,7 +672,8 @@ def upsert_machine_from_workflow_scan(
 
     box_number = wb.get("box_number")
     bag_number = wb.get("bag_number")
-    _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
+    if event_id is None:
+        _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
 
     data: Dict[str, Any] = {
         "product_id": int(product_id),
@@ -749,69 +782,83 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
     conn: sqlite3.Connection, workflow_bag_id: int
 ) -> None:
     """
-    Remove packaged + machine warehouse rows keyed by this bag's WORKFLOW-<id> receipts.
+    Remove packaged + machine warehouse rows keyed by this workflow bag's bridge receipts.
+
+    Includes legacy receipts (``WORKFLOW-<id>``, ``WORKFLOW-<id>-seal``) and per-event
+    suffixed rows (``-pkg-e<event_id>``, ``-seal-e<event_id>``, etc.).
 
     Call before deleting a ``workflow_bags`` row so PO aggregates and paired ``machine_counts``
     stay consistent with the bridge's upsert/delete behavior.
     """
     wf = int(workflow_bag_id)
-    packaged_receipt = workflow_packaged_receipt_number(wf)
-    rows = conn.execute(
+    prefix = f"{WORKFLOW_RECEIPT_PREFIX}{wf}"
+
+    wb = conn.execute(
+        "SELECT product_id FROM workflow_bags WHERE id = ?", (wf,)
+    ).fetchone()
+    pid = dict(wb).get("product_id") if wb else None
+    tid = _tablet_type_for_product(conn, int(pid)) if pid else None
+
+    mc_rows = conn.execute(
+        """
+        SELECT DISTINCT receipt_number FROM warehouse_submissions
+        WHERE submission_type = 'machine'
+          AND (
+            receipt_number LIKE ? || '-seal%' OR receipt_number LIKE ? || '-blister%'
+          )
+        """,
+        (prefix, prefix),
+    ).fetchall()
+    for row in mc_rows:
+        rn = dict(row).get("receipt_number")
+        if not rn:
+            continue
+        if tid:
+            _delete_workflow_machine_lane_rows(conn, str(rn), tid)
+        else:
+            n = conn.execute(
+                """
+                SELECT COUNT(*) AS c FROM warehouse_submissions
+                WHERE receipt_number = ? AND submission_type = 'machine'
+                """,
+                (rn,),
+            ).fetchone()
+            if not n or int(n["c"]) == 0:
+                continue
+            LOGGER.warning(
+                "workflow warehouse bridge: bag %s has machine rows but no tablet_type_id; "
+                "dropping receipt %s without full PO/machine_count pairing",
+                wf,
+                rn,
+            )
+            conn.execute(
+                """
+                DELETE FROM warehouse_submissions
+                WHERE receipt_number = ? AND submission_type = 'machine'
+                """,
+                (rn,),
+            )
+
+    pkg_po = conn.execute(
         """
         SELECT assigned_po_id FROM warehouse_submissions
-        WHERE receipt_number = ? AND submission_type = 'packaged'
+        WHERE submission_type = 'packaged'
+          AND (receipt_number = ? OR receipt_number LIKE ? || '-pkg-e%')
         """,
-        (packaged_receipt,),
+        (prefix, prefix),
     ).fetchall()
     po_ids: set = set()
-    for row in rows:
-        r = dict(row)
-        apo = r.get("assigned_po_id")
+    for row in pkg_po:
+        apo = dict(row).get("assigned_po_id")
         if apo is not None:
             po_ids.add(int(apo))
     conn.execute(
         """
         DELETE FROM warehouse_submissions
-        WHERE receipt_number = ? AND submission_type = 'packaged'
+        WHERE submission_type = 'packaged'
+          AND (receipt_number = ? OR receipt_number LIKE ? || '-pkg-e%')
         """,
-        (packaged_receipt,),
+        (prefix, prefix),
     )
     for po_id in po_ids:
         refresh_purchase_order_header_aggregates(conn, po_id)
-
-    wb = conn.execute(
-        "SELECT product_id FROM workflow_bags WHERE id = ?", (wf,)
-    ).fetchone()
-    pid = None
-    if wb:
-        pid = dict(wb).get("product_id")
-    tid = _tablet_type_for_product(conn, int(pid)) if pid else None
-    seal_r = workflow_machine_lane_receipt_number(wf, "seal")
-    blist_r = workflow_machine_lane_receipt_number(wf, "blister")
-    if tid:
-        _delete_workflow_machine_lane_rows(conn, seal_r, tid)
-        _delete_workflow_machine_lane_rows(conn, blist_r, tid)
-        return
-    for r in (seal_r, blist_r):
-        n = conn.execute(
-            """
-            SELECT COUNT(*) AS c FROM warehouse_submissions
-            WHERE receipt_number = ? AND submission_type = 'machine'
-            """,
-            (r,),
-        ).fetchone()
-        if not n or int(n["c"]) == 0:
-            continue
-        LOGGER.warning(
-            "workflow warehouse bridge: bag %s has machine rows but no tablet_type_id; "
-            "dropping receipt %s without full PO/machine_count pairing",
-            wf,
-            r,
-        )
-        conn.execute(
-            """
-            DELETE FROM warehouse_submissions
-            WHERE receipt_number = ? AND submission_type = 'machine'
-            """,
-            (r,),
-        )

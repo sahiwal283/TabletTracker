@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 
@@ -73,6 +74,58 @@ def _resolve_card(conn, card_token: str):
     ).fetchone()
 
 
+def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
+    """True if this event represents an end-of-day / paused handoff at the station."""
+    if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
+        return (payload.get("reason") or "").strip() == "paused_end_of_day"
+    if event_type in (WC.EVENT_BLISTER_COMPLETE, WC.EVENT_SEALING_COMPLETE):
+        meta = payload.get("metadata")
+        if isinstance(meta, dict):
+            if meta.get("paused") or meta.get("reason") == "end_of_day":
+                return True
+        return False
+    return False
+
+
+def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> bool:
+    """
+    After a pause-style count/snapshot, operators must emit STATION_RESUMED before more counts.
+    Walk station-scoped events in order; last pause without a later resume means resume is required.
+    """
+    rows = conn.execute(
+        """
+        SELECT event_type, payload
+        FROM workflow_events
+        WHERE workflow_bag_id = ? AND station_id = ?
+        ORDER BY occurred_at ASC, id ASC
+        """,
+        (workflow_bag_id, station_id),
+    ).fetchall()
+    needs_resume = False
+    for row in rows:
+        et = row["event_type"]
+        try:
+            pl = json.loads(row["payload"]) if row["payload"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pl = {}
+        if not isinstance(pl, dict):
+            pl = {}
+        if et == WC.EVENT_BAG_CLAIMED:
+            needs_resume = False
+        elif et == WC.EVENT_STATION_RESUMED:
+            needs_resume = False
+        elif et in (
+            WC.EVENT_BLISTER_COMPLETE,
+            WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_PACKAGING_SNAPSHOT,
+        ):
+            if _is_pause_workflow_event(et, pl):
+                needs_resume = True
+            else:
+                needs_resume = False
+    return needs_resume
+
+
 def _station_has_claimed_bag(
     conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
 ) -> bool:
@@ -95,6 +148,7 @@ def _station_facts_payload(
 ) -> dict:
     facts = mechanical_bag_facts(conn, workflow_bag_id)
     station_claimed = _station_has_claimed_bag(conn, workflow_bag_id, station_id)
+    station_needs_resume = _station_needs_resume(conn, workflow_bag_id, station_id)
     return {
         "event_counts_by_type": facts["event_counts_by_type"],
         "latest_event_type": facts["latest_event_type"],
@@ -102,13 +156,15 @@ def _station_facts_payload(
         "progress_summary": progress_summary(facts),
         "station_claimed": station_claimed,
         "claim_required": not station_claimed,
+        "station_needs_resume": station_needs_resume,
+        "resume_required": bool(station_claimed and station_needs_resume),
     }
 
 
 def _is_event_allowed_for_station(station_kind: str, event_type: str) -> bool:
     kind = (station_kind or "sealing").strip().lower()
     et = (event_type or "").strip().upper()
-    if et == WC.EVENT_BAG_CLAIMED:
+    if et in (WC.EVENT_BAG_CLAIMED, WC.EVENT_STATION_RESUMED):
         return True
     allowed = {
         "blister": {WC.EVENT_BLISTER_COMPLETE},
@@ -265,6 +321,24 @@ def api_append_event():
                 "facts": _station_facts_payload(conn, bag_id, station_id),
                 "idempotent_duplicate": True,
             }
+        station_needs_resume = _station_needs_resume(conn, bag_id, station_id)
+        if event_type == WC.EVENT_STATION_RESUMED and not station_needs_resume:
+            return {
+                "ok": True,
+                "workflow_bag_id": bag_id,
+                "facts": _station_facts_payload(conn, bag_id, station_id),
+                "idempotent_duplicate": True,
+            }
+        if station_needs_resume and event_type in (
+            WC.EVENT_BLISTER_COMPLETE,
+            WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_PACKAGING_SNAPSHOT,
+        ):
+            return workflow_json(
+                "WORKFLOW_VALIDATION",
+                "Resume this bag at this station before submitting counts (tap Resume).",
+                status=400,
+            )
         try:
             event_id = append_workflow_event(
                 conn,
