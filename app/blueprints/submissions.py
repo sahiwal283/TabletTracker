@@ -124,6 +124,7 @@ def _workflow_submissions_template_kwargs(workflow_bags, wf_status, pagination):
     return {
         "view": "workflow",
         "submissions": [],
+        "receipt_groups": [],
         "workflow_bags": workflow_bags,
         "wf_status": wf_status,
         "pagination": pagination,
@@ -401,6 +402,129 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
             result.extend(null_receipts)
     
     return result
+
+
+def _pick_parent_bag_submission(children):
+    """Prefer a row with receive_name (highest id wins); else max id."""
+    with_name = [s for s in children if s.get("receive_name")]
+    if with_name:
+        return max(with_name, key=lambda s: (s.get("id") or 0))
+    return max(children, key=lambda s: (s.get("id") or 0))
+
+
+def build_receipt_groups(submissions_processed):
+    """
+    One group per distinct receipt_number; each submission without a receipt is its own group.
+    Returns list of dicts: group_key, receipt_number, children, receipt_total, bag_start_time,
+    bag_end_time, product_label, parent_bag_sub (for Bag column on parent row).
+    """
+    groups_map = {}
+    order = []
+
+    for sub in submissions_processed:
+        r = sub.get("receipt_number")
+        if r is None or r == "":
+            key = ("__null__", sub.get("id"))
+        else:
+            key = ("receipt", r)
+        if key not in groups_map:
+            groups_map[key] = []
+            order.append(key)
+        groups_map[key].append(sub)
+
+    out = []
+    for key in order:
+        ch = groups_map[key]
+        ch = sorted(ch, key=lambda s: (s.get("created_at") or "", s.get("id") or 0))
+
+        receipt_total = sum((s.get("individual_calc") or 0) or 0 for s in ch)
+
+        bag_starts = [s.get("bag_start_time") for s in ch if s.get("bag_start_time")]
+        bag_ends = [s.get("bag_end_time") for s in ch if s.get("bag_end_time")]
+        bag_start_min = min(bag_starts) if bag_starts else None
+        bag_end_max = max(bag_ends) if bag_ends else None
+
+        names = sorted({s.get("product_name") for s in ch if s.get("product_name")})
+        if len(names) == 0:
+            product_label = ""
+        elif len(names) == 1:
+            product_label = names[0]
+        else:
+            product_label = f"{names[0]} (+{len(names) - 1} more)"
+
+        rid = ch[0].get("receipt_number") if key[0] == "receipt" else None
+        if rid:
+            gk = f"rec:{rid}"
+        else:
+            gk = f"null:{ch[0].get('id')}"
+
+        parent_bag = _pick_parent_bag_submission(ch)
+
+        out.append(
+            {
+                "group_key": gk,
+                "receipt_number": rid or "",
+                "children": ch,
+                "receipt_total": receipt_total,
+                "bag_start_time": bag_start_min,
+                "bag_end_time": bag_end_max,
+                "product_label": product_label,
+                "parent_bag_sub": parent_bag,
+            }
+        )
+    return out
+
+
+def sort_receipt_groups(groups, sort_by, sort_order):
+    """Sort aggregated receipt groups (warehouse list)."""
+    sort_by = (sort_by or "created_at").strip()
+    sort_order = (sort_order or "desc").strip().lower()
+    reverse = sort_order == "desc"
+
+    def receipt_tuple(receipt_str):
+        if not receipt_str or "-" not in receipt_str:
+            return (999999, 999999)
+        try:
+            parts = str(receipt_str).split("-", 1)
+            return (int(parts[0]), int(parts[1]))
+        except (ValueError, IndexError):
+            return (999999, 999999)
+
+    def sort_key(g):
+        ch = g["children"]
+        if sort_by == "receipt_number":
+            return receipt_tuple(g.get("receipt_number"))
+        if sort_by == "total":
+            return g["receipt_total"]
+        if sort_by == "product_name":
+            return g.get("product_label") or ""
+        if sort_by == "employee_name":
+            vals = [s.get("employee_name") or "" for s in ch]
+            if not vals:
+                return ""
+            return max(vals) if reverse else min(vals)
+        if sort_by == "bag_start":
+            ts = g.get("bag_start_time")
+            return (0, ts) if ts else (1, "")
+        if sort_by == "bag_end":
+            ts = g.get("bag_end_time")
+            return (0, ts) if ts else (1, "")
+        if sort_by == "created_at":
+            if g.get("bag_start_time"):
+                return (0, g["bag_start_time"])
+            latest = max((s.get("created_at") or "") for s in ch) if ch else ""
+            return (1, latest)
+        # Fallback: newest created_at in group
+        latest = max((s.get("created_at") or "") for s in ch) if ch else ""
+        return latest
+
+    if sort_by == "receipt_number":
+        return sorted(groups, key=lambda g: receipt_tuple(g.get("receipt_number")), reverse=reverse)
+    if sort_by in ("bag_start", "bag_end", "created_at"):
+        return sorted(groups, key=sort_key, reverse=reverse)
+
+    return sorted(groups, key=sort_key, reverse=reverse)
+
 
 @bp.route('/submissions')
 @role_required('dashboard')
@@ -723,21 +847,27 @@ def submissions_list():
                 
                 submissions_processed.append(sub_dict)
             
-            # Group submissions by receipt_number while maintaining sort order within groups
-            all_submissions = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
-            
-            # Pagination
+            receipt_groups_all = sort_receipt_groups(
+                build_receipt_groups(submissions_processed), sort_by, sort_order
+            )
+
+            # Pagination (one row per receipt group)
             page = request.args.get('page', 1, type=int)
             per_page = 15
-            total_submissions = len(all_submissions)
-            total_pages = (total_submissions + per_page - 1) // per_page  # Ceiling division
-            
-            # Calculate start and end indices
-            start_idx = (page - 1) * per_page
-            end_idx = start_idx + per_page
-            
-            # Get submissions for current page
-            submissions = all_submissions[start_idx:end_idx]
+            total_groups = len(receipt_groups_all)
+            if total_groups == 0:
+                total_pages = 0
+                page = 1
+                receipt_groups = []
+            else:
+                total_pages = (total_groups + per_page - 1) // per_page
+                if page > total_pages:
+                    page = total_pages
+                if page < 1:
+                    page = 1
+                start_idx = (page - 1) * per_page
+                end_idx = start_idx + per_page
+                receipt_groups = receipt_groups_all[start_idx:end_idx]
             
             # Count unverified submissions (respecting current filters)
             unverified_query = '''
@@ -786,7 +916,7 @@ def submissions_list():
             pagination = {
                 'page': page,
                 'per_page': per_page,
-                'total': total_submissions,
+                'total': total_groups,
                 'total_pages': total_pages,
                 'has_prev': page > 1,
                 'has_next': page < total_pages,
@@ -839,7 +969,8 @@ def submissions_list():
             return render_template(
                 'submissions.html',
                 view='warehouse',
-                submissions=submissions,
+                submissions=[],
+                receipt_groups=receipt_groups,
                 pagination=pagination,
                 filter_info=filter_info,
                 unverified_count=unverified_count,
@@ -865,6 +996,7 @@ def submissions_list():
             'submissions.html',
             view='warehouse',
             submissions=[],
+            receipt_groups=[],
             workflow_bags=[],
             wf_status='',
             pagination={'page': 1, 'per_page': 15, 'total': 0, 'total_pages': 0, 'has_prev': False, 'has_next': False},

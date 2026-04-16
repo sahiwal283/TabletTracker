@@ -6,6 +6,24 @@
     'use strict';
 
     function onClick(event) {
+        var toggleBtn = event.target.closest('.js-receipt-toggle');
+        if (toggleBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            var parentRow = toggleBtn.closest('tr.js-receipt-parent');
+            if (!parentRow) {
+                return;
+            }
+            var detailRow = parentRow.nextElementSibling;
+            if (!detailRow || !detailRow.classList.contains('js-receipt-children')) {
+                return;
+            }
+            var expanded = detailRow.classList.toggle('hidden');
+            toggleBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            toggleBtn.textContent = expanded ? '▸' : '▾';
+            return;
+        }
+
         var notesTrigger = event.target.closest('.js-admin-notes-trigger');
         if (notesTrigger && typeof window.showAdminNotes === 'function') {
             event.stopPropagation();
@@ -35,6 +53,14 @@
         if (row && typeof window.viewSubmissionDetails === 'function') {
             var rowId = parseInt(row.getAttribute('data-submission-id'), 10);
             if (!Number.isNaN(rowId)) window.viewSubmissionDetails(rowId);
+        }
+
+        var parentReceipt = event.target.closest('tr.js-receipt-parent');
+        if (parentReceipt && !event.target.closest('a,button,input,textarea,select')) {
+            var btn = parentReceipt.querySelector('.js-receipt-toggle');
+            if (btn) {
+                btn.click();
+            }
         }
     }
 
