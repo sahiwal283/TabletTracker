@@ -21,20 +21,20 @@
     <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
   </div>
   <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
-  <label for="wf-count-total" id="wf-count-label" class="block text-sm font-medium mb-1">Machine count total</label>
-  <input id="wf-count-total" type="number" min="0" step="1" class="form-input mb-3" placeholder="Enter end count (e.g. 240)" />
+  <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
+  <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
   <div class="flex flex-wrap gap-2 mb-4">
-    <button type="button" id="wf-claim" class="btn-secondary px-4 py-2">Claim bag</button>
-    <button type="button" id="wf-save-count" class="btn-secondary px-4 py-2">Submit count</button>
+    <button type="button" id="wf-claim" class="hidden btn-secondary px-4 py-2">Claim bag</button>
+    <button type="button" id="wf-save-count" class="hidden btn-secondary px-4 py-2">Submit count</button>
     <button type="button" id="wf-save-blister" class="btn-secondary px-4 py-2 hidden">Submit blister count</button>
     <button type="button" id="wf-save-seal" class="btn-secondary px-4 py-2 hidden">Submit sealing count</button>
-    <button type="button" id="wf-pause-count" class="btn-secondary px-4 py-2">Pause bag (end of day)</button>
+    <button type="button" id="wf-pause-count" class="hidden btn-secondary px-4 py-2">Pause bag (end of day)</button>
     <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Refresh bag status</button>
-    <button type="button" id="wf-finalize" class="btn-primary px-4 py-2">Finalize</button>
+    <button type="button" id="wf-finalize" class="hidden btn-primary px-4 py-2">Finalize</button>
   </div>
-  <p id="wf-station-hint" class="text-xs text-gray-500 mb-3"></p>
+  <p id="wf-station-hint" class="hidden text-xs text-gray-500 mb-3"></p>
   <p class="text-xs text-gray-500">device_id is generated in localStorage for log correlation only.</p>
 </div>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>

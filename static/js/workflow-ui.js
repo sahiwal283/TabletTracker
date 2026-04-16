@@ -31,6 +31,33 @@
       document.getElementById('wf-finalize'),
     ].filter(Boolean);
   }
+  function shownOnlyWhenBagLoaded() {
+    return [
+      document.getElementById('wf-count-label'),
+      document.getElementById('wf-count-total'),
+      document.getElementById('wf-claim'),
+      document.getElementById('wf-save-count'),
+      document.getElementById('wf-save-blister'),
+      document.getElementById('wf-save-seal'),
+      document.getElementById('wf-pause-count'),
+      document.getElementById('wf-finalize'),
+      document.getElementById('wf-station-hint'),
+    ].filter(Boolean);
+  }
+  function setBagLoadedUi(loaded) {
+    shownOnlyWhenBagLoaded().forEach(function (el) {
+      if (!loaded) {
+        el.classList.add('hidden');
+      } else {
+        // Keep combined-only buttons hidden unless configureStationActions reveals them.
+        if (el.id === 'wf-save-blister' || el.id === 'wf-save-seal') return;
+        el.classList.remove('hidden');
+      }
+    });
+    if (loaded) {
+      configureStationActions();
+    }
+  }
   function setActionsEnabled(enabled) {
     actionButtons().forEach(function (btn) {
       btn.disabled = !enabled;
@@ -40,6 +67,7 @@
   }
   function resetLoadedBagState(showHint) {
     hasLoadedBag = false;
+    setBagLoadedUi(false);
     setActionsEnabled(false);
     if (showHint) {
       statusLine('Scan or enter bag card token, then tap Refresh bag status.');
@@ -78,7 +106,6 @@
     const saveSealBtn = document.getElementById('wf-save-seal');
     const pauseBtn = document.getElementById('wf-pause-count');
     if (!saveBtn || !pauseBtn) return;
-    saveBtn.classList.remove('hidden');
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
     if (kind === 'blister') {
@@ -250,6 +277,7 @@
       page_session_id: pageSessionId(),
     });
     hasLoadedBag = true;
+    setBagLoadedUi(true);
     setActionsEnabled(true);
     statusLine(JSON.stringify(data.facts, null, 2));
   }
