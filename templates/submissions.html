@@ -235,6 +235,8 @@
             {% if filter_date_to %}{% set _ = query_params.append('date_to=' + filter_date_to) %}{% endif %}
             {% if filter_tablet_type_id %}{% set _ = query_params.append('tablet_type_id=' + filter_tablet_type_id|string) %}{% endif %}
             {% if filter_receipt_number %}{% set _ = query_params.append('receipt_number=' + filter_receipt_number) %}{% endif %}
+            {% if sort_by %}{% set _ = query_params.append('sort_by=' + sort_by) %}{% endif %}
+            {% if sort_order %}{% set _ = query_params.append('sort_order=' + sort_order) %}{% endif %}
             {% set query_string = '?' + query_params|join('&') if query_params else '' %}
             
             <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=packaged_machine" 
@@ -276,6 +278,12 @@
             {% endif %}
             {% if active_tab %}
             <input type="hidden" name="tab" value="{{ active_tab }}">
+            {% endif %}
+            {% if sort_by %}
+            <input type="hidden" name="sort_by" value="{{ sort_by }}">
+            {% endif %}
+            {% if sort_order %}
+            <input type="hidden" name="sort_order" value="{{ sort_order }}">
             {% endif %}
             
             <!-- Date From -->
@@ -446,17 +454,29 @@
                     {% if show_archived %}{% set _ = query_parts.append('show_archived=true') %}{% endif %}
                     {% if active_tab %}{% set _ = query_parts.append('tab=' + active_tab) %}{% endif %}
                     {% set filter_query = query_parts|join('&') %}
-                    {% set bag_start_sort_active = sort_by in ('created_at', 'bag_start') %}
+                    {% set bag_start_sort_active = sort_by == 'bag_start' %}
                     {% set bag_end_sort_active = sort_by == 'bag_end' %}
                     
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=receipt_number&sort_order={% if sort_by == 'receipt_number' and sort_order == 'asc' %}desc{% else %}asc{% endif %}" 
-                           class="flex items-center gap-1 hover:text-gray-700">
-                            Receipt #
-                            {% if sort_by == 'receipt_number' %}
-                                <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
-                            {% endif %}
-                        </a>
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=created_at&sort_order={% if sort_by == 'created_at' and sort_order == 'desc' %}asc{% else %}desc{% endif %}"
+                               class="flex items-center gap-1 hover:text-gray-700 {% if sort_by == 'created_at' %}text-gray-900{% endif %}"
+                               title="Sort by most recent submission time in this receipt">
+                                Recent
+                                {% if sort_by == 'created_at' %}
+                                    <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                                {% endif %}
+                            </a>
+                            <span class="text-gray-300" aria-hidden="true">/</span>
+                            <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=receipt_number&sort_order={% if sort_by == 'receipt_number' and sort_order == 'asc' %}desc{% else %}asc{% endif %}"
+                               class="flex items-center gap-1 hover:text-gray-700 {% if sort_by == 'receipt_number' %}text-gray-900{% endif %}"
+                               title="Sort by receipt number">
+                                Receipt #
+                                {% if sort_by == 'receipt_number' %}
+                                    <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </div>
                     </th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                         <a href="?{{ filter_query }}{% if filter_query %}&{% endif %}sort_by=bag_start&sort_order={% if bag_start_sort_active and sort_order == 'desc' %}asc{% else %}desc{% endif %}" 

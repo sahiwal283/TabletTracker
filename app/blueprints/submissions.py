@@ -404,6 +404,32 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
     return result
 
 
+def _created_at_sort_timestamp(val) -> float:
+    """
+    Parse warehouse_submissions.created_at for total ordering across receipt groups.
+    Missing/invalid sorts last (ascending); pairs with datetime for comparison.
+    """
+    if val is None:
+        return float("-inf")
+    if isinstance(val, datetime):
+        try:
+            return val.replace(tzinfo=timezone.utc).timestamp()
+        except (OSError, ValueError, OverflowError):
+            pass
+    s = str(val).strip()
+    if not s:
+        return float("-inf")
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s[:26], fmt).replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            continue
+    try:
+        return datetime.strptime(s[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return float("-inf")
+
+
 def _pick_parent_bag_submission(children):
     """Prefer a row with receive_name (highest id wins); else max id."""
     with_name = [s for s in children if s.get("receive_name")]
@@ -460,6 +486,13 @@ def build_receipt_groups(submissions_processed):
 
         parent_bag = _pick_parent_bag_submission(ch)
 
+        # Order parent rows by "which receipt had the most recent submission" (any line in the group).
+        latest_ts = float("-inf")
+        for s in ch:
+            latest_ts = max(latest_ts, _created_at_sort_timestamp(s.get("created_at")))
+        max_child_id = max((s.get("id") or 0) for s in ch) if ch else 0
+        latest_submission_sort_key = (latest_ts, max_child_id)
+
         out.append(
             {
                 "group_key": gk,
@@ -470,13 +503,20 @@ def build_receipt_groups(submissions_processed):
                 "bag_end_time": bag_end_max,
                 "product_label": product_label,
                 "parent_bag_sub": parent_bag,
+                "latest_submission_sort_key": latest_submission_sort_key,
             }
         )
     return out
 
 
 def sort_receipt_groups(groups, sort_by, sort_order):
-    """Sort aggregated receipt groups (warehouse list)."""
+    """
+    Sort aggregated receipt groups (warehouse list).
+
+    ``sort_by=created_at`` orders receipts by the **latest** ``created_at`` among
+    submissions sharing that receipt (most recently touched receipt first when desc).
+    Receipt numbers are not used unless ``sort_by=receipt_number``.
+    """
     sort_by = (sort_by or "created_at").strip()
     sort_order = (sort_order or "desc").strip().lower()
     reverse = sort_order == "desc"
@@ -510,13 +550,9 @@ def sort_receipt_groups(groups, sort_by, sort_order):
             ts = g.get("bag_end_time")
             return (0, ts) if ts else (1, "")
         if sort_by == "created_at":
-            if g.get("bag_start_time"):
-                return (0, g["bag_start_time"])
-            latest = max((s.get("created_at") or "") for s in ch) if ch else ""
-            return (1, latest)
-        # Fallback: newest created_at in group
-        latest = max((s.get("created_at") or "") for s in ch) if ch else ""
-        return latest
+            return g.get("latest_submission_sort_key") or (float("-inf"), 0)
+        # Fallback: same as created_at — latest submission time in receipt
+        return g.get("latest_submission_sort_key") or (float("-inf"), 0)
 
     if sort_by == "receipt_number":
         return sorted(groups, key=lambda g: receipt_tuple(g.get("receipt_number")), reverse=reverse)
