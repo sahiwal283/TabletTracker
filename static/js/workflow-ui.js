@@ -2,6 +2,7 @@
 (function () {
   let html5QrCode = null;
   let productScanDone = false;
+  let hasLoadedBag = false;
 
   const WF_PAGE_SESSION = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + '-' + Math.random());
   function pageSessionId() {
@@ -19,6 +20,35 @@
   function statusLine(msg) {
     const el = document.getElementById('wf-status');
     if (el) el.textContent = msg;
+  }
+  function actionButtons() {
+    return [
+      document.getElementById('wf-claim'),
+      document.getElementById('wf-save-count'),
+      document.getElementById('wf-save-blister'),
+      document.getElementById('wf-save-seal'),
+      document.getElementById('wf-pause-count'),
+      document.getElementById('wf-finalize'),
+    ].filter(Boolean);
+  }
+  function setActionsEnabled(enabled) {
+    actionButtons().forEach(function (btn) {
+      btn.disabled = !enabled;
+      btn.classList.toggle('opacity-50', !enabled);
+      btn.classList.toggle('cursor-not-allowed', !enabled);
+    });
+  }
+  function resetLoadedBagState(showHint) {
+    hasLoadedBag = false;
+    setActionsEnabled(false);
+    if (showHint) {
+      statusLine('Scan or enter bag card token, then tap Refresh bag status.');
+    }
+  }
+  function ensureLoadedBag() {
+    if (!hasLoadedBag) {
+      throw new Error('Scan or enter bag card token and load bag first.');
+    }
   }
   function productInput() {
     return document.getElementById('product_input');
@@ -219,9 +249,12 @@
       device_id: deviceId(),
       page_session_id: pageSessionId(),
     });
+    hasLoadedBag = true;
+    setActionsEnabled(true);
     statusLine(JSON.stringify(data.facts, null, 2));
   }
   async function claimBag() {
+    ensureLoadedBag();
     const kind = stationKind();
     const data = await emitEvent('BAG_CLAIMED', {
       station_id: window.WF_STATION_ID || 0,
@@ -231,6 +264,7 @@
     statusLine(JSON.stringify(data.facts, null, 2));
   }
   async function saveCountAndContinue() {
+    ensureLoadedBag();
     const kind = stationKind();
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
@@ -257,11 +291,13 @@
     throw new Error('Unsupported station kind: ' + kind);
   }
   async function saveBlisterCountOnly() {
+    ensureLoadedBag();
     const countTotal = selectedCountTotal();
     const data = await emitEvent('BLISTER_COMPLETE', { count_total: countTotal });
     statusLine(JSON.stringify(data.facts, null, 2));
   }
   async function saveSealingCountOnly() {
+    ensureLoadedBag();
     const countTotal = selectedCountTotal();
     const data = await emitEvent('SEALING_COMPLETE', {
       station_id: window.WF_STATION_ID || 1,
@@ -270,6 +306,7 @@
     statusLine(JSON.stringify(data.facts, null, 2));
   }
   async function pauseWithCount() {
+    ensureLoadedBag();
     const kind = stationKind();
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
@@ -313,6 +350,7 @@
     });
   }
   async function finalize() {
+    ensureLoadedBag();
     const stationToken = document.getElementById('wf-station-token').value;
     const inp = productInput();
     const cardToken = inp ? inp.value.trim() : '';
@@ -325,9 +363,19 @@
     statusLine(JSON.stringify(data, null, 2));
   }
   document.addEventListener('DOMContentLoaded', () => {
+    resetLoadedBagState(true);
     configureStationActions();
+    const inp = productInput();
+    if (inp) {
+      inp.addEventListener('input', () => {
+        resetLoadedBagState(false);
+      });
+    }
     const r = document.getElementById('wf-refresh');
-    if (r) r.addEventListener('click', () => refresh().catch((e) => statusLine(String(e))));
+    if (r) r.addEventListener('click', () => refresh().catch((e) => {
+      resetLoadedBagState(false);
+      statusLine(String(e));
+    }));
     const c = document.getElementById('wf-claim');
     if (c) c.addEventListener('click', () => claimBag().catch((e) => statusLine(String(e))));
     const save = document.getElementById('wf-save-count');

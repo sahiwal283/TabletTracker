@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.15] - 2026-04-15
+
+### Fixed
+- QR station pages now block claim/count/pause/finalize actions until a bag card token is scanned (or entered) and successfully loaded; editing the token re-locks actions until reloaded.
+
+---
+
 ## [3.5.14] - 2026-04-15
 
 ### Fixed
