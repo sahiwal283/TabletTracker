@@ -305,6 +305,13 @@ def api_finalize():
         st = _resolve_station(conn, station_token)
         if not st:
             return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station", status=404)
+        station_kind = (st["station_kind"] or "sealing").strip().lower()
+        if station_kind != "packaging":
+            return workflow_json(
+                "WORKFLOW_VALIDATION",
+                "Finalize is only allowed from packaging stations.",
+                status=400,
+            )
         card = _resolve_card(conn, card_token)
         if not card or card["assigned_workflow_bag_id"] is None:
             return workflow_json("WORKFLOW_VALIDATION", "Card not assigned to a bag")

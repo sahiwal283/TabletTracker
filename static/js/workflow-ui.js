@@ -101,6 +101,7 @@
     const kind = stationKind();
     const hint = document.getElementById('wf-station-hint');
     const countLabel = document.getElementById('wf-count-label');
+    const finalizeBtn = document.getElementById('wf-finalize');
     const saveBtn = document.getElementById('wf-save-count');
     const saveBlisterBtn = document.getElementById('wf-save-blister');
     const saveSealBtn = document.getElementById('wf-save-seal');
@@ -108,6 +109,7 @@
     if (!saveBtn || !pauseBtn) return;
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
+    if (finalizeBtn) finalizeBtn.classList.add('hidden');
     if (kind === 'blister') {
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
@@ -122,6 +124,7 @@
       saveBtn.textContent = 'Save packaging displays';
       pauseBtn.textContent = 'Pause packaging bag';
       if (countLabel) countLabel.textContent = 'Packaging display count';
+      if (finalizeBtn && hasLoadedBag) finalizeBtn.classList.remove('hidden');
       if (hint) hint.textContent = 'Packaging lane: claim bag, save display count snapshot, or pause for handoff.';
     } else if (kind === 'combined') {
       saveBtn.classList.add('hidden');

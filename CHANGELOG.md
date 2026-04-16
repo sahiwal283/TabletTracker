@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.18] - 2026-04-15
+
+### Fixed
+- Finalize is now packaging-only: the button no longer appears on blister/sealing/combined station pages, and the floor API rejects finalize requests from non-packaging stations.
+
+---
+
 ## [3.5.17] - 2026-04-15
 
 ### Fixed
