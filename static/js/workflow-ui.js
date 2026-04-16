@@ -150,6 +150,15 @@
     var el = countInput();
     if (el) el.value = '';
   }
+  function clearEmployeeNameField() {
+    var el = employeeNameInput();
+    if (el) el.value = '';
+    try {
+      localStorage.removeItem(WF_EMPLOYEE_STORAGE_KEY);
+    } catch (_e) {
+      /* */
+    }
+  }
 
   function assertActionCooldown(actionKey) {
     var until = cooldownUntil[actionKey];
@@ -556,7 +565,7 @@
         employee_name: requiredEmployeeName(),
       });
       clearCountField();
-      persistEmployeeName();
+      clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Blister count submitted.', 'success');
@@ -569,7 +578,7 @@
         employee_name: requiredEmployeeName(),
       });
       clearCountField();
-      persistEmployeeName();
+      clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Sealing count submitted.', 'success');
@@ -582,7 +591,7 @@
         employee_name: requiredEmployeeName(),
       });
       clearCountField();
-      persistEmployeeName();
+      clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Packaging count snapshot saved.', 'success');
@@ -599,7 +608,7 @@
       employee_name: requiredEmployeeName(),
     });
     clearCountField();
-    persistEmployeeName();
+    clearEmployeeNameField();
     configureStationActions();
     startCooldownAfterSuccess('submitBlister');
     statusLine('Blister count submitted.', 'success');
@@ -614,7 +623,7 @@
       employee_name: requiredEmployeeName(),
     });
     clearCountField();
-    persistEmployeeName();
+    clearEmployeeNameField();
     configureStationActions();
     startCooldownAfterSuccess('submitSeal');
     statusLine('Sealing count submitted.', 'success');
@@ -631,7 +640,7 @@
         metadata: { paused: true, reason: 'end_of_day' },
       });
       clearCountField();
-      persistEmployeeName();
+      clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — blister count saved for end of day.', 'success');
@@ -645,7 +654,7 @@
         metadata: { paused: true, reason: 'end_of_day' },
       });
       clearCountField();
-      persistEmployeeName();
+      clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — sealing count saved for end of day.', 'success');
@@ -658,7 +667,7 @@
         employee_name: requiredEmployeeName(),
       });
       clearCountField();
-      persistEmployeeName();
+      clearEmployeeNameField();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — packaging snapshot saved for end of day.', 'success');
