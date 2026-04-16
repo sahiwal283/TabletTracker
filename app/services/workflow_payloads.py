@@ -22,7 +22,12 @@ _ALLOWED: Dict[str, FrozenSet[str]] = {
     WC.EVENT_STATION_RESUMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_BLISTER_COMPLETE: frozenset({"count_total", "employee_name"}),
     WC.EVENT_SEALING_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
-    WC.EVENT_PACKAGING_SNAPSHOT: frozenset({"display_count", "reason", "employee_name"}),
+    WC.EVENT_PACKAGING_SNAPSHOT: frozenset(
+        {"display_count", "reason", "employee_name", "packs_remaining", "damaged_tablets"}
+    ),
+    WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: frozenset(
+        {"displays_taken", "employee_name", "note"}
+    ),
     WC.EVENT_BAG_FINALIZED: frozenset({"finalization_rule_version"}),
     WC.EVENT_CARD_FORCE_RELEASED: frozenset({"qr_card_id", "workflow_bag_id", "reason"}),
     WC.EVENT_STATION_SCAN_TOKEN_ROTATED: frozenset(

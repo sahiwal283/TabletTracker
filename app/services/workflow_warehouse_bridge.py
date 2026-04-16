@@ -4,7 +4,9 @@ Sync QR workflow packaging counts into warehouse_submissions (packaged) for bag 
 Also syncs sealing and blister station scans into ``warehouse_submissions`` / ``machine_counts``.
 Legacy receipts are ``WORKFLOW-<workflow_bag_id>-seal`` / ``-blister``; each floor event may use
 a distinct receipt suffix (``-e<workflow_event_id>``) so multiple pauses keep separate rows.
-Packaged snapshots use ``WORKFLOW-<id>-pkg-e<event_id>`` when synced from an event id.
+Packaged snapshots use ``WORKFLOW-<id>-pkg-e<event_id>``; incremental
+``PACKAGING_TAKEN_FOR_ORDER`` rows use ``WORKFLOW-<id>-take-e<event_id>`` so PO totals sum
+snapshots + pull-for-delivery lines distinctly.
 """
 
 from __future__ import annotations
@@ -185,6 +187,9 @@ def upsert_packaged_from_workflow_packaging(
     station_row: Optional[Dict[str, Any]] = None,
     event_id: Optional[int] = None,
     employee_name: Optional[str] = None,
+    packs_remaining: int = 0,
+    damaged_tablets: int = 0,
+    receipt_mode: str = "pkg",
 ) -> Dict[str, Any]:
     """
     Upsert packaged submission for this workflow bag.
@@ -192,10 +197,22 @@ def upsert_packaged_from_workflow_packaging(
     Without ``event_id``, replaces the legacy single receipt ``WORKFLOW-<id>``.
     With ``event_id``, inserts a distinct receipt per snapshot event so repeated pauses keep history.
 
+    ``receipt_mode`` ``pkg`` (default): snapshot sync receipt ``-pkg-e<event_id>``.
+    ``receipt_mode`` ``taken``: pull-for-delivery / order receipt ``-take-e<event_id>`` — tablets
+    from ``displays_made`` still roll into PO good output like snapshots; admin notes label the row.
+
+    ``packs_remaining`` / ``damaged_tablets`` match the production packaging form (cards remaining /
+    cards re-opened; legacy column name for cards ripped).
+
     Counts feed the same aggregates as the production form (displays × packages/display × tablets/package).
     """
     if displays_made < 0:
         return {"ok": False, "reason": "invalid_displays_made", "skipped": True}
+    if packs_remaining < 0 or damaged_tablets < 0:
+        return {"ok": False, "reason": "invalid_packaging_counts", "skipped": True}
+    rm = (receipt_mode or "pkg").strip().lower()
+    if rm not in ("pkg", "taken"):
+        return {"ok": False, "reason": "invalid_receipt_mode", "skipped": True}
 
     wb = conn.execute(
         "SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)
@@ -315,7 +332,10 @@ def upsert_packaged_from_workflow_packaging(
         )
         return {"ok": False, "reason": "no_bag_resolution", "skipped": True}
 
-    receipt = workflow_packaged_receipt_number(workflow_bag_id, event_id)
+    if event_id is not None and rm == "taken":
+        receipt = f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}-take-e{int(event_id)}"
+    else:
+        receipt = workflow_packaged_receipt_number(workflow_bag_id, event_id)
     if event_id is None:
         conn.execute(
             """
@@ -327,11 +347,17 @@ def upsert_packaged_from_workflow_packaging(
 
     submission_date = datetime.now().date().isoformat()
     emp = employee_name or "QR workflow"
-    admin_notes = f"QR workflow packaging sync (workflow_bag_id={workflow_bag_id}"
-    if event_id is not None:
-        admin_notes += f", workflow_event_id={event_id})"
+    if rm == "taken":
+        admin_notes = (
+            f"QR workflow packaging taken for delivery/order (workflow_bag_id={workflow_bag_id}, "
+            f"workflow_event_id={event_id})"
+        )
     else:
-        admin_notes += ")"
+        admin_notes = f"QR workflow packaging sync (workflow_bag_id={workflow_bag_id}"
+        if event_id is not None:
+            admin_notes += f", workflow_event_id={event_id})"
+        else:
+            admin_notes += ")"
 
     conn.execute(
         """
@@ -349,9 +375,9 @@ def upsert_packaged_from_workflow_packaging(
             bag_number,
             bag_label_count,
             int(displays_made),
+            int(packs_remaining),
             0,
-            0,
-            0,
+            int(damaged_tablets),
             submission_date,
             admin_notes,
             bag_id,
@@ -403,6 +429,14 @@ def sync_if_packaging_snapshot(
         dm = int(payload.get("display_count") or 0)
     except (TypeError, ValueError):
         dm = 0
+    try:
+        pr = int(payload.get("packs_remaining") or 0)
+    except (TypeError, ValueError):
+        pr = 0
+    try:
+        dt = int(payload.get("damaged_tablets") or 0)
+    except (TypeError, ValueError):
+        dt = 0
     return upsert_packaged_from_workflow_packaging(
         conn,
         workflow_bag_id,
@@ -410,6 +444,38 @@ def sync_if_packaging_snapshot(
         station_row=station_row,
         event_id=event_id,
         employee_name=_employee_name_from_payload(payload),
+        packs_remaining=pr,
+        damaged_tablets=dt,
+    )
+
+
+def sync_if_packaging_taken_for_order(
+    conn: sqlite3.Connection,
+    workflow_bag_id: int,
+    event_type: str,
+    payload: Dict[str, Any],
+    station_row: Optional[Dict[str, Any]] = None,
+    event_id: Optional[int] = None,
+) -> Optional[Dict[str, Any]]:
+    """Incremental pull from active packaging (not a full snapshot). Returns bridge result or None."""
+    if event_type != WC.EVENT_PACKAGING_TAKEN_FOR_ORDER:
+        return None
+    try:
+        taken = int(payload.get("displays_taken") or 0)
+    except (TypeError, ValueError):
+        taken = 0
+    if taken < 1:
+        return {"ok": False, "reason": "displays_taken_required", "skipped": True}
+    return upsert_packaged_from_workflow_packaging(
+        conn,
+        workflow_bag_id,
+        displays_made=taken,
+        station_row=station_row,
+        event_id=event_id,
+        employee_name=_employee_name_from_payload(payload),
+        packs_remaining=0,
+        damaged_tablets=0,
+        receipt_mode="taken",
     )
 
 
@@ -773,6 +839,17 @@ def sync_workflow_warehouse_events(
     if packaged is not None:
         out["packaged"] = packaged
 
+    packaged_taken = sync_if_packaging_taken_for_order(
+        conn,
+        workflow_bag_id,
+        event_type,
+        payload,
+        station_row=station_row,
+        event_id=event_id,
+    )
+    if packaged_taken is not None:
+        out["packaged_taken"] = packaged_taken
+
     try:
         ct = int(payload.get("count_total") or 0)
     except (TypeError, ValueError):
@@ -874,9 +951,13 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
         """
         SELECT assigned_po_id FROM warehouse_submissions
         WHERE submission_type = 'packaged'
-          AND (receipt_number = ? OR receipt_number LIKE ? || '-pkg-e%')
+          AND (
+            receipt_number = ?
+            OR receipt_number LIKE ? || '-pkg-e%'
+            OR receipt_number LIKE ? || '-take-e%'
+          )
         """,
-        (prefix, prefix),
+        (prefix, prefix, prefix),
     ).fetchall()
     po_ids: set = set()
     for row in pkg_po:
@@ -887,9 +968,13 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
         """
         DELETE FROM warehouse_submissions
         WHERE submission_type = 'packaged'
-          AND (receipt_number = ? OR receipt_number LIKE ? || '-pkg-e%')
+          AND (
+            receipt_number = ?
+            OR receipt_number LIKE ? || '-pkg-e%'
+            OR receipt_number LIKE ? || '-take-e%'
+          )
         """,
-        (prefix, prefix),
+        (prefix, prefix, prefix),
     )
     for po_id in po_ids:
         refresh_purchase_order_header_aggregates(conn, po_id)

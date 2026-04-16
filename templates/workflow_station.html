@@ -28,6 +28,14 @@
   <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
   <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
+  <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Cards remaining</label>
+  <input id="wf-packs-remaining" type="number" min="0" step="1" class="hidden form-input mb-1" placeholder="0" />
+  <label for="wf-cards-reopened" id="wf-cards-reopened-label" class="hidden block text-sm font-medium mb-1">Cards re-opened</label>
+  <p id="wf-cards-reopened-help" class="hidden text-xs text-gray-500 mb-1">Blister cards ripped or wasted (packaging loss), not tablet units.</p>
+  <input id="wf-cards-reopened" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="0" />
+  <label for="wf-taken-displays" id="wf-taken-displays-label" class="hidden block text-sm font-medium mb-1">Displays taken (delivery / order)</label>
+  <p id="wf-taken-displays-help" class="hidden text-xs text-gray-500 mb-1">Separate from snapshot total; PO credit still applies.</p>
+  <input id="wf-taken-displays" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Only for Taken button" />
   <label for="wf-employee-name" id="wf-employee-name-label" class="hidden block text-sm font-medium mb-1">Your name</label>
   <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="name / nombre" autocomplete="name" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
@@ -38,6 +46,7 @@
     <button type="button" id="wf-save-blister" class="btn-secondary px-4 py-2 hidden">Submit blister count</button>
     <button type="button" id="wf-save-seal" class="btn-secondary px-4 py-2 hidden">Submit sealing count</button>
     <button type="button" id="wf-pause-count" class="hidden btn-secondary px-4 py-2">Pause bag (end of day)</button>
+    <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-4 py-2">Taken for delivery / order</button>
     <button type="button" id="wf-resume-bag" class="hidden btn-primary px-4 py-2">Resume bag</button>
     <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Refresh bag status</button>
     <button type="button" id="wf-finalize" class="hidden btn-primary px-4 py-2">Finalize</button>

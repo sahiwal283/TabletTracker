@@ -61,6 +61,7 @@
       document.getElementById('wf-save-blister'),
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
+      document.getElementById('wf-taken-delivery'),
       document.getElementById('wf-finalize'),
     ].filter(Boolean);
   }
@@ -75,9 +76,18 @@
       document.getElementById('wf-save-blister'),
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
+      document.getElementById('wf-taken-delivery'),
       document.getElementById('wf-resume-bag'),
       document.getElementById('wf-finalize'),
       document.getElementById('wf-station-hint'),
+      document.getElementById('wf-packs-remaining-label'),
+      document.getElementById('wf-packs-remaining'),
+      document.getElementById('wf-cards-reopened-label'),
+      document.getElementById('wf-cards-reopened-help'),
+      document.getElementById('wf-cards-reopened'),
+      document.getElementById('wf-taken-displays-label'),
+      document.getElementById('wf-taken-displays-help'),
+      document.getElementById('wf-taken-displays'),
     ].filter(Boolean);
   }
   function renderBagVerification(facts) {
@@ -175,6 +185,7 @@
       ['pause', 'wf-pause-count'],
       ['submitBlister', 'wf-save-blister'],
       ['submitSeal', 'wf-save-seal'],
+      ['taken', 'wf-taken-delivery'],
     ];
     pairs.forEach(function (pair) {
       var key = pair[0];
@@ -290,6 +301,74 @@
     }
     return n;
   }
+  function optionalNonNegativeInt(elementId, labelText) {
+    var el = document.getElementById(elementId);
+    var raw = el ? String(el.value || '').trim() : '';
+    if (!raw) {
+      return 0;
+    }
+    var n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+      throw new Error(labelText + ' must be a whole number 0 or greater.');
+    }
+    return n;
+  }
+  function selectedTakenDisplaysTotal() {
+    var el = document.getElementById('wf-taken-displays');
+    var raw = el && String(el.value || '').trim();
+    if (!raw) {
+      throw new Error('Enter how many displays were taken for delivery or order.');
+    }
+    var n = Number(raw);
+    if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+      throw new Error('Displays taken must be a whole number 1 or greater.');
+    }
+    return n;
+  }
+  function hidePackagingStationExtra() {
+    [
+      'wf-packs-remaining-label',
+      'wf-packs-remaining',
+      'wf-cards-reopened-label',
+      'wf-cards-reopened-help',
+      'wf-cards-reopened',
+      'wf-taken-displays-label',
+      'wf-taken-displays-help',
+      'wf-taken-displays',
+    ].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+    var tb = document.getElementById('wf-taken-delivery');
+    if (tb) tb.classList.add('hidden');
+  }
+  function showPackagingStationExtra() {
+    [
+      'wf-packs-remaining-label',
+      'wf-packs-remaining',
+      'wf-cards-reopened-label',
+      'wf-cards-reopened-help',
+      'wf-cards-reopened',
+      'wf-taken-displays-label',
+      'wf-taken-displays-help',
+      'wf-taken-displays',
+    ].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
+    var tb = document.getElementById('wf-taken-delivery');
+    if (tb) {
+      tb.classList.remove('hidden');
+      tb.disabled = false;
+      tb.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+  function clearPackagingSnapshotFields() {
+    ['wf-packs-remaining', 'wf-cards-reopened', 'wf-taken-displays'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }
   function configureStationActions() {
     const kind = stationKind();
     const hint = document.getElementById('wf-station-hint');
@@ -308,6 +387,7 @@
     if (resumeBtn) resumeBtn.classList.add('hidden');
     if (empLabel) empLabel.classList.add('hidden');
     if (empInput) empInput.classList.add('hidden');
+    hidePackagingStationExtra();
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
     if (finalizeBtn) finalizeBtn.classList.add('hidden');
@@ -367,9 +447,11 @@
       pauseBtn.textContent = 'Pause packaging bag';
       if (countLabel) countLabel.textContent = 'Packaging display count';
       if (finalizeBtn && hasLoadedBag) finalizeBtn.classList.remove('hidden');
+      showPackagingStationExtra();
       if (hint) {
         hint.classList.remove('hidden');
-        hint.textContent = 'Packaging lane: save display count snapshot, pause for handoff, or finalize.';
+        hint.textContent =
+          'Save a snapshot (with cards remaining / re-opened), pause, or record displays taken for delivery—each is tracked separately. Finalize when done.';
       }
     } else if (kind === 'combined') {
       saveBtn.classList.add('hidden');
@@ -587,11 +669,14 @@
     if (kind === 'packaging') {
       await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
+        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
+        damaged_tablets: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
         reason: 'live_count',
         employee_name: requiredEmployeeName(),
       });
       clearCountField();
       clearEmployeeNameField();
+      clearPackagingSnapshotFields();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Packaging count snapshot saved.', 'success');
@@ -663,17 +748,39 @@
     if (kind === 'packaging') {
       await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
+        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
+        damaged_tablets: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
         reason: 'paused_end_of_day',
         employee_name: requiredEmployeeName(),
       });
       clearCountField();
       clearEmployeeNameField();
+      clearPackagingSnapshotFields();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine('Paused — packaging snapshot saved for end of day.', 'success');
       return;
     }
     throw new Error('Unsupported station kind: ' + kind);
+  }
+  async function takenForDelivery() {
+    ensureLoadedBag();
+    if (stationKind() !== 'packaging') {
+      throw new Error('Taken for delivery is only for packaging stations.');
+    }
+    assertActionCooldown('taken');
+    await emitEvent('PACKAGING_TAKEN_FOR_ORDER', {
+      displays_taken: selectedTakenDisplaysTotal(),
+      employee_name: requiredEmployeeName(),
+      note: 'taken_for_delivery',
+    });
+    var td = document.getElementById('wf-taken-displays');
+    if (td) td.value = '';
+    clearEmployeeNameField();
+    configureStationActions();
+    setActionsEnabled(true);
+    startCooldownAfterSuccess('taken');
+    statusLine('Taken-for-order displays recorded.', 'success');
   }
   async function emitEvent(eventType, payload) {
     const stationToken = document.getElementById('wf-station-token').value;
@@ -746,6 +853,8 @@
     if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e), 'error')));
     const pause = document.getElementById('wf-pause-count');
     if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e), 'error')));
+    const taken = document.getElementById('wf-taken-delivery');
+    if (taken) taken.addEventListener('click', () => takenForDelivery().catch((e) => statusLine(String(e), 'error')));
     const resume = document.getElementById('wf-resume-bag');
     if (resume) resume.addEventListener('click', () => resumeBag().catch((e) => statusLine(String(e), 'error')));
     const f = document.getElementById('wf-finalize');

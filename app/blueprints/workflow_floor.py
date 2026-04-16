@@ -171,7 +171,7 @@ def _is_event_allowed_for_station(station_kind: str, event_type: str) -> bool:
     allowed = {
         "blister": {WC.EVENT_BLISTER_COMPLETE},
         "sealing": {WC.EVENT_SEALING_COMPLETE},
-        "packaging": {WC.EVENT_PACKAGING_SNAPSHOT},
+        "packaging": {WC.EVENT_PACKAGING_SNAPSHOT, WC.EVENT_PACKAGING_TAKEN_FOR_ORDER},
         "combined": {WC.EVENT_BLISTER_COMPLETE, WC.EVENT_SEALING_COMPLETE},
     }
     return et in allowed.get(kind, set())
@@ -335,12 +335,24 @@ def api_append_event():
             WC.EVENT_BLISTER_COMPLETE,
             WC.EVENT_SEALING_COMPLETE,
             WC.EVENT_PACKAGING_SNAPSHOT,
+            WC.EVENT_PACKAGING_TAKEN_FOR_ORDER,
         ):
             return workflow_json(
                 "WORKFLOW_VALIDATION",
                 "Resume this bag at this station before submitting counts (tap Resume).",
                 status=400,
             )
+        if event_type == WC.EVENT_PACKAGING_TAKEN_FOR_ORDER:
+            try:
+                _dt = int((payload or {}).get("displays_taken") or 0)
+            except (TypeError, ValueError):
+                _dt = 0
+            if _dt < 1:
+                return workflow_json(
+                    "WORKFLOW_VALIDATION",
+                    "displays_taken must be at least 1 for taken-for-order.",
+                    status=400,
+                )
         try:
             event_id = append_workflow_event(
                 conn,

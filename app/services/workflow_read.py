@@ -179,6 +179,7 @@ def display_stage_label(facts: Dict[str, Any]) -> str:
         WC.EVENT_BLISTER_COMPLETE: "Blister",
         WC.EVENT_SEALING_COMPLETE: "Sealing",
         WC.EVENT_PACKAGING_SNAPSHOT: "Packaging",
+        WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: "Taken for order",
         WC.EVENT_BAG_FINALIZED: "Complete",
         WC.EVENT_CARD_FORCE_RELEASED: "Card released (admin)",
     }
@@ -197,6 +198,8 @@ def progress_summary(facts: Dict[str, Any]) -> str:
         parts.append(f"seal×{c[WC.EVENT_SEALING_COMPLETE]}")
     if c.get(WC.EVENT_PACKAGING_SNAPSHOT):
         parts.append(f"pkg×{c[WC.EVENT_PACKAGING_SNAPSHOT]}")
+    if c.get(WC.EVENT_PACKAGING_TAKEN_FOR_ORDER):
+        parts.append(f"taken×{c[WC.EVENT_PACKAGING_TAKEN_FOR_ORDER]}")
     if not parts:
         return "No progress events yet"
     return ", ".join(parts)
