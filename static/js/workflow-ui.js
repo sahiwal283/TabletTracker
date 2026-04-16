@@ -62,7 +62,6 @@
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
       document.getElementById('wf-taken-delivery'),
-      document.getElementById('wf-finalize'),
     ].filter(Boolean);
   }
   function shownOnlyWhenBagLoaded() {
@@ -78,7 +77,6 @@
       document.getElementById('wf-pause-count'),
       document.getElementById('wf-taken-delivery'),
       document.getElementById('wf-resume-bag'),
-      document.getElementById('wf-finalize'),
       document.getElementById('wf-station-hint'),
       document.getElementById('wf-packs-remaining-label'),
       document.getElementById('wf-packs-remaining'),
@@ -375,7 +373,6 @@
     const countLabel = document.getElementById('wf-count-label');
     const countTotal = document.getElementById('wf-count-total');
     const claimBtn = document.getElementById('wf-claim');
-    const finalizeBtn = document.getElementById('wf-finalize');
     const saveBtn = document.getElementById('wf-save-count');
     const saveBlisterBtn = document.getElementById('wf-save-blister');
     const saveSealBtn = document.getElementById('wf-save-seal');
@@ -390,7 +387,6 @@
     hidePackagingStationExtra();
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
-    if (finalizeBtn) finalizeBtn.classList.add('hidden');
     claimBtn.classList.add('hidden');
     saveBtn.classList.add('hidden');
     pauseBtn.classList.add('hidden');
@@ -443,15 +439,14 @@
         hint.textContent = 'Sealing lane: submit sealing machine count, or pause with current count.';
       }
     } else if (kind === 'packaging') {
-      saveBtn.textContent = 'Save packaging displays';
+      saveBtn.textContent = 'Submit';
       pauseBtn.textContent = 'Pause packaging bag';
       if (countLabel) countLabel.textContent = 'Packaging display count';
-      if (finalizeBtn && hasLoadedBag) finalizeBtn.classList.remove('hidden');
       showPackagingStationExtra();
       if (hint) {
         hint.classList.remove('hidden');
         hint.textContent =
-          'Save a snapshot (with cards remaining / re-opened), pause, or record displays taken for delivery—each is tracked separately. Finalize when done.';
+          'Submit saves counts and finishes the bag. Pause for handoff, or Taken when displays leave for delivery/order.';
       }
     } else if (kind === 'combined') {
       saveBtn.classList.add('hidden');
@@ -667,19 +662,7 @@
       return;
     }
     if (kind === 'packaging') {
-      await emitEvent('PACKAGING_SNAPSHOT', {
-        display_count: countTotal,
-        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
-        damaged_tablets: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
-        reason: 'live_count',
-        employee_name: requiredEmployeeName(),
-      });
-      clearCountField();
-      clearEmployeeNameField();
-      clearPackagingSnapshotFields();
-      configureStationActions();
-      startCooldownAfterSuccess('submit');
-      statusLine('Packaging count snapshot saved.', 'success');
+      await submitPackagingAndFinalize();
       return;
     }
     throw new Error('Unsupported station kind: ' + kind);
@@ -763,6 +746,35 @@
     }
     throw new Error('Unsupported station kind: ' + kind);
   }
+  async function submitPackagingAndFinalize() {
+    ensureLoadedBag();
+    assertActionCooldown('submit');
+    const countTotal = selectedCountTotal();
+    await emitEvent('PACKAGING_SNAPSHOT', {
+      display_count: countTotal,
+      packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
+      damaged_tablets: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+      reason: 'final_submit',
+      employee_name: requiredEmployeeName(),
+    });
+    const stationToken = document.getElementById('wf-station-token').value;
+    const cardToken = productInput() ? String(productInput().value || '').trim() : '';
+    await postJson('/workflow/floor/api/finalize', {
+      station_token: stationToken,
+      card_token: cardToken,
+      device_id: deviceId(),
+      page_session_id: pageSessionId(),
+    });
+    clearCountField();
+    clearEmployeeNameField();
+    clearPackagingSnapshotFields();
+    var pinp = productInput();
+    if (pinp) pinp.value = '';
+    resetLoadedBagState(false);
+    configureStationActions();
+    startCooldownAfterSuccess('submit');
+    statusLine('Packaging counts saved and bag finalized. Scan the next card when ready.', 'success');
+  }
   async function takenForDelivery() {
     ensureLoadedBag();
     if (stationKind() !== 'packaging') {
@@ -813,19 +825,6 @@
     configureStationActions();
     setActionsEnabled(true);
   }
-  async function finalize() {
-    ensureLoadedBag();
-    const stationToken = document.getElementById('wf-station-token').value;
-    const inp = productInput();
-    const cardToken = inp ? inp.value.trim() : '';
-    const data = await postJson('/workflow/floor/api/finalize', {
-      station_token: stationToken,
-      card_token: cardToken,
-      device_id: deviceId(),
-      page_session_id: pageSessionId(),
-    });
-    statusLine('Bag finalized.', 'success');
-  }
   document.addEventListener('DOMContentLoaded', () => {
     loadEmployeeNameFromStorage();
     resetLoadedBagState(true);
@@ -857,8 +856,6 @@
     if (taken) taken.addEventListener('click', () => takenForDelivery().catch((e) => statusLine(String(e), 'error')));
     const resume = document.getElementById('wf-resume-bag');
     if (resume) resume.addEventListener('click', () => resumeBag().catch((e) => statusLine(String(e), 'error')));
-    const f = document.getElementById('wf-finalize');
-    if (f) f.addEventListener('click', () => finalize().catch((e) => statusLine(String(e), 'error')));
     const sp = document.getElementById('wf-scan-product');
     if (sp) sp.addEventListener('click', () => startProductQrScan().catch((e) => statusLine(String(e), 'error')));
     const st = document.getElementById('wf-scan-stop');
