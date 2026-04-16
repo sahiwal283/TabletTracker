@@ -266,7 +266,7 @@ def api_append_event():
                 "idempotent_duplicate": True,
             }
         try:
-            append_workflow_event(
+            event_id = append_workflow_event(
                 conn,
                 event_type,
                 payload,
@@ -280,7 +280,7 @@ def api_append_event():
         bridge_result = None
         try:
             bridge_result = sync_workflow_warehouse_events(
-                conn, bag_id, event_type, pl, st_dict
+                conn, bag_id, event_type, pl, st_dict, event_id=event_id
             )
         except ProductionSubmissionError as pse:
             conn.rollback()

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.20] - 2026-04-15
+
+### Fixed
+- Station timing now persists from workflow events: `BAG_CLAIMED` at a station is written as `bag_start_time`, and the station count event time is written as `bag_end_time` for synced machine/packaging submissions, so per-station and end-to-end duration analytics use event-driven timestamps.
+
+---
+
 ## [3.5.19] - 2026-04-15
 
 ### Fixed

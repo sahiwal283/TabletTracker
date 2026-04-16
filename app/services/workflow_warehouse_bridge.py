@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from app.services import workflow_constants as WC
@@ -38,11 +38,121 @@ def _coerce_int_opt(val) -> Optional[int]:
         return None
 
 
+def _utc_naive_from_event_ms(occurred_at_ms: Optional[int]) -> Optional[str]:
+    if not occurred_at_ms:
+        return None
+    try:
+        ms = int(occurred_at_ms)
+    except (TypeError, ValueError):
+        return None
+    dt = datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
+    return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _event_occurred_at_ms(conn: sqlite3.Connection, event_id: Optional[int]) -> Optional[int]:
+    if not event_id:
+        return None
+    try:
+        row = conn.execute(
+            "SELECT occurred_at FROM workflow_events WHERE id = ?",
+            (int(event_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row:
+        return None
+    return int(dict(row).get("occurred_at") or 0) or None
+
+
+def _station_claim_occurred_at_ms(
+    conn: sqlite3.Connection,
+    workflow_bag_id: int,
+    station_id: Optional[int],
+    up_to_occurred_at_ms: Optional[int],
+) -> Optional[int]:
+    if not station_id:
+        return None
+    try:
+        if up_to_occurred_at_ms:
+            row = conn.execute(
+                """
+                SELECT occurred_at
+                FROM workflow_events
+                WHERE workflow_bag_id = ?
+                  AND station_id = ?
+                  AND event_type = ?
+                  AND occurred_at <= ?
+                ORDER BY occurred_at DESC, id DESC
+                LIMIT 1
+                """,
+                (
+                    int(workflow_bag_id),
+                    int(station_id),
+                    WC.EVENT_BAG_CLAIMED,
+                    int(up_to_occurred_at_ms),
+                ),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT occurred_at
+                FROM workflow_events
+                WHERE workflow_bag_id = ?
+                  AND station_id = ?
+                  AND event_type = ?
+                ORDER BY occurred_at DESC, id DESC
+                LIMIT 1
+                """,
+                (int(workflow_bag_id), int(station_id), WC.EVENT_BAG_CLAIMED),
+            ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row:
+        return None
+    return int(dict(row).get("occurred_at") or 0) or None
+
+
+def _update_receipt_station_times(
+    conn: sqlite3.Connection,
+    *,
+    receipt_number: str,
+    submission_type: str,
+    bag_start_time: Optional[str],
+    bag_end_time: Optional[str],
+) -> None:
+    # Some older schemas may not have both columns; degrade gracefully.
+    try:
+        conn.execute(
+            """
+            UPDATE warehouse_submissions
+            SET bag_start_time = ?, bag_end_time = ?
+            WHERE receipt_number = ? AND submission_type = ?
+            """,
+            (bag_start_time, bag_end_time, receipt_number, submission_type),
+        )
+        return
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute(
+            """
+            UPDATE warehouse_submissions
+            SET bag_start_time = ?
+            WHERE receipt_number = ? AND submission_type = ?
+            """,
+            (bag_start_time, receipt_number, submission_type),
+        )
+    except sqlite3.OperationalError:
+        return
+
+
 def upsert_packaged_from_workflow_packaging(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
     *,
     displays_made: int,
+    station_row: Optional[Dict[str, Any]] = None,
+    event_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Replace the single packaged submission for this workflow bag (receipt WORKFLOW-<id>).
@@ -211,6 +321,16 @@ def upsert_packaged_from_workflow_packaging(
         ),
     )
     sid = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+    station_id = int(station_row.get("id")) if station_row and station_row.get("id") else None
+    end_ms = _event_occurred_at_ms(conn, event_id)
+    start_ms = _station_claim_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
+    _update_receipt_station_times(
+        conn,
+        receipt_number=receipt,
+        submission_type="packaged",
+        bag_start_time=_utc_naive_from_event_ms(start_ms),
+        bag_end_time=_utc_naive_from_event_ms(end_ms) or utc_now_naive_string(),
+    )
     LOGGER.info(
         "workflow warehouse bridge: upsert packaged submission id=%s bag_id=%s workflow_bag=%s displays=%s",
         sid,
@@ -232,6 +352,8 @@ def sync_if_packaging_snapshot(
     workflow_bag_id: int,
     event_type: str,
     payload: Dict[str, Any],
+    station_row: Optional[Dict[str, Any]] = None,
+    event_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """If event is PACKAGING_SNAPSHOT, upsert packaged row. Returns bridge result or None."""
     if event_type != WC.EVENT_PACKAGING_SNAPSHOT:
@@ -241,7 +363,11 @@ def sync_if_packaging_snapshot(
     except (TypeError, ValueError):
         dm = 0
     return upsert_packaged_from_workflow_packaging(
-        conn, workflow_bag_id, displays_made=dm
+        conn,
+        workflow_bag_id,
+        displays_made=dm,
+        station_row=station_row,
+        event_id=event_id,
     )
 
 
@@ -433,6 +559,7 @@ def upsert_machine_from_workflow_scan(
     station_row: Dict[str, Any],
     lane: str,
     expected_machine_role: str,
+    event_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Replace the single machine submission for this workflow bag + lane (sealing or blister).
@@ -532,6 +659,17 @@ def upsert_machine_from_workflow_scan(
     if not result.get("success"):
         return {"ok": False, "reason": "execute_machine_failed", "detail": result}
 
+    station_id = int(station_row.get("id")) if station_row.get("id") is not None else None
+    end_ms = _event_occurred_at_ms(conn, event_id)
+    start_ms = _station_claim_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
+    _update_receipt_station_times(
+        conn,
+        receipt_number=receipt,
+        submission_type="machine",
+        bag_start_time=_utc_naive_from_event_ms(start_ms),
+        bag_end_time=_utc_naive_from_event_ms(end_ms) or utc_now_naive_string(),
+    )
+
     LOGGER.info(
         "workflow warehouse bridge: machine %s sync workflow_bag=%s receipt=%s count=%s",
         lane_label,
@@ -553,6 +691,8 @@ def sync_workflow_warehouse_events(
     event_type: str,
     payload: Dict[str, Any],
     station_row: Dict[str, Any],
+    *,
+    event_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Run packaging and/or machine bridges for floor events.
@@ -561,7 +701,14 @@ def sync_workflow_warehouse_events(
     """
     out: Dict[str, Any] = {}
 
-    packaged = sync_if_packaging_snapshot(conn, workflow_bag_id, event_type, payload)
+    packaged = sync_if_packaging_snapshot(
+        conn,
+        workflow_bag_id,
+        event_type,
+        payload,
+        station_row=station_row,
+        event_id=event_id,
+    )
     if packaged is not None:
         out["packaged"] = packaged
 
@@ -578,6 +725,7 @@ def sync_workflow_warehouse_events(
             station_row=station_row,
             lane="seal",
             expected_machine_role="sealing",
+            event_id=event_id,
         )
     elif event_type == WC.EVENT_BLISTER_COMPLETE:
         out["machine_blister"] = upsert_machine_from_workflow_scan(
@@ -587,6 +735,7 @@ def sync_workflow_warehouse_events(
             station_row=station_row,
             lane="blister",
             expected_machine_role="blister",
+            event_id=event_id,
         )
 
     if not out:
