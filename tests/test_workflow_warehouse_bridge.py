@@ -144,6 +144,17 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
         except OSError:
             pass
 
+    def test_upsert_uses_custom_receipt_base_when_set(self):
+        wid = self._wf_bag_id
+        self.conn.execute(
+            "UPDATE workflow_bags SET receipt_number = ? WHERE id = ?",
+            ("PO-RECV-1001", wid),
+        )
+        self.conn.commit()
+        r = upsert_packaged_from_workflow_packaging(self.conn, wid, displays_made=2)
+        self.assertTrue(r.get("ok"))
+        self.assertEqual(r.get("receipt_number"), "PO-RECV-1001")
+
     def test_upsert_creates_packaged_submission(self):
         wid = self._wf_bag_id
         r = upsert_packaged_from_workflow_packaging(

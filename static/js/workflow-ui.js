@@ -103,12 +103,13 @@
       wrap.classList.add('hidden');
       return;
     }
+    var receiptLine = (bv.receipt_number || bv.shipment_label || '').trim();
     var rows = [
       ['Product', bv.product_name],
+      ['Receipt #', receiptLine],
       ['Box', bv.box_display],
       ['Bag', bv.bag_display],
       ['PO #', bv.po_number],
-      ['Shipment', bv.shipment_label],
     ];
     var any = false;
     rows.forEach(function (pair) {

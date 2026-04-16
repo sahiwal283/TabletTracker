@@ -88,12 +88,14 @@ def new_bag():
                 form_box_number=None,
                 form_bag_number=None,
                 form_card_scan_token=None,
+                form_receipt_number=None,
             )
 
         product_id = request.form.get("product_id", type=int)
         box_number = _parse_nonneg_int(request.form.get("box_number"))
         bag_number = _parse_nonneg_int(request.form.get("bag_number"))
         card_scan_token = (request.form.get("card_scan_token") or "").strip()
+        receipt_number = (request.form.get("receipt_number") or "").strip()
         inventory_bag_id = request.form.get("inventory_bag_id", type=int)
         disambiguate = (request.form.get("disambiguate") or "").strip() == "1"
 
@@ -106,6 +108,9 @@ def new_bag():
             return redirect(url_for("workflow_staff.new_bag"))
         if not card_scan_token:
             flash("Scan or enter the bag card token before assigning.", "error")
+            return redirect(url_for("workflow_staff.new_bag"))
+        if not receipt_number:
+            flash("Receipt number is required.", "error")
             return redirect(url_for("workflow_staff.new_bag"))
 
         prow = conn.execute(
@@ -153,6 +158,7 @@ def new_bag():
                     form_box_number=box_number,
                     form_bag_number=bag_number,
                     form_card_scan_token=card_scan_token,
+                    form_receipt_number=receipt_number,
                 )
             inventory_bag_id = int(matches[0]["id"])
         else:
@@ -166,6 +172,7 @@ def new_bag():
                 product_id=product_id,
                 user_id=uid,
                 card_scan_token=card_scan_token,
+                receipt_number_override=receipt_number,
             )
 
         try:

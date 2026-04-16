@@ -146,6 +146,7 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(v.get("box_display"), "Box 2")
         self.assertEqual(v.get("bag_display"), "Bag 9")
         self.assertEqual(v.get("shipment_label"), "PO-77-2")
+        self.assertEqual(v.get("receipt_number"), "PO-77-2")
         self.assertIsNone(v.get("po_number"))
 
     def test_production_day(self):

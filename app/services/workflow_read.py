@@ -142,7 +142,7 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Di
             if po is not None and str(po).strip():
                 po_number = str(po).strip()
             rn = invd.get("receive_name")
-            if rn is not None and str(rn).strip():
+            if (not receipt_fallback) and rn is not None and str(rn).strip():
                 shipment_label = str(rn).strip()
             if not box_s:
                 ib = invd.get("inv_box")
@@ -163,6 +163,7 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Di
         "box_display": _fmt_box_bag("Box", box_s),
         "bag_display": _fmt_box_bag("Bag", bag_s),
         "po_number": po_number,
+        "receipt_number": receipt_fallback,
         "shipment_label": shipment_label,
     }
 

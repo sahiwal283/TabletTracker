@@ -255,6 +255,16 @@ def create_workflow_bag_with_card(
     return bag_id, qr_card_id
 
 
+def _normalize_workflow_receipt(raw: Optional[str]) -> Optional[str]:
+    """Strip and cap length for ``workflow_bags.receipt_number``; empty → None."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    return s[:128]
+
+
 def assign_inventory_bag_to_card(
     conn: sqlite3.Connection,
     *,
@@ -262,6 +272,7 @@ def assign_inventory_bag_to_card(
     product_id: int,
     user_id: Optional[int],
     card_scan_token: Optional[str] = None,
+    receipt_number_override: Optional[str] = None,
 ) -> Tuple[int, int]:
     """
     Link a receiving/shipment bag (``bags`` row) to the next idle QR card.
@@ -296,7 +307,11 @@ def assign_inventory_bag_to_card(
 
     box_number = str(inv["box_number"]) if inv.get("box_number") is not None else None
     bag_number = str(inv["bag_number"]) if inv.get("bag_number") is not None else None
-    receipt_number = (inv.get("receive_name") or "").strip() or None
+    override = _normalize_workflow_receipt(receipt_number_override)
+    if override is not None:
+        receipt_number = override
+    else:
+        receipt_number = (inv.get("receive_name") or "").strip() or None
 
     selected_qr_card_id: Optional[int] = None
     tok = (card_scan_token or "").strip()

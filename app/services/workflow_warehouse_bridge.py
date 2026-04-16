@@ -2,11 +2,10 @@
 Sync QR workflow packaging counts into warehouse_submissions (packaged) for bag / PO totals.
 
 Also syncs sealing and blister station scans into ``warehouse_submissions`` / ``machine_counts``.
-Legacy receipts are ``WORKFLOW-<workflow_bag_id>-seal`` / ``-blister``; each floor event may use
-a distinct receipt suffix (``-e<workflow_event_id>``) so multiple pauses keep separate rows.
-Packaged snapshots use ``WORKFLOW-<id>-pkg-e<event_id>``; incremental
-``PACKAGING_TAKEN_FOR_ORDER`` rows use ``WORKFLOW-<id>-take-e<event_id>`` so PO totals sum
-snapshots + pull-for-delivery lines distinctly.
+Receipt **base** text is ``workflow_bags.receipt_number`` when set (assigned on staff new-bag);
+otherwise legacy ``WORKFLOW-<workflow_bag_id>``. Suffixes: ``-seal`` / ``-blister`` for machines;
+``-pkg-e<event_id>`` / ``-take-e<event_id>`` for packaging; optional ``-e<event_id>`` on machine
+rows when attributing by event.
 """
 
 from __future__ import annotations
@@ -29,11 +28,25 @@ LOGGER = logging.getLogger(__name__)
 WORKFLOW_RECEIPT_PREFIX = "WORKFLOW-"
 
 
-def workflow_packaged_receipt_number(
-    workflow_bag_id: int, event_id: Optional[int] = None
+def _receipt_base_for_workflow_bag(
+    workflow_bag: Optional[Dict[str, Any]], workflow_bag_id: int
 ) -> str:
-    """Packaged receipt: legacy ``WORKFLOW-<id>`` or one row per snapshot when ``event_id`` is set."""
-    base = f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}"
+    """Prefer ``workflow_bags.receipt_number``; else ``WORKFLOW-<id>`` for bridge receipts."""
+    if workflow_bag:
+        rn = (workflow_bag.get("receipt_number") or "").strip()
+        if rn:
+            return rn[:128]
+    return f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}"
+
+
+def workflow_packaged_receipt_number(
+    workflow_bag_id: int,
+    event_id: Optional[int] = None,
+    *,
+    workflow_bag: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Packaged receipt: base from bag row or legacy ``WORKFLOW-<id>``; per snapshot when ``event_id`` is set."""
+    base = _receipt_base_for_workflow_bag(workflow_bag, workflow_bag_id)
     if event_id is not None:
         return f"{base}-pkg-e{int(event_id)}"
     return base
@@ -194,7 +207,7 @@ def upsert_packaged_from_workflow_packaging(
     """
     Upsert packaged submission for this workflow bag.
 
-    Without ``event_id``, replaces the legacy single receipt ``WORKFLOW-<id>``.
+    Without ``event_id``, replaces the single packaged row for the receipt **base** (see module doc).
     With ``event_id``, inserts a distinct receipt per snapshot event so repeated pauses keep history.
 
     ``receipt_mode`` ``pkg`` (default): snapshot sync receipt ``-pkg-e<event_id>``.
@@ -332,10 +345,13 @@ def upsert_packaged_from_workflow_packaging(
         )
         return {"ok": False, "reason": "no_bag_resolution", "skipped": True}
 
+    base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
     if event_id is not None and rm == "taken":
-        receipt = f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}-take-e{int(event_id)}"
+        receipt = f"{base}-take-e{int(event_id)}"
+    elif event_id is not None:
+        receipt = f"{base}-pkg-e{int(event_id)}"
     else:
-        receipt = workflow_packaged_receipt_number(workflow_bag_id, event_id)
+        receipt = base
     if event_id is None:
         conn.execute(
             """
@@ -480,20 +496,25 @@ def sync_if_packaging_taken_for_order(
 
 
 def workflow_machine_lane_receipt_number(
-    workflow_bag_id: int, lane: str, event_id: Optional[int] = None
+    workflow_bag_id: int,
+    lane: str,
+    event_id: Optional[int] = None,
+    *,
+    workflow_bag: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Receipt for one workflow bag + lane (``seal`` or ``blister``).
 
-    Without ``event_id``: legacy single lane receipt (replaced on each sync).
+    Without ``event_id``: single lane receipt (replaced on each sync).
     With ``event_id``: distinct receipt per floor event (multiple pauses / submissions preserved).
     """
     key = (lane or "").strip().lower()
     if key not in ("seal", "blister"):
         raise ValueError("lane must be 'seal' or 'blister'")
-    base = f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}-{key}"
+    base = _receipt_base_for_workflow_bag(workflow_bag, workflow_bag_id)
+    root = f"{base}-{key}"
     if event_id is not None:
-        return f"{base}-e{int(event_id)}"
-    return base
+        return f"{root}-e{int(event_id)}"
+    return root
 
 
 def _tablet_type_for_product(conn: sqlite3.Connection, product_id: int) -> Optional[int]:
@@ -746,7 +767,9 @@ def upsert_machine_from_workflow_scan(
             "detail": f"station machine role is {role}, expected {exp}",
         }
 
-    receipt = workflow_machine_lane_receipt_number(workflow_bag_id, key, event_id)
+    receipt = workflow_machine_lane_receipt_number(
+        workflow_bag_id, key, event_id, workflow_bag=wb
+    )
     lane_label = "sealing" if key == "seal" else "blister"
     admin_notes = (
         f"QR workflow {lane_label} sync (workflow_bag_id={workflow_bag_id}, "
@@ -899,23 +922,22 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
     stay consistent with the bridge's upsert/delete behavior.
     """
     wf = int(workflow_bag_id)
-    prefix = f"{WORKFLOW_RECEIPT_PREFIX}{wf}"
 
     wb = conn.execute(
-        "SELECT product_id FROM workflow_bags WHERE id = ?", (wf,)
+        "SELECT product_id, receipt_number FROM workflow_bags WHERE id = ?", (wf,)
     ).fetchone()
-    pid = dict(wb).get("product_id") if wb else None
+    wb_dict = dict(wb) if wb else {}
+    pid = wb_dict.get("product_id")
     tid = _tablet_type_for_product(conn, int(pid)) if pid else None
+    base = _receipt_base_for_workflow_bag(wb_dict, wf)
 
     mc_rows = conn.execute(
         """
         SELECT DISTINCT receipt_number FROM warehouse_submissions
         WHERE submission_type = 'machine'
-          AND (
-            receipt_number LIKE ? || '-seal%' OR receipt_number LIKE ? || '-blister%'
-          )
+          AND (receipt_number LIKE ? OR receipt_number LIKE ?)
         """,
-        (prefix, prefix),
+        (base + "-seal%", base + "-blister%"),
     ).fetchall()
     for row in mc_rows:
         rn = dict(row).get("receipt_number")
@@ -953,11 +975,11 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
         WHERE submission_type = 'packaged'
           AND (
             receipt_number = ?
-            OR receipt_number LIKE ? || '-pkg-e%'
-            OR receipt_number LIKE ? || '-take-e%'
+            OR receipt_number LIKE ?
+            OR receipt_number LIKE ?
           )
         """,
-        (prefix, prefix, prefix),
+        (base, base + "-pkg-e%", base + "-take-e%"),
     ).fetchall()
     po_ids: set = set()
     for row in pkg_po:
@@ -970,11 +992,11 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
         WHERE submission_type = 'packaged'
           AND (
             receipt_number = ?
-            OR receipt_number LIKE ? || '-pkg-e%'
-            OR receipt_number LIKE ? || '-take-e%'
+            OR receipt_number LIKE ?
+            OR receipt_number LIKE ?
           )
         """,
-        (prefix, prefix, prefix),
+        (base, base + "-pkg-e%", base + "-take-e%"),
     )
     for po_id in po_ids:
         refresh_purchase_order_header_aggregates(conn, po_id)
