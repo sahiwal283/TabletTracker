@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.17] - 2026-04-15
+
+### Fixed
+- Removed the raw JSON status panel from QR station pages to reduce operator-facing clutter during live floor use.
+
+---
+
 ## [3.5.16] - 2026-04-15
 
 ### Fixed
