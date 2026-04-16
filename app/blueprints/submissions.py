@@ -406,8 +406,8 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
 
 def _created_at_sort_timestamp(val) -> float:
     """
-    Parse warehouse_submissions.created_at for total ordering across receipt groups.
-    Missing/invalid sorts last (ascending); pairs with datetime for comparison.
+    Parse a naive UTC-ish timestamp string (or datetime) for ordering.
+    Missing/invalid values return ``-inf`` so they sort last when using descending order.
     """
     if val is None:
         return float("-inf")
@@ -428,6 +428,52 @@ def _created_at_sort_timestamp(val) -> float:
         return datetime.strptime(s[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
     except ValueError:
         return float("-inf")
+
+
+def _submission_calendar_date_end_ts(sub: dict) -> float:
+    """
+    Business calendar day from submission_date / filter_date (date-only), end-of-day UTC.
+    Catches cases where submission_date reflects \"today\" while created_at lags for some paths.
+    """
+    fd = sub.get("submission_date") or sub.get("filter_date")
+    if fd is None:
+        return float("-inf")
+    if hasattr(fd, "strftime"):
+        sfd = fd.strftime("%Y-%m-%d")[:10]
+    else:
+        sfd = str(fd).strip()[:10]
+    if len(sfd) < 10:
+        return float("-inf")
+    try:
+        return (
+            datetime.strptime(sfd + " 23:59:59", "%Y-%m-%d %H:%M:%S")
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+        )
+    except ValueError:
+        return float("-inf")
+
+
+def _row_latest_activity_ts(s: dict) -> float:
+    """Latest instant associated with this submission row (for receipt-group ordering)."""
+    return max(
+        _created_at_sort_timestamp(s.get("created_at")),
+        _created_at_sort_timestamp(s.get("bag_end_time")),
+        _created_at_sort_timestamp(s.get("bag_start_time")),
+        _submission_calendar_date_end_ts(s),
+    )
+
+
+def _aggregate_bag_time_sort_value(raw_ts, reverse: bool) -> float:
+    """
+    Single scalar for sorting by bag start/end on the parent row.
+    Repeating groups with *no* aggregated time sort **last** for both asc and desc.
+    """
+    t = _created_at_sort_timestamp(raw_ts) if raw_ts else float("-inf")
+    if t == float("-inf"):
+        # Nulls last: smallest in desc (sink), largest in asc (sink)
+        return float("-inf") if reverse else float("inf")
+    return t
 
 
 def _pick_parent_bag_submission(children):
@@ -486,10 +532,10 @@ def build_receipt_groups(submissions_processed):
 
         parent_bag = _pick_parent_bag_submission(ch)
 
-        # Order parent rows by "which receipt had the most recent submission" (any line in the group).
+        # Order parent rows by latest activity in the receipt (any line; max over created/bag times/submission date).
         latest_ts = float("-inf")
         for s in ch:
-            latest_ts = max(latest_ts, _created_at_sort_timestamp(s.get("created_at")))
+            latest_ts = max(latest_ts, _row_latest_activity_ts(s))
         max_child_id = max((s.get("id") or 0) for s in ch) if ch else 0
         latest_submission_sort_key = (latest_ts, max_child_id)
 
@@ -513,9 +559,12 @@ def sort_receipt_groups(groups, sort_by, sort_order):
     """
     Sort aggregated receipt groups (warehouse list).
 
-    ``sort_by=created_at`` orders receipts by the **latest** ``created_at`` among
-    submissions sharing that receipt (most recently touched receipt first when desc).
-    Receipt numbers are not used unless ``sort_by=receipt_number``.
+    ``sort_by=created_at`` (Recent) orders receipts by the latest **activity** among
+    child rows: max of ``created_at``, ``bag_start_time``, ``bag_end_time``, and end of
+    ``submission_date`` / ``filter_date`` calendar day.
+
+    ``sort_by=bag_end`` / ``bag_start`` use aggregated bag times; receipts with no time
+    sort last (fixed: previously missing times could incorrectly rank first when sort_desc).
     """
     sort_by = (sort_by or "created_at").strip()
     sort_order = (sort_order or "desc").strip().lower()
@@ -544,11 +593,9 @@ def sort_receipt_groups(groups, sort_by, sort_order):
                 return ""
             return max(vals) if reverse else min(vals)
         if sort_by == "bag_start":
-            ts = g.get("bag_start_time")
-            return (0, ts) if ts else (1, "")
+            return _aggregate_bag_time_sort_value(g.get("bag_start_time"), reverse)
         if sort_by == "bag_end":
-            ts = g.get("bag_end_time")
-            return (0, ts) if ts else (1, "")
+            return _aggregate_bag_time_sort_value(g.get("bag_end_time"), reverse)
         if sort_by == "created_at":
             return g.get("latest_submission_sort_key") or (float("-inf"), 0)
         # Fallback: same as created_at — latest submission time in receipt
