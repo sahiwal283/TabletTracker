@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.11] - 2026-04-15
+
+### Enhanced
+- **Submissions History** (and dashboard recent submissions): variety-pack bottle rows no longer show **Unassigned** in the Bag column when deductions span multiple receives. The UI shows the **longest common** PO/shipment/box prefix from `submission_bag_deductions` (e.g. `PO-00195-3` when boxes differ; `PO-00195` when shipments differ), or **`po_number`** when flagged variety pack but no deduction rows.
+
+---
+
 ## [3.5.22] - 2026-04-15
 
 ### Fixed
@@ -159,6 +166,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a dedicated **Blister** production form with name, product (two-step dropdown), box/bag, receipt, start time, and blister machine count.
 - Updated **Full run** to include an optional blister machine count while keeping sealing machine rows for the downstream sealing stage.
 - **Versioning**: **MINOR** `2.52.13` → `2.53.0`.
+
+---
+
+## [2.52.14] - 2026-04-14
+
+### ✨ Enhancement
+
+#### Submissions History: variety-pack “Bag” column shows shared PO / shipment (not “Unassigned”)
+- Bottle / **variety pack** rows often have **no single** `warehouse_submissions.bag_id` because tablets come from **multiple bags** (`submission_bag_deductions`).
+- The list now sets **`receive_name`** to the **longest common hyphenated prefix** of each deduction bag’s full label (e.g. `PO-00195-3-18-1` + `PO-00195-3-20-6` → **`PO-00195-3`**; different shipments → **`PO-00195`**).
+- If deductions are missing but the product is flagged **variety pack**, the column falls back to **`po_number`**.
+- Same logic applied to the **dashboard** recent-submissions widget.
+- Helpers: `longest_common_hyphen_prefix` and `common_receive_label_from_deductions` in `submission_query_service.py`; unit tests for prefix logic.
+
+- **Versioning**: **PATCH** `2.52.13` → `2.52.14`.
 
 ---
 

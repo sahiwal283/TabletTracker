@@ -6,7 +6,7 @@ import traceback
 from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
 from app.utils.perf_utils import query_timer
-from app.services.submission_query_service import apply_resolved_bag_fields
+from app.services.submission_query_service import apply_resolved_bag_fields, common_receive_label_from_deductions
 
 bp = Blueprint('dashboard', __name__)
 
@@ -122,6 +122,7 @@ def dashboard_view():
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    COALESCE(ws.needs_review, 0) as needs_review,
+                   COALESCE(pd.is_variety_pack, 0) as is_variety_pack,
                    ws.admin_notes,
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
@@ -305,7 +306,13 @@ def dashboard_view():
                             receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{bag_number}"
                         else:
                             receive_name = f"{sub_dict.get('po_number')}-{receive_number}"
-                
+                if not receive_name and submission_type == 'bottle':
+                    from_ded = common_receive_label_from_deductions(conn, sub_dict.get('id'))
+                    if from_ded:
+                        receive_name = from_ded
+                    elif sub_dict.get('is_variety_pack') and sub_dict.get('po_number'):
+                        receive_name = sub_dict['po_number']
+
                 sub_dict['receive_name'] = receive_name
                 submissions_processed.append(sub_dict)
             

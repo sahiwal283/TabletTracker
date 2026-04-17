@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app, session
 
 from app.services import workflow_constants as WC
-from app.services.submission_query_service import apply_resolved_bag_fields
+from app.services.submission_query_service import apply_resolved_bag_fields, common_receive_label_from_deductions
 from app.services.submissions_view_service import (
     append_submission_common_filters,
     append_submission_archive_tab_filters,
@@ -690,6 +690,7 @@ def submissions_list():
                    tt.inventory_item_id, tt.id as tablet_type_id, tt.tablet_type_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    COALESCE(ws.needs_review, 0) as needs_review,
+                   COALESCE(pd.is_variety_pack, 0) as is_variety_pack,
                    ws.admin_notes,
                    COALESCE(ws.submission_type, 'packaged') as submission_type,
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
@@ -904,7 +905,14 @@ def submissions_list():
                             receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{bag_number}"
                         else:
                             receive_name = f"{sub_dict.get('po_number')}-{receive_number}"
-                
+                if not receive_name and submission_type == 'bottle':
+                    # Variety packs often have no ws.bag_id; multiple bags are linked via submission_bag_deductions
+                    from_ded = common_receive_label_from_deductions(conn, sub_dict.get('id'))
+                    if from_ded:
+                        receive_name = from_ded
+                    elif sub_dict.get('is_variety_pack') and sub_dict.get('po_number'):
+                        receive_name = sub_dict['po_number']
+
                 sub_dict['receive_name'] = receive_name
                 
                 # Store in dict by submission ID for lookup

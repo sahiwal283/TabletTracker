@@ -5,7 +5,7 @@ This service extracts common SQL query patterns for submissions
 to reduce duplication across blueprint files.
 """
 import sqlite3
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Sequence, Tuple, Any
 from app.services.submission_calculator import calculate_submission_total_with_fallback
 
 ALLOWED_ORDER_FIELDS = {
@@ -274,4 +274,67 @@ def get_submissions_with_totals(
         submissions.append(submission_dict)
     
     return submissions
+
+
+def longest_common_hyphen_prefix(labels: Sequence[str]) -> Optional[str]:
+    """
+    Given full bag labels like PO-00195-3-18-1, return the longest shared prefix
+    (e.g. PO-00195-3 when boxes/bags differ; PO-00195 when shipments differ).
+    """
+    cleaned = [str(s).strip() for s in labels if s and str(s).strip()]
+    if not cleaned:
+        return None
+    if len(cleaned) == 1:
+        return cleaned[0]
+    parts_list: List[List[str]] = [s.split('-') for s in cleaned]
+    min_len = min(len(p) for p in parts_list)
+    common: List[str] = []
+    for i in range(min_len):
+        seg = parts_list[0][i]
+        if all(len(p) > i and p[i] == seg for p in parts_list):
+            common.append(seg)
+        else:
+            break
+    if not common:
+        return cleaned[0]
+    return '-'.join(common)
+
+
+def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id: Optional[int]) -> Optional[str]:
+    """
+    For bottle / variety-pack rows with no single ws.bag_id, derive a display label
+    from submission_bag_deductions → bags → receiving (longest common prefix of full labels).
+    """
+    if not submission_id:
+        return None
+    rows = conn.execute(
+        """
+        SELECT r.receive_name, sb.box_number, b.bag_number
+        FROM submission_bag_deductions sbd
+        JOIN bags b ON sbd.bag_id = b.id
+        JOIN small_boxes sb ON b.small_box_id = sb.id
+        JOIN receiving r ON sb.receiving_id = r.id
+        WHERE sbd.submission_id = ?
+        """,
+        (int(submission_id),),
+    ).fetchall()
+    if not rows:
+        return None
+    labels: List[str] = []
+    for row in rows:
+        d = dict(row)
+        rn = (d.get('receive_name') or '').strip()
+        if not rn:
+            continue
+        bx = d.get('box_number')
+        bn = d.get('bag_number')
+        if bx is not None and bn is not None:
+            labels.append(f"{rn}-{bx}-{bn}")
+        elif bn is not None:
+            labels.append(f"{rn}-{bn}")
+        else:
+            labels.append(rn)
+    if not labels:
+        return None
+    return longest_common_hyphen_prefix(labels)
 
