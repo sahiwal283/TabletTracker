@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.16] - 2026-04-15
+
+### Fixed
+- **Push to Zoho (split / overs PO)**: Before creating the overs PO purchase receive, TabletTracker now reads the overs line from Zoho and checks **ordered − already received ≥ overs portion**. If not, you get a clear message and **`zoho_push_overs`** with the **shortfall** instead of Zoho’s generic “Quantity recorded cannot be more than quantity ordered.”
+
+---
+
 ## [3.6.15] - 2026-04-15
 
 ### Fixed

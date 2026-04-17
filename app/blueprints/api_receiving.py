@@ -1365,6 +1365,49 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                 current_app.logger.info(
                     f"Split Zoho push bag {bag_id}: main_qty={main_qty} overs_qty={overs_qty}"
                 )
+                # Overs PO is still a normal PO line in Zoho: ordered − already_received must cover overs_qty.
+                # Without this check, Zoho returns "Quantity recorded cannot be more than quantity ordered".
+                overs_stats = get_zoho_po_line_receive_stats(
+                    overs_zoho_po_id, overs_zoho_line_id, bag.get('inventory_item_id')
+                )
+                if not overs_stats:
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            'Could not read the overs PO line from Zoho before push. '
+                            'Try **Sync Zoho POs** once, or confirm the overs PO has a line for this product.'
+                        ),
+                    }), 400
+                ov_ordered = overs_stats['ordered']
+                ov_recv = overs_stats['received_in_zoho_before_push']
+                ov_remaining = max(0, ov_ordered - ov_recv)
+                if overs_qty > ov_remaining:
+                    name_ov = overs_stats.get('line_item_name') or stats.get('line_item_name') or 'Line item'
+                    shortfall = overs_qty - ov_remaining
+                    err_detail = (
+                        f'Overs PO line does not have enough **ordered** quantity left in Zoho for this receive.\n\n'
+                        f'You are trying to record **{overs_qty:,}** tablets on **{overs_po_number}** '
+                        f'({name_ov}).\n\n'
+                        f'Zoho shows this line:\n'
+                        f'  • Ordered: **{ov_ordered:,}**\n'
+                        f'  • Already received in Zoho: **{ov_recv:,}**\n'
+                        f'  • **Remaining you can still receive: {ov_remaining:,}**\n\n'
+                        f'**Shortfall: {shortfall:,}** tablets.\n\n'
+                        f'The overs PO is a real purchase order in Zoho — each line has its own ordered cap. '
+                        f'Use **Create / add to overs PO** in TabletTracker to add at least **{shortfall:,}** tablets '
+                        f'to the draft overs line (or raise the line quantity in Zoho), then push again.'
+                    )
+                    return jsonify({
+                        'success': False,
+                        'error': err_detail,
+                        'zoho_push_overs': {
+                            'parent_po_id': bag['po_id'],
+                            'overage_tablets': shortfall,
+                            'inventory_item_id': bag.get('inventory_item_id'),
+                            'line_item_name': name_ov,
+                        },
+                    }), 400
+
                 rid_main = None
                 if main_qty > 0:
                     notes_main = build_zoho_receive_notes(
