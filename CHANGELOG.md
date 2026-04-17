@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.18] - 2026-04-09
+
+### Fixed
+- **Submissions History**: When you filter by **receipt number**, the list now includes submissions on **closed** POs as well (the default “active POs only” filter hid packaged lines that still block duplicate receipt checks).
+- **Bag submissions modal** (`/api/bag/.../submissions`): Also loads **packaged** rows that share this bag’s receipt number even if `bag_id` / box / PO fields on the packaged row don’t match (so duplicate-receipt packaging shows up next to machine counts).
+- **Packaging form**: Duplicate-receipt errors now include **submission id** and PO context, with a short hint when the row is on a closed PO or not linked to a bag.
+
+---
+
 ## [3.6.17] - 2026-04-09
 
 ### Changed

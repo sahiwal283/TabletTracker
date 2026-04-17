@@ -779,7 +779,12 @@ def submissions_list():
                     'receipt_number': filter_receipt_number,
                 },
             )
-            query = append_submission_archive_tab_filters(query, show_archived, active_tab)
+            query = append_submission_archive_tab_filters(
+                query,
+                show_archived,
+                active_tab,
+                relax_po_closed_for_receipt_search=bool((filter_receipt_number or "").strip()),
+            )
             
             # Get submissions ordered by created_at ASC for running total calculation
             # Always use created_at ASC for running totals regardless of user's sort preference
@@ -1216,7 +1221,12 @@ def export_submissions_csv():
                     'receipt_number': filter_receipt_number,
                 },
             )
-            query = append_submission_archive_tab_filters(query, show_archived, active_tab)
+            query = append_submission_archive_tab_filters(
+                query,
+                show_archived,
+                active_tab,
+                relax_po_closed_for_receipt_search=bool((filter_receipt_number or "").strip()),
+            )
             query = append_submission_sort(query, sort_by, sort_order)
             
             submissions_raw = conn.execute(query, params).fetchall()

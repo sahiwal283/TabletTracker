@@ -40,6 +40,7 @@ class TestSubmissionDetailsService(unittest.TestCase):
                 assigned_po_id INTEGER,
                 submission_type TEXT,
                 product_name TEXT,
+                receipt_number TEXT,
                 displays_made INTEGER,
                 packs_remaining INTEGER,
                 tablets_pressed_into_cards INTEGER,

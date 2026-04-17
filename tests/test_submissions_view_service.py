@@ -36,6 +36,12 @@ class TestSubmissionsViewService(unittest.TestCase):
         self.assertIn('po.closed IS NULL OR po.closed = FALSE', query)
         self.assertIn("IN ('packaged', 'machine', 'repack')", query)
 
+    def test_append_archive_tab_filters_relax_po_for_receipt_search(self):
+        query = append_submission_archive_tab_filters(
+            "Q", False, 'packaged_machine', relax_po_closed_for_receipt_search=True
+        )
+        self.assertNotIn('po.closed IS NULL OR po.closed = FALSE', query)
+
     def test_append_sort_receipt(self):
         query = append_submission_sort("Q", 'receipt_number', 'desc')
         self.assertIn('CASE WHEN ws.receipt_number IS NULL THEN 1 ELSE 0 END', query)

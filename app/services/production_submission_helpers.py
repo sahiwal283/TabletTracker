@@ -614,19 +614,39 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
 
     existing_packaged = conn.execute(
         """
-        SELECT id, product_name, created_at
-        FROM warehouse_submissions
-        WHERE receipt_number = ? AND submission_type = 'packaged'
+        SELECT ws.id, ws.product_name, ws.created_at, ws.bag_id, ws.assigned_po_id,
+               po.po_number, po.closed AS po_closed
+        FROM warehouse_submissions ws
+        LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
+        WHERE ws.receipt_number = ? AND ws.submission_type = 'packaged'
         LIMIT 1
         """,
         (receipt_number,),
     ).fetchone()
 
     if existing_packaged:
+        ep = dict(existing_packaged)
+        po_hint = ""
+        if ep.get("po_closed"):
+            po_hint = (
+                " That submission is on a **closed** PO and may be hidden until you enable **Show Archived** "
+                "on Submissions History."
+            )
+        elif ep.get("assigned_po_id") and not ep.get("bag_id"):
+            po_hint = (
+                " It has no bag link yet; use Submissions History with receipt search to open submission "
+                f"#{ep['id']}."
+            )
         raise ProductionSubmissionError(
             400,
             {
-                'error': f'Receipt number {receipt_number} already used for a packaged submission (Product: {existing_packaged["product_name"]}, Created: {existing_packaged["created_at"]}). Please use a unique receipt number or check if this was already submitted.'
+                'error': (
+                    f'Receipt number {receipt_number} already used for a packaged submission '
+                    f'(Submission id **{ep["id"]}**, Product: {ep["product_name"]}, '
+                    f'Created: {ep["created_at"]}, PO: {ep.get("po_number") or "—"}). '
+                    f'{po_hint} '
+                    'Please use a unique receipt number, edit that submission, or delete it if it was entered by mistake.'
+                )
             },
         )
 

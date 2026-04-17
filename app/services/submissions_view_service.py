@@ -45,11 +45,20 @@ def append_submission_common_filters(query: str, params: List[Any], filters: Dic
     return query, params
 
 
-def append_submission_archive_tab_filters(query: str, show_archived: bool, active_tab: str) -> str:
-    if not show_archived:
-        query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
-    else:
-        query += ' AND po.closed = TRUE'
+def append_submission_archive_tab_filters(
+    query: str,
+    show_archived: bool,
+    active_tab: str,
+    *,
+    relax_po_closed_for_receipt_search: bool = False,
+) -> str:
+    # When the user filters by receipt number, show every row for that receipt — including rows
+    # tied to a closed PO — so "duplicate receipt" conflicts are visible alongside open-PO lines.
+    if not relax_po_closed_for_receipt_search:
+        if not show_archived:
+            query += ' AND (po.closed IS NULL OR po.closed = FALSE)'
+        else:
+            query += ' AND po.closed = TRUE'
 
     if active_tab == 'packaged_machine':
         query += " AND COALESCE(ws.submission_type, 'packaged') IN ('packaged', 'machine', 'repack')"

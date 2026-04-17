@@ -56,6 +56,15 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
     if not bag:
         return {'success': False, 'status_code': 404, 'error': 'Bag not found'}
 
+    bag_params = (
+        bag_id,
+        bag['inventory_item_id'],
+        bag['bag_number'],
+        bag['po_id'],
+        bag['box_number'],
+    )
+    # Include packaged rows that share this bag's receipt number even if bag_id / box / PO linkage
+    # on the packaged row is wrong (duplicate-receipt errors would otherwise be inexplicable in this modal).
     submissions = conn.execute(
         '''
         SELECT ws.*, m.machine_name AS machine_name
@@ -70,10 +79,28 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
                 AND ws.assigned_po_id = ?
                 AND (ws.box_number = ? OR ws.box_number IS NULL)
             )
+            OR (
+                COALESCE(ws.submission_type, 'packaged') = 'packaged'
+                AND ws.receipt_number IN (
+                    SELECT DISTINCT ws2.receipt_number
+                    FROM warehouse_submissions ws2
+                    WHERE TRIM(COALESCE(ws2.receipt_number, '')) != ''
+                    AND (
+                        ws2.bag_id = ?
+                        OR (
+                            ws2.bag_id IS NULL
+                            AND ws2.inventory_item_id = ?
+                            AND ws2.bag_number = ?
+                            AND ws2.assigned_po_id = ?
+                            AND (ws2.box_number = ? OR ws2.box_number IS NULL)
+                        )
+                    )
+                )
+            )
         )
         ORDER BY ws.created_at DESC
         ''',
-        (bag_id, bag['inventory_item_id'], bag['bag_number'], bag['po_id'], bag['box_number']),
+        bag_params + bag_params,
     ).fetchall()
 
     submissions_with_totals = []
