@@ -22,18 +22,32 @@ bp = Blueprint("workflow_staff", __name__, url_prefix="/workflow")
 
 def _bag_display_name(conn: sqlite3.Connection, inventory_bag_id: int) -> str:
     """PO-shipment-box-bag display used across receiving/workflow UI."""
-    row = conn.execute(
-        """
-        SELECT po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
-               sb.box_number, b.bag_number
-        FROM bags b
-        JOIN small_boxes sb ON b.small_box_id = sb.id
-        JOIN receiving r ON sb.receiving_id = r.id
-        LEFT JOIN purchase_orders po ON r.po_id = po.id
-        WHERE b.id = ?
-        """,
-        (inventory_bag_id,),
-    ).fetchone()
+    try:
+        row = conn.execute(
+            """
+            SELECT po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
+                   sb.box_number, b.bag_number
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE b.id = ?
+            """,
+            (inventory_bag_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        # Older databases may not have receiving.shipment_number yet.
+        row = conn.execute(
+            """
+            SELECT po.po_number, 1 AS shipment_number, sb.box_number, b.bag_number
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE b.id = ?
+            """,
+            (inventory_bag_id,),
+        ).fetchone()
     if not row:
         return f"bag-{inventory_bag_id}"
     po_num = (row["po_number"] or f"REC{inventory_bag_id}").strip()
