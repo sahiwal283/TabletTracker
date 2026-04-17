@@ -492,7 +492,7 @@ async function closeBagAndOpenPushToZoho(bagId, productName, bagNumber, boxNumbe
     }
 }
 
-// Show admin notes - defined early
+// Show admin notes - defined early (explicit window for delegated handlers in external scripts)
 function showAdminNotes(adminNotes) {
     const modal = document.getElementById('admin-notes-view-modal');
     const content = document.getElementById('admin-notes-content');
@@ -506,6 +506,7 @@ function showAdminNotes(adminNotes) {
         modal.classList.remove('hidden');
     }
 }
+window.showAdminNotes = showAdminNotes;
 
 // Close admin notes modal - defined early
 function closeAdminNotesModal(event) {
@@ -2013,43 +2014,53 @@ async function convertToTwoLevelDropdown(selectElement) {
             menu.classList.toggle('hidden');
         }
 
+        /** Text nodes (e.g. emoji) have no .closest — normalize to parent Element. */
+        function clickEventTargetElement(event) {
+            const t = event.target;
+            if (t && t.nodeType === 1) return t;
+            return t && t.parentElement ? t.parentElement : null;
+        }
+
         // Close language menu when clicking outside
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('language-menu');
-            const button = event.target.closest('[data-toggle-language-menu]');
-            
+            if (!menu) return;
+            const el = clickEventTargetElement(event);
+            const button = el && el.closest('[data-toggle-language-menu]');
             if (!button && !menu.contains(event.target)) {
                 menu.classList.add('hidden');
             }
         });
 
         document.addEventListener('click', function(event) {
-            if (event.target.closest('[data-toggle-language-menu]')) {
+            const el = clickEventTargetElement(event);
+            if (!el) return;
+            if (el.closest('[data-toggle-language-menu]')) {
                 toggleLanguageMenu();
                 return;
             }
-            if (event.target.closest('[data-toggle-mobile-menu]')) {
+            if (el.closest('[data-toggle-mobile-menu]')) {
                 toggleMobileMenu();
                 return;
             }
-            if (event.target.closest('[data-close-edit-submission-modal]')) {
+            if (el.closest('[data-close-edit-submission-modal]')) {
                 closeEditSubmissionModal(event);
                 return;
             }
-            const editOverlay = event.target.closest('[data-close-edit-submission-overlay]');
+            const editOverlay = el.closest('[data-close-edit-submission-overlay]');
             if (editOverlay && event.target === editOverlay) {
                 closeEditSubmissionModal(event);
                 return;
             }
-            if (event.target.closest('[data-save-submission-edit]')) {
+            if (el.closest('[data-save-submission-edit]')) {
                 saveSubmissionEdit();
                 return;
             }
-            if (event.target.closest('[data-close-admin-notes-modal]')) {
+            if (el.closest('[data-close-admin-notes-modal]')) {
                 closeAdminNotesModal(event);
                 return;
             }
-            const notesOverlay = event.target.closest('[data-close-admin-notes-overlay]');
+            const notesOverlay = el.closest('[data-close-admin-notes-overlay]');
             if (notesOverlay && event.target === notesOverlay) {
                 closeAdminNotesModal(event);
             }

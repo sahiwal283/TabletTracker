@@ -427,11 +427,10 @@
                         <div class="flex items-center gap-2">
                             {{ sub.employee_name }}
                             {% if sub.admin_notes %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors js-admin-notes-trigger" 
+                            <button type="button"
+                                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors border-0 align-middle js-admin-notes-trigger"
                                   title="Click to view admin notes"
-                                  data-admin-notes="{{ sub.admin_notes|e }}">
-                                📝
-                            </span>
+                                  data-admin-notes="{{ sub.admin_notes|e }}">📝</button>
                             {% endif %}
                         </div>
                     </td>

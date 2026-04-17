@@ -14,6 +14,26 @@
         return t && t.parentElement ? t.parentElement : null;
     }
 
+    /**
+     * Clicks on the 📝 hit a Text node; other document handlers use event.target.closest
+     * without normalizing and can throw. Row click opens submission details and competes.
+     * Capture phase runs first and stops propagation so the notes modal always wins.
+     */
+    function onAdminNotesCapture(event) {
+        var el = clickTargetEl(event);
+        if (!el) {
+            return;
+        }
+        var notesTrigger = el.closest('.js-admin-notes-trigger');
+        if (!notesTrigger || typeof window.showAdminNotes !== 'function') {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        window.showAdminNotes(notesTrigger.getAttribute('data-admin-notes') || '');
+    }
+
     function onClick(event) {
         var el = clickTargetEl(event);
         if (!el) {
@@ -34,14 +54,6 @@
             var expanded = detailRow.classList.toggle('hidden');
             toggleBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
             toggleBtn.textContent = expanded ? '▸' : '▾';
-            return;
-        }
-
-        var notesTrigger = el.closest('.js-admin-notes-trigger');
-        if (notesTrigger && typeof window.showAdminNotes === 'function') {
-            event.preventDefault();
-            event.stopPropagation();
-            window.showAdminNotes(notesTrigger.getAttribute('data-admin-notes') || '');
             return;
         }
 
@@ -83,6 +95,7 @@
         if (select && typeof window.convertToTwoLevelDropdown === 'function') {
             window.convertToTwoLevelDropdown(select);
         }
+        document.addEventListener('click', onAdminNotesCapture, true);
         document.addEventListener('click', onClick);
     }
 

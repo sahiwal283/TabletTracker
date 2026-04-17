@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.19] - 2026-04-09
+
+### Fixed
+- **Submissions History / Dashboard**: The 📝 admin-notes control now opens the notes modal reliably. A **capture-phase** handler runs before other document click handlers (which could throw on emoji/text-node targets or open submission details on the same row). The control is a real **`<button type="button">`** so it does not compete with the row’s “open details” behavior.
+
+---
+
 ## [3.6.18] - 2026-04-09
 
 ### Fixed

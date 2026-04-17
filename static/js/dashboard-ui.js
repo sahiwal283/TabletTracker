@@ -32,17 +32,24 @@
         }
     }
 
-    function onDashboardClick(event) {
+    function onAdminNotesCapture(event) {
         var el = clickTargetEl(event);
         if (!el) {
             return;
         }
-        // Notes control must win over parent row clicks (submission/receive rows).
         var adminNotesTrigger = el.closest('.js-admin-notes-trigger');
-        if (adminNotesTrigger && typeof window.showAdminNotes === 'function') {
-            event.preventDefault();
-            event.stopPropagation();
-            window.showAdminNotes(adminNotesTrigger.getAttribute('data-admin-notes') || '');
+        if (!adminNotesTrigger || typeof window.showAdminNotes !== 'function') {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        window.showAdminNotes(adminNotesTrigger.getAttribute('data-admin-notes') || '');
+    }
+
+    function onDashboardClick(event) {
+        var el = clickTargetEl(event);
+        if (!el) {
             return;
         }
 
@@ -84,6 +91,7 @@
 
     function init() {
         bindTabletTypeSelector();
+        document.addEventListener('click', onAdminNotesCapture, true);
         document.addEventListener('click', onDashboardClick);
         document.addEventListener('keydown', onDashboardKeydown);
     }
