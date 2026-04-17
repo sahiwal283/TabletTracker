@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.12] - 2026-04-15
+
+### Added
+- **Bottle Production**: records a **sealing machine counter** reading (`bottle_sealing_machine_count` on `warehouse_submissions`) for the dedicated bottle sealing line—tracking only, separate from displays/bottles math. Shown on submission details, submissions (Bottles tab), dashboard/receiving summaries, CSV export, and editable in the admin/manager submission edit modal.
+- **Alembic**: revision `j5k6l7m8n9p0` adds `bottle_sealing_machine_count` (deploy with `alembic upgrade head`). Runtime `MigrationRunner` still adds the column for older SQLite init paths.
+
+### Fixed
+- **Variety-pack bottle submissions / Bag column**: when deduction rows point at receives with an empty `receive_name`, labels are now built from **PO number + receive sequence + box/bag** (same ordering idea as other screens) before falling back to “Unassigned”, so multi-receive variety deductions show a real receive-style prefix again.
+
+---
+
 ## [3.6.11] - 2026-04-15
 
 ### Enhanced

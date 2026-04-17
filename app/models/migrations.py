@@ -190,6 +190,10 @@ class MigrationRunner:
         self._add_column_if_not_exists(
             'warehouse_submissions', 'repack_machine_count', 'INTEGER DEFAULT 0'
         )
+        # Bottle sealing line: physical counter on the dedicated sealing machine (tracking only)
+        self._add_column_if_not_exists(
+            'warehouse_submissions', 'bottle_sealing_machine_count', 'INTEGER'
+        )
         self._add_column_if_not_exists('warehouse_submissions', 'bag_start_time', 'TEXT')
         self._add_column_if_not_exists('warehouse_submissions', 'bag_end_time', 'TEXT')
     

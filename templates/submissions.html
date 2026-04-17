@@ -560,6 +560,7 @@
                                             {% elif active_tab == 'bottles' %}
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Displays Made</th>
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Bottles Remaining</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Sealing counter</th>
                                             {% elif active_tab == 'bag' %}
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Loose Tablets</th>
                                             {% endif %}
@@ -615,6 +616,7 @@
                                             {% elif active_tab == 'bottles' %}
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made else '' }}</td>
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining else '' }}</td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-gray-600">{% if sub.bottle_sealing_machine_count is not none %}{{ sub.bottle_sealing_machine_count }}{% else %}—{% endif %}</td>
                                             {% elif active_tab == 'bag' %}
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.loose_tablets if sub.loose_tablets else '' }}</td>
                                             {% endif %}

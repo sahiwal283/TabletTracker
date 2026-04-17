@@ -772,6 +772,8 @@ async function saveSubmissionEdit() {
         // Bottle: displays + single bottles remaining
         formData.displays_made = parseInt(document.getElementById('edit-bottle-displays').value) || 0;
         formData.packs_remaining = parseInt(document.getElementById('edit-bottle-remaining').value) || 0;
+        const bsmcEl = document.getElementById('edit-bottle-sealing-machine-count');
+        formData.bottle_sealing_machine_count = bsmcEl ? (parseInt(bsmcEl.value, 10) || 0) : 0;
         formData.loose_tablets = 0;
         formData.damaged_tablets = 0;
         formData.tablets_pressed_into_cards = 0;
@@ -972,6 +974,11 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
 
             if (editBottleDisplays) editBottleDisplays.value = sub.displays_made || 0;
             if (editBottleRemaining) editBottleRemaining.value = (sub.bottles_remaining ?? sub.packs_remaining ?? 0);
+            const editBottleSealing = document.getElementById('edit-bottle-sealing-machine-count');
+            if (editBottleSealing) {
+                const v = sub.bottle_sealing_machine_count;
+                editBottleSealing.value = v != null && v !== '' ? v : 0;
+            }
             if (editBox) editBox.value = sub.box_number || '';
             if (editBag) editBag.value = sub.bag_number || '';
             if (editBagLabel) editBagLabel.value = sub.bag_label_count || '';
@@ -2120,7 +2127,7 @@ async function convertToTwoLevelDropdown(selectElement) {
 
                 <!-- Bottle Fields (only for bottle submissions) -->
                 <div id="bottle-fields" class="hidden space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Displays Made</label>
                             <input type="number" id="edit-bottle-displays" min="0" 
@@ -2130,6 +2137,12 @@ async function convertToTwoLevelDropdown(selectElement) {
                             <label class="block text-sm font-medium text-gray-700 mb-1">Single Bottles Remaining</label>
                             <input type="number" id="edit-bottle-remaining" min="0" 
                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sealing machine counter</label>
+                            <input type="number" id="edit-bottle-sealing-machine-count" min="0" step="1"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <p class="text-xs text-gray-500 mt-1">Bottle sealing line counter (tracking only).</p>
                         </div>
                     </div>
                 </div>
@@ -3158,7 +3171,7 @@ async function viewSubmissionDetails(submissionId) {
                             ${sub.repack_vendor_return_notes ? `<p class="text-sm text-gray-600 mt-3"><span class="font-medium">Vendor return note:</span> ${sub.repack_vendor_return_notes}</p>` : ''}
                             ` : isBottleSubmission ? `
                             <!-- Bottle Submission -->
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                                 <div class="bg-amber-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Displays Made</label>
                                     <div class="mt-1 text-2xl font-bold text-amber-600">${sub.displays_made || 0}</div>
@@ -3170,6 +3183,11 @@ async function viewSubmissionDetails(submissionId) {
                                 <div class="bg-amber-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Bottles Made</label>
                                     <div class="mt-1 text-2xl font-bold text-amber-600">${sub.bottles_made || 0}</div>
+                                </div>
+                                <div class="bg-teal-50 rounded-lg p-4 border border-teal-100">
+                                    <label class="text-xs text-gray-500 uppercase">Sealing counter</label>
+                                    <div class="mt-1 text-2xl font-bold text-teal-700">${(sub.bottle_sealing_machine_count != null && sub.bottle_sealing_machine_count !== '') ? Number(sub.bottle_sealing_machine_count) : '—'}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Bottle sealing machine</div>
                                 </div>
                                 <div class="bg-gray-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Total Tablets</label>

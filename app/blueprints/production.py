@@ -405,6 +405,13 @@ def submit_bottles():
         product_id = data.get('product_id')
         displays_made = data.get('displays_made', 0) or 0
         bottles_remaining = data.get('bottles_remaining', 0) or 0
+        try:
+            sealing_raw = data.get('bottle_sealing_machine_count', 0)
+            bottle_sealing_machine_count = int(sealing_raw if sealing_raw is not None else 0)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid bottle sealing machine count'}), 400
+        if bottle_sealing_machine_count < 0:
+            return jsonify({'error': 'Bottle sealing machine count must be >= 0'}), 400
         
         if not product_id:
             return jsonify({'error': 'Product is required'}), 400
@@ -556,11 +563,13 @@ def submit_bottles():
                 conn.execute('''
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
-                     packs_remaining, submission_date, receipt_number, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
+                     packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
+                     bottle_sealing_machine_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?)
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), bottles_made, displays_made,
-                      bottles_remaining, submission_date, receipt_number, admin_notes))
+                      bottles_remaining, submission_date, receipt_number, admin_notes,
+                      bottle_sealing_machine_count))
                 
                 # Get the submission ID we just created
                 submission_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -655,12 +664,14 @@ def submit_bottles():
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, box_number, bag_number,
                      bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
-                     packs_remaining, submission_date, receipt_number, admin_notes, submission_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle')
+                     packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
+                     bottle_sealing_machine_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?)
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), submission_box_number, bag_number,
                       bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
-                      bottles_remaining, submission_date, receipt_number, admin_notes))
+                      bottles_remaining, submission_date, receipt_number, admin_notes,
+                      bottle_sealing_machine_count))
             
             total_tablets = bottles_made * tablets_per_bottle if tablets_per_bottle else sum(d['tablets_deducted'] for d in deduction_details)
             
@@ -674,6 +685,7 @@ def submit_bottles():
                 'warning': warning_message,
                 'bottles_made': bottles_made,
                 'displays_made': displays_made,
+                'bottle_sealing_machine_count': bottle_sealing_machine_count,
                 'total_tablets': total_tablets,
                 'deduction_details': deduction_details
             })

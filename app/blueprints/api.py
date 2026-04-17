@@ -1762,7 +1762,7 @@ def edit_submission(submission_id):
                        bottles_made, machine_id,
                        COALESCE(submission_type, 'packaged') as submission_type,
                        repack_vendor_return_notes, repack_machine_count,
-                       bag_start_time, bag_end_time
+                       bag_start_time, bag_end_time, bottle_sealing_machine_count
                 FROM warehouse_submissions
                 WHERE id = ?
             ''', (submission_id,)).fetchone()
@@ -1915,6 +1915,23 @@ def edit_submission(submission_id):
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
             
+            bottle_sealing_machine_count = None
+            if submission_type == 'bottle':
+                try:
+                    if 'bottle_sealing_machine_count' in data:
+                        bsm_raw = data.get('bottle_sealing_machine_count')
+                        if bsm_raw is None or (isinstance(bsm_raw, str) and not str(bsm_raw).strip()):
+                            bottle_sealing_machine_count = 0
+                        else:
+                            bottle_sealing_machine_count = int(bsm_raw)
+                    else:
+                        prev = submission.get('bottle_sealing_machine_count')
+                        bottle_sealing_machine_count = int(prev) if prev is not None else 0
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'error': 'Invalid bottle sealing machine count'}), 400
+                if bottle_sealing_machine_count < 0:
+                    return jsonify({'success': False, 'error': 'Bottle sealing machine count must be >= 0'}), 400
+            
             new_machine_id = None
             if submission_type == 'machine':
                 mid_raw = data.get('machine_id')
@@ -2047,12 +2064,13 @@ def edit_submission(submission_id):
                     UPDATE warehouse_submissions
                     SET displays_made = ?, packs_remaining = ?, bottles_made = ?, loose_tablets = 0,
                         damaged_tablets = 0, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
+                        submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                        bottle_sealing_machine_count = ?
                     WHERE id = ?
                 ''', (displays_made, packs_remaining, bottles_made,
                       new_box_number, new_bag_number, new_bag_id,
                       data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
-                      product_name_to_use, inventory_item_id, submission_id))
+                      product_name_to_use, inventory_item_id, bottle_sealing_machine_count, submission_id))
             elif submission_type == 'repack':
                 tt_row = conn.execute(
                     'SELECT tablet_type_id FROM product_details WHERE product_name = ?',

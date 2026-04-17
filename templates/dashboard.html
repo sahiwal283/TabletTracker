@@ -1853,7 +1853,7 @@ function filterSubmissionsInModal(filterType) {
                         <div class="text-gray-600">📅 ${sub.submission_date || sub.created_at || 'N/A'}</div>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded">
                     ${submissionType === 'machine' ? `
                         <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
@@ -1861,6 +1861,7 @@ function filterSubmissionsInModal(filterType) {
                         <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Single Bottles</div><div class="font-medium text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div></div>
                         <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>
+                        <div><div class="text-xs text-gray-500">Sealing counter</div><div class="font-medium text-teal-700">${(sub.bottle_sealing_machine_count != null && sub.bottle_sealing_machine_count !== '') ? Number(sub.bottle_sealing_machine_count) : '—'}</div></div>
                     ` : submissionType === 'repack' ? `
                         <div><div class="text-xs text-gray-500">Displays (finished)</div><div class="font-medium text-amber-700">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Cards (partial)</div><div class="font-medium text-amber-700">${sub.packs_remaining || 0}</div></div>
@@ -3152,7 +3153,7 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
                             </button>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white p-3 rounded border border-gray-200">
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 bg-white p-3 rounded border border-gray-200">
                         ${subType === 'machine' ? `
                             <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
@@ -3160,6 +3161,7 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
                             <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Single Bottles</div><div class="font-medium text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div></div>
                             <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>
+                            <div><div class="text-xs text-gray-500">Sealing counter</div><div class="font-medium text-teal-700">${(sub.bottle_sealing_machine_count != null && sub.bottle_sealing_machine_count !== '') ? Number(sub.bottle_sealing_machine_count) : '—'}</div></div>
                         ` : subType === 'repack' ? `
                             <div><div class="text-xs text-gray-500">Displays (finished)</div><div class="font-medium text-amber-700">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Cards (partial)</div><div class="font-medium text-amber-700">${sub.packs_remaining || 0}</div></div>

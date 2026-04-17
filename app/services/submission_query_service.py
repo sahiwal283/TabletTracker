@@ -304,16 +304,34 @@ def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id
     """
     For bottle / variety-pack rows with no single ws.bag_id, derive a display label
     from submission_bag_deductions → bags → receiving (longest common prefix of full labels).
+
+    When ``receiving.receive_name`` is empty (common for some receives), build a base label
+    from ``purchase_orders.po_number`` and the receive sequence on that PO so rows do not show
+    as **Unassigned** in the submissions UI.
     """
     if not submission_id:
         return None
     rows = conn.execute(
         """
-        SELECT r.receive_name, sb.box_number, b.bag_number
+        SELECT r.receive_name, sb.box_number, b.bag_number,
+               po.po_number,
+               (
+                   SELECT COUNT(*) + 1
+                   FROM receiving r2
+                   WHERE r2.po_id = r.po_id
+                   AND (
+                       r2.received_date < r.received_date
+                       OR (
+                           r2.received_date = r.received_date
+                           AND r2.id < r.id
+                       )
+                   )
+               ) AS receive_seq
         FROM submission_bag_deductions sbd
         JOIN bags b ON sbd.bag_id = b.id
         JOIN small_boxes sb ON b.small_box_id = sb.id
         JOIN receiving r ON sb.receiving_id = r.id
+        LEFT JOIN purchase_orders po ON r.po_id = po.id
         WHERE sbd.submission_id = ?
         """,
         (int(submission_id),),
@@ -324,16 +342,23 @@ def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id
     for row in rows:
         d = dict(row)
         rn = (d.get('receive_name') or '').strip()
-        if not rn:
-            continue
+        po_number = (d.get('po_number') or '').strip()
+        receive_seq = d.get('receive_seq')
         bx = d.get('box_number')
         bn = d.get('bag_number')
+        base: Optional[str] = None
+        if rn:
+            base = rn
+        elif po_number and receive_seq is not None:
+            base = f"{po_number}-{receive_seq}"
+        if not base:
+            continue
         if bx is not None and bn is not None:
-            labels.append(f"{rn}-{bx}-{bn}")
+            labels.append(f"{base}-{bx}-{bn}")
         elif bn is not None:
-            labels.append(f"{rn}-{bn}")
+            labels.append(f"{base}-{bn}")
         else:
-            labels.append(rn)
+            labels.append(base)
     if not labels:
         return None
     return longest_common_hyphen_prefix(labels)
