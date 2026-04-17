@@ -58,8 +58,9 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
 
     submissions = conn.execute(
         '''
-        SELECT ws.*
+        SELECT ws.*, m.machine_name AS machine_name
         FROM warehouse_submissions ws
+        LEFT JOIN machines m ON ws.machine_id = m.id
         WHERE (
             ws.bag_id = ?
             OR (

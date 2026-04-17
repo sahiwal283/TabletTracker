@@ -2855,6 +2855,15 @@ function addTabletTypeSearch(selectElement) {
 
 // Machine badge suffix for list/detail modals (matches dashboard / purchase_orders helpers).
 function machineIdBadgeSuffix(sub) {
+    const rawName = sub.machine_name;
+    if (rawName != null && String(rawName).trim() !== '') {
+        const safe = String(rawName)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        return '<span class="ml-1 font-semibold text-blue-950">' + safe + '</span>';
+    }
     const id = sub.machine_id;
     if (id == null || id === '') return '';
     return '<span class="ml-1 font-semibold tabular-nums text-blue-950">#' + String(id) + '</span>';

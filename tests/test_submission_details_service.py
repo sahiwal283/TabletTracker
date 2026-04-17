@@ -25,6 +25,11 @@ class TestSubmissionDetailsService(unittest.TestCase):
             CREATE TABLE receiving (id INTEGER PRIMARY KEY, po_id INTEGER);
             CREATE TABLE small_boxes (id INTEGER PRIMARY KEY, receiving_id INTEGER, box_number INTEGER);
             CREATE TABLE bags (id INTEGER PRIMARY KEY, small_box_id INTEGER, tablet_type_id INTEGER, bag_number INTEGER);
+            CREATE TABLE machines (
+                id INTEGER PRIMARY KEY,
+                machine_name TEXT,
+                machine_role TEXT DEFAULT 'sealing'
+            );
             CREATE TABLE warehouse_submissions (
                 id INTEGER PRIMARY KEY,
                 employee_name TEXT,
@@ -40,6 +45,7 @@ class TestSubmissionDetailsService(unittest.TestCase):
                 tablets_pressed_into_cards INTEGER,
                 loose_tablets INTEGER,
                 bottles_made INTEGER,
+                machine_id INTEGER,
                 submission_date TEXT,
                 created_at TEXT
             );
