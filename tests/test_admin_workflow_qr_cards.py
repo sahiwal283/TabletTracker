@@ -210,6 +210,12 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         conn.close()
         self.assertEqual(tok, "seal-renamed-integration-test")
 
+    def test_workflow_qr_page_shows_bag_name_column(self):
+        r = self.client.get("/admin/workflow-qr")
+        self.assertEqual(r.status_code, 200)
+        html = r.get_data(as_text=True)
+        self.assertIn("Bag name", html)
+
 
 if __name__ == "__main__":
     unittest.main()

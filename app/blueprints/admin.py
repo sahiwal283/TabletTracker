@@ -29,6 +29,41 @@ _VALID_STATION_KINDS = frozenset({"sealing", "blister", "packaging", "combined"}
 _STATION_KIND_ORDER = ["sealing", "blister", "packaging", "combined"]
 
 
+def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: Optional[int]) -> str:
+    """PO-shipment-box-bag label for workflow/admin tables."""
+    if not inventory_bag_id:
+        return "—"
+    try:
+        row = conn.execute(
+            """
+            SELECT po.po_number, COALESCE(r.shipment_number, 1) AS shipment_number,
+                   sb.box_number, b.bag_number
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE b.id = ?
+            """,
+            (int(inventory_bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = conn.execute(
+            """
+            SELECT po.po_number, 1 AS shipment_number, sb.box_number, b.bag_number
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN purchase_orders po ON r.po_id = po.id
+            WHERE b.id = ?
+            """,
+            (int(inventory_bag_id),),
+        ).fetchone()
+    if not row:
+        return f"bag-{int(inventory_bag_id)}"
+    po_num = (row["po_number"] or f"REC{int(inventory_bag_id)}").strip()
+    return f"{po_num}-{int(row['shipment_number'])}-{row['box_number']}-{row['bag_number']}"
+
+
 def _normalize_station_kind(raw) -> str:
     k = (raw or "").strip().lower()
     if k in _VALID_STATION_KINDS:
@@ -423,6 +458,8 @@ def workflow_qr_management():
                     cards = [dict(r) for r in cards]
                 except sqlite3.OperationalError:
                     pass
+            for c in cards:
+                c["bag_name"] = _workflow_inventory_bag_name(conn, c.get("inventory_bag_id"))
         stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
