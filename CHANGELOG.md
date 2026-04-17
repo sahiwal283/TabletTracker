@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.21] - 2026-04-09
+
+### Fixed
+- **Admin notes (📝)**: Notes are loaded with **`GET /api/submission/<id>/details`** via **`openAdminNotesBySubmissionId`** instead of embedding text in **`data-admin-notes`** (long or special-character notes could break HTML attributes so clicks appeared to do nothing). Submissions History and Dashboard note buttons now only store **`data-notes-submission-id`**.
+
+---
+
 ## [3.6.20] - 2026-04-09
 
 ### Fixed

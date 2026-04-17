@@ -509,6 +509,30 @@ function showAdminNotes(adminNotes) {
 }
 window.showAdminNotes = showAdminNotes;
 
+/** Load notes from API — avoids huge/broken HTML data-admin-notes attributes. */
+async function openAdminNotesBySubmissionId(submissionId) {
+    const id = parseInt(String(submissionId), 10);
+    if (Number.isNaN(id) || id < 1) return;
+    try {
+        const res = await fetch('/api/submission/' + id + '/details');
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            const msg = data && data.error ? data.error : 'Could not load notes.';
+            if (typeof showError === 'function') showError(msg);
+            else alert(msg);
+            return;
+        }
+        const sub = data.submission || {};
+        const raw = sub.admin_notes;
+        const text = raw == null ? '' : String(raw);
+        showAdminNotes(text);
+    } catch (e) {
+        if (typeof showError === 'function') showError('Could not load notes.');
+        else alert('Could not load notes.');
+    }
+}
+window.openAdminNotesBySubmissionId = openAdminNotesBySubmissionId;
+
 // Delegated clicks on .js-admin-notes-trigger (emoji = Text node; external scripts may be cached).
 (function () {
     function clickTargetEl(ev) {
@@ -522,7 +546,18 @@ window.showAdminNotes = showAdminNotes;
             const el = clickTargetEl(ev);
             if (!el) return;
             const trig = el.closest('.js-admin-notes-trigger');
-            if (!trig || typeof window.showAdminNotes !== 'function') return;
+            if (!trig) return;
+            const sid = trig.getAttribute('data-notes-submission-id');
+            if (sid) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                ev.stopImmediatePropagation();
+                if (typeof window.openAdminNotesBySubmissionId === 'function') {
+                    window.openAdminNotesBySubmissionId(parseInt(sid, 10));
+                }
+                return;
+            }
+            if (typeof window.showAdminNotes !== 'function') return;
             ev.preventDefault();
             ev.stopPropagation();
             ev.stopImmediatePropagation();
