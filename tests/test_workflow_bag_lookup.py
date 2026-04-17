@@ -68,6 +68,17 @@ class TestWorkflowBagLookup(unittest.TestCase):
         )
         self.assertEqual(len(rows), 0)
 
+    def test_includes_reserved_for_bottles_bag(self):
+        self.conn.execute(
+            "UPDATE bags SET reserved_for_bottles = 1 WHERE id = 10"
+        )
+        self.conn.commit()
+        rows = find_unassigned_inventory_bags_by_flavor_box_bag(
+            self.conn, tablet_type_id=1, box_number=2, bag_number=3
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], 10)
+
 
 if __name__ == "__main__":
     unittest.main()

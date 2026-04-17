@@ -15,8 +15,8 @@ def find_unassigned_inventory_bags_by_flavor_box_bag(
 ) -> List[Dict[str, Any]]:
     """
     Bags matching tablet type + small-box number + bag number, on open published receives,
-    excluding closed bags and bags reserved for bottles — aligned with
-    ``app.utils.receive_tracking.find_bag_for_submission`` (machine-style rules).
+    excluding closed bags. Includes bags marked ``reserved_for_bottles`` (variety/bottle deduction
+    preference does not block QR workflow assignment).
     Only bags not yet linked to ``workflow_bags.inventory_bag_id``.
     """
     rows = conn.execute(
@@ -36,7 +36,6 @@ def find_unassigned_inventory_bags_by_flavor_box_bag(
           AND COALESCE(b.status, 'Available') != 'Closed'
           AND COALESCE(r.closed, 0) = 0
           AND COALESCE(r.status, 'published') = 'published'
-          AND COALESCE(b.reserved_for_bottles, 0) = 0
         ORDER BY r.received_date DESC, b.id
         """,
         (tablet_type_id, box_number, bag_number),
