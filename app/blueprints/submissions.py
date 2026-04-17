@@ -16,6 +16,7 @@ from app.services.submissions_view_service import (
     append_submission_archive_tab_filters,
     append_submission_sort,
 )
+from app.blueprints.workflow_staff import _bag_display_name
 from app.services.workflow_read import display_stage_label, mechanical_bag_facts, progress_summary
 from app.services.workflow_txn import is_sqlite_busy_retryable, run_with_busy_retry
 from app.services.workflow_warehouse_bridge import delete_synced_warehouse_artifacts_for_workflow_bag
@@ -81,7 +82,7 @@ def _workflow_submissions_page(conn):
     offset = (page - 1) * per_page
 
     list_sql = f"""
-        SELECT wb.id, wb.created_at, wb.product_id, wb.box_number, wb.bag_number, wb.receipt_number,
+        SELECT wb.id, wb.created_at, wb.product_id, wb.receipt_number,
                wb.inventory_bag_id, pd.product_name
         FROM workflow_bags wb
         LEFT JOIN product_details pd ON wb.product_id = pd.id
@@ -103,6 +104,11 @@ def _workflow_submissions_page(conn):
         d["is_finalized"] = any(
             e["event_type"] == WC.EVENT_BAG_FINALIZED for e in facts["events"]
         )
+        inv_id = d.get("inventory_bag_id")
+        if inv_id:
+            d["bag_name"] = _bag_display_name(conn, int(inv_id))
+        else:
+            d["bag_name"] = "—"
         workflow_bags.append(d)
 
     tp = total_pages
