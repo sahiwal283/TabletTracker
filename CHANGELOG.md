@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.23] - 2026-04-09
+
+### Fixed
+- **Client API prefix under subpaths**: `window.APP_SCRIPT_ROOT` now falls back to **`APPLICATION_ROOT`** when **`request.script_root`** is empty. Some deployments set **`APPLICATION_ROOT=/tablet`** (etc.) but the proxy does not pass **`SCRIPT_NAME`**, so `fetch('/api/…')` was sent to the site root (404/HTML) and admin-notes loads failed despite **`ttApiUrl()`**. Also assigns **`window.ttApiUrl`** for scripts that expect a global.
+
+---
+
 ## [3.6.22] - 2026-04-09
 
 ### Fixed

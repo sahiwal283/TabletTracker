@@ -513,13 +513,22 @@ function showAdminNotes(adminNotes) {
 }
 window.showAdminNotes = showAdminNotes;
 
-/** Prefix for API paths when Flask is mounted under APPLICATION_ROOT / SCRIPT_NAME (see config.py). */
-window.APP_SCRIPT_ROOT = {{ (request.script_root or '') | tojson }};
+/** Prefix for API paths when Flask is mounted under APPLICATION_ROOT / SCRIPT_NAME (see config.py).
+ * If the reverse proxy does not set SCRIPT_NAME, request.script_root is empty even though
+ * APPLICATION_ROOT is set — fall back so client-side fetch() hits the mounted app, not site root.
+ */
+{% set _js_script_root = (request.script_root or '') %}
+{% if not _js_script_root and config.APPLICATION_ROOT and config.APPLICATION_ROOT != '/' %}
+{% set _js_script_root = config.APPLICATION_ROOT %}
+{% endif %}
+{% set _js_script_root = (_js_script_root or '').rstrip('/') %}
+window.APP_SCRIPT_ROOT = {{ _js_script_root | tojson }};
 function ttApiUrl(path) {
     const p = path && path.charAt(0) === '/' ? path : '/' + (path || '');
     const root = String(window.APP_SCRIPT_ROOT || '').replace(/\/$/, '');
     return root + p;
 }
+window.ttApiUrl = ttApiUrl;
 
 /** Load notes from API — avoids huge/broken HTML data-admin-notes attributes. */
 async function openAdminNotesBySubmissionId(submissionId) {
