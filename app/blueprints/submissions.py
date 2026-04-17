@@ -678,6 +678,7 @@ def submissions_list():
             # Use stored receive_name from receiving table
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter, po.zoho_po_id,
+                   m.machine_name AS machine_display_name,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (
                        SELECT pd2.tablets_per_package 
@@ -758,6 +759,7 @@ def submissions_list():
             LEFT JOIN bags b ON ws.bag_id = b.id
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN machines m ON ws.machine_id = m.id
             WHERE 1=1
             '''
             
@@ -1119,6 +1121,7 @@ def export_submissions_csv():
             # Build query with optional filters (same logic as all_submissions)
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
+                   m.machine_name AS machine_display_name,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (
                        SELECT pd2.tablets_per_package 
@@ -1186,6 +1189,7 @@ def export_submissions_csv():
             LEFT JOIN purchase_orders po ON ws.assigned_po_id = po.id
             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
             LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+            LEFT JOIN machines m ON ws.machine_id = m.id
             WHERE 1=1
             '''
             
@@ -1264,6 +1268,7 @@ def export_submissions_csv():
             'Employee Name',
             'Product Name',
             'Submission Type',
+            'Machine',
             'Tablet Type',
             'PO Number',
             'PO Closed',
@@ -1295,6 +1300,7 @@ def export_submissions_csv():
                     sub.get('employee_name', ''),
                     sub.get('product_name', ''),
                     sub.get('submission_type', 'packaged'),
+                    sub.get('machine_display_name') or '',
                     sub.get('tablet_type_name', ''),
                     sub.get('po_number', ''),
                     'Yes' if sub.get('po_closed') else 'No',
