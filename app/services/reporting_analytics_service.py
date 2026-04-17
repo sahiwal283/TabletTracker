@@ -182,7 +182,20 @@ def _submission_report_rows(
     params: List[Any] = []
 
     if po_id is not None:
-        clauses.append("ws.assigned_po_id = ?")
+        # Variety-pack bottle rows often omit assigned_po_id; tie them to the PO via
+        # bag deductions → receiving instead of excluding them from PO reports.
+        clauses.append(
+            "("
+            "ws.assigned_po_id = ? OR EXISTS ("
+            " SELECT 1 FROM submission_bag_deductions sbd"
+            " JOIN bags b ON b.id = sbd.bag_id"
+            " JOIN small_boxes sb ON sb.id = b.small_box_id"
+            " JOIN receiving r ON r.id = sb.receiving_id"
+            " WHERE sbd.submission_id = ws.id AND r.po_id = ?"
+            ")"
+            ")"
+        )
+        params.append(po_id)
         params.append(po_id)
     if po_number:
         clauses.append("po.po_number = ?")

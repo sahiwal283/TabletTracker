@@ -559,17 +559,25 @@ def submit_bottles():
                             'error': f'Not enough tablets in reserved bags for {flavor.get("tablet_type_name", "flavor")}. Need {tablets_needed}, only have {tablets_needed - tablets_still_needed} available.'
                         }), 400
                 
+                po_ids = {d.get('po_id') for d in deduction_details if d.get('po_id') is not None}
+                if len(po_ids) == 1:
+                    variety_assigned_po_id = next(iter(po_ids))
+                elif len(po_ids) > 1:
+                    variety_assigned_po_id = deduction_details[0].get('po_id')
+                else:
+                    variety_assigned_po_id = None
+
                 # Create ONE submission record for the variety pack
                 conn.execute('''
                     INSERT INTO warehouse_submissions 
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
                      packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
-                     bottle_sealing_machine_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?)
+                     bottle_sealing_machine_count, assigned_po_id, needs_review)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?, ?, 0)
                 ''', (employee_name, product.get('product_name'), 
                       product.get('inventory_item_id'), bottles_made, displays_made,
                       bottles_remaining, submission_date, receipt_number, admin_notes,
-                      bottle_sealing_machine_count))
+                      bottle_sealing_machine_count, variety_assigned_po_id))
                 
                 # Get the submission ID we just created
                 submission_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
