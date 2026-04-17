@@ -99,6 +99,74 @@ def packed_output_tablets(conn: sqlite3.Connection, sub: Dict[str, Any]) -> int:
     )
 
 
+def packed_tablets_allocations(
+    conn: sqlite3.Connection, sub: Dict[str, Any]
+) -> List[Tuple[int, int, int]]:
+    """
+    Split packed output by tablet flavor (and receiving) for reporting.
+
+    Variety-pack bottle submissions deduct from multiple reserved bags; each
+    ``submission_bag_deductions`` row ties to a ``bags.tablet_type_id`` so we
+    attribute tablets to the correct flavor/shipment instead of the variety
+    product's primary tablet type on ``product_details``.
+
+    Returns tuples of (tablet_type_id, tablets, receive_id) with receive_id -1
+    when unknown.
+    """
+    st = (sub.get("submission_type") or "packaged").lower()
+    if st in ("bag", "machine"):
+        return []
+    if st == "bottle":
+        rows = conn.execute(
+            """
+            SELECT b.tablet_type_id AS tid,
+                   r.id AS receive_id,
+                   SUM(sbd.tablets_deducted) AS tablets
+            FROM submission_bag_deductions sbd
+            JOIN bags b ON b.id = sbd.bag_id
+            LEFT JOIN small_boxes sb ON sb.id = b.small_box_id
+            LEFT JOIN receiving r ON r.id = sb.receiving_id
+            WHERE sbd.submission_id = ?
+            GROUP BY b.tablet_type_id, r.id
+            """,
+            (sub["id"],),
+        ).fetchall()
+        alloc_total = sum(int(r["tablets"] or 0) for r in rows)
+        if rows and alloc_total > 0:
+            out: List[Tuple[int, int, int]] = []
+            for r in rows:
+                tid = r["tid"]
+                if tid is None:
+                    tt_key = -2
+                else:
+                    tt_key = int(tid)
+                rid = r["receive_id"]
+                if rid is None:
+                    recv = -1
+                else:
+                    recv = int(rid)
+                t = int(r["tablets"] or 0)
+                if t > 0:
+                    out.append((tt_key, t, recv))
+            return out
+        n = packed_output_tablets(conn, sub)
+        if n <= 0:
+            return []
+        tid, _ = _flavor_id_name(sub, conn)
+        tt_key = tid if tid is not None else -2
+        rid = sub.get("receive_id")
+        recv = -1 if rid is None else int(rid)
+        return [(tt_key, n, recv)]
+    n = packed_output_tablets(conn, sub)
+    if n <= 0:
+        return []
+    tid, _ = _flavor_id_name(sub, conn)
+    tt_key = tid if tid is not None else -2
+    rid = sub.get("receive_id")
+    recv = -1 if rid is None else int(rid)
+    return [(tt_key, n, recv)]
+
+
 def _submission_report_rows(
     conn: sqlite3.Connection,
     po_id: Optional[int] = None,
@@ -123,7 +191,18 @@ def _submission_report_rows(
         clauses.append("po.vendor_name = ?")
         params.append(vendor_name)
     if tablet_type_id is not None:
-        clauses.append("COALESCE(tt.id, tt_fallback.id, tt_bag.id) = ?")
+        # Include variety-pack bottle rows that deduct from this flavor's bags
+        # even when the product row maps to a different tablet_type_id.
+        clauses.append(
+            "("
+            "COALESCE(tt.id, tt_fallback.id, tt_bag.id) = ? OR EXISTS ("
+            " SELECT 1 FROM submission_bag_deductions sbd"
+            " JOIN bags b ON b.id = sbd.bag_id"
+            " WHERE sbd.submission_id = ws.id AND b.tablet_type_id = ?"
+            ")"
+            ")"
+        )
+        params.append(tablet_type_id)
         params.append(tablet_type_id)
     if date_from:
         clauses.append("COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?")
@@ -406,18 +485,12 @@ def _packed_by_flavor_receive(
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
             continue
-        tablets = packed_output_tablets(conn, sub)
-        if tablets <= 0:
-            continue
-        tid, _ = _flavor_id_name(sub, conn)
-        rid = sub.get("receive_id")
-        if rid is None:
-            rid = -1
-        else:
-            rid = int(rid)
-        tt_key = tid if tid is not None else -2
-        key = (tt_key, rid)
-        packed[key] = packed.get(key, 0) + tablets
+        for tid, tablets, rid in packed_tablets_allocations(conn, sub):
+            if tablets <= 0:
+                continue
+            tt_key = tid if tid is not None else -2
+            key = (tt_key, rid)
+            packed[key] = packed.get(key, 0) + tablets
     return packed
 
 
@@ -646,10 +719,12 @@ def build_trends(
         d = str(sub.get("filter_date") or sub.get("created_at", ""))[:10]
         if not d:
             continue
-        n = packed_output_tablets(conn, sub)
-        if n <= 0:
-            continue
-        packed_by_day[d] = packed_by_day.get(d, 0) + n
+        for tid, part, _rid in packed_tablets_allocations(conn, sub):
+            if part <= 0:
+                continue
+            if tablet_type_id is not None and tid != tablet_type_id:
+                continue
+            packed_by_day[d] = packed_by_day.get(d, 0) + part
 
     # Received by receiving date (bags sum)
     rclause = "r.received_date IS NOT NULL AND DATE(r.received_date) >= ? AND DATE(r.received_date) <= ?"
@@ -753,16 +828,18 @@ def build_dimensions(
             if n > 0:
                 g["tablets"] += n
 
-        # Flavor/day packed totals should only include positive packed output rows.
+        # Flavor/day packed totals: split variety-pack bottle deductions per bag flavor.
         if st in ("bag", "machine") or n <= 0:
             continue
-        tid, _fname = _flavor_id_name(sub, conn)
-        if tid is None:
-            tid = -2
-        by_flavor[tid] = by_flavor.get(tid, 0) + n
-        if tid not in by_day_by_flavor:
-            by_day_by_flavor[tid] = {}
-        by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + n
+        for tid, part, _rid in packed_tablets_allocations(conn, sub):
+            if part <= 0:
+                continue
+            if tablet_type_id is not None and tid != tablet_type_id:
+                continue
+            by_flavor[tid] = by_flavor.get(tid, 0) + part
+            if tid not in by_day_by_flavor:
+                by_day_by_flavor[tid] = {}
+            by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + part
 
     flavor_list = []
     for tid, total in sorted(by_flavor.items(), key=lambda x: -x[1]):
