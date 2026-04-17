@@ -5,6 +5,14 @@
 (function () {
     'use strict';
 
+    function clickTargetEl(event) {
+        var t = event.target;
+        if (t && t.nodeType === 1) {
+            return t;
+        }
+        return t && t.parentElement ? t.parentElement : null;
+    }
+
     function toggleRecentSubmissionsPanel() {
         var content = document.getElementById('recent-submissions-content');
         var icon = document.getElementById('submissions-toggle-icon');
@@ -25,7 +33,25 @@
     }
 
     function onDashboardClick(event) {
-        var row = event.target.closest('[data-receive-id]');
+        var el = clickTargetEl(event);
+        if (!el) {
+            return;
+        }
+        // Notes control must win over parent row clicks (submission/receive rows).
+        var adminNotesTrigger = el.closest('.js-admin-notes-trigger');
+        if (adminNotesTrigger && typeof window.showAdminNotes === 'function') {
+            event.preventDefault();
+            event.stopPropagation();
+            window.showAdminNotes(adminNotesTrigger.getAttribute('data-admin-notes') || '');
+            return;
+        }
+
+        if (recentToggle) {
+            toggleRecentSubmissionsPanel();
+            return;
+        }
+
+        var row = el.closest('[data-receive-id]');
         if (row && typeof window.viewReceiveDetails === 'function') {
             var receiveId = parseInt(row.getAttribute('data-receive-id'), 10);
             var receiveName = row.getAttribute('data-receive-name') || '';
@@ -33,44 +59,38 @@
             return;
         }
 
-        var subRow = event.target.closest('[data-submission-id]');
+        var subRow = el.closest('[data-submission-id]');
         if (subRow && typeof window.viewSubmissionDetails === 'function') {
             var subId = parseInt(subRow.getAttribute('data-submission-id'), 10);
             if (!Number.isNaN(subId)) window.viewSubmissionDetails(subId);
             return;
         }
 
-        var ambiguousRow = event.target.closest('[data-ambiguous-submission-id]');
+        var ambiguousRow = el.closest('[data-ambiguous-submission-id]');
         if (ambiguousRow && typeof window.viewAmbiguousSubmission === 'function') {
             var ambiguousId = parseInt(ambiguousRow.getAttribute('data-ambiguous-submission-id'), 10);
             if (!Number.isNaN(ambiguousId)) window.viewAmbiguousSubmission(ambiguousId);
-            return;
-        }
-
-        var adminNotesTrigger = event.target.closest('.js-admin-notes-trigger');
-        if (adminNotesTrigger && typeof window.showAdminNotes === 'function') {
-            event.stopPropagation();
-            window.showAdminNotes(adminNotesTrigger.getAttribute('data-admin-notes') || '');
-            return;
-        }
-
-        var recentToggle = event.target.closest('#recent-submissions-toggle');
-        if (recentToggle) {
-            toggleRecentSubmissionsPanel();
         }
     }
 
     function onDashboardKeydown(event) {
         if (event.key !== 'Enter' && event.key !== ' ') return;
-        var recentToggle = event.target.closest('#recent-submissions-toggle');
+        var el = clickTargetEl(event);
+        var recentToggle = el && el.closest('#recent-submissions-toggle');
         if (!recentToggle) return;
         event.preventDefault();
         toggleRecentSubmissionsPanel();
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function init() {
         bindTabletTypeSelector();
         document.addEventListener('click', onDashboardClick);
         document.addEventListener('keydown', onDashboardKeydown);
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();

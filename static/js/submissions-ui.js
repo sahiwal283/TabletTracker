@@ -5,8 +5,21 @@
 (function () {
     'use strict';
 
+    /** Click target may be a Text node (e.g. emoji); Element#closest is required. */
+    function clickTargetEl(event) {
+        var t = event.target;
+        if (t && t.nodeType === 1) {
+            return t;
+        }
+        return t && t.parentElement ? t.parentElement : null;
+    }
+
     function onClick(event) {
-        var toggleBtn = event.target.closest('.js-receipt-toggle');
+        var el = clickTargetEl(event);
+        if (!el) {
+            return;
+        }
+        var toggleBtn = el.closest('.js-receipt-toggle');
         if (toggleBtn) {
             event.preventDefault();
             event.stopPropagation();
@@ -24,14 +37,15 @@
             return;
         }
 
-        var notesTrigger = event.target.closest('.js-admin-notes-trigger');
+        var notesTrigger = el.closest('.js-admin-notes-trigger');
         if (notesTrigger && typeof window.showAdminNotes === 'function') {
+            event.preventDefault();
             event.stopPropagation();
             window.showAdminNotes(notesTrigger.getAttribute('data-admin-notes') || '');
             return;
         }
 
-        var deleteButton = event.target.closest('[data-delete-submission-id]');
+        var deleteButton = el.closest('[data-delete-submission-id]');
         if (deleteButton && typeof window.deleteSubmission === 'function') {
             event.stopPropagation();
             var deleteId = parseInt(deleteButton.getAttribute('data-delete-submission-id'), 10);
@@ -39,7 +53,7 @@
             return;
         }
 
-        var reassignButton = event.target.closest('[data-open-reassign-submission-id]');
+        var reassignButton = el.closest('[data-open-reassign-submission-id]');
         if (reassignButton && typeof window.openReassignModal === 'function') {
             event.stopPropagation();
             var subId = parseInt(reassignButton.getAttribute('data-open-reassign-submission-id'), 10);
@@ -49,14 +63,14 @@
             return;
         }
 
-        var row = event.target.closest('tr[data-submission-id]');
+        var row = el.closest('tr[data-submission-id]');
         if (row && typeof window.viewSubmissionDetails === 'function') {
             var rowId = parseInt(row.getAttribute('data-submission-id'), 10);
             if (!Number.isNaN(rowId)) window.viewSubmissionDetails(rowId);
         }
 
-        var parentReceipt = event.target.closest('tr.js-receipt-parent');
-        if (parentReceipt && !event.target.closest('a,button,input,textarea,select')) {
+        var parentReceipt = el.closest('tr.js-receipt-parent');
+        if (parentReceipt && !el.closest('a,button,input,textarea,select')) {
             var btn = parentReceipt.querySelector('.js-receipt-toggle');
             if (btn) {
                 btn.click();
@@ -64,11 +78,17 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function init() {
         var select = document.getElementById('tablet_type_id');
         if (select && typeof window.convertToTwoLevelDropdown === 'function') {
             window.convertToTwoLevelDropdown(select);
         }
         document.addEventListener('click', onClick);
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();

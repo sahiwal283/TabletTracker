@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.15] - 2026-04-15
+
+### Fixed
+- **Submissions History** (and **Dashboard** recent submissions): the **📝 admin notes** control now opens the notes modal reliably. Clicks on the emoji could target a **Text node** (no `closest()`), and the dashboard handler checked the submission row before the notes icon—both are fixed.
+
+---
+
 ## [3.6.12] - 2026-04-15
 
 ### Added
