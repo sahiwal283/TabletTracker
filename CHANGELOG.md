@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.17] - 2026-04-09
+
+### Changed
+- **Push to Zoho (split / overs PO)**: When the overs portion would exceed **ordered − already received** on the overs draft line, TabletTracker now **raises the overs line’s ordered quantity in Zoho** (same draft PUT as “Create / add to overs PO”), refreshes local PO lines, re-reads Zoho, then posts the receive—so you no longer need a manual bump for the common shortfall case. If the Zoho PUT fails, the response still includes **`zoho_push_overs`** for a manual retry.
+
+---
+
 ## [3.6.16] - 2026-04-15
 
 ### Fixed

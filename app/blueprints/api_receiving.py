@@ -30,6 +30,7 @@ from app.services.receiving_admin_service import (
     assign_po_to_receiving as assign_po_to_receiving_service,
 )
 from app.services.zoho_service import zoho_api, parse_zoho_item_weight_grams
+from app.services.purchase_order_service import create_or_update_overs_po_for_push
 from app.services.chart_service import generate_bag_chart_image
 from config import Config
 from typing import Optional
@@ -1381,32 +1382,79 @@ Use “Create / add to overs PO” below, then run **Sync Zoho POs** so the over
                 ov_ordered = overs_stats['ordered']
                 ov_recv = overs_stats['received_in_zoho_before_push']
                 ov_remaining = max(0, ov_ordered - ov_recv)
+                name_ov = overs_stats.get('line_item_name') or stats.get('line_item_name') or 'Line item'
                 if overs_qty > ov_remaining:
-                    name_ov = overs_stats.get('line_item_name') or stats.get('line_item_name') or 'Line item'
                     shortfall = overs_qty - ov_remaining
-                    err_detail = (
-                        f'Overs PO line does not have enough **ordered** quantity left in Zoho for this receive.\n\n'
-                        f'You are trying to record **{overs_qty:,}** tablets on **{overs_po_number}** '
-                        f'({name_ov}).\n\n'
-                        f'Zoho shows this line:\n'
-                        f'  • Ordered: **{ov_ordered:,}**\n'
-                        f'  • Already received in Zoho: **{ov_recv:,}**\n'
-                        f'  • **Remaining you can still receive: {ov_remaining:,}**\n\n'
-                        f'**Shortfall: {shortfall:,}** tablets.\n\n'
-                        f'The overs PO is a real purchase order in Zoho — each line has its own ordered cap. '
-                        f'Use **Create / add to overs PO** in TabletTracker to add at least **{shortfall:,}** tablets '
-                        f'to the draft overs line (or raise the line quantity in Zoho), then push again.'
+                    inv_id = bag.get('inventory_item_id')
+                    if not inv_id:
+                        return jsonify({
+                            'success': False,
+                            'error': (
+                                'Cannot bump overs PO: this bag has no inventory item id. '
+                                'Re-save the bag or contact support.'
+                            ),
+                        }), 400
+                    current_app.logger.info(
+                        f"Bag {bag_id}: overs PO needs +{shortfall:,} ordered on draft line "
+                        f"(have {ov_remaining:,} receive room; need {overs_qty:,}). Bumping via Zoho PUT."
                     )
-                    return jsonify({
-                        'success': False,
-                        'error': err_detail,
-                        'zoho_push_overs': {
-                            'parent_po_id': bag['po_id'],
-                            'overage_tablets': shortfall,
-                            'inventory_item_id': bag.get('inventory_item_id'),
-                            'line_item_name': name_ov,
-                        },
-                    }), 400
+                    bump = create_or_update_overs_po_for_push(
+                        bag['po_id'],
+                        shortfall,
+                        inv_id,
+                        name_ov,
+                    )
+                    if not bump.get('success'):
+                        err_detail = (
+                            f'Could not raise the overs PO draft line in Zoho by **{shortfall:,}** tablets.\n\n'
+                            f'{bump.get("error") or "Unknown error"}\n\n'
+                            f'You can try **Create / add to overs PO** manually, then push again.'
+                        )
+                        return jsonify({
+                            'success': False,
+                            'error': err_detail,
+                            'zoho_push_overs': {
+                                'parent_po_id': bag['po_id'],
+                                'overage_tablets': shortfall,
+                                'inventory_item_id': bag.get('inventory_item_id'),
+                                'line_item_name': name_ov,
+                            },
+                        }), 400
+                    if overs_local_po_id is not None and overs_zoho_po_id:
+                        try:
+                            with db_transaction() as conn:
+                                zoho_api.refresh_tablet_po_lines(conn, overs_local_po_id, overs_zoho_po_id)
+                        except Exception as e:
+                            current_app.logger.warning(f"refresh_tablet_po_lines after overs bump (bag {bag_id}): {e}")
+                    # Re-resolve line id in case Zoho merged lines; re-read capacity
+                    resolved_after = _resolve_zoho_line_item_id_for_po_item(
+                        overs_zoho_po_id, bag.get('inventory_item_id')
+                    )
+                    if resolved_after:
+                        overs_zoho_line_id = resolved_after
+                    overs_stats = get_zoho_po_line_receive_stats(
+                        overs_zoho_po_id, overs_zoho_line_id, bag.get('inventory_item_id')
+                    )
+                    if not overs_stats:
+                        return jsonify({
+                            'success': False,
+                            'error': (
+                                'Overs PO was updated in Zoho, but TabletTracker could not re-read the line. '
+                                'Try **Sync Zoho POs**, then push again.'
+                            ),
+                        }), 400
+                    ov_ordered = overs_stats['ordered']
+                    ov_recv = overs_stats['received_in_zoho_before_push']
+                    ov_remaining = max(0, ov_ordered - ov_recv)
+                    if overs_qty > ov_remaining:
+                        return jsonify({
+                            'success': False,
+                            'error': (
+                                f'After bumping the overs draft line, Zoho still shows only **{ov_remaining:,}** tablets '
+                                f'receivable (need **{overs_qty:,}**). Check the overs PO in Zoho for duplicate lines '
+                                f'or sync issues, then try again.'
+                            ),
+                        }), 400
 
                 rid_main = None
                 if main_qty > 0:
