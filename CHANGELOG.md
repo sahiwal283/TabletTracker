@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.22] - 2026-04-09
+
+### Fixed
+- **Admin notes & submission APIs**: JavaScript now prefixes API URLs with **`request.script_root`** (`ttApiUrl()`), matching Flask when the app is mounted under a path (**`APPLICATION_ROOT`**). Previously `fetch('/api/submission/…')` called the site root and failed silently after JSON parse errors.
+- **`window.__nativeAlert`**: Exposed so error paths never recurse through the `alert` → `showError` shim.
+- **Submissions page**: Removed duplicate **`showError` / `showSuccess`** definitions that could fight **base.html** toast helpers.
+
+---
+
 ## [3.6.21] - 2026-04-09
 
 ### Fixed

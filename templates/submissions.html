@@ -755,7 +755,7 @@ async function approveSubmission(submissionId) {
     }
     
     try {
-        const response = await csrfFetch(`/api/submission/${submissionId}/approve`, {
+        const response = await csrfFetch(ttApiUrl(`/api/submission/${submissionId}/approve`), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -786,7 +786,7 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
         
         // RECEIVE-BASED TRACKING: Always fetch possible receives (matches v1.88.6 behavior)
         // This modal should only show receives, never POs
-        const response = await fetch(`/api/submission/${submissionId}/possible-receives`);
+        const response = await fetch(ttApiUrl(`/api/submission/${submissionId}/possible-receives`), { credentials: 'same-origin' });
         const data = await response.json();
         
         // Set modal title and warning for receives (always receives, never POs)
@@ -900,7 +900,7 @@ async function assignSubmissionToReceive(submissionId, bagId) {
     }
     
     try{
-        const response = await csrfFetch(`/api/submission/${submissionId}/assign-receive`, {
+        const response = await csrfFetch(ttApiUrl(`/api/submission/${submissionId}/assign-receive`), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({bag_id: bagId})
@@ -932,7 +932,7 @@ async function reassignSubmission(submissionId, newPoId) {
     }
     
     try {
-        const response = await csrfFetch(`/api/submission/${submissionId}/reassign`, {
+        const response = await csrfFetch(ttApiUrl(`/api/submission/${submissionId}/reassign`), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({new_po_id: newPoId})
@@ -1040,7 +1040,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
 async function loadAdminReassignPOs(submissionId, productName) {
     try {
         // Fetch available POs for this submission
-        const response = await fetch(`/api/submission/${submissionId}/available_pos`);
+        const response = await fetch(ttApiUrl(`/api/submission/${submissionId}/available_pos`), { credentials: 'same-origin' });
         const data = await response.json();
         
         if (!data.success) {
@@ -1133,7 +1133,7 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
     }
     
     try {
-        const response = await csrfFetch(`/api/submission/${submissionId}/admin_reassign`, {
+        const response = await csrfFetch(ttApiUrl(`/api/submission/${submissionId}/admin_reassign`), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1158,13 +1158,8 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
 
 // Date editing functions removed - date editing is now in the edit modal
 
-function showSuccess(message) {
-    alert(message);
-}
-
-function showError(message) {
-    alert('Error: ' + message);
-}
+// showSuccess / showError are defined in base.html (toast UI) after this block — do not redefine here
+// or the alert() shim can recurse when combined with page-specific overrides.
 
 // Edit Submission Modal Functions are now in base.html - available globally
 
@@ -1175,7 +1170,7 @@ async function deleteSubmission(submissionId) {
     }
     
     try {
-        const response = await csrfFetch(`/api/submission/${submissionId}/delete`, {
+        const response = await csrfFetch(ttApiUrl(`/api/submission/${submissionId}/delete`), {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });

@@ -240,6 +240,10 @@
     }
 
     var __origAlert = window.alert;
+    /** Bypass alert→toast shim (avoids recursion if a page redefines showError poorly). */
+    window.__nativeAlert = function (message) {
+        return __origAlert.call(window, message);
+    };
     window.alert = function (message) {
         try {
             var msg = String(message);
@@ -509,17 +513,35 @@ function showAdminNotes(adminNotes) {
 }
 window.showAdminNotes = showAdminNotes;
 
+/** Prefix for API paths when Flask is mounted under APPLICATION_ROOT / SCRIPT_NAME (see config.py). */
+window.APP_SCRIPT_ROOT = {{ (request.script_root or '') | tojson }};
+function ttApiUrl(path) {
+    const p = path && path.charAt(0) === '/' ? path : '/' + (path || '');
+    const root = String(window.APP_SCRIPT_ROOT || '').replace(/\/$/, '');
+    return root + p;
+}
+
 /** Load notes from API — avoids huge/broken HTML data-admin-notes attributes. */
 async function openAdminNotesBySubmissionId(submissionId) {
     const id = parseInt(String(submissionId), 10);
     if (Number.isNaN(id) || id < 1) return;
+    const url = ttApiUrl('/api/submission/' + id + '/details');
     try {
-        const res = await fetch('/api/submission/' + id + '/details');
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            const msg = data && data.error ? data.error : 'Could not load notes.';
+        const res = await fetch(url, { credentials: 'same-origin' });
+        const rawText = await res.text();
+        let data = {};
+        try {
+            data = rawText ? JSON.parse(rawText) : {};
+        } catch (parseErr) {
+            const msg = res.ok ? 'Could not read server response.' : ('HTTP ' + res.status);
             if (typeof showError === 'function') showError(msg);
-            else alert(msg);
+            else if (typeof window.__nativeAlert === 'function') window.__nativeAlert(msg);
+            return;
+        }
+        if (!res.ok || !data.success) {
+            const msg = data && data.error ? data.error : ('Could not load notes (' + res.status + ').');
+            if (typeof showError === 'function') showError(msg);
+            else if (typeof window.__nativeAlert === 'function') window.__nativeAlert(msg);
             return;
         }
         const sub = data.submission || {};
@@ -528,7 +550,7 @@ async function openAdminNotesBySubmissionId(submissionId) {
         showAdminNotes(text);
     } catch (e) {
         if (typeof showError === 'function') showError('Could not load notes.');
-        else alert('Could not load notes.');
+        else if (typeof window.__nativeAlert === 'function') window.__nativeAlert('Could not load notes.');
     }
 }
 window.openAdminNotesBySubmissionId = openAdminNotesBySubmissionId;
@@ -918,7 +940,7 @@ async function saveSubmissionEdit() {
 // Edit submission modal - defined early
 async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
     try {
-        const response = await fetch(`/api/submission/${submissionId}/details`);
+        const response = await fetch(ttApiUrl(`/api/submission/${submissionId}/details`), { credentials: 'same-origin' });
         const data = await response.json();
         
         if (!data.success) {
@@ -2403,7 +2425,7 @@ async function convertToTwoLevelDropdown(selectElement) {
 // Admin Change PO functions for edit modal
 async function loadEditAdminPOs(submissionId, productName) {
     try {
-        const response = await fetch(`/api/submission/${submissionId}/available_pos`);
+        const response = await fetch(ttApiUrl(`/api/submission/${submissionId}/available_pos`), { credentials: 'same-origin' });
         const data = await response.json();
         
         if (!data.success) {
@@ -2975,7 +2997,7 @@ async function viewSubmissionDetails(submissionId) {
             parentModalInfo = { type: 'submissions', name: submissionsTitle };
         }
         
-        const response = await fetch(`/api/submission/${submissionId}/details`);
+        const response = await fetch(ttApiUrl(`/api/submission/${submissionId}/details`), { credentials: 'same-origin' });
         const data = await response.json();
         
         if (!data.success) {
