@@ -504,15 +504,40 @@ function showAdminNotes(adminNotes) {
             : 'No notes available.';
         content.textContent = decodedNotes;
         modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 }
 window.showAdminNotes = showAdminNotes;
+
+// Delegated clicks on .js-admin-notes-trigger (emoji = Text node; external scripts may be cached).
+(function () {
+    function clickTargetEl(ev) {
+        const t = ev.target;
+        if (t && t.nodeType === 1) return t;
+        return t && t.parentElement ? t.parentElement : null;
+    }
+    document.addEventListener(
+        'click',
+        function (ev) {
+            const el = clickTargetEl(ev);
+            if (!el) return;
+            const trig = el.closest('.js-admin-notes-trigger');
+            if (!trig || typeof window.showAdminNotes !== 'function') return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            ev.stopImmediatePropagation();
+            window.showAdminNotes(trig.getAttribute('data-admin-notes') || '');
+        },
+        true
+    );
+})();
 
 // Close admin notes modal - defined early
 function closeAdminNotesModal(event) {
     const modal = document.getElementById('admin-notes-view-modal');
     if (modal) {
         modal.classList.add('hidden');
+        modal.classList.remove('flex');
     }
     if (event) {
         event.stopPropagation();
@@ -2309,7 +2334,7 @@ async function convertToTwoLevelDropdown(selectElement) {
 </div>
 
 <!-- Notes View Modal (Read-only) -->
-<div id="admin-notes-view-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[70]" data-close-admin-notes-overlay>
+<div id="admin-notes-view-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[95]" data-close-admin-notes-overlay>
     <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
         <div class="p-6">
             <div class="flex justify-between items-center mb-4">

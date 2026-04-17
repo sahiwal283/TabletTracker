@@ -32,27 +32,13 @@
         }
     }
 
-    function onAdminNotesCapture(event) {
-        var el = clickTargetEl(event);
-        if (!el) {
-            return;
-        }
-        var adminNotesTrigger = el.closest('.js-admin-notes-trigger');
-        if (!adminNotesTrigger || typeof window.showAdminNotes !== 'function') {
-            return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        window.showAdminNotes(adminNotesTrigger.getAttribute('data-admin-notes') || '');
-    }
-
     function onDashboardClick(event) {
         var el = clickTargetEl(event);
         if (!el) {
             return;
         }
 
+        var recentToggle = el.closest('#recent-submissions-toggle');
         if (recentToggle) {
             toggleRecentSubmissionsPanel();
             return;
@@ -91,7 +77,6 @@
 
     function init() {
         bindTabletTypeSelector();
-        document.addEventListener('click', onAdminNotesCapture, true);
         document.addEventListener('click', onDashboardClick);
         document.addEventListener('keydown', onDashboardKeydown);
     }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.20] - 2026-04-09
+
+### Fixed
+- **Admin notes (📝)**: Handler is registered in **base.html** (same payload as the modal) so it cannot be missing due to cached `submissions-ui.js` / `dashboard-ui.js`. Notes modal **z-index** raised above other overlays; opening adds **`flex`** explicitly. Static JS URLs include **`?v=<app version>`** for cache busting. Note buttons also use a small **inline `onclick`** fallback so the modal opens even if delegation fails.
+
+---
+
 ## [3.6.19] - 2026-04-09
 
 ### Fixed

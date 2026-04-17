@@ -430,7 +430,8 @@
                             <button type="button"
                                   class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 transition-colors border-0 align-middle js-admin-notes-trigger"
                                   title="Click to view admin notes"
-                                  data-admin-notes="{{ sub.admin_notes|e }}">📝</button>
+                                  data-admin-notes="{{ sub.admin_notes|e }}"
+                                  onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') { showAdminNotes(this.getAttribute('data-admin-notes') || ''); }">📝</button>
                             {% endif %}
                         </div>
                     </td>
@@ -480,7 +481,7 @@
 
 <!-- Closed POs removed - view all POs on dedicated page -->
 <script src="{{ url_for('static', filename='js/dashboard-reports.js') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-ui.js') }}?v={{ version() }}"></script>
 <script>
 // Define syncZohoPOs function early to ensure it's available
 async function syncZohoPOs() {
