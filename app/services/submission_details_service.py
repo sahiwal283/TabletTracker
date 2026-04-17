@@ -91,8 +91,20 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
         elif submission_type == 'bag':
             total = sub.get('loose_tablets') or 0
         elif submission_type == 'machine':
-            tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
-            total = tablets_pressed or ((sub.get('packs_remaining') or 0) * tpp)
+            role = None
+            mid = sub.get('machine_id')
+            if mid:
+                role_row = conn.execute(
+                    "SELECT COALESCE(machine_role, 'sealing') AS machine_role FROM machines WHERE id = ?",
+                    (mid,),
+                ).fetchone()
+                if role_row:
+                    role = (dict(role_row).get('machine_role') or 'sealing').strip().lower()
+            if role == 'blister':
+                total = sub.get('displays_made') or 0
+            else:
+                tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
+                total = tablets_pressed or ((sub.get('packs_remaining') or 0) * tpp)
         elif submission_type == 'bottle':
             deductions = conn.execute(
                 'SELECT SUM(tablets_deducted) as total FROM submission_bag_deductions WHERE submission_id = ?',

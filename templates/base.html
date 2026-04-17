@@ -518,17 +518,22 @@ function closeAdminNotesModal(event) {
     }
 }
 
-// Keep machine submission cards/tablets in sync with turns × cards_per_turn (edit modal)
+// Keep machine submission cards/tablets in sync with turns × cards_per_turn (edit modal); blister uses counter only
 function wireEditMachineDerivedSync() {
     const sel = document.getElementById('edit-machine-id');
     const cnt = document.getElementById('edit-machine-count');
     const tabs = document.getElementById('edit-tablets-pressed');
     if (!sel || !cnt || !tabs) return;
     function sync() {
-        const turns = parseInt(cnt.value, 10) || 0;
         const opt = sel.options[sel.selectedIndex];
+        const role = (opt && opt.getAttribute('data-machine-role')) || 'sealing';
+        const n = parseInt(cnt.value, 10) || 0;
+        if (role === 'blister') {
+            tabs.value = String(n);
+            return;
+        }
         const cpt = opt && opt.value ? parseInt(opt.getAttribute('data-cards-per-turn') || '0', 10) : 0;
-        tabs.value = (turns && cpt) ? String(turns * cpt) : '0';
+        tabs.value = (n && cpt) ? String(n * cpt) : '0';
     }
     sel.onchange = sync;
     cnt.oninput = sync;
@@ -549,6 +554,7 @@ async function populateEditMachineDropdown(submission) {
                 opt.value = String(m.id);
                 opt.textContent = m.machine_name || ('Machine ' + m.id);
                 opt.setAttribute('data-cards-per-turn', m.cards_per_turn != null ? String(m.cards_per_turn) : '0');
+                opt.setAttribute('data-machine-role', m.machine_role || 'sealing');
                 sel.appendChild(opt);
             });
         }
@@ -923,7 +929,6 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             const editDate = document.getElementById('edit-submission-date');
             
             if (editMachineCount) editMachineCount.value = sub.displays_made || 0;
-            if (editTablets) editTablets.value = sub.tablets_pressed_into_cards || 0;
             if (editBox) editBox.value = sub.box_number || '';
             if (editBag) editBag.value = sub.bag_number || '';
             if (editBagLabel) editBagLabel.value = sub.bag_label_count || '';
@@ -934,6 +939,26 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 editDate.value = submissionDate;
             }
             await populateEditMachineDropdown(sub);
+            const isBlisterEdit = String(sub.machine_role || 'sealing').toLowerCase() === 'blister';
+            const recHint = document.getElementById('edit-machine-recompute-hint');
+            const countHint = document.getElementById('edit-machine-count-hint');
+            const tabLabel = document.getElementById('edit-tablets-pressed-label');
+            const tabHint = document.getElementById('edit-machine-tablets-hint');
+            if (isBlisterEdit) {
+                if (recHint) recHint.textContent = 'Blister machines use the counter reading only (not sealing turns × cards per turn).';
+                if (countHint) countHint.textContent = 'Blister machine counter reading';
+                if (tabLabel) tabLabel.textContent = 'Saved count (blister)';
+                if (tabHint) tabHint.textContent = 'Mirrors counter reading; same value submitted to the server.';
+            } else {
+                if (recHint) recHint.textContent = 'Changing machine recalculates cards and total tablets as turns × this machine\'s cards per turn.';
+                if (countHint) countHint.textContent = 'The counter number from the machine';
+                if (tabLabel) tabLabel.textContent = 'Total Tablets Pressed';
+                if (tabHint) tabHint.textContent = 'Read-only: turns × selected machine\'s cards per turn (saved totals use this)';
+            }
+            if (editTablets) {
+                editTablets.value = isBlisterEdit ? String(sub.displays_made || 0) : String(sub.tablets_pressed_into_cards || 0);
+            }
+            wireEditMachineDerivedSync();
             const bst = document.getElementById('edit-bag-start-time');
             if (bst) bst.value = utcNaiveToEasternInputString(sub.bag_start_time);
         } else if (submissionType === 'bottle') {
@@ -2077,19 +2102,19 @@ async function convertToTwoLevelDropdown(selectElement) {
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Loading machines…</option>
                         </select>
-                        <p class="text-xs text-gray-500 mt-1">Changing machine recalculates cards and total tablets as turns × this machine&rsquo;s cards per turn.</p>
+                        <p id="edit-machine-recompute-hint" class="text-xs text-gray-500 mt-1">Changing machine recalculates cards and total tablets as turns × this machine&rsquo;s cards per turn.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Machine Counter Reading</label>
                         <input type="number" id="edit-machine-count" min="0" 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="text-xs text-gray-500 mt-1">The counter number from the machine</p>
+                        <p id="edit-machine-count-hint" class="text-xs text-gray-500 mt-1">The counter number from the machine</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Total Tablets Pressed</label>
+                        <label id="edit-tablets-pressed-label" class="block text-sm font-medium text-gray-700 mb-1">Total Tablets Pressed</label>
                         <input type="number" id="edit-tablets-pressed" min="0" readonly
                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
-                        <p class="text-xs text-gray-500 mt-1">Read-only: turns × selected machine&rsquo;s cards per turn (saved totals use this)</p>
+                        <p id="edit-machine-tablets-hint" class="text-xs text-gray-500 mt-1">Read-only: turns × selected machine&rsquo;s cards per turn (saved totals use this)</p>
                     </div>
                 </div>
 
@@ -2945,10 +2970,14 @@ async function viewSubmissionDetails(submissionId) {
                                    bagDeductions.length > 0 || 
                                    (sub.bottles_made && sub.bottles_made > 0);
         
+        const isBlisterMachine = sub.submission_type === 'machine' &&
+            String(sub.machine_role || 'sealing').toLowerCase() === 'blister';
+
         // Determine submission type badge
         let typeBadge = '';
         if (sub.submission_type === 'machine') {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>';
+            const blisterLab = isBlisterMachine ? ' <span class="text-blue-700 font-normal">(blister)</span>' : '';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + blisterLab + '</span>';
         } else if (sub.submission_type === 'bag') {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
         } else if (sub.submission_type === 'repack') {
@@ -3048,8 +3077,21 @@ async function viewSubmissionDetails(submissionId) {
                         <!-- Counts -->
                         <div class="mb-6">
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Counts</h4>
-                            ${sub.submission_type === 'machine' ? `
-                            <!-- Machine Submission -->
+                            ${sub.submission_type === 'machine' ? (isBlisterMachine ? `
+                            <!-- Blister machine: single operator count (not sealing turns/cards) -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-teal-50 rounded-lg p-4 border border-teal-100">
+                                    <label class="text-xs text-gray-500 uppercase">Blister count</label>
+                                    <div class="mt-1 text-2xl font-bold text-teal-700">${(sub.blister_machine_count != null ? sub.blister_machine_count : sub.displays_made) || 0}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Reading from blister machine (not turns or cards)</div>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <label class="text-xs text-gray-500 uppercase">Machine</label>
+                                    <div class="mt-1 text-lg font-semibold text-gray-900">${sub.machine_name || 'Not specified'}</div>
+                                </div>
+                            </div>
+                            ` : `
+                            <!-- Sealing / other machine submission -->
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 <div class="bg-blue-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Turns</label>
@@ -3074,7 +3116,6 @@ async function viewSubmissionDetails(submissionId) {
                                     <span class="text-gray-400">•</span>
                                     <span class="font-medium">Cards Per Turn:</span>
                                     <span>${(() => {
-                                        // Calculate cards per turn if not present
                                         if (sub.cards_per_turn) return sub.cards_per_turn;
                                         const turns = sub.displays_made || 0;
                                         const cards = sub.cards_made || sub.packs_remaining || 0;
@@ -3085,7 +3126,7 @@ async function viewSubmissionDetails(submissionId) {
                                     })()}</span>
                                 </div>
                             </div>
-                            ` : sub.submission_type === 'repack' ? `
+                            `) : sub.submission_type === 'repack' ? `
                             <!-- Repack -->
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div class="bg-orange-50 rounded-lg p-4">

@@ -1321,6 +1321,7 @@ def get_submission_details(submission_id):
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count, 
                    r.id as receive_id, r.received_date, r.receive_name as receive_name_from_receive,
                    m.machine_name, m.cards_per_turn as machine_cards_per_turn,
+                   m.machine_role AS machine_role,
                    (
                        SELECT COUNT(*) + 1
                        FROM receiving r2
@@ -1383,21 +1384,24 @@ def get_submission_details(submission_id):
             machine_name = submission_dict.get('machine_name')
             cards_per_turn = submission_dict.get('machine_cards_per_turn')
             
-            if submission_type == 'machine':
-                # If not found from JOIN, try to get from machine_id in submission
-                machine_row = None
-                if not cards_per_turn and submission_dict.get('machine_id'):
-                    machine_row = conn.execute('''
-                        SELECT machine_name, cards_per_turn
-                        FROM machines
-                        WHERE id = ?
-                    ''', (submission_dict.get('machine_id'),)).fetchone()
+            if submission_type == 'machine' and submission_dict.get('machine_id'):
+                machine_row = conn.execute(
+                    '''
+                    SELECT machine_name, cards_per_turn,
+                           COALESCE(machine_role, 'sealing') AS machine_role
+                    FROM machines
+                    WHERE id = ?
+                    ''',
+                    (submission_dict.get('machine_id'),),
+                ).fetchone()
                 if machine_row:
                     machine = dict(machine_row)
                     if not machine_name:
                         machine_name = machine.get('machine_name')
                     if not cards_per_turn:
                         cards_per_turn = machine.get('cards_per_turn')
+                    if not submission_dict.get('machine_role'):
+                        submission_dict['machine_role'] = machine.get('machine_role')
             
             # If still not found, try to find from machine_counts table by matching submission details
             if not cards_per_turn:
@@ -1412,7 +1416,8 @@ def get_submission_details(submission_id):
                     # Try to find machine_count record that matches this submission
                     submission_date = submission_dict.get('submission_date') or submission_dict.get('created_at')
                     machine_count_record_row = conn.execute('''
-                        SELECT mc.machine_id, m.machine_name, m.cards_per_turn
+                        SELECT mc.machine_id, m.machine_name, m.cards_per_turn,
+                               COALESCE(m.machine_role, 'sealing') AS machine_role
                         FROM machine_counts mc
                         LEFT JOIN machines m ON mc.machine_id = m.id
                         WHERE mc.tablet_type_id = ?
@@ -1432,6 +1437,8 @@ def get_submission_details(submission_id):
                             machine_name = machine_count_record.get('machine_name')
                         if not cards_per_turn:
                             cards_per_turn = machine_count_record.get('cards_per_turn')
+                        if not submission_dict.get('machine_role'):
+                            submission_dict['machine_role'] = machine_count_record.get('machine_role')
             
             # Fallback to app_settings if machine not found
             if not cards_per_turn:
@@ -1445,11 +1452,21 @@ def get_submission_details(submission_id):
                 else:
                     cards_per_turn = 1
             
-            # Recalculate cards_made using correct machine-specific cards_per_turn
-            # This fixes submissions that were saved with wrong cards_per_turn
-            machine_count = submission_dict.get('displays_made', 0) or 0  # displays_made stores machine_count (turns)
-            cards_made = machine_count * cards_per_turn
-            submission_dict['cards_made'] = cards_made  # Add recalculated cards_made
+            machine_role_norm = 'sealing'
+            if submission_type == 'machine':
+                mr = submission_dict.get('machine_role')
+                machine_role_norm = (mr or 'sealing').strip().lower()
+                if machine_role_norm not in ('sealing', 'blister'):
+                    machine_role_norm = 'sealing'
+                submission_dict['machine_role'] = machine_role_norm
+
+            # Recalculate cards_made using correct machine-specific cards_per_turn (sealing only)
+            if submission_type == 'machine' and machine_role_norm == 'sealing':
+                machine_count = submission_dict.get('displays_made', 0) or 0
+                cards_made = machine_count * cards_per_turn
+                submission_dict['cards_made'] = cards_made
+            elif submission_type == 'machine' and machine_role_norm == 'blister':
+                submission_dict['cards_made'] = None
             
             # For bottle submissions, preserve explicit leftover single bottles.
             # We store this in packs_remaining for bottle records (no schema migration needed).
@@ -1497,18 +1514,27 @@ def get_submission_details(submission_id):
             
             # Calculate based on submission type
             if submission_type == 'machine':
-                # For machine submissions: total tablets pressed into cards is stored in tablets_pressed_into_cards
-                # Fallback to loose_tablets, then calculate from cards_made × tablets_per_package
-                packs_remaining = submission_dict.get('packs_remaining', 0) or 0
-                submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
-                                                     submission_dict.get('loose_tablets') or
-                                                     (packs_remaining * tablets_per_package) or
-                                                     0)
-                submission_dict['total_tablets'] = submission_dict['individual_calc']
-                submission_dict['cards_per_turn'] = cards_per_turn
-                submission_dict['machine_name'] = machine_name
-                # Use recalculated cards_made instead of packs_remaining (which may have wrong value)
-                submission_dict['packs_remaining'] = cards_made
+                # Blister: one operator count (displays_made); never turns × cards × tablets.
+                if machine_role_norm == 'blister':
+                    bc = submission_dict.get('displays_made', 0) or 0
+                    submission_dict['individual_calc'] = bc
+                    submission_dict['total_tablets'] = bc
+                    submission_dict['blister_machine_count'] = bc
+                    submission_dict['cards_per_turn'] = None
+                    submission_dict['machine_name'] = machine_name
+                else:
+                    # Sealing: total tablets pressed into cards is stored in tablets_pressed_into_cards
+                    packs_remaining = submission_dict.get('packs_remaining', 0) or 0
+                    submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
+                                                         submission_dict.get('loose_tablets') or
+                                                         (packs_remaining * tablets_per_package) or
+                                                         0)
+                    submission_dict['total_tablets'] = submission_dict['individual_calc']
+                    submission_dict['cards_per_turn'] = cards_per_turn
+                    submission_dict['machine_name'] = machine_name
+                    cm = submission_dict.get('cards_made')
+                    if cm is not None:
+                        submission_dict['packs_remaining'] = cm
             elif submission_type == 'repack':
                 packages_per_display = submission_dict.get('packages_per_display', 0) or 0
                 out = calculate_repack_output_good(
@@ -1900,7 +1926,8 @@ def edit_submission(submission_id):
                     return jsonify({'success': False, 'error': 'Invalid machine_id'}), 400
                 machine_row = conn.execute(
                     '''
-                    SELECT id, COALESCE(cards_per_turn, 0) AS cards_per_turn
+                    SELECT id, COALESCE(cards_per_turn, 0) AS cards_per_turn,
+                           COALESCE(machine_role, 'sealing') AS machine_role
                     FROM machines
                     WHERE id = ? AND COALESCE(is_active, 1) = 1
                     ''',
@@ -1908,12 +1935,18 @@ def edit_submission(submission_id):
                 ).fetchone()
                 if not machine_row:
                     return jsonify({'success': False, 'error': 'Invalid or inactive machine selected'}), 400
-                cpt = int(machine_row['cards_per_turn'] or 0)
-                if cpt <= 0:
-                    return jsonify({'success': False, 'error': 'Selected machine has no valid cards-per-turn configured'}), 400
-                # Match production semantics: tablets = turns × cards_per_turn; packs_remaining holds card count
-                tablets_pressed_into_cards = displays_made * cpt
-                packs_remaining = tablets_pressed_into_cards
+                machine_role_edit = (machine_row['machine_role'] or 'sealing').strip().lower()
+                if machine_role_edit not in ('sealing', 'blister'):
+                    machine_role_edit = 'sealing'
+                if machine_role_edit == 'blister':
+                    tablets_pressed_into_cards = displays_made
+                    packs_remaining = 0
+                else:
+                    cpt = int(machine_row['cards_per_turn'] or 0)
+                    if cpt <= 0:
+                        return jsonify({'success': False, 'error': 'Selected machine has no valid cards-per-turn configured'}), 400
+                    tablets_pressed_into_cards = displays_made * cpt
+                    packs_remaining = tablets_pressed_into_cards
             
             # Calculate new totals based on submission type
             if submission_type == 'machine':

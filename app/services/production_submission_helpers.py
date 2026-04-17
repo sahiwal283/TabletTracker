@@ -186,6 +186,19 @@ def _ensure_default_count_date(data: dict) -> None:
         data['count_date'] = datetime.now().date().isoformat()
 
 
+def _machine_role_for_id(conn, machine_id) -> str:
+    if not machine_id:
+        return 'sealing'
+    row = conn.execute(
+        "SELECT COALESCE(machine_role, 'sealing') AS machine_role FROM machines WHERE id = ?",
+        (machine_id,),
+    ).fetchone()
+    if not row:
+        return 'sealing'
+    r = (dict(row).get('machine_role') or 'sealing').strip().lower()
+    return r if r in ('sealing', 'blister') else 'sealing'
+
+
 def execute_machine_submission(conn, data, employee_name: str, entries: list) -> dict:
     """
     Execute machine submission inside an existing connection/transaction.
@@ -391,7 +404,14 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
         machine_id = entry['machine_id']
         machine_count_int = entry['machine_count']
         cards_per_turn = cards_per_turn_for(machine_id)
-        tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package
+        machine_role = _machine_role_for_id(conn, machine_id)
+        if machine_role == 'blister':
+            # Blister: store the operator reading as a single unit count (not sealing turns × cards × tablets).
+            tablets_pressed_into_cards = machine_count_int
+            cards_made = 0
+        else:
+            tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package
+            cards_made = machine_count_int * cards_per_turn
 
         _insert_machine_counts_row(
             conn,
@@ -404,7 +424,6 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
             bag_number,
         )
 
-        cards_made = machine_count_int * cards_per_turn
         conn.execute(
             """
             INSERT INTO warehouse_submissions
