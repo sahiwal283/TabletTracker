@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.24] - 2026-04-20
+
+### Fixed
+- **Receipt-group cleanup propagation**: editing one submission now updates bag/box/receipt fields across sibling rows from the same form run (`receipt_number` + `employee_name` + `submission_date`, excluding repack), and assigning one row to a receive now assigns the whole receipt group to the same bag/PO.
+- **PO reassignment propagation**: manager `reassign` and admin `admin_reassign` now apply to the same receipt-group siblings in one action, so full-run rows no longer require 3 separate reassignment clicks.
+- **Receive details packaged totals**: tightened legacy fallback matching for `bag_id IS NULL` to require exact `box_number` (removed `box_number IS NULL` fallback), preventing cross-bag overcounting in bag cards.
+
+---
+
 ## [3.6.23] - 2026-04-09
 
 ### Fixed

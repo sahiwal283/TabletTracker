@@ -311,157 +311,211 @@ def admin_reassign_verified_submission(submission_id):
             
             if new_po_check['count'] == 0:
                 return jsonify({'error': 'Selected PO does not have this product'}), 400
-            
-            submission_type = submission.get('submission_type', 'packaged')
-            if submission_type == 'machine':
-                good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
-            elif submission_type == 'repack':
-                packages_per_display = submission['packages_per_display'] or 0
-                tablets_per_package = submission['tablets_per_package'] or 0
-                good_tablets = calculate_repack_output_good(
-                    dict(submission), packages_per_display, tablets_per_package
-                )
-            elif submission_type == 'bottle':
-                deduction_totals = conn.execute(
-                    'SELECT COALESCE(SUM(tablets_deducted), 0) AS total FROM submission_bag_deductions WHERE submission_id = ?',
-                    (submission_id,),
-                ).fetchone()
-                if deduction_totals and deduction_totals['total']:
-                    good_tablets = deduction_totals['total']
+            def _reassign_one(sub_row, sid):
+                sub_type = sub_row.get('submission_type', 'packaged')
+                if sub_type == 'machine':
+                    good_tablets_local = sub_row.get('tablets_pressed_into_cards', 0) or 0
+                elif sub_type == 'repack':
+                    ppd = sub_row['packages_per_display'] or 0
+                    tpp = sub_row['tablets_per_package'] or 0
+                    good_tablets_local = calculate_repack_output_good(dict(sub_row), ppd, tpp)
+                elif sub_type == 'bottle':
+                    deduction_totals = conn.execute(
+                        'SELECT COALESCE(SUM(tablets_deducted), 0) AS total FROM submission_bag_deductions WHERE submission_id = ?',
+                        (sid,),
+                    ).fetchone()
+                    if deduction_totals and deduction_totals['total']:
+                        good_tablets_local = deduction_totals['total']
+                    else:
+                        tpb = sub_row.get('tablets_per_bottle') or 0
+                        bpd = sub_row.get('bottles_per_display') or 0
+                        bm = sub_row.get('bottles_made')
+                        if bm is None:
+                            bm = ((sub_row.get('displays_made') or 0) * bpd) + (sub_row.get('packs_remaining') or 0)
+                        good_tablets_local = (bm or 0) * tpb
                 else:
-                    tpb = submission.get('tablets_per_bottle') or 0
-                    bpd = submission.get('bottles_per_display') or 0
-                    bm = submission.get('bottles_made')
-                    if bm is None:
-                        bm = ((submission.get('displays_made') or 0) * bpd) + (submission.get('packs_remaining') or 0)
-                    good_tablets = (bm or 0) * tpb
-            else:
-                packages_per_display = submission['packages_per_display'] or 0
-                tablets_per_package = submission['tablets_per_package'] or 0
-                good_tablets = (submission['displays_made'] * packages_per_display * tablets_per_package + 
-                               submission['packs_remaining'] * tablets_per_package + 
-                               submission['loose_tablets'])
-            # damaged_tablets column = cards re-opened; not applied to PO damaged_count
-            damaged_tablets = 0
-            
-            if old_po_id:
-                old_line = conn.execute('''
-                    SELECT id FROM po_lines 
+                    ppd = sub_row['packages_per_display'] or 0
+                    tpp = sub_row['tablets_per_package'] or 0
+                    good_tablets_local = (
+                        (sub_row['displays_made'] * ppd * tpp)
+                        + (sub_row['packs_remaining'] * tpp)
+                        + sub_row['loose_tablets']
+                    )
+
+                old_po_id_local = sub_row.get('assigned_po_id')
+                item_id_local = sub_row.get('inventory_item_id')
+                damaged_local = 0
+
+                if old_po_id_local:
+                    old_line = conn.execute(
+                        '''
+                        SELECT id FROM po_lines
+                        WHERE po_id = ? AND inventory_item_id = ?
+                        LIMIT 1
+                        ''',
+                        (old_po_id_local, item_id_local),
+                    ).fetchone()
+                    if old_line:
+                        current_line = conn.execute(
+                            'SELECT good_count, damaged_count FROM po_lines WHERE id = ?',
+                            (old_line['id'],),
+                        ).fetchone()
+                        new_good = max(0, (current_line['good_count'] or 0) - good_tablets_local)
+                        new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_local)
+                        conn.execute(
+                            '''
+                            UPDATE po_lines
+                            SET good_count = ?, damaged_count = ?
+                            WHERE id = ?
+                            ''',
+                            (new_good, new_damaged, old_line['id']),
+                        )
+                        old_totals = conn.execute(
+                            '''
+                            SELECT
+                                COALESCE(SUM(quantity_ordered), 0) as total_ordered,
+                                COALESCE(SUM(good_count), 0) as total_good,
+                                COALESCE(SUM(damaged_count), 0) as total_damaged
+                            FROM po_lines
+                            WHERE po_id = ?
+                            ''',
+                            (old_po_id_local,),
+                        ).fetchone()
+                        remaining = old_totals['total_ordered'] - old_totals['total_good'] - old_totals['total_damaged']
+                        conn.execute(
+                            '''
+                            UPDATE purchase_orders
+                            SET ordered_quantity = ?, current_good_count = ?,
+                                current_damaged_count = ?, remaining_quantity = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                            ''',
+                            (old_totals['total_ordered'], old_totals['total_good'], old_totals['total_damaged'], remaining, old_po_id_local),
+                        )
+
+                new_line = conn.execute(
+                    '''
+                    SELECT id FROM po_lines
                     WHERE po_id = ? AND inventory_item_id = ?
                     LIMIT 1
-                ''', (old_po_id, inventory_item_id)).fetchone()
-                
-                if old_line:
-                    current_line = conn.execute('''
-                        SELECT good_count, damaged_count FROM po_lines WHERE id = ?
-                    ''', (old_line['id'],)).fetchone()
-                    
-                    new_good = max(0, (current_line['good_count'] or 0) - good_tablets)
-                    new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_tablets)
-                    
-                    conn.execute('''
-                        UPDATE po_lines 
-                        SET good_count = ?, 
-                            damaged_count = ?
+                    ''',
+                    (new_po_id, item_id_local),
+                ).fetchone()
+                if new_line:
+                    conn.execute(
+                        '''
+                        UPDATE po_lines
+                        SET good_count = good_count + ?, damaged_count = damaged_count + ?
                         WHERE id = ?
-                    ''', (new_good, new_damaged, old_line['id']))
-                    
-                    old_totals = conn.execute('''
-                        SELECT 
+                        ''',
+                        (good_tablets_local, damaged_local, new_line['id']),
+                    )
+                    new_totals = conn.execute(
+                        '''
+                        SELECT
                             COALESCE(SUM(quantity_ordered), 0) as total_ordered,
                             COALESCE(SUM(good_count), 0) as total_good,
                             COALESCE(SUM(damaged_count), 0) as total_damaged
-                        FROM po_lines 
+                        FROM po_lines
                         WHERE po_id = ?
-                    ''', (old_po_id,)).fetchone()
-                    
-                    remaining = old_totals['total_ordered'] - old_totals['total_good'] - old_totals['total_damaged']
-                    conn.execute('''
-                        UPDATE purchase_orders 
-                        SET ordered_quantity = ?, current_good_count = ?, 
+                        ''',
+                        (new_po_id,),
+                    ).fetchone()
+                    remaining = new_totals['total_ordered'] - new_totals['total_good'] - new_totals['total_damaged']
+                    conn.execute(
+                        '''
+                        UPDATE purchase_orders
+                        SET ordered_quantity = ?, current_good_count = ?,
                             current_damaged_count = ?, remaining_quantity = ?,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = ?
-                    ''', (old_totals['total_ordered'], old_totals['total_good'], 
-                          old_totals['total_damaged'], remaining, old_po_id))
-            
-            new_line = conn.execute('''
-                SELECT id FROM po_lines 
-                WHERE po_id = ? AND inventory_item_id = ?
-                LIMIT 1
-            ''', (new_po_id, inventory_item_id)).fetchone()
-            
-            if new_line:
-                conn.execute('''
-                    UPDATE po_lines 
-                    SET good_count = good_count + ?, damaged_count = damaged_count + ?
-                    WHERE id = ?
-                ''', (good_tablets, damaged_tablets, new_line['id']))
-                
-                new_totals = conn.execute('''
-                    SELECT 
-                        COALESCE(SUM(quantity_ordered), 0) as total_ordered,
-                        COALESCE(SUM(good_count), 0) as total_good,
-                        COALESCE(SUM(damaged_count), 0) as total_damaged
-                    FROM po_lines 
-                    WHERE po_id = ?
-                ''', (new_po_id,)).fetchone()
-                
-                remaining = new_totals['total_ordered'] - new_totals['total_good'] - new_totals['total_damaged']
-                conn.execute('''
-                    UPDATE purchase_orders 
-                    SET ordered_quantity = ?, current_good_count = ?, 
-                        current_damaged_count = ?, remaining_quantity = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ''', (new_totals['total_ordered'], new_totals['total_good'], 
-                      new_totals['total_damaged'], remaining, new_po_id))
-            
-            # Re-link receive/bag on the new PO when box+bag match a bag there; otherwise clear bag_id.
-            box_n = submission.get('box_number')
-            bag_n = submission.get('bag_number')
-            new_bag_id = None
-            new_bag_label = None
-            if box_n is not None and bag_n is not None:
-                bag_match = conn.execute(
-                    '''
-                    SELECT b.id, b.bag_label_count
-                    FROM bags b
-                    JOIN small_boxes sb ON b.small_box_id = sb.id
-                    JOIN receiving r ON sb.receiving_id = r.id
-                    WHERE r.po_id = ? AND sb.box_number = ? AND b.bag_number = ?
-                    LIMIT 1
-                    ''',
-                    (new_po_id, box_n, bag_n),
-                ).fetchone()
-                if bag_match:
-                    new_bag_id = bag_match['id']
-                    new_bag_label = bag_match['bag_label_count']
+                        ''',
+                        (new_totals['total_ordered'], new_totals['total_good'], new_totals['total_damaged'], remaining, new_po_id),
+                    )
 
-            if new_bag_id is not None:
-                conn.execute(
+                box_n = sub_row.get('box_number')
+                bag_n = sub_row.get('bag_number')
+                new_bag_id = None
+                new_bag_label = None
+                if box_n is not None and bag_n is not None:
+                    bag_match = conn.execute(
+                        '''
+                        SELECT b.id, b.bag_label_count
+                        FROM bags b
+                        JOIN small_boxes sb ON b.small_box_id = sb.id
+                        JOIN receiving r ON sb.receiving_id = r.id
+                        WHERE r.po_id = ? AND sb.box_number = ? AND b.bag_number = ?
+                        LIMIT 1
+                        ''',
+                        (new_po_id, box_n, bag_n),
+                    ).fetchone()
+                    if bag_match:
+                        new_bag_id = bag_match['id']
+                        new_bag_label = bag_match['bag_label_count']
+
+                if new_bag_id is not None:
+                    conn.execute(
+                        '''
+                        UPDATE warehouse_submissions
+                        SET assigned_po_id = ?, bag_id = ?, bag_label_count = COALESCE(?, bag_label_count)
+                        WHERE id = ?
+                        ''',
+                        (new_po_id, new_bag_id, new_bag_label, sid),
+                    )
+                else:
+                    conn.execute(
+                        '''
+                        UPDATE warehouse_submissions
+                        SET assigned_po_id = ?, bag_id = NULL
+                        WHERE id = ?
+                        ''',
+                        (new_po_id, sid),
+                    )
+
+            target_ids = [submission_id]
+            receipt_number = (submission.get('receipt_number') or '').strip() if submission.get('receipt_number') else ''
+            if receipt_number and submission.get('employee_name') and submission.get('submission_date') and submission.get('submission_type') != 'repack':
+                sib_rows = conn.execute(
                     '''
-                    UPDATE warehouse_submissions
-                    SET assigned_po_id = ?, bag_id = ?, bag_label_count = COALESCE(?, bag_label_count)
-                    WHERE id = ?
+                    SELECT id
+                    FROM warehouse_submissions
+                    WHERE id != ?
+                      AND receipt_number = ?
+                      AND employee_name = ?
+                      AND submission_date = ?
+                      AND COALESCE(submission_type, 'packaged') != 'repack'
                     ''',
-                    (new_po_id, new_bag_id, new_bag_label, submission_id),
-                )
-            else:
-                conn.execute(
+                    (submission_id, receipt_number, submission.get('employee_name'), submission.get('submission_date')),
+                ).fetchall()
+                target_ids.extend([int(r['id']) for r in sib_rows])
+
+            for sid in target_ids:
+                sub_row = conn.execute(
                     '''
-                    UPDATE warehouse_submissions
-                    SET assigned_po_id = ?, bag_id = NULL
-                    WHERE id = ?
+                    SELECT ws.*, pd.packages_per_display, pd.tablets_per_package,
+                           pd.tablets_per_bottle, pd.bottles_per_display,
+                           tt.inventory_item_id,
+                           COALESCE(ws.submission_type, 'packaged') as submission_type
+                    FROM warehouse_submissions ws
+                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE ws.id = ?
                     ''',
-                    (new_po_id, submission_id),
-                )
+                    (sid,),
+                ).fetchone()
+                if sub_row:
+                    _reassign_one(sub_row, sid)
 
             new_po = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (new_po_id,)).fetchone()
             
             return jsonify({
                 'success': True,
-                'message': f'Submission reassigned to PO-{new_po["po_number"]} (Admin override)'
+                'message': (
+                    f'Submission reassigned to PO-{new_po["po_number"]} (Admin override)'
+                    if len(target_ids) <= 1
+                    else f'{len(target_ids)} submissions reassigned to PO-{new_po["po_number"]} (Admin override)'
+                ),
+                'updated_count': len(target_ids),
             })
     except Exception as e:
         current_app.logger.error(f"Error in admin_reassign_verified_submission: {str(e)}")

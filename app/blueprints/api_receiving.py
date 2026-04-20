@@ -248,7 +248,7 @@ def get_receiving_details(receive_id):
                         (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
                         OR (
                             ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                            AND ws.assigned_po_id = ? AND ws.box_number = ?
                         )
                     )
                 ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchall()
@@ -281,7 +281,7 @@ def get_receiving_details(receive_id):
                         (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
                         OR (
                             ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                            AND ws.assigned_po_id = ? AND ws.box_number = ?
                         )
                     )
                 ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchall()
@@ -363,7 +363,7 @@ def get_receiving_details(receive_id):
                         (ws.bag_id = ? AND ws.assigned_po_id = ? AND sb_verify.receiving_id = ?)
                         OR (
                             ws.bag_id IS NULL AND ws.inventory_item_id = ? AND ws.bag_number = ?
-                            AND ws.assigned_po_id = ? AND (ws.box_number = ? OR ws.box_number IS NULL)
+                            AND ws.assigned_po_id = ? AND ws.box_number = ?
                         )
                     )
                 ''', (bag_id, po_id, receive_id, inventory_item_id, bag_number, po_id, box_number)).fetchone()
@@ -2886,16 +2886,65 @@ def assign_submission_to_receive(submission_id):
             bag = BagRepository.get_by_id(conn, bag_id)
             if not bag:
                 return jsonify({'success': False, 'error': 'Bag not found'}), 404
-            
-            conn.execute('''
-                UPDATE warehouse_submissions
-                SET bag_id = ?, assigned_po_id = ?, needs_review = FALSE
+
+            submission = conn.execute(
+                '''
+                SELECT id, receipt_number, employee_name, submission_date
+                FROM warehouse_submissions
                 WHERE id = ?
-            ''', (bag_id, bag['po_id'], submission_id))
+                ''',
+                (submission_id,),
+            ).fetchone()
+            if not submission:
+                return jsonify({'success': False, 'error': 'Submission not found'}), 404
+
+            submission = dict(submission)
+            source_receipt = (submission.get('receipt_number') or '').strip()
+            source_employee = submission.get('employee_name')
+            source_submission_date = submission.get('submission_date')
+
+            target_ids = [submission_id]
+            if source_receipt and source_employee and source_submission_date:
+                siblings = conn.execute(
+                    '''
+                    SELECT id
+                    FROM warehouse_submissions
+                    WHERE id != ?
+                      AND receipt_number = ?
+                      AND employee_name = ?
+                      AND submission_date = ?
+                      AND COALESCE(submission_type, 'packaged') != 'repack'
+                    ''',
+                    (submission_id, source_receipt, source_employee, source_submission_date),
+                ).fetchall()
+                target_ids.extend([int(r['id']) for r in siblings])
+
+            placeholders = ','.join(['?'] * len(target_ids))
+            conn.execute(
+                f'''
+                UPDATE warehouse_submissions
+                SET bag_id = ?, assigned_po_id = ?, needs_review = FALSE,
+                    box_number = ?, bag_number = ?, bag_label_count = COALESCE(?, bag_label_count)
+                WHERE id IN ({placeholders})
+                ''',
+                (
+                    bag_id,
+                    bag['po_id'],
+                    bag.get('box_number'),
+                    bag.get('bag_number'),
+                    bag.get('bag_label_count'),
+                    *target_ids,
+                ),
+            )
             
             return jsonify({
                 'success': True,
-                'message': 'Submission assigned successfully'
+                'message': (
+                    'Submission assigned successfully'
+                    if len(target_ids) <= 1
+                    else f'Assigned {len(target_ids)} submissions from this receipt'
+                ),
+                'updated_count': len(target_ids)
             })
     except Exception as e:
         current_app.logger.error(f"Error assigning submission to receive: {str(e)}")

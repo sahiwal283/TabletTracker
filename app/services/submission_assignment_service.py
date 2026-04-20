@@ -90,8 +90,29 @@ def _calculate_submission_counts(submission: Dict[str, Any]) -> Dict[str, int]:
     return {'good': good_tablets, 'damaged': 0}
 
 
-def reassign_submission_to_po(conn, submission_id: int, new_po_id: int) -> Dict[str, Any]:
-    """Reassign submission to a different PO and recalculate totals."""
+def _receipt_group_sibling_ids(conn, submission: Dict[str, Any], submission_id: int) -> list[int]:
+    receipt_number = (submission.get('receipt_number') or '').strip() if submission.get('receipt_number') else ''
+    employee_name = submission.get('employee_name')
+    submission_date = submission.get('submission_date')
+    if not receipt_number or not employee_name or not submission_date:
+        return []
+    rows = conn.execute(
+        '''
+        SELECT id
+        FROM warehouse_submissions
+        WHERE id != ?
+          AND receipt_number = ?
+          AND employee_name = ?
+          AND submission_date = ?
+          AND COALESCE(submission_type, 'packaged') != 'repack'
+        ''',
+        (submission_id, receipt_number, employee_name, submission_date),
+    ).fetchall()
+    return [int(r['id']) for r in rows]
+
+
+def _reassign_one_submission_to_po(conn, submission_id: int, new_po_id: int) -> Dict[str, Any]:
+    """Reassign one submission to a different PO and recalculate totals."""
     submission_row = conn.execute(
         '''
         SELECT ws.*, pd.packages_per_display, pd.tablets_per_package, tt.inventory_item_id,
@@ -193,4 +214,45 @@ def reassign_submission_to_po(conn, submission_id: int, new_po_id: int) -> Dict[
         'success': True,
         'message': f'Submission reassigned to PO-{new_po["po_number"]} and locked',
         'new_po_number': new_po['po_number']
+    }
+
+
+def reassign_submission_to_po(conn, submission_id: int, new_po_id: int) -> Dict[str, Any]:
+    """Reassign submission (and receipt siblings) to a different PO and recalculate totals."""
+    primary = conn.execute(
+        '''
+        SELECT id, receipt_number, employee_name, submission_date,
+               COALESCE(submission_type, 'packaged') as submission_type
+        FROM warehouse_submissions
+        WHERE id = ?
+        ''',
+        (submission_id,),
+    ).fetchone()
+    if not primary:
+        return {'success': False, 'status_code': 404, 'error': 'Submission not found'}
+
+    primary = dict(primary)
+    targets = [submission_id]
+    if primary.get('submission_type') != 'repack':
+        targets.extend(_receipt_group_sibling_ids(conn, primary, submission_id))
+
+    reassigned = 0
+    last_po_number = None
+    for sid in targets:
+        out = _reassign_one_submission_to_po(conn, sid, new_po_id)
+        if not out.get('success'):
+            return out
+        reassigned += 1
+        last_po_number = out.get('new_po_number') or last_po_number
+
+    msg = (
+        f'Submission reassigned to PO-{last_po_number} and locked'
+        if reassigned <= 1
+        else f'{reassigned} submissions reassigned to PO-{last_po_number} and locked'
+    )
+    return {
+        'success': True,
+        'message': msg,
+        'new_po_number': last_po_number,
+        'updated_count': reassigned,
     }

@@ -899,7 +899,12 @@ def reassign_submission_to_po(submission_id):
             result = reassign_submission_to_po_service(conn, submission_id, new_po_id)
             if not result.get('success'):
                 return jsonify({'error': result.get('error', 'Reassignment failed')}), result.get('status_code', 400)
-            return jsonify({'success': True, 'message': result['message'], 'new_po_number': result.get('new_po_number')})
+            return jsonify({
+                'success': True,
+                'message': result['message'],
+                'new_po_number': result.get('new_po_number'),
+                'updated_count': result.get('updated_count', 1),
+            })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1762,7 +1767,8 @@ def edit_submission(submission_id):
                        bottles_made, machine_id,
                        COALESCE(submission_type, 'packaged') as submission_type,
                        repack_vendor_return_notes, repack_machine_count,
-                       bag_start_time, bag_end_time, bottle_sealing_machine_count
+                       bag_start_time, bag_end_time, bottle_sealing_machine_count,
+                       receipt_number, employee_name, submission_date
                 FROM warehouse_submissions
                 WHERE id = ?
             ''', (submission_id,)).fetchone()
@@ -2152,6 +2158,53 @@ def edit_submission(submission_id):
                               data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
                               product_name_to_use, inventory_item_id, submission_id))
             
+            propagated_edits = 0
+            apply_receipt_group = data.get('apply_receipt_group', True)
+            source_receipt = (submission.get('receipt_number') or '').strip() if submission.get('receipt_number') else ''
+            source_employee = submission.get('employee_name')
+            source_submission_date = submission.get('submission_date')
+            should_propagate = (
+                bool(apply_receipt_group)
+                and source_receipt
+                and source_employee
+                and source_submission_date
+                and submission_type != 'repack'
+            )
+            if should_propagate:
+                siblings = conn.execute(
+                    '''
+                    SELECT id
+                    FROM warehouse_submissions
+                    WHERE id != ?
+                      AND receipt_number = ?
+                      AND employee_name = ?
+                      AND submission_date = ?
+                      AND COALESCE(submission_type, 'packaged') != 'repack'
+                    ''',
+                    (submission_id, source_receipt, source_employee, source_submission_date),
+                ).fetchall()
+                sibling_ids = [int(r['id']) for r in siblings]
+                if sibling_ids:
+                    placeholders = ','.join(['?'] * len(sibling_ids))
+                    conn.execute(
+                        f'''
+                        UPDATE warehouse_submissions
+                        SET box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                            submission_date = ?, receipt_number = ?
+                        WHERE id IN ({placeholders})
+                        ''',
+                        (
+                            new_box_number,
+                            new_bag_number,
+                            new_bag_id,
+                            data.get('bag_label_count'),
+                            submission_date,
+                            receipt_number,
+                            *sibling_ids,
+                        ),
+                    )
+                    propagated_edits = len(sibling_ids)
+
             # Update PO line counts if assigned to a PO
             if old_po_id and inventory_item_id:
                 # Find the PO line
@@ -2200,7 +2253,12 @@ def edit_submission(submission_id):
             
             return jsonify({
                 'success': True,
-                'message': 'Submission updated successfully'
+                'message': (
+                    f'Submission updated successfully'
+                    if propagated_edits <= 0
+                    else f'Submission updated successfully (applied to {propagated_edits + 1} submissions on this receipt)'
+                ),
+                'propagated_count': propagated_edits
             })
     except Exception as e:
         import traceback
