@@ -2984,6 +2984,21 @@ function machineIdBadgeSuffix(sub) {
     return '<span class="ml-1 font-semibold tabular-nums text-blue-950">#' + String(id) + '</span>';
 }
 
+// Blister line: each machine counter increment (cut) yields this many blisters (must match server BLISTER_BLISTERS_PER_CUT).
+const BLISTER_BLISTERS_PER_CUT = 2;
+
+function isBlisterMachineSubmission(sub) {
+    return !!(sub && (sub.submission_type || '') === 'machine' &&
+        String(sub.machine_role || 'sealing').toLowerCase() === 'blister');
+}
+
+function blisterBlistersMadeFromSubmission(sub) {
+    if (!sub) return 0;
+    if (sub.blisters_made != null && sub.blisters_made !== '') return Number(sub.blisters_made);
+    const cuts = Number(sub.displays_made) || 0;
+    return cuts * BLISTER_BLISTERS_PER_CUT;
+}
+
 // Global submission details modal functions (available on all pages)
 async function viewSubmissionDetails(submissionId) {
     try {
@@ -3202,17 +3217,26 @@ async function viewSubmissionDetails(submissionId) {
                         <div class="mb-6">
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Counts</h4>
                             ${sub.submission_type === 'machine' ? (isBlisterMachine ? `
-                            <!-- Blister machine: single operator count (not sealing turns/cards) -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Blister machine: cuts (counter), blisters made = cuts × ${BLISTER_BLISTERS_PER_CUT} -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                                    <label class="text-xs text-gray-500 uppercase">Cuts</label>
+                                    <div class="mt-1 text-2xl font-bold text-blue-700">${(sub.blister_machine_count != null ? sub.blister_machine_count : sub.displays_made) || 0}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Machine counter (one count per cut)</div>
+                                </div>
                                 <div class="bg-teal-50 rounded-lg p-4 border border-teal-100">
-                                    <label class="text-xs text-gray-500 uppercase">Blister count</label>
-                                    <div class="mt-1 text-2xl font-bold text-teal-700">${(sub.blister_machine_count != null ? sub.blister_machine_count : sub.displays_made) || 0}</div>
-                                    <div class="text-xs text-gray-500 mt-1">Reading from blister machine (not turns or cards)</div>
+                                    <label class="text-xs text-gray-500 uppercase">Blisters made</label>
+                                    <div class="mt-1 text-2xl font-bold text-teal-700">${(sub.blisters_made != null && sub.blisters_made !== '') ? Number(sub.blisters_made) : blisterBlistersMadeFromSubmission(sub)}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Cuts × ${sub.blisters_per_cut != null ? sub.blisters_per_cut : BLISTER_BLISTERS_PER_CUT} blisters per cut</div>
                                 </div>
                                 <div class="bg-gray-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Machine</label>
-                                    <div class="mt-1 text-lg font-semibold text-gray-900">${sub.machine_name || 'Not specified'}</div>
+                                    <label class="text-xs text-gray-500 uppercase">Total tablets</label>
+                                    <div class="mt-1 text-2xl font-bold text-gray-900">${(sub.individual_calc || sub.total_tablets || sub.tablets_pressed_into_cards || 0).toLocaleString()}</div>
+                                    <div class="text-xs text-gray-400 mt-1">Same basis as PO / submissions list</div>
                                 </div>
+                            </div>
+                            <div class="mt-4 bg-gray-50 rounded-lg p-3">
+                                <div class="text-sm text-gray-600"><span class="font-medium">Machine:</span> ${sub.machine_name || 'Not specified'}</div>
                             </div>
                             ` : `
                             <!-- Sealing / other machine submission -->

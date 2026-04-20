@@ -1,6 +1,9 @@
 """Submission detail read workflows used by API routes."""
 from typing import Dict, Any, Optional
 
+# Must match app.blueprints.api.BLISTER_BLISTERS_PER_CUT (each cut → this many blisters).
+BLISTER_BLISTERS_PER_CUT = 2
+
 
 def _get_submission_config(conn, product_name: Optional[str], inventory_item_id: Optional[str]):
     config = None
@@ -67,7 +70,8 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
     # on the packaged row is wrong (duplicate-receipt errors would otherwise be inexplicable in this modal).
     submissions = conn.execute(
         '''
-        SELECT ws.*, m.machine_name AS machine_name
+        SELECT ws.*, m.machine_name AS machine_name,
+               COALESCE(m.machine_role, 'sealing') AS machine_role
         FROM warehouse_submissions ws
         LEFT JOIN machines m ON ws.machine_id = m.id
         WHERE (
@@ -119,17 +123,24 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
         elif submission_type == 'bag':
             total = sub.get('loose_tablets') or 0
         elif submission_type == 'machine':
-            role = None
+            role = (sub.get('machine_role') or '').strip().lower() or None
+            if role not in ('sealing', 'blister'):
+                role = None
             mid = sub.get('machine_id')
-            if mid:
+            if role is None and mid:
                 role_row = conn.execute(
                     "SELECT COALESCE(machine_role, 'sealing') AS machine_role FROM machines WHERE id = ?",
                     (mid,),
                 ).fetchone()
                 if role_row:
                     role = (dict(role_row).get('machine_role') or 'sealing').strip().lower()
+            if role not in ('sealing', 'blister'):
+                role = 'sealing'
             if role == 'blister':
-                total = sub.get('displays_made') or 0
+                cuts = sub.get('displays_made') or 0
+                total = cuts
+                sub['blisters_made'] = cuts * BLISTER_BLISTERS_PER_CUT
+                sub['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
             else:
                 tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
                 total = tablets_pressed or ((sub.get('packs_remaining') or 0) * tpp)

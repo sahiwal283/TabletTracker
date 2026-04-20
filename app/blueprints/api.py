@@ -37,6 +37,9 @@ from app.services.submission_assignment_service import (
 
 bp = Blueprint('api', __name__)
 
+# Blister machine: each counter increment (cut) produces this many blister units (display: blisters_made = cuts × this).
+BLISTER_BLISTERS_PER_CUT = 2
+
 
 # Route moved to api_submissions.py
 
@@ -1525,6 +1528,8 @@ def get_submission_details(submission_id):
                     submission_dict['individual_calc'] = bc
                     submission_dict['total_tablets'] = bc
                     submission_dict['blister_machine_count'] = bc
+                    submission_dict['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
+                    submission_dict['blisters_made'] = bc * BLISTER_BLISTERS_PER_CUT
                     submission_dict['cards_per_turn'] = None
                     submission_dict['machine_name'] = machine_name
                 else:
@@ -2689,6 +2694,7 @@ def get_po_submissions(po_id):
                         ws.packs_remaining,
                         ws.loose_tablets,
                         ws.damaged_tablets,
+                        ws.tablets_pressed_into_cards,
                         ws.created_at,
                         ws.submission_date,
                         ws.box_number,
@@ -2709,7 +2715,8 @@ def get_po_submissions(po_id):
                         po.po_number,
                         po.closed as po_closed,
                         ws.machine_id,
-                        m.machine_name
+                        m.machine_name,
+                        COALESCE(m.machine_role, 'sealing') AS machine_role
                         {submission_type_select}
                         {po_verified_select}
                     FROM warehouse_submissions ws
@@ -2730,6 +2737,7 @@ def get_po_submissions(po_id):
                         ws.packs_remaining,
                         ws.loose_tablets,
                         ws.damaged_tablets,
+                        ws.tablets_pressed_into_cards,
                         ws.created_at,
                         ws.created_at as submission_date,
                         ws.box_number,
@@ -2750,7 +2758,8 @@ def get_po_submissions(po_id):
                         po.po_number,
                         po.closed as po_closed,
                         ws.machine_id,
-                        m.machine_name
+                        m.machine_name,
+                        COALESCE(m.machine_role, 'sealing') AS machine_role
                         {submission_type_select}
                         {po_verified_select}
                     FROM warehouse_submissions ws
@@ -2781,11 +2790,23 @@ def get_po_submissions(po_id):
                 
                 # Calculate total tablets for this submission
                 if submission_type == 'machine':
-                    # For machine submissions: use tablets_pressed_into_cards (fallback to loose_tablets, then calculate from cards_made)
-                    total_tablets = (sub_dict.get('tablets_pressed_into_cards') or 
-                                   sub_dict.get('loose_tablets') or
-                                   ((sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)) or
-                                   0)
+                    role = (sub_dict.get('machine_role') or 'sealing').strip().lower()
+                    if role == 'blister':
+                        cuts = sub_dict.get('displays_made', 0) or 0
+                        sub_dict['blisters_made'] = cuts * BLISTER_BLISTERS_PER_CUT
+                        sub_dict['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
+                        total_tablets = (
+                            sub_dict.get('tablets_pressed_into_cards')
+                            or sub_dict.get('loose_tablets')
+                            or cuts
+                            or 0
+                        )
+                    else:
+                        # Sealing: tablets_pressed_into_cards (fallback packs × tablets_per_package)
+                        total_tablets = (sub_dict.get('tablets_pressed_into_cards') or
+                                       sub_dict.get('loose_tablets') or
+                                       ((sub_dict.get('packs_remaining', 0) or 0) * (sub_dict.get('tablets_per_package', 0) or 0)) or
+                                       0)
                 elif submission_type == 'repack':
                     total_tablets = calculate_repack_output_good(
                         sub_dict,

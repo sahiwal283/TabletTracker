@@ -1632,7 +1632,16 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                         ` : ''}
                         
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
-                            ${submissionType === 'machine' ? `
+                            ${submissionType === 'machine' ? (isBlisterMachineSubmission(sub) ? `
+                                <div>
+                                    <div class="text-xs text-gray-500">Cuts</div>
+                                    <div class="font-medium text-blue-600">${sub.displays_made || 0}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500">Blisters made</div>
+                                    <div class="font-medium text-teal-700">${blisterBlistersMadeFromSubmission(sub)}</div>
+                                </div>
+                            ` : `
                                 <!-- Machine Count Display -->
                                 <div>
                                     <div class="text-xs text-gray-500">Turns</div>
@@ -1642,7 +1651,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                     <div class="text-xs text-gray-500">Cards Made</div>
                                     <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
                                 </div>
-                            ` : submissionType === 'repack' ? `
+                            `) : submissionType === 'repack' ? `
                             <div>
                                 <div class="text-xs text-gray-500">Displays (finished)</div>
                                 <div class="font-medium text-amber-700">${sub.displays_made || 0}</div>
@@ -1854,10 +1863,13 @@ function filterSubmissionsInModal(filterType) {
                     </div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded">
-                    ${submissionType === 'machine' ? `
+                    ${submissionType === 'machine' ? (isBlisterMachineSubmission(sub) ? `
+                        <div><div class="text-xs text-gray-500">Cuts</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
+                        <div><div class="text-xs text-gray-500">Blisters made</div><div class="font-medium text-teal-700">${blisterBlistersMadeFromSubmission(sub)}</div></div>
+                    ` : `
                         <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
-                    ` : submissionType === 'bottle' ? `
+                    `) : submissionType === 'bottle' ? `
                         <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
                         <div><div class="text-xs text-gray-500">Single Bottles</div><div class="font-medium text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div></div>
                         <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>
@@ -3154,10 +3166,13 @@ async function viewDuplicateSubmissions(bagId, productName, boxNumber, bagNumber
                         </div>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-3 bg-white p-3 rounded border border-gray-200">
-                        ${subType === 'machine' ? `
+                        ${subType === 'machine' ? (isBlisterMachineSubmission(sub) ? `
+                            <div><div class="text-xs text-gray-500">Cuts</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
+                            <div><div class="text-xs text-gray-500">Blisters made</div><div class="font-medium text-teal-700">${blisterBlistersMadeFromSubmission(sub)}</div></div>
+                        ` : `
                             <div><div class="text-xs text-gray-500">Turns</div><div class="font-medium text-blue-600">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Cards Made</div><div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div></div>
-                        ` : subType === 'bottle' ? `
+                        `) : subType === 'bottle' ? `
                             <div><div class="text-xs text-gray-500">Displays Made</div><div class="font-medium text-amber-600">${sub.displays_made || 0}</div></div>
                             <div><div class="text-xs text-gray-500">Single Bottles</div><div class="font-medium text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div></div>
                             <div><div class="text-xs text-gray-500">Bottles Made</div><div class="font-medium text-amber-600">${sub.bottles_made || 0}</div></div>

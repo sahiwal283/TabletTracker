@@ -732,7 +732,16 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                         ` : ''}
                         
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded">
-                            ${submissionType === 'machine' ? `
+                            ${submissionType === 'machine' ? (isBlisterMachineSubmission(sub) ? `
+                                <div>
+                                    <div class="text-xs text-gray-500">Cuts</div>
+                                    <div class="font-medium text-blue-600">${sub.displays_made || 0}</div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500">Blisters made</div>
+                                    <div class="font-medium text-teal-700">${blisterBlistersMadeFromSubmission(sub)}</div>
+                                </div>
+                            ` : `
                                 <!-- Machine Count Display -->
                                 <div>
                                     <div class="text-xs text-gray-500">Turns</div>
@@ -742,7 +751,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, typeFilte
                                     <div class="text-xs text-gray-500">Cards Made</div>
                                     <div class="font-medium text-blue-600">${sub.packs_remaining || 0}</div>
                                 </div>
-                            ` : `
+                            `) : `
                                 <!-- Packaged/Bag Count Display -->
                             <div>
                                 <div class="text-xs text-gray-500">Displays Made</div>
