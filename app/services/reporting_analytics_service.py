@@ -167,6 +167,32 @@ def packed_tablets_allocations(
     return [(tt_key, n, recv)]
 
 
+def _tablets_per_display_by_flavor(conn: sqlite3.Connection) -> Dict[int, float]:
+    """
+    Build tablet_type_id -> tablets_per_display from product configuration.
+
+    Uses the first valid product row per flavor; this is sufficient for
+    display-equivalent analytics where flavor-level card config is stable.
+    """
+    rows = conn.execute(
+        """
+        SELECT tablet_type_id, packages_per_display, tablets_per_package
+        FROM product_details
+        WHERE tablet_type_id IS NOT NULL
+          AND COALESCE(packages_per_display, 0) > 0
+          AND COALESCE(tablets_per_package, 0) > 0
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    out: Dict[int, float] = {}
+    for row in rows:
+        tid = int(row["tablet_type_id"])
+        if tid in out:
+            continue
+        out[tid] = float(row["packages_per_display"] * row["tablets_per_package"])
+    return out
+
+
 def _submission_report_rows(
     conn: sqlite3.Connection,
     po_id: Optional[int] = None,
@@ -724,7 +750,9 @@ def build_trends(
         date_to=dt,
     )
 
+    tpd_map = _tablets_per_display_by_flavor(conn)
     packed_by_day: Dict[str, int] = {}
+    packed_displays_by_day: Dict[str, float] = {}
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
@@ -738,6 +766,9 @@ def build_trends(
             if tablet_type_id is not None and tid != tablet_type_id:
                 continue
             packed_by_day[d] = packed_by_day.get(d, 0) + part
+            tpd = tpd_map.get(tid)
+            if tpd and tpd > 0:
+                packed_displays_by_day[d] = packed_displays_by_day.get(d, 0.0) + (part / tpd)
 
     # Received by receiving date (bags sum)
     rclause = "r.received_date IS NOT NULL AND DATE(r.received_date) >= ? AND DATE(r.received_date) <= ?"
@@ -772,6 +803,7 @@ def build_trends(
             {
                 "date": d,
                 "packed": packed_by_day.get(d, 0),
+                "packed_displays": round(packed_displays_by_day.get(d, 0.0), 2),
                 "received": received_by_day.get(d, 0),
             }
         )
@@ -805,8 +837,11 @@ def build_dimensions(
         date_from=df,
         date_to=dt,
     )
+    tpd_map = _tablets_per_display_by_flavor(conn)
     by_flavor: Dict[int, int] = {}
+    by_flavor_displays: Dict[int, float] = {}
     by_day_by_flavor: Dict[int, Dict[str, int]] = {}
+    by_day_by_flavor_displays: Dict[int, Dict[str, float]] = {}
     throughput_rows: List[Tuple[str, float, float, int]] = []
     # tuple: (day, duration_minutes, tablets_per_hour, tablets_packed)
     throughput_groups: Dict[str, Dict[str, Any]] = {}
@@ -850,12 +885,24 @@ def build_dimensions(
             if tablet_type_id is not None and tid != tablet_type_id:
                 continue
             by_flavor[tid] = by_flavor.get(tid, 0) + part
+            tpd = tpd_map.get(tid)
+            if tpd and tpd > 0:
+                by_flavor_displays[tid] = by_flavor_displays.get(tid, 0.0) + (part / tpd)
             if tid not in by_day_by_flavor:
                 by_day_by_flavor[tid] = {}
             by_day_by_flavor[tid][day] = by_day_by_flavor[tid].get(day, 0) + part
+            if tpd and tpd > 0:
+                if tid not in by_day_by_flavor_displays:
+                    by_day_by_flavor_displays[tid] = {}
+                by_day_by_flavor_displays[tid][day] = (
+                    by_day_by_flavor_displays[tid].get(day, 0.0) + (part / tpd)
+                )
 
     flavor_list = []
-    for tid, total in sorted(by_flavor.items(), key=lambda x: -x[1]):
+    for tid, total in sorted(
+        by_flavor.items(),
+        key=lambda x: -(by_flavor_displays.get(x[0], 0.0) or float(x[1])),
+    ):
         label = None
         if tid >= 0:
             nm = conn.execute(
@@ -865,14 +912,27 @@ def build_dimensions(
             label = nm["tablet_type_name"] if nm else str(tid)
         else:
             label = "Unmapped"
-        flavor_list.append({"tablet_type_id": tid, "flavor": label, "packed": total})
+        flavor_list.append(
+            {
+                "tablet_type_id": tid,
+                "flavor": label,
+                "packed": total,
+                "packed_displays": round(by_flavor_displays.get(tid, 0.0), 2),
+            }
+        )
 
     selected_series = []
     if tablet_type_id is not None:
         days = sorted(by_day_by_flavor.get(tablet_type_id, {}).keys())
         for d in days:
             selected_series.append(
-                {"date": d, "packed": by_day_by_flavor[tablet_type_id].get(d, 0)}
+                {
+                    "date": d,
+                    "packed": by_day_by_flavor[tablet_type_id].get(d, 0),
+                    "packed_displays": round(
+                        by_day_by_flavor_displays.get(tablet_type_id, {}).get(d, 0.0), 2
+                    ),
+                }
             )
 
     # Finalize grouped throughput samples.

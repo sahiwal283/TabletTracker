@@ -316,7 +316,7 @@
             return s.date;
         });
         var packed = (series || []).map(function (s) {
-            return s.packed || 0;
+            return s.packed_displays != null ? s.packed_displays : (s.packed || 0);
         });
         var received = (series || []).map(function (s) {
             return s.received || 0;
@@ -330,7 +330,7 @@
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Packed (tablets)',
+                        label: 'Packed (display equiv.)',
                         data: packed,
                         borderColor: 'rgb(79, 124, 130)',
                         backgroundColor: 'rgba(79, 124, 130, 0.12)',
@@ -369,7 +369,7 @@
             return x.flavor;
         });
         var data = slice.map(function (x) {
-            return x.packed || 0;
+            return x.packed_displays != null ? x.packed_displays : (x.packed || 0);
         });
         if (!slice.length) {
             setHint('reports_top_flavors_hint', 'No flavor totals found for the selected filters/date range.');
@@ -380,7 +380,7 @@
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Packed tablets',
+                        label: 'Packed displays',
                         data: data,
                         backgroundColor: 'rgba(11, 46, 51, 0.75)',
                     },
@@ -426,7 +426,7 @@
                     {
                         label: 'Packed',
                         data: s.map(function (x) {
-                            return x.packed || 0;
+                            return x.packed_displays != null ? x.packed_displays : (x.packed || 0);
                         }),
                         backgroundColor: 'rgba(79, 124, 130, 0.85)',
                     },
@@ -502,11 +502,13 @@
         var received = 0;
         var days = (trendsSeries || []).length;
         (trendsSeries || []).forEach(function (x) {
-            packed += Number(x.packed || 0);
+            packed += Number(x.packed_displays != null ? x.packed_displays : (x.packed || 0));
             received += Number(x.received || 0);
         });
         var top = (topFlavors || [])[0];
-        var topLabel = top ? (top.flavor + ' (' + fmt(top.packed) + ')') : '—';
+        var topLabel = top
+            ? (top.flavor + ' (' + fmt(top.packed_displays != null ? top.packed_displays : top.packed) + ')')
+            : '—';
         var elPacked = document.getElementById('reports_kpi_total_packed');
         var elReceived = document.getElementById('reports_kpi_total_received');
         var elTop = document.getElementById('reports_kpi_top_flavor');
