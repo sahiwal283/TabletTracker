@@ -901,13 +901,16 @@ def build_dimensions(
                     by_day_by_flavor_displays[tid].get(day, 0.0) + (part / tpd)
                 )
 
-    # Packaging loss (cards ripped/destroyed) is stored in packs_remaining
+    # Packaging loss (cards ripped/re-opened) is stored in damaged_tablets
     # on packaged/repack submissions and should be tracked separately from output.
+    # Fallback to loose_tablets for legacy rows where damaged_tablets was not used.
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st not in ("packaged", "repack"):
             continue
-        ripped_cards = int(sub.get("packs_remaining") or 0)
+        ripped_cards = int(sub.get("damaged_tablets") or 0)
+        if ripped_cards <= 0:
+            ripped_cards = int(sub.get("loose_tablets") or 0)
         if ripped_cards <= 0:
             continue
         tid, _fname = _flavor_id_name(sub, conn)
