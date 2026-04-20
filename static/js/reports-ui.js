@@ -548,11 +548,24 @@
     function renderLossRate(cardsPerDisplay) {
         var el = document.getElementById('reports_kpi_loss_rate');
         if (!el) return;
+        el.classList.remove('text-emerald-700', 'text-amber-700', 'text-red-700');
         if (cardsPerDisplay == null || Number.isNaN(Number(cardsPerDisplay))) {
             el.textContent = '—';
+            el.classList.add('text-gray-800');
             return;
         }
-        el.textContent = Number(cardsPerDisplay).toLocaleString(undefined, {
+        var rate = Number(cardsPerDisplay);
+        el.classList.remove('text-gray-800');
+        // cards/display thresholds:
+        // <= 0.03 healthy, <= 0.07 watch, > 0.07 elevated loss
+        if (rate <= 0.03) {
+            el.classList.add('text-emerald-700');
+        } else if (rate <= 0.07) {
+            el.classList.add('text-amber-700');
+        } else {
+            el.classList.add('text-red-700');
+        }
+        el.textContent = rate.toLocaleString(undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 4,
         });
