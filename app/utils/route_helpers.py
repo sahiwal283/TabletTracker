@@ -39,6 +39,41 @@ def get_setting(setting_key: str, default_value: Optional[Any] = None) -> Option
 def ensure_app_settings_table() -> None:
     """Ensure app_settings table exists"""
     init_db()  # This handles all table creation and migrations
+    ensure_warehouse_submission_edit_password_default()
+
+
+def ensure_warehouse_submission_edit_password_default() -> None:
+    """
+    Seed bcrypt hash for default warehouse submission-edit password if missing.
+    Default plain password matches initial rollout (admin should rotate in admin panel).
+    """
+    from app.utils.auth_utils import hash_password
+    from app.utils.db_utils import db_read_only, db_transaction
+
+    key = 'warehouse_submission_edit_password_hash'
+    try:
+        init_db()
+        with db_read_only() as conn:
+            row = conn.execute(
+                'SELECT 1 FROM app_settings WHERE setting_key = ?',
+                (key,),
+            ).fetchone()
+        if row:
+            return
+        with db_transaction() as conn:
+            conn.execute(
+                '''
+                INSERT INTO app_settings (setting_key, setting_value, description)
+                VALUES (?, ?, ?)
+                ''',
+                (
+                    key,
+                    hash_password('1714'),
+                    'Bcrypt hash for warehouse submission edit unlock (set/rotated via admin API)',
+                ),
+            )
+    except Exception as e:
+        logger.error(f"Error ensuring warehouse submission edit password default: {e}")
 
 
 def ensure_submission_type_column() -> None:

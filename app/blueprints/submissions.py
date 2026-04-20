@@ -616,7 +616,7 @@ def sort_receipt_groups(groups, sort_by, sort_order):
 
 
 @bp.route('/submissions')
-@role_required('dashboard')
+@role_required('submissions')
 def submissions_list():
     """Full submissions page: warehouse submissions or QR workflow bags."""
     view = (request.args.get('view') or 'warehouse').strip().lower()
@@ -1109,7 +1109,7 @@ def submissions_list():
         )
 
 @bp.route('/submissions/export')
-@role_required('dashboard')
+@role_required('submissions')
 def export_submissions_csv():
     """Export submissions to CSV with all active filters applied"""
     try:

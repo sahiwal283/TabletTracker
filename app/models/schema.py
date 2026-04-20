@@ -38,6 +38,7 @@ class SchemaManager:
             self._create_app_settings_table(c)
             self._create_tablet_type_categories_table(c)
             self._create_submission_bag_deductions_table(c)
+            self._create_po_damage_closeout_lines_table(c)
             
             conn.commit()  # Commit table creation before migrations
             
@@ -305,6 +306,25 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (submission_id) REFERENCES warehouse_submissions (id) ON DELETE CASCADE,
             FOREIGN KEY (bag_id) REFERENCES bags (id)
+        )''')
+
+    def _create_po_damage_closeout_lines_table(self, c):
+        """Create po_damage_closeout_lines table for PO closeout damage weight tracking."""
+        c.execute('''CREATE TABLE IF NOT EXISTS po_damage_closeout_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            po_id INTEGER NOT NULL,
+            po_line_id INTEGER NOT NULL UNIQUE,
+            inventory_item_id TEXT,
+            damage_weight_kg REAL,
+            estimated_damaged_tablets INTEGER,
+            grams_per_tablet REAL,
+            weight_missing BOOLEAN DEFAULT 0,
+            weight_source TEXT DEFAULT 'zoho_item_weight',
+            updated_by TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (po_id) REFERENCES purchase_orders (id),
+            FOREIGN KEY (po_line_id) REFERENCES po_lines (id)
         )''')
     
     def _initialize_default_settings(self, c):

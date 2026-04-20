@@ -21,7 +21,16 @@ from app.services.zoho_service import zoho_api
 from app.services.tracking_service import refresh_shipment_row
 from app.services.report_service import ProductionReportGenerator
 from app.utils.db_utils import get_db, db_read_only, db_transaction
-from app.utils.auth_utils import admin_required, role_required, employee_required
+from app.utils.auth_utils import (
+    admin_required,
+    role_required,
+    employee_required,
+    verify_password,
+    warehouse_submission_edit_unlock_valid,
+    set_warehouse_submission_edit_unlock,
+    warehouse_submission_edit_unlock_seconds_remaining,
+    WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS,
+)
 from app.utils.route_helpers import get_setting, ensure_app_settings_table, ensure_submission_type_column
 from app.utils.receive_tracking import find_bag_for_submission
 from app.utils.eastern_datetime import parse_optional_eastern
@@ -1310,7 +1319,7 @@ def recalculate_po_counts():
 
 
 @bp.route('/api/submission/<int:submission_id>/details', methods=['GET'])
-@role_required('dashboard')
+@role_required('submissions')
 def get_submission_details(submission_id):
     """Get full details of a submission (viewable by all authenticated users)"""
     try:
@@ -1760,13 +1769,85 @@ def get_submission_details(submission_id):
 
 
 
+@bp.route('/api/submission/warehouse-edit-unlock-status', methods=['GET'])
+@role_required('submissions')
+@employee_required
+def warehouse_submission_edit_unlock_status():
+    """Unlock status for timed warehouse-staff edit window."""
+    role = session.get('employee_role')
+    if session.get('admin_authenticated') or role in ('admin', 'manager'):
+        return jsonify({
+            'success': True,
+            'needs_unlock': False,
+            'unlocked': True,
+            'seconds_remaining': None,
+        })
+    if role == 'warehouse_staff':
+        unlocked = warehouse_submission_edit_unlock_valid()
+        sec = warehouse_submission_edit_unlock_seconds_remaining() if unlocked else 0
+        return jsonify({
+            'success': True,
+            'needs_unlock': True,
+            'unlocked': unlocked,
+            'seconds_remaining': sec,
+            'ttl_seconds': WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS,
+        })
+    return jsonify({
+        'success': True,
+        'needs_unlock': False,
+        'unlocked': False,
+        'seconds_remaining': 0,
+    }), 200
+
+
+@bp.route('/api/submission/warehouse-edit-unlock', methods=['POST'])
+@role_required('submissions')
+@employee_required
+def warehouse_submission_edit_unlock():
+    """
+    Warehouse staff: verify admin-configured password and start timed edit-unlock session.
+    CSRF via JSON API (same pattern as other staff POSTs).
+    """
+    role = session.get('employee_role')
+    if role != 'warehouse_staff':
+        return jsonify({'success': False, 'error': 'Unlock is only for warehouse staff accounts.'}), 400
+    data = request.get_json(silent=True) or {}
+    password = (data.get('password') or '').strip()
+    if not password:
+        return jsonify({'success': False, 'error': 'Password is required.'}), 400
+
+    ensure_app_settings_table()
+    stored_hash = get_setting('warehouse_submission_edit_password_hash', '')
+    if not stored_hash:
+        return jsonify({'success': False, 'error': 'Submission edit password is not configured. Ask an admin to set it in Admin Panel.'}), 503
+
+    if not verify_password(password, stored_hash):
+        return jsonify({'success': False, 'error': 'Invalid password.'}), 403
+
+    set_warehouse_submission_edit_unlock()
+    return jsonify({
+        'success': True,
+        'seconds_remaining': warehouse_submission_edit_unlock_seconds_remaining(),
+        'ttl_seconds': WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS,
+    })
+
+
 @bp.route('/api/submission/<int:submission_id>/edit', methods=['POST'])
 @employee_required
 def edit_submission(submission_id):
-    """Edit a submission and recalculate PO counts (admin login or employee admin/manager only)."""
+    """Edit a submission — managers/admin always; warehouse staff only during timed unlock."""
     # Must not use @admin_required here — managers use employee login, not admin panel.
-    if not (session.get('admin_authenticated') or
-            (session.get('employee_authenticated') and session.get('employee_role') in ['admin', 'manager'])):
+    role = session.get('employee_role')
+    if session.get('admin_authenticated') or (session.get('employee_authenticated') and role in ('admin', 'manager')):
+        pass
+    elif role == 'warehouse_staff':
+        if not warehouse_submission_edit_unlock_valid():
+            return jsonify({
+                'success': False,
+                'error': 'Admin unlock password required. Ask an admin to enter the password, then try again.',
+                'code': 'WAREHOUSE_EDIT_LOCKED',
+            }), 403
+    else:
         return jsonify({'success': False, 'error': 'Access denied. Only administrators and managers can edit submissions.'}), 403
     try:
         data = request.get_json()
@@ -2619,7 +2700,7 @@ def resync_unassigned_submissions():
 
 
 @bp.route('/api/po/<int:po_id>/submissions', methods=['GET'])
-@role_required('dashboard')
+@role_required('submissions')
 def get_po_submissions(po_id):
     """Get all submissions assigned to a specific PO"""
     try:

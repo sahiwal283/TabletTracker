@@ -5,15 +5,77 @@ This module handles all purchase order-related API endpoints.
 """
 from flask import Blueprint, request, jsonify, current_app, session
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 import traceback
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.auth_utils import role_required
-from app.services.zoho_service import zoho_api
+from app.services.zoho_service import zoho_api, parse_zoho_item_weight_grams
 from app.services.purchase_order_service import create_overs_po as create_overs_po_service
 from app.services.purchase_order_service import get_overs_po_preview
 from app.services.purchase_order_service import create_or_update_overs_po_for_push
 
 bp = Blueprint('api_purchase_orders', __name__)
+
+
+def _safe_decimal_or_none(value):
+    """Return Decimal for numeric input, None for blank, raise on invalid non-blank."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "":
+        return None
+    try:
+        parsed = Decimal(text)
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError("damage_weight_kg must be a number")
+    return parsed
+
+
+def _estimate_damage_from_weight_kg(weight_kg, inventory_item_id, item_weight_cache):
+    """
+    Estimate damaged tablets from kg and Zoho item weight.
+
+    Returns tuple: (estimated_damaged_tablets | None, weight_missing_bool, grams_per_tablet | None)
+    """
+    if weight_kg is None or weight_kg <= 0:
+        return None, False, None
+    if not inventory_item_id:
+        return None, True, None
+    if inventory_item_id not in item_weight_cache:
+        grams = None
+        try:
+            zoho_item = zoho_api.get_item(inventory_item_id)
+            grams = parse_zoho_item_weight_grams(zoho_item)
+        except Exception as exc:
+            current_app.logger.warning(
+                f"damage-closeout: could not fetch Zoho weight for item {inventory_item_id}: {exc}"
+            )
+        item_weight_cache[inventory_item_id] = grams
+    grams = item_weight_cache.get(inventory_item_id)
+    if grams is None or grams <= 0:
+        return None, True, None
+    estimated = int((float(weight_kg) * 1000.0) / float(grams))
+    return estimated, False, float(grams)
+
+
+def _load_damage_closeout_by_line(conn, po_id):
+    """Load saved closeout rows keyed by po_line_id; tolerate missing table during rollout."""
+    try:
+        rows = conn.execute(
+            '''
+            SELECT po_line_id, damage_weight_kg, estimated_damaged_tablets, weight_missing, grams_per_tablet
+            FROM po_damage_closeout_lines
+            WHERE po_id = ?
+            ''',
+            (po_id,),
+        ).fetchall()
+    except Exception:
+        return {}
+    by_line = {}
+    for row in rows:
+        rec = dict(row)
+        by_line[rec['po_line_id']] = rec
+    return by_line
 
 
 @bp.route('/api/sync_zoho_pos', methods=['GET', 'POST'])
@@ -207,6 +269,8 @@ def get_po_lines(po_id):
                         'po_number': parent_po_record.get('po_number')
                     }
             
+            damage_closeout_by_line = _load_damage_closeout_by_line(conn, po_id)
+
             # Calculate round numbers, received counts, and submission counts for each line item
             lines_with_rounds = []
             for line in lines:
@@ -284,16 +348,38 @@ def get_po_lines(po_id):
                 bag_count = dict(bag_count_row) if bag_count_row else None
                 line_dict['packaged_count'] = packaged_count.get('total_packaged', 0) if packaged_count else 0
                 line_dict['bag_count'] = bag_count.get('total_bag', 0) if bag_count else 0
+
+                damage_closeout = damage_closeout_by_line.get(line_dict.get('id'))
+                line_dict['damage_weight_kg'] = (
+                    damage_closeout.get('damage_weight_kg') if damage_closeout else None
+                )
+                line_dict['estimated_damaged_from_weight'] = (
+                    damage_closeout.get('estimated_damaged_tablets') if damage_closeout else None
+                )
+                line_dict['damage_weight_missing'] = bool(
+                    damage_closeout.get('weight_missing') if damage_closeout else False
+                )
+                line_dict['damage_grams_per_tablet'] = (
+                    damage_closeout.get('grams_per_tablet') if damage_closeout else None
+                )
                 
                 lines_with_rounds.append(line_dict)
             
+            missing_weight_count = sum(
+                1
+                for line in lines_with_rounds
+                if line.get('damage_weight_missing') and line.get('damage_weight_kg') is not None
+            )
             result = {
                 'lines': lines_with_rounds,
                 'has_unverified_submissions': unverified_count.get('count', 0) > 0 if unverified_count else False,
                 'unverified_count': unverified_count.get('count', 0) if unverified_count else 0,
                 'po_status': po_status,
                 'overs_po': overs_po,
-                'parent_po': parent_po
+                'parent_po': parent_po,
+                'damage_closeout_summary': {
+                    'missing_weight_count': missing_weight_count
+                },
             }
             
             return jsonify(result)
@@ -301,4 +387,126 @@ def get_po_lines(po_id):
         current_app.logger.error(f"Error getting PO lines: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': f'Failed to get PO lines: {str(e)}'}), 500
+
+
+@bp.route('/api/po/<int:po_id>/damage-closeout', methods=['POST'])
+@role_required('dashboard')
+def save_po_damage_closeout(po_id):
+    """
+    Save PO damage closeout weights per flavor (po_line) and compute estimated damaged tablets.
+    Estimates are informational only and do not modify PO damaged totals.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        entries = payload.get('entries')
+        if not isinstance(entries, list):
+            return jsonify({'success': False, 'error': 'entries must be an array'}), 400
+
+        with db_transaction() as conn:
+            po_row = conn.execute(
+                'SELECT id, po_number, closed FROM purchase_orders WHERE id = ?',
+                (po_id,),
+            ).fetchone()
+            if not po_row:
+                return jsonify({'success': False, 'error': 'PO not found'}), 404
+            if bool(po_row['closed']):
+                return jsonify({'success': False, 'error': 'Cannot edit damage closeout for closed PO'}), 400
+
+            valid_line_rows = conn.execute(
+                '''
+                SELECT id, inventory_item_id
+                FROM po_lines
+                WHERE po_id = ?
+                ''',
+                (po_id,),
+            ).fetchall()
+            valid_lines = {int(row['id']): row['inventory_item_id'] for row in valid_line_rows}
+            if not valid_lines:
+                return jsonify({'success': False, 'error': 'PO has no lines'}), 400
+
+            item_weight_cache = {}
+            saved_entries = []
+            updated_by = session.get('employee_name') or session.get('username') or 'unknown'
+
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    return jsonify({'success': False, 'error': 'Each entry must be an object'}), 400
+                po_line_id = entry.get('po_line_id')
+                if po_line_id is None:
+                    return jsonify({'success': False, 'error': 'po_line_id is required'}), 400
+                try:
+                    po_line_id = int(po_line_id)
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'error': f'Invalid po_line_id: {po_line_id}'}), 400
+                if po_line_id not in valid_lines:
+                    return jsonify({'success': False, 'error': f'Line {po_line_id} does not belong to this PO'}), 400
+
+                try:
+                    damage_weight = _safe_decimal_or_none(entry.get('damage_weight_kg'))
+                except ValueError as exc:
+                    return jsonify({'success': False, 'error': str(exc)}), 400
+                if damage_weight is not None and damage_weight < 0:
+                    return jsonify({'success': False, 'error': 'damage_weight_kg must be >= 0'}), 400
+                if damage_weight is not None:
+                    damage_weight = damage_weight.quantize(Decimal('0.001'))
+
+                inventory_item_id = valid_lines[po_line_id]
+                estimated, weight_missing, grams = _estimate_damage_from_weight_kg(
+                    float(damage_weight) if damage_weight is not None else None,
+                    inventory_item_id,
+                    item_weight_cache,
+                )
+
+                conn.execute(
+                    '''
+                    INSERT INTO po_damage_closeout_lines (
+                        po_id,
+                        po_line_id,
+                        inventory_item_id,
+                        damage_weight_kg,
+                        estimated_damaged_tablets,
+                        grams_per_tablet,
+                        weight_missing,
+                        weight_source,
+                        updated_by,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(po_line_id) DO UPDATE SET
+                        damage_weight_kg = excluded.damage_weight_kg,
+                        estimated_damaged_tablets = excluded.estimated_damaged_tablets,
+                        grams_per_tablet = excluded.grams_per_tablet,
+                        weight_missing = excluded.weight_missing,
+                        weight_source = excluded.weight_source,
+                        updated_by = excluded.updated_by,
+                        updated_at = CURRENT_TIMESTAMP
+                    ''',
+                    (
+                        po_id,
+                        po_line_id,
+                        inventory_item_id,
+                        float(damage_weight) if damage_weight is not None else None,
+                        estimated,
+                        grams,
+                        1 if weight_missing else 0,
+                        'zoho_item_weight',
+                        updated_by,
+                    ),
+                )
+                saved_entries.append({
+                    'po_line_id': po_line_id,
+                    'damage_weight_kg': float(damage_weight) if damage_weight is not None else None,
+                    'estimated_damaged_tablets': estimated,
+                    'weight_missing': bool(weight_missing),
+                    'grams_per_tablet': grams,
+                })
+
+        return jsonify({
+            'success': True,
+            'po_id': po_id,
+            'entries': saved_entries,
+        })
+    except Exception as e:
+        current_app.logger.error(f"save_po_damage_closeout: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 

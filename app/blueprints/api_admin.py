@@ -145,6 +145,67 @@ def manage_cards_per_turn():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+WAREHOUSE_SUBMISSION_EDIT_PASSWORD_KEY = 'warehouse_submission_edit_password_hash'
+
+
+@bp.route('/api/settings/warehouse_submission_edit_password', methods=['GET', 'POST'])
+@admin_required
+def manage_warehouse_submission_edit_password():
+    """Get/set bcrypt hash for timed warehouse staff submission edit unlock (plaintext never stored)."""
+    try:
+        ensure_app_settings_table()
+        with db_transaction() as conn:
+            if request.method == 'GET':
+                row = conn.execute(
+                    'SELECT updated_at FROM app_settings WHERE setting_key = ?',
+                    (WAREHOUSE_SUBMISSION_EDIT_PASSWORD_KEY,),
+                ).fetchone()
+                return jsonify({
+                    'success': True,
+                    'configured': row is not None,
+                    'updated_at': row['updated_at'] if row and row['updated_at'] is not None else None,
+                })
+
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data provided'}), 400
+            new_password = (data.get('password') or '').strip()
+            if len(new_password) < 4:
+                return jsonify({'success': False, 'error': 'Password must be at least 4 characters.'}), 400
+
+            pw_hash = hash_password(new_password)
+            existing = conn.execute(
+                'SELECT id FROM app_settings WHERE setting_key = ?',
+                (WAREHOUSE_SUBMISSION_EDIT_PASSWORD_KEY,),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    '''
+                    UPDATE app_settings
+                    SET setting_value = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE setting_key = ?
+                    ''',
+                    (pw_hash, WAREHOUSE_SUBMISSION_EDIT_PASSWORD_KEY),
+                )
+            else:
+                conn.execute(
+                    '''
+                    INSERT INTO app_settings (setting_key, setting_value, description)
+                    VALUES (?, ?, ?)
+                    ''',
+                    (
+                        WAREHOUSE_SUBMISSION_EDIT_PASSWORD_KEY,
+                        pw_hash,
+                        'Bcrypt hash for warehouse submission edit unlock (set via admin API)',
+                    ),
+                )
+            return jsonify({'success': True, 'message': 'Warehouse submission edit password updated.'})
+    except Exception as e:
+        current_app.logger.error(f"Error managing warehouse submission edit password: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/api/add_employee', methods=['POST'])
 @admin_required
 def add_employee():

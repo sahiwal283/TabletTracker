@@ -12,7 +12,7 @@ bp = Blueprint('api_submissions', __name__)
 
 
 @bp.route('/api/bag/<int:bag_id>/submissions', methods=['GET'])
-@role_required('dashboard')
+@role_required('submissions')
 def get_bag_submissions(bag_id):
     """Get all submissions for a specific bag (for duplicate review)"""
     try:

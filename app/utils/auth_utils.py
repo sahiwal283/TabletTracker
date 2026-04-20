@@ -10,10 +10,49 @@ import hmac
 
 # Role-based access control system
 ROLE_PERMISSIONS = {
-    'warehouse_staff': ['warehouse', 'count'],
-    'manager': ['warehouse', 'count', 'dashboard', 'shipping', 'reports'],
+    'warehouse_staff': ['warehouse', 'count', 'submissions'],
+    'manager': ['warehouse', 'count', 'dashboard', 'shipping', 'reports', 'submissions'],
     'admin': ['all']  # Special case - admin has access to everything
 }
+
+
+# Session key: unix timestamp (float) when warehouse edit unlock expires
+SESSION_KEY_WAREHOUSE_SUBMISSION_EDIT_UNLOCK_UNTIL = 'warehouse_submission_edit_unlock_until'
+WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS = 15 * 60  # 15 minutes
+
+
+def warehouse_submission_edit_unlock_valid() -> bool:
+    """True if warehouse staff session has an active timed unlock for editing submissions."""
+    import time
+
+    until = session.get(SESSION_KEY_WAREHOUSE_SUBMISSION_EDIT_UNLOCK_UNTIL)
+    if until is None:
+        return False
+    try:
+        return float(until) > time.time()
+    except (TypeError, ValueError):
+        return False
+
+
+def set_warehouse_submission_edit_unlock(duration_seconds: int = WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS) -> None:
+    """Set timed unlock for warehouse submission editing (session-bound)."""
+    import time
+
+    session[SESSION_KEY_WAREHOUSE_SUBMISSION_EDIT_UNLOCK_UNTIL] = time.time() + float(duration_seconds)
+    session.modified = True
+
+
+def warehouse_submission_edit_unlock_seconds_remaining() -> int:
+    """Seconds left in unlock window, or 0 if locked/expired."""
+    import time
+
+    until = session.get(SESSION_KEY_WAREHOUSE_SUBMISSION_EDIT_UNLOCK_UNTIL)
+    if until is None:
+        return 0
+    try:
+        return max(0, int(float(until) - time.time()))
+    except (TypeError, ValueError):
+        return 0
 
 
 def admin_required(f: Callable) -> Callable:

@@ -286,7 +286,7 @@ def update_tablet_inventory_ids():
 
 
 @bp.route('/api/tablet_types/categories', methods=['GET'])
-@role_required('dashboard')
+@role_required('submissions')
 def get_tablet_type_categories():
     """Get all tablet types grouped by their configured categories"""
     try:

@@ -30,12 +30,62 @@
                 {% endif %}
             </a>
             {% endif %}
+            {% if session.get('employee_role') in ['manager', 'admin'] %}
             <a href="/dashboard" class="btn-secondary px-6 py-3">
                 ← Back to Dashboard
             </a>
+            {% else %}
+            <a href="{{ url_for('production.production_form') }}" class="btn-secondary px-6 py-3">
+                ← Back to Production
+            </a>
+            {% endif %}
         </div>
     </div>
 </div>
+
+{% if session.get('employee_role') == 'warehouse_staff' %}
+<div id="warehouse-submission-unlock-banner" class="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-950 text-sm">
+    <span class="font-semibold">Editing submissions:</span>
+    <span id="warehouse-unlock-banner-text">Checking unlock status…</span>
+    <button type="button" id="warehouse-unlock-banner-btn" class="ml-2 px-3 py-1 rounded bg-amber-700 text-white text-xs font-medium hover:bg-amber-800 hidden">
+        Enter admin password
+    </button>
+</div>
+<script>
+(function () {
+    var bannerText = document.getElementById('warehouse-unlock-banner-text');
+    var btn = document.getElementById('warehouse-unlock-banner-btn');
+    function refresh() {
+        fetch('/api/submission/warehouse-edit-unlock-status', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (!bannerText) return;
+                if (j.success && j.unlocked) {
+                    var m = Math.floor((j.seconds_remaining || 0) / 60);
+                    var s = (j.seconds_remaining || 0) % 60;
+                    bannerText.textContent = 'Unlocked — editing allowed for about ' + m + 'm ' + s + 's (then re-locks).';
+                    if (btn) btn.classList.add('hidden');
+                } else {
+                    bannerText.textContent = 'Locked — open a submission and choose Edit, or use Enter admin password to unlock for 15 minutes.';
+                    if (btn) btn.classList.remove('hidden');
+                }
+            })
+            .catch(function () {
+                if (bannerText) bannerText.textContent = 'Could not load unlock status.';
+            });
+    }
+    if (btn) {
+        btn.addEventListener('click', function () {
+            if (typeof openWarehouseEditUnlockModal === 'function') {
+                openWarehouseEditUnlockModal().then(function (ok) { if (ok) refresh(); });
+            }
+        });
+    }
+    refresh();
+    setInterval(refresh, 60000);
+})();
+</script>
+{% endif %}
 
 <!-- Source tabs: warehouse vs QR workflow -->
 <div class="mb-4">
