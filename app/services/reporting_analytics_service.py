@@ -842,6 +842,9 @@ def build_dimensions(
     by_flavor_displays: Dict[int, float] = {}
     by_day_by_flavor: Dict[int, Dict[str, int]] = {}
     by_day_by_flavor_displays: Dict[int, Dict[str, float]] = {}
+    ripped_cards_by_flavor: Dict[int, int] = {}
+    ripped_cards_by_day: Dict[str, int] = {}
+    ripped_cards_total = 0
     throughput_rows: List[Tuple[str, float, float, int]] = []
     # tuple: (day, duration_minutes, tablets_per_hour, tablets_packed)
     throughput_groups: Dict[str, Dict[str, Any]] = {}
@@ -898,6 +901,26 @@ def build_dimensions(
                     by_day_by_flavor_displays[tid].get(day, 0.0) + (part / tpd)
                 )
 
+    # Packaging loss (cards ripped/destroyed) is stored in packs_remaining
+    # on packaged/repack submissions and should be tracked separately from output.
+    for sub in subs:
+        st = (sub.get("submission_type") or "packaged").lower()
+        if st not in ("packaged", "repack"):
+            continue
+        ripped_cards = int(sub.get("packs_remaining") or 0)
+        if ripped_cards <= 0:
+            continue
+        tid, _fname = _flavor_id_name(sub, conn)
+        if tid is None:
+            tid = -2
+        if tablet_type_id is not None and tid != tablet_type_id:
+            continue
+        day = str(sub.get("filter_date") or sub.get("created_at", ""))[:10]
+        ripped_cards_total += ripped_cards
+        ripped_cards_by_flavor[tid] = ripped_cards_by_flavor.get(tid, 0) + ripped_cards
+        if day:
+            ripped_cards_by_day[day] = ripped_cards_by_day.get(day, 0) + ripped_cards
+
     flavor_list = []
     for tid, total in sorted(
         by_flavor.items(),
@@ -918,6 +941,7 @@ def build_dimensions(
                 "flavor": label,
                 "packed": total,
                 "packed_displays": round(by_flavor_displays.get(tid, 0.0), 2),
+                "ripped_cards": int(ripped_cards_by_flavor.get(tid, 0)),
             }
         )
 
@@ -934,6 +958,31 @@ def build_dimensions(
                     ),
                 }
             )
+    ripped_by_flavor = []
+    for tid, cards in sorted(ripped_cards_by_flavor.items(), key=lambda x: -x[1]):
+        if tid >= 0:
+            nm = conn.execute(
+                "SELECT tablet_type_name FROM tablet_types WHERE id = ?",
+                (tid,),
+            ).fetchone()
+            label = nm["tablet_type_name"] if nm else str(tid)
+        else:
+            label = "Unmapped"
+        ripped_by_flavor.append(
+            {
+                "tablet_type_id": tid,
+                "flavor": label,
+                "ripped_cards": int(cards),
+            }
+        )
+    ripped_series = [
+        {"date": d, "ripped_cards": int(ripped_cards_by_day[d])}
+        for d in sorted(ripped_cards_by_day.keys())
+    ]
+    total_packed_displays = round(sum(by_flavor_displays.values()), 2)
+    loss_rate_cards_per_display = None
+    if total_packed_displays > 0:
+        loss_rate_cards_per_display = round(ripped_cards_total / total_packed_displays, 4)
 
     # Finalize grouped throughput samples.
     for g in throughput_groups.values():
@@ -995,6 +1044,11 @@ def build_dimensions(
         "success": True,
         "top_flavors": flavor_list[:25],
         "selected_flavor_series": selected_series,
+        "ripped_cards_total": int(ripped_cards_total),
+        "ripped_cards_by_flavor": ripped_by_flavor[:25],
+        "ripped_cards_series": ripped_series,
+        "total_packed_displays": total_packed_displays,
+        "loss_rate_cards_per_display": loss_rate_cards_per_display,
         "throughput_summary": throughput_summary,
         "throughput_series": throughput_series,
     }

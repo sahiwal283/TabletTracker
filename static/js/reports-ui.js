@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    var charts = { trends: null, flavors: null, flavorDaily: null, throughput: null };
+    var charts = { trends: null, flavors: null, flavorDaily: null, throughput: null, rippedCards: null };
     var pollTimer = null;
     var lastVersion = null;
     var filtersCache = null;
@@ -519,6 +519,80 @@
         if (elDays) elDays.textContent = fmt(days);
     }
 
+    function renderRippedCards(total, byFlavor) {
+        var el = document.getElementById('reports_kpi_ripped_cards');
+        if (el) el.textContent = fmt(total || 0);
+        var host = document.getElementById('reports_ripped_cards_rows');
+        var hint = document.getElementById('reports_ripped_cards_hint');
+        if (!host) return;
+        host.innerHTML = '';
+        var rows = (byFlavor || []).slice(0, 12);
+        if (!rows.length) {
+            if (hint) {
+                hint.textContent = 'No ripped-card losses were recorded for this filter range.';
+                hint.classList.remove('hidden');
+            }
+            return;
+        }
+        if (hint) hint.classList.add('hidden');
+        rows.forEach(function (row) {
+            var line = document.createElement('div');
+            line.className = 'flex items-center justify-between rounded-md border border-gray-200 px-3 py-2';
+            line.innerHTML =
+                '<span class="text-gray-700">' + escapeHtml(row.flavor || 'Unknown') + '</span>' +
+                '<span class="font-semibold text-gray-800 tabular-nums">' + fmt(row.ripped_cards || 0) + '</span>';
+            host.appendChild(line);
+        });
+    }
+
+    function renderLossRate(cardsPerDisplay) {
+        var el = document.getElementById('reports_kpi_loss_rate');
+        if (!el) return;
+        if (cardsPerDisplay == null || Number.isNaN(Number(cardsPerDisplay))) {
+            el.textContent = '—';
+            return;
+        }
+        el.textContent = Number(cardsPerDisplay).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+        });
+    }
+
+    function renderRippedCardsTrend(series) {
+        destroyChart('rippedCards');
+        setHint('reports_ripped_trend_hint', '');
+        var canvas = document.getElementById('reports_chart_ripped_cards');
+        if (!canvas || typeof Chart === 'undefined') return;
+        var s = series || [];
+        if (!s.length) {
+            setHint('reports_ripped_trend_hint', 'No ripped-card losses were recorded for this filter range.');
+        }
+        charts.rippedCards = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: s.map(function (x) { return x.date; }),
+                datasets: [
+                    {
+                        label: 'Ripped cards',
+                        data: s.map(function (x) { return x.ripped_cards || 0; }),
+                        borderColor: 'rgb(147, 92, 43)',
+                        backgroundColor: 'rgba(147, 92, 43, 0.14)',
+                        tension: 0.2,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Cards' } }
+                }
+            }
+        });
+    }
+
     function ensureChartLibrary() {
         if (typeof Chart !== 'undefined') return true;
         setHint('reports_trends_hint', 'Chart library unavailable.');
@@ -548,11 +622,14 @@
             var trends = await apiCall('/api/reports/trends?' + q, { requestKey: 'reports-trends' });
             var dims = await apiCall('/api/reports/dimensions?' + q, { requestKey: 'reports-dimensions' });
             renderKpis(trends.series || [], dims.top_flavors || []);
+            renderRippedCards(dims.ripped_cards_total || 0, dims.ripped_cards_by_flavor || []);
+            renderLossRate(dims.loss_rate_cards_per_display);
             renderThroughput(dims.throughput_summary || {}, dims.throughput_series || []);
             if (ensureChartLibrary()) {
                 renderTrendsChart(trends.series || []);
                 renderTopFlavorsChart(dims.top_flavors || []);
                 renderFlavorDailyChart(dims.selected_flavor_series || []);
+                renderRippedCardsTrend(dims.ripped_cards_series || []);
             }
         } catch (e) {
             if (e.name === 'AbortError') return;
