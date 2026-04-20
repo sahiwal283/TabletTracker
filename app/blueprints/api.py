@@ -1525,11 +1525,17 @@ def get_submission_details(submission_id):
                 # Blister: one operator count (displays_made); never turns × cards × tablets.
                 if machine_role_norm == 'blister':
                     bc = submission_dict.get('displays_made', 0) or 0
-                    submission_dict['individual_calc'] = bc
-                    submission_dict['total_tablets'] = bc
+                    tpp = int(tablets_per_package or 0)
+                    blisters_made = bc * BLISTER_BLISTERS_PER_CUT
+                    tablet_total = blisters_made * tpp if tpp else (
+                        submission_dict.get('tablets_pressed_into_cards') or 0
+                    )
+                    submission_dict['individual_calc'] = tablet_total
+                    submission_dict['total_tablets'] = tablet_total
                     submission_dict['blister_machine_count'] = bc
                     submission_dict['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
-                    submission_dict['blisters_made'] = bc * BLISTER_BLISTERS_PER_CUT
+                    submission_dict['blisters_made'] = blisters_made
+                    submission_dict['tablets_per_blister'] = tpp
                     submission_dict['cards_per_turn'] = None
                     submission_dict['machine_name'] = machine_name
                 else:
@@ -1967,7 +1973,7 @@ def edit_submission(submission_id):
                 if machine_role_edit not in ('sealing', 'blister'):
                     machine_role_edit = 'sealing'
                 if machine_role_edit == 'blister':
-                    tablets_pressed_into_cards = displays_made
+                    tablets_pressed_into_cards = displays_made * BLISTER_BLISTERS_PER_CUT * tablets_per_package
                     packs_remaining = 0
                 else:
                     cpt = int(machine_row['cards_per_turn'] or 0)
@@ -2795,10 +2801,11 @@ def get_po_submissions(po_id):
                         cuts = sub_dict.get('displays_made', 0) or 0
                         sub_dict['blisters_made'] = cuts * BLISTER_BLISTERS_PER_CUT
                         sub_dict['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
-                        total_tablets = (
+                        tpp = int(sub_dict.get('tablets_per_package') or 0)
+                        computed = sub_dict['blisters_made'] * tpp if tpp else 0
+                        total_tablets = computed or (
                             sub_dict.get('tablets_pressed_into_cards')
                             or sub_dict.get('loose_tablets')
-                            or cuts
                             or 0
                         )
                     else:

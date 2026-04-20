@@ -186,6 +186,10 @@ def _ensure_default_count_date(data: dict) -> None:
         data['count_date'] = datetime.now().date().isoformat()
 
 
+# Keep in sync with app.blueprints.api.BLISTER_BLISTERS_PER_CUT
+BLISTER_BLISTERS_PER_CUT = 2
+
+
 def _machine_role_for_id(conn, machine_id) -> str:
     if not machine_id:
         return 'sealing'
@@ -406,8 +410,9 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
         cards_per_turn = cards_per_turn_for(machine_id)
         machine_role = _machine_role_for_id(conn, machine_id)
         if machine_role == 'blister':
-            # Blister: store the operator reading as a single unit count (not sealing turns × cards × tablets).
-            tablets_pressed_into_cards = machine_count_int
+            # Blister: cuts × blisters/cut × tablets per blister (product tablets_per_package).
+            blisters_made = machine_count_int * BLISTER_BLISTERS_PER_CUT
+            tablets_pressed_into_cards = blisters_made * tablets_per_package
             cards_made = 0
         else:
             tablets_pressed_into_cards = machine_count_int * cards_per_turn * tablets_per_package

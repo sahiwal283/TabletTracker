@@ -610,18 +610,21 @@ function closeAdminNotesModal(event) {
     }
 }
 
-// Keep machine submission cards/tablets in sync with turns × cards_per_turn (edit modal); blister uses counter only
+// Keep machine submission cards/tablets in sync (edit modal): sealing = turns × CPT; blister = cuts × 2 × tablets/blister
 function wireEditMachineDerivedSync() {
     const sel = document.getElementById('edit-machine-id');
     const cnt = document.getElementById('edit-machine-count');
     const tabs = document.getElementById('edit-tablets-pressed');
+    const tppEl = document.getElementById('edit-machine-tablets-per-blister');
     if (!sel || !cnt || !tabs) return;
     function sync() {
         const opt = sel.options[sel.selectedIndex];
         const role = (opt && opt.getAttribute('data-machine-role')) || 'sealing';
         const n = parseInt(cnt.value, 10) || 0;
         if (role === 'blister') {
-            tabs.value = String(n);
+            const tpp = tppEl ? parseInt(tppEl.value || '0', 10) : 0;
+            const blisters = n * BLISTER_BLISTERS_PER_CUT;
+            tabs.value = String(tpp ? blisters * tpp : blisters);
             return;
         }
         const cpt = opt && opt.value ? parseInt(opt.getAttribute('data-cards-per-turn') || '0', 10) : 0;
@@ -1034,15 +1037,20 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             }
             await populateEditMachineDropdown(sub);
             const isBlisterEdit = String(sub.machine_role || 'sealing').toLowerCase() === 'blister';
+            const tppBlister = document.getElementById('edit-machine-tablets-per-blister');
+            if (tppBlister) {
+                const rawTpp = sub.tablets_per_package != null ? sub.tablets_per_package : sub.tablets_per_package_final;
+                tppBlister.value = rawTpp != null && rawTpp !== '' ? String(rawTpp) : '';
+            }
             const recHint = document.getElementById('edit-machine-recompute-hint');
             const countHint = document.getElementById('edit-machine-count-hint');
             const tabLabel = document.getElementById('edit-tablets-pressed-label');
             const tabHint = document.getElementById('edit-machine-tablets-hint');
             if (isBlisterEdit) {
-                if (recHint) recHint.textContent = 'Blister machines use the counter reading only (not sealing turns × cards per turn).';
-                if (countHint) countHint.textContent = 'Blister machine counter reading';
-                if (tabLabel) tabLabel.textContent = 'Saved count (blister)';
-                if (tabHint) tabHint.textContent = 'Mirrors counter reading; same value submitted to the server.';
+                if (recHint) recHint.textContent = 'Blister: total tablets = cuts × 2 blisters/cut × tablets per blister (from product).';
+                if (countHint) countHint.textContent = 'Blister machine counter (cuts)';
+                if (tabLabel) tabLabel.textContent = 'Total tablets (blister)';
+                if (tabHint) tabHint.textContent = 'Read-only: cuts × 2 × tablets per blister; server saves this total.';
             } else {
                 if (recHint) recHint.textContent = 'Changing machine recalculates cards and total tablets as turns × this machine\'s cards per turn.';
                 if (countHint) countHint.textContent = 'The counter number from the machine';
@@ -1050,7 +1058,12 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
                 if (tabHint) tabHint.textContent = 'Read-only: turns × selected machine\'s cards per turn (saved totals use this)';
             }
             if (editTablets) {
-                editTablets.value = isBlisterEdit ? String(sub.displays_made || 0) : String(sub.tablets_pressed_into_cards || 0);
+                if (isBlisterEdit) {
+                    const v = sub.individual_calc != null ? sub.individual_calc : (sub.total_tablets != null ? sub.total_tablets : sub.tablets_pressed_into_cards);
+                    editTablets.value = String(v != null ? v : 0);
+                } else {
+                    editTablets.value = String(sub.tablets_pressed_into_cards || 0);
+                }
             }
             wireEditMachineDerivedSync();
             const bst = document.getElementById('edit-bag-start-time');
@@ -2205,6 +2218,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             <div class="space-y-4">
                 <!-- Machine Count Fields (only for machine submissions) -->
                 <div id="machine-fields" class="hidden space-y-4">
+                    <input type="hidden" id="edit-machine-tablets-per-blister" value="">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Machine</label>
                         <select id="edit-machine-id"
@@ -3232,7 +3246,7 @@ async function viewSubmissionDetails(submissionId) {
                                 <div class="bg-gray-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Total tablets</label>
                                     <div class="mt-1 text-2xl font-bold text-gray-900">${(sub.individual_calc || sub.total_tablets || sub.tablets_pressed_into_cards || 0).toLocaleString()}</div>
-                                    <div class="text-xs text-gray-400 mt-1">Same basis as PO / submissions list</div>
+                                    <div class="text-xs text-gray-400 mt-1">Blisters made × ${(() => { const x = sub.tablets_per_blister != null ? sub.tablets_per_blister : sub.tablets_per_package; return x != null && x !== '' ? x : '—'; })()} tablets per blister (product)</div>
                                 </div>
                             </div>
                             <div class="mt-4 bg-gray-50 rounded-lg p-3">

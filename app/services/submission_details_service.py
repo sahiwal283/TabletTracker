@@ -138,9 +138,11 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
                 role = 'sealing'
             if role == 'blister':
                 cuts = sub.get('displays_made') or 0
-                total = cuts
-                sub['blisters_made'] = cuts * BLISTER_BLISTERS_PER_CUT
+                blisters_made = cuts * BLISTER_BLISTERS_PER_CUT
+                sub['blisters_made'] = blisters_made
                 sub['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
+                tpp = int(tpp or 0)
+                total = (blisters_made * tpp) if tpp else (sub.get('tablets_pressed_into_cards') or 0)
             else:
                 tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
                 total = tablets_pressed or ((sub.get('packs_remaining') or 0) * tpp)
