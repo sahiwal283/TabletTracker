@@ -482,9 +482,9 @@ def receiving_list():
                 ORDER BY tablet_type_name
             ''').fetchall()
             
-            # Get all POs for managers/admin to assign
+            # Get all POs for warehouse leads/managers/admins to assign
             purchase_orders = []
-            if session.get('employee_role') in ['manager', 'admin']:
+            if session.get('employee_role') in ['warehouse_lead', 'manager', 'admin']:
                 purchase_orders = conn.execute('''
                     SELECT id, po_number, closed, internal_status, zoho_status
                     FROM purchase_orders

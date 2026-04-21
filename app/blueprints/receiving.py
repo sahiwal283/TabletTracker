@@ -31,9 +31,10 @@ def receiving_list():
             vendor_select = 'vendor_name' if has_vendor_name else "NULL as vendor_name"
             vendor_po_sql = 'po.vendor_name AS vendor_name' if has_vendor_name else "NULL AS vendor_name"
             
-            # Get all OPEN POs for managers/admin to assign (closed POs can't receive new shipments)
+            # Get all OPEN POs for warehouse leads/managers/admins to assign
+            # (closed POs can't receive new shipments)
             purchase_orders = []
-            if session.get('employee_role') in ['manager', 'admin'] or session.get('admin_authenticated'):
+            if session.get('employee_role') in ['warehouse_lead', 'manager', 'admin'] or session.get('admin_authenticated'):
                 po_rows = conn.execute(f'''
                 SELECT id, po_number, {vendor_select}, closed, internal_status, zoho_status
                 FROM purchase_orders
