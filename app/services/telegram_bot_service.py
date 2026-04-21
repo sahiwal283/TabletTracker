@@ -103,6 +103,7 @@ def help_text() -> str:
         "/help - show commands\n"
         "/daily [YYYY-MM-DD] - daily production summary\n"
         "/status blister - current blister station bag\n"
+        "/status sealing - current sealing station bag\n"
         "/status packaging - current packaging station bag\n"
         "/counts today - number of bags blistered today"
     )

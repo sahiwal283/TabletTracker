@@ -43,8 +43,8 @@ def telegram_webhook(token: str):
             reply = bot.format_daily_summary(summary)
         elif cmd == "/status":
             station_kind = (args or "").strip().lower()
-            if station_kind not in ("blister", "packaging"):
-                reply = "Usage: /status blister OR /status packaging"
+            if station_kind not in ("blister", "sealing", "packaging"):
+                reply = "Usage: /status blister OR /status sealing OR /status packaging"
             else:
                 with db_read_only() as conn:
                     station = reports.get_station_current_bag(conn, station_kind)

@@ -111,6 +111,23 @@ class TestTelegramBot(unittest.TestCase):
             send_mock.assert_called_once()
             self.assertIn("#123", send_mock.call_args.args[1])
 
+    def test_webhook_status_sealing_command(self):
+        with patch("config.Config.TELEGRAM_BOT_TOKEN", "abc"), patch(
+            "config.Config.TELEGRAM_ALLOWED_CHAT_IDS", [111]
+        ), patch("config.Config.TELEGRAM_ALLOWED_USER_IDS", []), patch(
+            "app.services.telegram_reporting_service.get_station_current_bag",
+            return_value={"workflow_bag_id": 456, "station_label": "SL-1", "station_id": 8},
+        ), patch(
+            "app.services.telegram_bot_service.telegram_send_message"
+        ) as send_mock:
+            resp = self.client.post(
+                "/api/telegram/webhook/abc",
+                json={"message": {"chat": {"id": 111}, "from": {"id": 333}, "text": "/status sealing"}},
+            )
+            self.assertEqual(resp.status_code, 200)
+            send_mock.assert_called_once()
+            self.assertIn("#456", send_mock.call_args.args[1])
+
     def test_count_bags_blistered_today_uses_ny_window(self):
         conn = sqlite3.connect(self.db_tmp.name)
         conn.row_factory = sqlite3.Row

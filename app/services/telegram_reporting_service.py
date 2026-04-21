@@ -160,7 +160,7 @@ def build_daily_summary(conn: sqlite3.Connection, day_iso: Optional[str] = None)
 
 
 def get_station_current_bag(conn: sqlite3.Connection, station_kind: str) -> Optional[Dict[str, object]]:
-    if station_kind not in ("blister", "packaging"):
+    if station_kind not in ("blister", "sealing", "packaging"):
         return None
     row = conn.execute(
         """
