@@ -899,7 +899,7 @@ async function openWarehouseEditUnlockModal() {
 }
 
 async function ensureWarehouseSubmissionEditUnlockedInteractive() {
-    if (window.sessionEmployeeRole !== 'warehouse_staff') {
+    if (window.sessionEmployeeRole !== 'warehouse_staff' && window.sessionEmployeeRole !== 'warehouse_lead') {
         return true;
     }
     try {
@@ -989,7 +989,7 @@ async function saveSubmissionEdit() {
     }
     
     try {
-        if (window.sessionEmployeeRole === 'warehouse_staff') {
+        if (window.sessionEmployeeRole === 'warehouse_staff' || window.sessionEmployeeRole === 'warehouse_lead') {
             const unlocked = await ensureWarehouseSubmissionEditUnlockedInteractive();
             if (!unlocked) {
                 return;
@@ -1891,8 +1891,8 @@ async function convertToTwoLevelDropdown(selectElement) {
                     </a>
                     {% endif %}
                     
-                    <!-- Shipments Received - Manager+ -->
-                    {% if session.employee_role in ['manager', 'admin'] %}
+                    <!-- Shipments Received - Warehouse lead + Manager+ -->
+                    {% if session.employee_role in ['warehouse_lead', 'manager', 'admin'] %}
                     <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
                     </a>
@@ -1907,7 +1907,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                     </a>
                     
                     <!-- Submissions - warehouse (view/edit with unlock) + Manager+ -->
-                    {% if session.employee_role in ['manager', 'admin', 'warehouse_staff'] %}
+                    {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
                     <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-list" /></svg> Submissions
                     </a>
@@ -1962,14 +1962,14 @@ async function convertToTwoLevelDropdown(selectElement) {
             </div>
             <!-- Mobile menu -->
             <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-3">
-                {% if session.employee_role in ['manager', 'admin'] %}
+                {% if session.employee_role in ['warehouse_lead', 'manager', 'admin'] %}
                 <a href="{{ url_for('dashboard.dashboard_view') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
                 <a href="{{ url_for('reports.reports_view') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-chart" /></svg> Reports</a>
                 <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received</a>
                 {% endif %}
                 <a href="{{ url_for('production.production_form') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
                 <a href="{{ url_for('workflow_staff.new_bag') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-mobile" /></svg> Workflow</a>
-                {% if session.employee_role in ['manager', 'admin', 'warehouse_staff'] %}
+                {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
                 <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-list" /></svg> Submissions</a>
                 {% endif %}
                 {% if session.employee_role in ['manager', 'admin'] %}
@@ -3183,7 +3183,7 @@ async function viewSubmissionDetails(submissionId) {
         const sub = data.submission;
         // Manager/admin: reassign + full actions; warehouse staff: view + edit (with password unlock)
         const canManageSubmissionActions = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
-        const canOpenSubmissionEdit = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager', 'warehouse_staff'] or session.get('admin_authenticated')) | tojson | safe }}");
+        const canOpenSubmissionEdit = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager', 'warehouse_staff', 'warehouse_lead'] or session.get('admin_authenticated')) | tojson | safe }}");
         
         // Format dates - properly handle UTC timestamps
         // submission_date is date-only (YYYY-MM-DD), created_at is full timestamp

@@ -1782,7 +1782,7 @@ def warehouse_submission_edit_unlock_status():
             'unlocked': True,
             'seconds_remaining': None,
         })
-    if role == 'warehouse_staff':
+    if role in ('warehouse_staff', 'warehouse_lead'):
         unlocked = warehouse_submission_edit_unlock_valid()
         sec = warehouse_submission_edit_unlock_seconds_remaining() if unlocked else 0
         return jsonify({
@@ -1809,8 +1809,8 @@ def warehouse_submission_edit_unlock():
     CSRF via JSON API (same pattern as other staff POSTs).
     """
     role = session.get('employee_role')
-    if role != 'warehouse_staff':
-        return jsonify({'success': False, 'error': 'Unlock is only for warehouse staff accounts.'}), 400
+    if role not in ('warehouse_staff', 'warehouse_lead'):
+        return jsonify({'success': False, 'error': 'Unlock is only for warehouse staff/lead accounts.'}), 400
     data = request.get_json(silent=True) or {}
     password = (data.get('password') or '').strip()
     if not password:
@@ -1840,7 +1840,7 @@ def edit_submission(submission_id):
     role = session.get('employee_role')
     if session.get('admin_authenticated') or (session.get('employee_authenticated') and role in ('admin', 'manager')):
         pass
-    elif role == 'warehouse_staff':
+    elif role in ('warehouse_staff', 'warehouse_lead'):
         if not warehouse_submission_edit_unlock_valid():
             return jsonify({
                 'success': False,

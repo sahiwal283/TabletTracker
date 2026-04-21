@@ -43,7 +43,7 @@
     </div>
 </div>
 
-{% if session.get('employee_role') == 'warehouse_staff' %}
+{% if session.get('employee_role') in ['warehouse_staff', 'warehouse_lead'] %}
 <div id="warehouse-submission-unlock-banner" class="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-950 text-sm">
     <span class="font-semibold">Editing submissions:</span>
     <span id="warehouse-unlock-banner-text">Checking unlock status…</span>

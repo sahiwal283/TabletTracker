@@ -220,7 +220,7 @@ def add_employee():
         if not username or not full_name or not password:
             return jsonify({'success': False, 'error': 'Username, full name, and password required'}), 400
             
-        valid_roles = ['warehouse_staff', 'manager', 'admin']
+        valid_roles = ['warehouse_staff', 'warehouse_lead', 'manager', 'admin']
         if role not in valid_roles:
             return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
             
@@ -253,7 +253,7 @@ def update_employee_role(employee_id):
         data = request.get_json()
         new_role = data.get('role', '').strip()
         
-        valid_roles = ['warehouse_staff', 'manager', 'admin']
+        valid_roles = ['warehouse_staff', 'warehouse_lead', 'manager', 'admin']
         if new_role not in valid_roles:
             return jsonify({'success': False, 'error': 'Invalid role specified'}), 400
             

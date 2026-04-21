@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.8.1] - 2026-04-20
+
+### Added
+- **New role: `warehouse_lead`** with all `warehouse_staff` permissions plus `shipping`, so leads can access **Shipments Received** and start receiving workflows directly.
+
+### Changed
+- **Role management**: admin employee role APIs and Employee Management role dropdown now support `warehouse_lead`.
+- **Receiving access controls**: receiving UI/service checks that were manager/admin-only now also allow `warehouse_lead` where needed for receiving operations.
+- **Warehouse edit unlock parity**: submission edit unlock flow now treats `warehouse_lead` like `warehouse_staff` for the timed admin-password edit window.
+
+---
+
 ## [3.6.24] - 2026-04-20
 
 ### Fixed

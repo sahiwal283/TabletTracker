@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 
 def _require_manager_or_admin(user_role: Optional[str], is_admin: bool, action_message: str) -> Optional[Dict[str, Any]]:
-    if user_role not in ['manager', 'admin'] and not is_admin:
+    if user_role not in ['warehouse_lead', 'manager', 'admin'] and not is_admin:
         return {'success': False, 'status_code': 403, 'error': action_message}
     return None
 
@@ -149,8 +149,8 @@ def unpublish_receiving(conn, receiving_id: int) -> Dict[str, Any]:
 
 
 def assign_po_to_receiving(conn, receiving_id: int, po_id: Optional[int], user_role: Optional[str]) -> Dict[str, Any]:
-    if user_role not in ['manager', 'admin']:
-        return {'success': False, 'status_code': 403, 'error': 'Only managers and admins can assign POs'}
+    if user_role not in ['warehouse_lead', 'manager', 'admin']:
+        return {'success': False, 'status_code': 403, 'error': 'Only warehouse leads, managers, and admins can assign POs'}
 
     receiving = conn.execute('SELECT id FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
     if not receiving:

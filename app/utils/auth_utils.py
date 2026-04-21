@@ -11,6 +11,7 @@ import hmac
 # Role-based access control system
 ROLE_PERMISSIONS = {
     'warehouse_staff': ['warehouse', 'count', 'submissions'],
+    'warehouse_lead': ['warehouse', 'count', 'submissions', 'shipping'],
     'manager': ['warehouse', 'count', 'dashboard', 'shipping', 'reports', 'submissions'],
     'admin': ['all']  # Special case - admin has access to everything
 }

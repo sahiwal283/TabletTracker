@@ -115,7 +115,7 @@
                             by {{ shipment.receiving.received_by }}
                             {% endif %}
                         </p>
-                        {% if not shipment.receiving.po_number and user_role in ['manager', 'admin'] %}
+                        {% if not shipment.receiving.po_number and user_role in ['warehouse_lead', 'manager', 'admin'] %}
                         <p class="text-sm text-gray-500 italic mt-1">No PO assigned</p>
                         {% endif %}
                     </div>
@@ -126,7 +126,7 @@
                         <div class="text-sm text-gray-600">
                             {{ shipment.receiving.total_bags or 0 }} Bag{{ 's' if (shipment.receiving.total_bags or 0) != 1 else '' }}
                         </div>
-                        {% if user_role in ['manager', 'admin'] %}
+                        {% if user_role in ['warehouse_lead', 'manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
                             {% if shipment.receiving.status == 'draft' %}
                             <button data-edit-receive-id="{{ shipment.receiving.id }}" 
@@ -260,7 +260,7 @@
                         <div class="text-sm text-gray-600">
                             {{ shipment.receiving.total_bags or 0 }} Bag{{ 's' if (shipment.receiving.total_bags or 0) != 1 else '' }}
                         </div>
-                        {% if user_role in ['manager', 'admin'] %}
+                        {% if user_role in ['warehouse_lead', 'manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
                             <button data-open-assign-po-receiving-id="{{ shipment.receiving.id }}" data-open-assign-po-current-po-id="{{ shipment.receiving.po_id or '' }}" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline">
@@ -379,7 +379,7 @@
                             by {{ shipment.receiving.received_by }}
                             {% endif %}
                         </p>
-                        {% if not shipment.receiving.po_number and user_role in ['manager', 'admin'] %}
+                        {% if not shipment.receiving.po_number and user_role in ['warehouse_lead', 'manager', 'admin'] %}
                         <p class="text-sm text-gray-500 italic mt-1">No PO assigned</p>
                         {% endif %}
                     </div>
@@ -390,7 +390,7 @@
                         <div class="text-sm text-gray-600">
                             {{ shipment.receiving.total_bags or 0 }} Bag{{ 's' if (shipment.receiving.total_bags or 0) != 1 else '' }}
                         </div>
-                        {% if user_role in ['manager', 'admin'] %}
+                        {% if user_role in ['warehouse_lead', 'manager', 'admin'] %}
                         <div class="mt-2 space-x-2">
                             <button data-open-delete-shipment-id="{{ shipment.receiving.id }}" data-open-delete-shipment-date="{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}" data-open-delete-shipment-po="{{ shipment.receiving.po_number or 'No PO' }}" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
@@ -473,7 +473,7 @@
         <!-- Form Content -->
         <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
             <form id="receives-form" data-submit-receives-form>
-                {% if user_role in ['manager', 'admin'] %}
+                {% if user_role in ['warehouse_lead', 'manager', 'admin'] %}
                 <!-- PO Assignment Field (Managers/Admin only) -->
                 <div class="mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -2602,7 +2602,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         const poRef = data.po || { po_number: poName };
         const bagMeta = data.bag || null;
         const escBagAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-        const isAdminOrManager = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
+        const isAdminOrManager = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager', 'warehouse_lead'] or session.get('admin_authenticated')) | tojson | safe }}");
         
         // Filter submissions by inventory_item_id if specified
         let filteredSubmissions = inventoryItemId 
