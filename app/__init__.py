@@ -193,6 +193,7 @@ def _register_blueprints(app):
         api_receiving,
         api_reports,
         api_submissions,
+        api_telegram,
         api_tablet_types,
         auth,
         dashboard,
@@ -221,9 +222,11 @@ def _register_blueprints(app):
     app.register_blueprint(api_machines.bp)
     app.register_blueprint(api_reports.bp)
     app.register_blueprint(api_submissions.bp)
+    app.register_blueprint(api_telegram.bp)
     app.register_blueprint(workflow_floor.bp)
     app.register_blueprint(workflow_staff.bp)
     csrf.exempt(workflow_floor.bp)
+    csrf.exempt(api_telegram.bp)
 
 
 def _initialize_database(app):

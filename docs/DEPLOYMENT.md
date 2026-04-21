@@ -40,6 +40,11 @@ ZOHO_CLIENT_ID=your_zoho_client_id
 ZOHO_CLIENT_SECRET=your_zoho_client_secret  
 ZOHO_REFRESH_TOKEN=your_zoho_refresh_token
 ZOHO_ORGANIZATION_ID=your_org_id
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_ALLOWED_CHAT_IDS=123456789,-1001234567890
+# Optional
+TELEGRAM_ALLOWED_USER_IDS=123456789
+TELEGRAM_DAILY_REPORT_TIME=18:00
 ```
 
 **🚨 IMPORTANT SECURITY NOTES:**
@@ -175,6 +180,12 @@ Summary:
 4. **Docker network**: Use `docker-compose.yml` (edit the external network name) so TabletTracker shares a network with the Zoho integration service; `ZOHO_SERVICE_BASE_URL` must use the service’s **container DNS name**.
 5. **nginx (e.g. container 104)**: Example fragment: `deploy/nginx-tablettracker.example.conf`. Proxy to `127.0.0.1:7620` (host) or `http://tablettracker:8000` (same Docker network). Set **`BEHIND_PROXY=1`** (default in Dockerfile).
 6. **Verify**: `GET /health` returns `{"status":"ok"}`; exercise Zoho flows from `docs/ZOHO_INTEGRATION_ROUTES.md`.
+7. **Telegram webhook (optional)**:
+   - Create your bot via BotFather.
+   - Point Telegram webhook to your public endpoint:
+     `https://<your-domain>/api/telegram/webhook/<TELEGRAM_BOT_TOKEN>`.
+   - Add allowed chat IDs in `TELEGRAM_ALLOWED_CHAT_IDS`.
+   - Run `scripts/telegram_daily_report.py` from cron/PythonAnywhere at your preferred time.
 
 ---
 

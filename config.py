@@ -15,6 +15,22 @@ def _parse_zoho_service_extra_headers():
         return {}
 
 
+def _parse_int_list_env(name: str):
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return []
+    out = []
+    for part in raw.split(","):
+        value = part.strip()
+        if not value:
+            continue
+        try:
+            out.append(int(value))
+        except ValueError:
+            continue
+    return out
+
+
 class Config:
     # Flask settings
     SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -75,6 +91,12 @@ class Config:
     FEDEX_API_SECRET = os.environ.get('FEDEX_API_SECRET')
     FEDEX_ACCOUNT_NUMBER = os.environ.get('FEDEX_ACCOUNT_NUMBER')
     FEDEX_BASE = os.environ.get('FEDEX_BASE', 'https://apis.fedex.com')
+
+    # Telegram bot settings
+    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    TELEGRAM_ALLOWED_CHAT_IDS = _parse_int_list_env("TELEGRAM_ALLOWED_CHAT_IDS")
+    TELEGRAM_ALLOWED_USER_IDS = _parse_int_list_env("TELEGRAM_ALLOWED_USER_IDS")
+    TELEGRAM_DAILY_REPORT_TIME = os.environ.get("TELEGRAM_DAILY_REPORT_TIME", "18:00").strip() or "18:00"
     
     # Database (set DATABASE_PATH in Docker to a mounted volume, e.g. /data/tablet_counter.db)
     _config_dir = os.path.dirname(os.path.abspath(__file__))

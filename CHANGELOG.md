@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.9.0] - 2026-04-21
+
+### Added
+- **Telegram reporting bot integration** with webhook route `POST /api/telegram/webhook/<token>`, whitelist access control (`TELEGRAM_ALLOWED_CHAT_IDS` / optional `TELEGRAM_ALLOWED_USER_IDS`), and command handling for `/help`, `/daily`, `/status`, and `/counts`.
+- **Daily Telegram report sender script** at `scripts/telegram_daily_report.py` for cron/PythonAnywhere scheduling.
+
+### Changed
+- **Factory-day alignment for bot counters**: blistered-bag day counts now use `America/New_York` windows, and daily production summaries apply New York day matching when `submission_date` is missing.
+- **Deployment/config docs** now include Telegram environment variables and webhook setup guidance.
+
+---
+
 ## [3.8.1] - 2026-04-20
 
 ### Added
