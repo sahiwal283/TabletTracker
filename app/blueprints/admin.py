@@ -241,7 +241,10 @@ def product_config():
             # Get all products with their tablet type and calculation details
             products = conn.execute('''
                 SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, 
-                       COALESCE(pd.category, tt.category) as category
+                       COALESCE(pd.category, tt.category) as category,
+                       (SELECT GROUP_CONCAT(pat.tablet_type_id)
+                        FROM product_allowed_tablet_types pat
+                        WHERE pat.product_details_id = pd.id) AS allowed_tablet_type_ids_csv
                 FROM product_details pd
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name

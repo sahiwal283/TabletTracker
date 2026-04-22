@@ -338,7 +338,7 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <button data-open-edit-product-modal-id="{{ product.id }}" data-open-edit-product-modal-name="{{ product.product_name }}" data-open-edit-product-modal-tablet-type-id="{{ product.tablet_type_id or '' }}" data-open-edit-product-modal-ppd="{{ product.packages_per_display or 0 }}" data-open-edit-product-modal-tpp="{{ product.tablets_per_package or 0 }}" data-open-edit-product-modal-is-bottle="{{ 'true' if product.is_bottle_product else 'false' }}" data-open-edit-product-modal-tpb="{{ product.tablets_per_bottle or 0 }}" data-open-edit-product-modal-bpd="{{ product.bottles_per_display or 0 }}" data-open-edit-product-modal-category="{{ product.category or '' }}" 
+                                    <button data-open-edit-product-modal-id="{{ product.id }}" data-open-edit-product-modal-name="{{ product.product_name }}" data-open-edit-product-modal-tablet-type-id="{{ product.tablet_type_id or '' }}" data-open-edit-product-modal-ppd="{{ product.packages_per_display or 0 }}" data-open-edit-product-modal-tpp="{{ product.tablets_per_package or 0 }}" data-open-edit-product-modal-is-bottle="{{ 'true' if product.is_bottle_product else 'false' }}" data-open-edit-product-modal-tpb="{{ product.tablets_per_bottle or 0 }}" data-open-edit-product-modal-bpd="{{ product.bottles_per_display or 0 }}" data-open-edit-product-modal-category="{{ product.category or '' }}" data-open-edit-product-modal-allowed-ids="{{ product.allowed_tablet_type_ids_csv or '' }}"
                                             class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
                                     <button data-delete-product-id="{{ product.id }}" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
@@ -384,7 +384,7 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <button data-open-edit-product-modal-id="{{ product.id }}" data-open-edit-product-modal-name="{{ product.product_name }}" data-open-edit-product-modal-tablet-type-id="{{ product.tablet_type_id or '' }}" data-open-edit-product-modal-ppd="{{ product.packages_per_display or 0 }}" data-open-edit-product-modal-tpp="{{ product.tablets_per_package or 0 }}" data-open-edit-product-modal-is-bottle="{{ 'true' if product.is_bottle_product else 'false' }}" data-open-edit-product-modal-tpb="{{ product.tablets_per_bottle or 0 }}" data-open-edit-product-modal-bpd="{{ product.bottles_per_display or 0 }}" data-open-edit-product-modal-category="{{ product.category or '' }}" 
+                                    <button data-open-edit-product-modal-id="{{ product.id }}" data-open-edit-product-modal-name="{{ product.product_name }}" data-open-edit-product-modal-tablet-type-id="{{ product.tablet_type_id or '' }}" data-open-edit-product-modal-ppd="{{ product.packages_per_display or 0 }}" data-open-edit-product-modal-tpp="{{ product.tablets_per_package or 0 }}" data-open-edit-product-modal-is-bottle="{{ 'true' if product.is_bottle_product else 'false' }}" data-open-edit-product-modal-tpb="{{ product.tablets_per_bottle or 0 }}" data-open-edit-product-modal-bpd="{{ product.bottles_per_display or 0 }}" data-open-edit-product-modal-category="{{ product.category or '' }}" data-open-edit-product-modal-allowed-ids="{{ product.allowed_tablet_type_ids_csv or '' }}"
                                             class="text-blue-600 hover:text-blue-900 text-sm">Edit</button>
                                     <button data-delete-product-id="{{ product.id }}" class="text-red-600 hover:text-red-900 text-sm">Delete</button>
                                 </div>
@@ -1235,11 +1235,21 @@ document.addEventListener('DOMContentLoaded', loadMachines);
 // ===== EDIT PRODUCT (Card/Bottle) =====
 let editingProductIdGeneral = null;
 
-function openEditProductModal(id, name, tabletTypeId, ppd, tpp, isBottle, tpb, bpd, category) {
+function openEditProductModal(id, name, tabletTypeId, ppd, tpp, isBottle, tpb, bpd, category, allowedCsv) {
     editingProductIdGeneral = id;
     document.getElementById('edit-prod-name').value = name;
     document.getElementById('edit-prod-category').value = category || '';
     document.getElementById('edit-prod-tablet-type').value = tabletTypeId || '';
+    const allowedSel = document.getElementById('edit-prod-allowed-tablets');
+    if (allowedSel) {
+        const allowedSet = new Set(
+            (allowedCsv || '').split(',').map(s => s.trim()).filter(Boolean).map(s => parseInt(s, 10)).filter(n => !isNaN(n))
+        );
+        if (tabletTypeId) allowedSet.add(parseInt(String(tabletTypeId), 10));
+        Array.from(allowedSel.options).forEach(opt => {
+            opt.selected = allowedSet.has(parseInt(opt.value, 10));
+        });
+    }
     
     // Set product type radio
     if (isBottle) {
@@ -1281,11 +1291,17 @@ async function saveEditProduct() {
         return;
     }
     
+    const allowedSel = document.getElementById('edit-prod-allowed-tablets');
+    const allowed_tablet_type_ids = allowedSel
+        ? Array.from(allowedSel.selectedOptions).map(o => parseInt(o.value, 10)).filter(n => !isNaN(n))
+        : [];
+
     const data = {
         id: editingProductIdGeneral,
         product_name: name,
         category: category || null,
-        tablet_type_id: tabletTypeId ? parseInt(tabletTypeId) : null
+        tablet_type_id: tabletTypeId ? parseInt(tabletTypeId) : null,
+        allowed_tablet_type_ids: allowed_tablet_type_ids
     };
     
     if (isBottle) {
@@ -1350,6 +1366,15 @@ async function saveEditProduct() {
                 <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
                 <select id="edit-prod-tablet-type" class="form-input w-full">
                     <option value="">Select tablet type...</option>
+                    {% for tt in tablet_types %}
+                    <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="edit-prod-allowed-wrap">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Allowed tablet types for bags</label>
+                <p class="text-xs text-gray-500 mb-1">Primary type above is always included. Hold Ctrl/Cmd to select additional physical flavors that may be used for this finished product.</p>
+                <select id="edit-prod-allowed-tablets" class="form-input w-full min-h-[100px]" multiple size="6">
                     {% for tt in tablet_types %}
                     <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
                     {% endfor %}
@@ -1487,7 +1512,8 @@ document.addEventListener('click', function (event) {
             openEditProductBtn.dataset.openEditProductModalIsBottle === 'true',
             parseInt(openEditProductBtn.dataset.openEditProductModalTpb || '0', 10),
             parseInt(openEditProductBtn.dataset.openEditProductModalBpd || '0', 10),
-            openEditProductBtn.dataset.openEditProductModalCategory || ''
+            openEditProductBtn.dataset.openEditProductModalCategory || '',
+            openEditProductBtn.dataset.openEditProductModalAllowedIds || ''
         );
         return;
     }

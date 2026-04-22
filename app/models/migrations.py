@@ -21,6 +21,7 @@ class MigrationRunner:
         self._migrate_po_lines()
         self._migrate_tablet_types()
         self._migrate_product_details()
+        self._migrate_product_allowed_tablet_types()
         self._migrate_warehouse_submissions()
         self._migrate_shipments()
         self._migrate_bags()
@@ -108,6 +109,38 @@ class MigrationRunner:
         
         # Add variety pack contents - JSON array of {tablet_type_id, tablets_per_bottle}
         self._add_column_if_not_exists('product_details', 'variety_pack_contents', 'TEXT')
+
+    def _migrate_product_allowed_tablet_types(self):
+        """Junction: finished product may use multiple physical tablet types (v3.10+)."""
+        try:
+            self.c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS product_allowed_tablet_types (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_details_id INTEGER NOT NULL,
+                    tablet_type_id INTEGER NOT NULL,
+                    UNIQUE(product_details_id, tablet_type_id),
+                    FOREIGN KEY (product_details_id) REFERENCES product_details(id) ON DELETE CASCADE,
+                    FOREIGN KEY (tablet_type_id) REFERENCES tablet_types(id)
+                )
+                """
+            )
+            self.c.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ix_pat_product
+                ON product_allowed_tablet_types(product_details_id)
+                """
+            )
+            self.c.execute(
+                """
+                INSERT OR IGNORE INTO product_allowed_tablet_types (product_details_id, tablet_type_id)
+                SELECT id, tablet_type_id FROM product_details
+                WHERE tablet_type_id IS NOT NULL
+                  AND COALESCE(is_variety_pack, 0) = 0
+                """
+            )
+        except sqlite3.Error as exc:
+            logger.warning("product_allowed_tablet_types migration: %s", exc)
     
     def _migrate_warehouse_submissions(self):
         """Migrate warehouse_submissions table"""

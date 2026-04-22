@@ -8,7 +8,7 @@ import sqlite3
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_by_flavor_box_bag
+from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_for_product
 from app.services.workflow_finalize import assign_inventory_bag_to_card, force_release_card
 from app.services.workflow_read import production_day_for_event_ms
 from app.services.workflow_txn import run_with_busy_retry
@@ -147,11 +147,9 @@ def new_bag():
             flash("Invalid product for workflow assignment.", "error")
             return redirect(url_for("workflow_staff.new_bag"))
 
-        tablet_type_id = int(prow["tablet_type_id"])
-
-        matches = find_unassigned_inventory_bags_by_flavor_box_bag(
+        matches = find_unassigned_inventory_bags_for_product(
             conn,
-            tablet_type_id=tablet_type_id,
+            product_id=product_id,
             box_number=box_number,
             bag_number=bag_number,
         )
@@ -236,7 +234,11 @@ def new_bag():
                 flash("Invalid product selection.", "error")
                 return redirect(url_for("workflow_staff.new_bag"))
             if "product_bag_tablet_type_mismatch" in err:
-                flash("Product must match the bag’s tablet type (flavor).", "error")
+                flash(
+                    "This product is not configured to use that bag’s tablet type. "
+                    "Add the flavor under Product Configuration → allowed tablets, or pick the correct product.",
+                    "error",
+                )
                 return redirect(url_for("workflow_staff.new_bag"))
             raise
         except sqlite3.OperationalError as oe:

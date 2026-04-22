@@ -17,11 +17,17 @@ from typing import Any, Dict, Optional
 
 from app.services import workflow_constants as WC
 from app.services.production_submission_helpers import (
+    ProductionSubmissionError,
     execute_machine_submission,
     refresh_purchase_order_header_aggregates,
 )
 from app.utils.eastern_datetime import utc_now_naive_string
-from app.utils.receive_tracking import find_bag_for_submission
+from app.services.product_tablet_allowlist import (
+    allowed_tablet_type_ids_for_product,
+    inventory_item_id_for_bag_tablet,
+)
+from app.services.receipt_product_chain import assert_receipt_product_chain
+from app.utils.receive_tracking import find_bag_for_submission_allowlist
 
 LOGGER = logging.getLogger(__name__)
 
@@ -271,7 +277,7 @@ def upsert_packaged_from_workflow_packaging(
         )
         return {"ok": False, "reason": "incomplete_product_config", "skipped": True}
 
-    tablet_type_id = int(product["tablet_type_id"])
+    tablet_type_ids = allowed_tablet_type_ids_for_product(conn, int(product_id))
     product_name = product["product_name"]
 
     bag_id = None
@@ -328,8 +334,8 @@ def upsert_packaged_from_workflow_packaging(
                 workflow_bag_id,
             )
     if bag_id is None and bag_i is not None:
-        bag, needs_review, _err = find_bag_for_submission(
-            conn, tablet_type_id, bag_i, box_i, submission_type="packaged"
+        bag, needs_review, _err = find_bag_for_submission_allowlist(
+            conn, tablet_type_ids, bag_i, box_i, submission_type="packaged"
         )
         if bag:
             bag_id = bag["id"]
@@ -360,6 +366,17 @@ def upsert_packaged_from_workflow_packaging(
             """,
             (receipt,),
         )
+
+    try:
+        assert_receipt_product_chain(conn, receipt_number=receipt, product_name=product_name)
+    except ProductionSubmissionError as exc:
+        LOGGER.warning("workflow warehouse bridge: receipt product chain %s", exc.body)
+        return {"ok": False, "reason": "receipt_product_mismatch", "detail": exc.body}
+
+    if bag_id:
+        bag_inv = inventory_item_id_for_bag_tablet(conn, int(bag_id))
+        if bag_inv:
+            inv = bag_inv
 
     submission_date = datetime.now().date().isoformat()
     emp = employee_name or "QR workflow"
@@ -651,7 +668,23 @@ def _reverse_po_line_for_tablets(conn: sqlite3.Connection, assigned_po_id: int, 
     )
 
 
-def _delete_workflow_machine_lane_rows(conn: sqlite3.Connection, receipt_number: str, tablet_type_id: int) -> Dict[str, Any]:
+def _tablet_type_id_for_machine_ws_row(
+    conn: sqlite3.Connection, ws_row: Dict[str, Any], fallback_tablet_type_id: int
+) -> int:
+    inv = ws_row.get("inventory_item_id")
+    if inv:
+        row = conn.execute(
+            "SELECT id FROM tablet_types WHERE inventory_item_id = ? LIMIT 1",
+            (inv,),
+        ).fetchone()
+        if row:
+            return int(row["id"])
+    return int(fallback_tablet_type_id)
+
+
+def _delete_workflow_machine_lane_rows(
+    conn: sqlite3.Connection, receipt_number: str, fallback_tablet_type_id: int
+) -> Dict[str, Any]:
     """Remove machine submissions for this receipt, reverse PO deltas, drop paired machine_counts."""
     rows = conn.execute(
         """
@@ -667,11 +700,12 @@ def _delete_workflow_machine_lane_rows(conn: sqlite3.Connection, receipt_number:
     deleted_ws = 0
     for row in rows:
         r = dict(row)
-        tid = int(r.get("tablets_pressed_into_cards") or 0)
+        tablets_amt = int(r.get("tablets_pressed_into_cards") or 0)
         apo = r.get("assigned_po_id")
         inv = r.get("inventory_item_id")
-        _reverse_po_line_for_tablets(conn, int(apo) if apo is not None else 0, inv, tid)
-        _delete_matching_workflow_machine_count(conn, tablet_type_id, r)
+        mc_tid = _tablet_type_id_for_machine_ws_row(conn, r, fallback_tablet_type_id)
+        _reverse_po_line_for_tablets(conn, int(apo) if apo is not None else 0, inv, tablets_amt)
+        _delete_matching_workflow_machine_count(conn, mc_tid, r)
         if apo:
             po_ids.add(int(apo))
         deleted_ws += 1

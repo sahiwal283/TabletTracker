@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Dict, List
 
+from app.services.product_tablet_allowlist import allowed_tablet_type_ids_for_product
+
 
 def find_unassigned_inventory_bags_by_flavor_box_bag(
     conn: sqlite3.Connection,
@@ -41,3 +43,25 @@ def find_unassigned_inventory_bags_by_flavor_box_bag(
         (tablet_type_id, box_number, bag_number),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def find_unassigned_inventory_bags_for_product(
+    conn: sqlite3.Connection,
+    *,
+    product_id: int,
+    box_number: int,
+    bag_number: int,
+) -> List[Dict[str, Any]]:
+    """Union of unassigned bags for each allowed tablet type for this finished product."""
+    seen: Dict[int, Dict[str, Any]] = {}
+    for tid in allowed_tablet_type_ids_for_product(conn, int(product_id)):
+        for row in find_unassigned_inventory_bags_by_flavor_box_bag(
+            conn,
+            tablet_type_id=tid,
+            box_number=box_number,
+            bag_number=bag_number,
+        ):
+            seen[int(row["id"])] = row
+    out = list(seen.values())
+    out.sort(key=lambda m: (str(m.get("received_date") or ""), int(m.get("id") or 0)), reverse=True)
+    return out

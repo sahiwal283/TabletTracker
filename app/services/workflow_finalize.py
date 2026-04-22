@@ -322,7 +322,9 @@ def assign_inventory_bag_to_card(
     ).fetchone()
     if prow is None:
         raise RuntimeError("invalid_product")
-    if int(prow["tablet_type_id"]) != int(inv["tablet_type_id"]):
+    from app.services.product_tablet_allowlist import product_allows_tablet_type
+
+    if not product_allows_tablet_type(conn, int(product_id), int(inv["tablet_type_id"])):
         raise RuntimeError("product_bag_tablet_type_mismatch")
 
     box_number = str(inv["box_number"]) if inv.get("box_number") is not None else None

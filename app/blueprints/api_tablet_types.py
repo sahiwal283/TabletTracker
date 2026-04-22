@@ -152,6 +152,25 @@ def save_product():
             bottles_per_display = None
             variety_pack_contents = None
         
+        from app.services.product_tablet_allowlist import sync_product_allowed_tablets
+
+        def _parse_allowed_extra(raw) -> Optional[list]:
+            """``None`` = caller should only sync primary; list = extra type ids (non-variety)."""
+            if raw is None:
+                return None
+            if not isinstance(raw, list):
+                return []
+            out = []
+            for x in raw:
+                try:
+                    out.append(int(x))
+                except (TypeError, ValueError):
+                    continue
+            return out
+
+        allowed_raw = data.get('allowed_tablet_type_ids')
+        extra_parsed = _parse_allowed_extra(allowed_raw)
+
         with db_transaction() as conn:
             if data.get('id'):
                 try:
@@ -169,15 +188,52 @@ def save_product():
                       is_bottle_product, is_variety_pack, tablets_per_bottle,
                       bottles_per_display, variety_pack_contents, category, product_id))
                 message = f"Updated {product_name}"
+                if is_variety_pack:
+                    sync_product_allowed_tablets(
+                        conn,
+                        product_details_id=product_id,
+                        primary_tablet_type_id=None,
+                        clear_only=True,
+                    )
+                elif "allowed_tablet_type_ids" in data:
+                    extras = None if allowed_raw is None else [
+                        t for t in (extra_parsed or []) if tablet_type_id is None or int(t) != int(tablet_type_id)
+                    ]
+                    sync_product_allowed_tablets(
+                        conn,
+                        product_details_id=product_id,
+                        primary_tablet_type_id=tablet_type_id,
+                        extra_tablet_type_ids=extras,
+                        clear_only=False,
+                    )
             else:
-                conn.execute('''
+                cur = conn.execute('''
                     INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package,
                         is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents, category)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
                       is_bottle_product, is_variety_pack, tablets_per_bottle, 
                       bottles_per_display, variety_pack_contents, category))
+                new_id = int(cur.lastrowid)
                 message = f"Created {product_name}"
+                if is_variety_pack:
+                    sync_product_allowed_tablets(
+                        conn,
+                        product_details_id=new_id,
+                        primary_tablet_type_id=None,
+                        clear_only=True,
+                    )
+                else:
+                    extras = None if allowed_raw is None else [
+                        t for t in (extra_parsed or []) if tablet_type_id is None or int(t) != int(tablet_type_id)
+                    ]
+                    sync_product_allowed_tablets(
+                        conn,
+                        product_details_id=new_id,
+                        primary_tablet_type_id=tablet_type_id,
+                        extra_tablet_type_ids=extras,
+                        clear_only=False,
+                    )
             
             return jsonify({'success': True, 'message': message})
     except Exception as e:
@@ -197,6 +253,10 @@ def delete_product(product_id):
             if not product:
                 return jsonify({'success': False, 'error': 'Product not found'}), 404
             
+            conn.execute(
+                'DELETE FROM product_allowed_tablet_types WHERE product_details_id = ?',
+                (product_id,),
+            )
             conn.execute('DELETE FROM product_details WHERE id = ?', (product_id,))
             
             return jsonify({'success': True, 'message': f"Deleted {product['product_name']}"})
@@ -751,6 +811,10 @@ def delete_tablet_type(tablet_type_id):
             if not tablet_type:
                 return jsonify({'success': False, 'error': 'Tablet type not found'}), 404
             
+            conn.execute(
+                'DELETE FROM product_allowed_tablet_types WHERE tablet_type_id = ?',
+                (tablet_type_id,),
+            )
             conn.execute('DELETE FROM product_details WHERE tablet_type_id = ?', (tablet_type_id,))
             conn.execute('DELETE FROM tablet_types WHERE id = ?', (tablet_type_id,))
             

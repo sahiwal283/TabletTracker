@@ -211,7 +211,7 @@ class TestSharedReceipt(unittest.TestCase):
 
     def test_by_receipt_inconsistent_product(self):
         receipt = "TEST-SR-BAD-001"
-        _csrf_post(
+        r1 = _csrf_post(
             self.client,
             "/api/submissions/machine-count",
             {
@@ -222,7 +222,8 @@ class TestSharedReceipt(unittest.TestCase):
                 "machine_id": 1,
             },
         )
-        _csrf_post(
+        self.assertEqual(r1.status_code, 200, r1.get_json())
+        r2 = _csrf_post(
             self.client,
             "/api/submissions/machine-count",
             {
@@ -233,11 +234,10 @@ class TestSharedReceipt(unittest.TestCase):
                 "machine_id": 2,
             },
         )
-        gr = self.client.get(f"/api/machine-count/by-receipt?receipt={receipt}")
-        self.assertEqual(gr.status_code, 200)
-        data = gr.get_json()
-        self.assertFalse(data.get("success"))
-        self.assertTrue(data.get("inconsistent_receipt"))
+        self.assertEqual(r2.status_code, 400, r2.get_json())
+        err = (r2.get_json() or {}).get("error", "")
+        self.assertIn("Receipt chain", err)
+        self.assertIn("same finished product", err)
 
 
 if __name__ == "__main__":

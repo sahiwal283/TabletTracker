@@ -7,7 +7,15 @@ from datetime import datetime
 from flask import current_app
 
 from app.services.submission_context_service import normalize_optional_text
-from app.utils.receive_tracking import find_bag_for_submission
+from app.utils.receive_tracking import (
+    find_bag_for_submission,
+    find_bag_for_submission_allowlist,
+    find_bag_for_submission_for_product,
+)
+from app.services.product_tablet_allowlist import (
+    allowed_tablet_type_ids_for_product,
+    inventory_item_id_for_bag_tablet,
+)
 from app.utils.eastern_datetime import parse_optional_eastern, utc_now_naive_string
 from app.utils.route_helpers import get_setting
 
@@ -273,14 +281,23 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
     )
 
     if bag_number:
-        bag, needs_review, error_message = find_bag_for_submission(
-            conn, tablet_type_id, bag_number, box_number, submission_type='machine'
+        bag, needs_review, error_message = find_bag_for_submission_for_product(
+            conn, int(product_id), int(bag_number), box_number, submission_type="machine"
         )
 
+    bag_counts_tablet_type_id = int(tablet_type_id)
     if bag:
         bag_id = bag['id']
         assigned_po_id = bag['po_id']
         box_number = bag.get('box_number') or box_number
+        if bag.get("tablet_type_id") is not None:
+            bag_counts_tablet_type_id = int(bag["tablet_type_id"])
+            inv_row = conn.execute(
+                "SELECT inventory_item_id FROM tablet_types WHERE id = ?",
+                (bag_counts_tablet_type_id,),
+            ).fetchone()
+            if inv_row and inv_row["inventory_item_id"]:
+                inventory_item_id = inv_row["inventory_item_id"]
         box_ref = f", box={box_number}" if box_number else ""
         current_app.logger.info(
             f"✅ Matched to receive: bag_id={bag_id}, po_id={assigned_po_id}, bag={bag_number}{box_ref}"
@@ -321,6 +338,13 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
         )
 
     receipt_number = (data.get('receipt_number') or '').strip() or None
+
+    if receipt_number:
+        from app.services.receipt_product_chain import assert_receipt_product_chain
+
+        assert_receipt_product_chain(
+            conn, receipt_number=receipt_number, product_name=product["product_name"]
+        )
 
     if receipt_number:
         for entry in entries:
@@ -420,7 +444,7 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
 
         _insert_machine_counts_row(
             conn,
-            tablet_type_id,
+            bag_counts_tablet_type_id,
             machine_id,
             machine_count_int,
             employee_name,
@@ -617,6 +641,10 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
     if not receipt_number:
         raise ProductionSubmissionError(400, {'error': 'Receipt number is required'})
 
+    from app.services.receipt_product_chain import assert_receipt_product_chain
+
+    assert_receipt_product_chain(conn, receipt_number=receipt_number, product_name=product_name)
+
     existing_packaged = conn.execute(
         """
         SELECT ws.id, ws.product_name, ws.created_at, ws.bag_id, ws.assigned_po_id,
@@ -711,18 +739,20 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
                         ),
                     },
                 )
+            expect_pn = (data.get('product_name') or product_name or "").strip()
+            for mr in machine_rows:
+                mpn = (dict(mr).get('product_name') or '').strip()
+                if mpn and expect_pn and mpn != expect_pn:
+                    raise ProductionSubmissionError(
+                        400,
+                        {
+                            'error': (
+                                f'Receipt #{receipt_number} was used for **{mpn}**, but this submission is for '
+                                f'**{expect_pn}**. Blister, sealing, and packaging must use the same finished product.'
+                            ),
+                        },
+                    )
             machine_count = dict(machine_rows[0])
-            if machine_count['inventory_item_id'] != inventory_item_id:
-                raise ProductionSubmissionError(
-                    400,
-                    {
-                        'error': (
-                            f'Receipt #{receipt_number} was used for {machine_count["product_name"]}, but you\'re submitting for '
-                            f'{data.get("product_name")}. Receipts cannot be reused across different products. '
-                            'Please use a new receipt or enter box/bag numbers manually.'
-                        ),
-                    },
-                )
             bag_id = machine_count['bag_id']
             assigned_po_id = machine_count['assigned_po_id']
             box_number = machine_count['box_number']
@@ -750,8 +780,9 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
                 },
             )
     else:
-        bag, needs_review, error_message = find_bag_for_submission(
-            conn, tablet_type_id, bag_number, box_number, submission_type='packaged'
+        allow_ids = allowed_tablet_type_ids_for_product(conn, int(product['id']))
+        bag, needs_review, error_message = find_bag_for_submission_allowlist(
+            conn, allow_ids, int(bag_number), box_number, submission_type='packaged'
         )
 
         if bag:
@@ -832,6 +863,11 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
             400,
             {'error': 'Bag end time cannot be before bag start time. Please correct the times.'},
         )
+
+    if bag_id:
+        b_inv = inventory_item_id_for_bag_tablet(conn, int(bag_id))
+        if b_inv:
+            inventory_item_id = b_inv
 
     try:
         conn.execute(
