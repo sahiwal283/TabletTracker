@@ -2036,8 +2036,8 @@ def save_receives():
                 shipment_batch_defaults[int(tablet_type_id)] = batch_number
         
         user_role = session.get('employee_role')
-        if po_id and user_role not in ['manager', 'admin']:
-            return jsonify({'success': False, 'error': 'Only managers and admins can assign POs'}), 403
+        if po_id and user_role not in ['warehouse_lead', 'manager', 'admin']:
+            return jsonify({'success': False, 'error': 'Only warehouse leads, managers, and admins can assign POs'}), 403
         
         with db_transaction() as conn:
             # Ensure tablet_type_id column exists

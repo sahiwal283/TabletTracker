@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.10.2] - 2026-04-20
+
+### Fixed
+- **Warehouse lead receiving save**: `POST /api/save_receives` now allows `warehouse_lead` to assign POs and save receives, matching their receiving-page access and preventing the "Only managers and admins can assign POs" error on save.
+
+---
+
 ## [3.9.1] - 2026-04-21
 
 ### Fixed
