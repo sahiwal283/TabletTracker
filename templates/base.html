@@ -1066,6 +1066,14 @@ async function saveSubmissionEdit() {
 // Edit submission modal - defined early
 async function openEditSubmissionModal(submissionId, poId = null, inventoryItemId = null) {
     try {
+        // Warehouse staff must unlock editing before opening the modal.
+        if (window.sessionEmployeeRole === 'warehouse_staff') {
+            const unlocked = await ensureWarehouseSubmissionEditUnlockedInteractive();
+            if (!unlocked) {
+                return;
+            }
+        }
+
         const response = await fetch(ttApiUrl(`/api/submission/${submissionId}/details`), { credentials: 'same-origin' });
         const data = await response.json();
         
