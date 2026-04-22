@@ -218,6 +218,24 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
             r2.get("receipt_number"),
         )
 
+    def test_manual_receipt_keeps_same_packaging_receipt_for_events(self):
+        wid = self._wf_bag_id
+        self.conn.execute(
+            "UPDATE workflow_bags SET receipt_number = ? WHERE id = ?",
+            ("R-555", wid),
+        )
+        self.conn.commit()
+        r1 = upsert_packaged_from_workflow_packaging(
+            self.conn, wid, displays_made=1, event_id=201
+        )
+        r2 = upsert_packaged_from_workflow_packaging(
+            self.conn, wid, displays_made=2, event_id=202
+        )
+        self.assertTrue(r1.get("ok"))
+        self.assertTrue(r2.get("ok"))
+        self.assertEqual("R-555", r1.get("receipt_number"))
+        self.assertEqual("R-555", r2.get("receipt_number"))
+
     def test_packaged_stores_employee_name(self):
         wid = self._wf_bag_id
         r = upsert_packaged_from_workflow_packaging(
@@ -462,6 +480,28 @@ class TestWorkflowWarehouseMachineBridge(unittest.TestCase):
             (receipt,),
         ).fetchone()[0]
         self.assertEqual(n, 0)
+
+    @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
+    def test_manual_receipt_keeps_same_machine_receipt_for_events(self, m_exec):
+        m_exec.return_value = {"success": True}
+        wid = self._wf_bag_id
+        self.conn.execute(
+            "UPDATE workflow_bags SET receipt_number = ? WHERE id = ?",
+            ("R-777", wid),
+        )
+        self.conn.commit()
+        st = {"id": 1, "machine_id": self._machine_id, "station_kind": "sealing"}
+        r = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=3,
+            station_row=st,
+            lane="seal",
+            expected_machine_role="sealing",
+            event_id=77,
+        )
+        self.assertTrue(r.get("ok"), r)
+        self.assertEqual("R-777", m_exec.call_args[0][1].get("receipt_number"))
 
 
 if __name__ == "__main__":

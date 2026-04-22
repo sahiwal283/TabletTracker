@@ -45,6 +45,12 @@ def _receipt_base_for_workflow_bag(
     return f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}"
 
 
+def _has_manual_receipt(workflow_bag: Optional[Dict[str, Any]]) -> bool:
+    if not workflow_bag:
+        return False
+    return bool((workflow_bag.get("receipt_number") or "").strip())
+
+
 def workflow_packaged_receipt_number(
     workflow_bag_id: int,
     event_id: Optional[int] = None,
@@ -53,6 +59,8 @@ def workflow_packaged_receipt_number(
 ) -> str:
     """Packaged receipt: base from bag row or legacy ``WORKFLOW-<id>``; per snapshot when ``event_id`` is set."""
     base = _receipt_base_for_workflow_bag(workflow_bag, workflow_bag_id)
+    if _has_manual_receipt(workflow_bag):
+        return base
     if event_id is not None:
         return f"{base}-pkg-e{int(event_id)}"
     return base
@@ -352,7 +360,9 @@ def upsert_packaged_from_workflow_packaging(
         return {"ok": False, "reason": "no_bag_resolution", "skipped": True}
 
     base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
-    if event_id is not None and rm == "taken":
+    if _has_manual_receipt(wb):
+        receipt = base
+    elif event_id is not None and rm == "taken":
         receipt = f"{base}-take-e{int(event_id)}"
     elif event_id is not None:
         receipt = f"{base}-pkg-e{int(event_id)}"
@@ -528,6 +538,8 @@ def workflow_machine_lane_receipt_number(
     if key not in ("seal", "blister"):
         raise ValueError("lane must be 'seal' or 'blister'")
     base = _receipt_base_for_workflow_bag(workflow_bag, workflow_bag_id)
+    if _has_manual_receipt(workflow_bag):
+        return base
     root = f"{base}-{key}"
     if event_id is not None:
         return f"{root}-e{int(event_id)}"
@@ -683,19 +695,35 @@ def _tablet_type_id_for_machine_ws_row(
 
 
 def _delete_workflow_machine_lane_rows(
-    conn: sqlite3.Connection, receipt_number: str, fallback_tablet_type_id: int
+    conn: sqlite3.Connection,
+    receipt_number: str,
+    fallback_tablet_type_id: int,
+    *,
+    machine_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Remove machine submissions for this receipt, reverse PO deltas, drop paired machine_counts."""
-    rows = conn.execute(
-        """
-        SELECT id, tablets_pressed_into_cards, assigned_po_id, inventory_item_id,
-               displays_made, machine_id, submission_date, employee_name,
-               box_number, bag_number
-        FROM warehouse_submissions
-        WHERE receipt_number = ? AND submission_type = 'machine'
-        """,
-        (receipt_number,),
-    ).fetchall()
+    if machine_id is None:
+        rows = conn.execute(
+            """
+            SELECT id, tablets_pressed_into_cards, assigned_po_id, inventory_item_id,
+                   displays_made, machine_id, submission_date, employee_name,
+                   box_number, bag_number
+            FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine'
+            """,
+            (receipt_number,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT id, tablets_pressed_into_cards, assigned_po_id, inventory_item_id,
+                   displays_made, machine_id, submission_date, employee_name,
+                   box_number, bag_number
+            FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
+            """,
+            (receipt_number, int(machine_id)),
+        ).fetchall()
     po_ids: set = set()
     deleted_ws = 0
     for row in rows:
@@ -710,13 +738,22 @@ def _delete_workflow_machine_lane_rows(
             po_ids.add(int(apo))
         deleted_ws += 1
 
-    conn.execute(
-        """
-        DELETE FROM warehouse_submissions
-        WHERE receipt_number = ? AND submission_type = 'machine'
-        """,
-        (receipt_number,),
-    )
+    if machine_id is None:
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine'
+            """,
+            (receipt_number,),
+        )
+    else:
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
+            """,
+            (receipt_number, int(machine_id)),
+        )
     for po_id in po_ids:
         refresh_purchase_order_header_aggregates(conn, po_id)
 
@@ -816,15 +853,26 @@ def upsert_machine_from_workflow_scan(
     if count_total < 0:
         return {"ok": False, "reason": "invalid_count_total", "skipped": True}
 
+    exact_receipt = _has_manual_receipt(wb)
     if count_total == 0:
-        cleared = _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
+        cleared = _delete_workflow_machine_lane_rows(
+            conn,
+            receipt,
+            tablet_type_id,
+            machine_id=machine_id if exact_receipt else None,
+        )
         return {"ok": True, "cleared": True, "receipt_number": receipt, **cleared}
 
     emp = employee_name or "QR workflow"
     box_number = wb.get("box_number")
     bag_number = wb.get("bag_number")
-    if event_id is None:
-        _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
+    if event_id is None or exact_receipt:
+        _delete_workflow_machine_lane_rows(
+            conn,
+            receipt,
+            tablet_type_id,
+            machine_id=machine_id if exact_receipt else None,
+        )
 
     data: Dict[str, Any] = {
         "product_id": int(product_id),
@@ -969,9 +1017,13 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
         """
         SELECT DISTINCT receipt_number FROM warehouse_submissions
         WHERE submission_type = 'machine'
-          AND (receipt_number LIKE ? OR receipt_number LIKE ?)
+          AND (
+            receipt_number = ?
+            OR receipt_number LIKE ?
+            OR receipt_number LIKE ?
+          )
         """,
-        (base + "-seal%", base + "-blister%"),
+        (base, base + "-seal%", base + "-blister%"),
     ).fetchall()
     for row in mc_rows:
         rn = dict(row).get("receipt_number")
