@@ -112,6 +112,37 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(st2, "duplicate")
         self.assertTrue(body2.get("idempotent_duplicate"))
 
+    def test_finalize_hand_packed_bypasses_blister(self):
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        bag_id, card_id = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="22",
+            receipt_number=None,
+            user_id=None,
+            hand_packed=True,
+        )
+        append_workflow_event(
+            self.conn, "SEALING_COMPLETE", {"station_id": 1, "count_total": 10}, bag_id
+        )
+        append_workflow_event(
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "x"}, bag_id
+        )
+        self.conn.commit()
+
+        st, body = try_finalize(self.conn, bag_id, station_id=1)
+        self.assertEqual(st, "ok")
+        self.assertFalse(body.get("idempotent_duplicate"))
+        row = self.conn.execute(
+            "SELECT status, assigned_workflow_bag_id FROM qr_cards WHERE id = ?",
+            (card_id,),
+        ).fetchone()
+        self.assertEqual(row["status"], "idle")
+        self.assertIsNone(row["assigned_workflow_bag_id"])
+
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card

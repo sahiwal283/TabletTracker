@@ -103,6 +103,7 @@ def new_bag():
                 form_bag_number=None,
                 form_card_scan_token=None,
                 form_receipt_number=None,
+                form_hand_packed=False,
             )
 
         product_id = request.form.get("product_id", type=int)
@@ -110,6 +111,12 @@ def new_bag():
         bag_number = _parse_nonneg_int(request.form.get("bag_number"))
         card_scan_token = (request.form.get("card_scan_token") or "").strip()
         receipt_number = (request.form.get("receipt_number") or "").strip()
+        hand_packed = (request.form.get("hand_packed") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
         inventory_bag_id = request.form.get("inventory_bag_id", type=int)
         disambiguate = (request.form.get("disambiguate") or "").strip() == "1"
 
@@ -173,6 +180,7 @@ def new_bag():
                     form_bag_number=bag_number,
                     form_card_scan_token=card_scan_token,
                     form_receipt_number=receipt_number,
+                    form_hand_packed=hand_packed,
                 )
             inventory_bag_id = int(matches[0]["id"])
         else:
@@ -187,6 +195,7 @@ def new_bag():
                 user_id=uid,
                 card_scan_token=card_scan_token,
                 receipt_number_override=receipt_number,
+                hand_packed=hand_packed,
             )
 
         try:

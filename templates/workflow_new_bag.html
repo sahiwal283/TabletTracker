@@ -30,6 +30,7 @@
       <input type="hidden" name="bag_number" value="{{ form_bag_number }}"/>
       <input type="hidden" name="card_scan_token" value="{{ form_card_scan_token or '' }}"/>
       <input type="hidden" name="receipt_number" value="{{ form_receipt_number or '' }}"/>
+      <input type="hidden" name="hand_packed" value="{{ '1' if form_hand_packed else '' }}"/>
       <div class="space-y-2">
         {% for m in ambiguous_matches %}
         <label class="flex items-start gap-2 cursor-pointer text-sm">
@@ -100,6 +101,14 @@
              value="{{ form_receipt_number or '' }}"
              autocomplete="off"/>
       <p class="text-xs text-gray-500 mt-1">Used for warehouse submissions and shown on station screens for verification.</p>
+    </div>
+    <div class="rounded-lg border border-gray-200 p-3 bg-gray-50">
+      <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800" for="wv_hand_packed">
+        <input id="wv_hand_packed" name="hand_packed" type="checkbox" value="1"
+               {% if form_hand_packed %}checked{% endif %}/>
+        Hand packed (skip blister station for finalization)
+      </label>
+      <p class="text-xs text-gray-500 mt-1">Use when this bag is packed by hand in sealing; blister is not required before packaging submit/finalize.</p>
     </div>
     <button type="submit" class="btn-primary">Find bag and assign QR card</button>
   </form>

@@ -27,18 +27,32 @@ def evaluate_finalization(events: list) -> Tuple[bool, str, Dict[str, Any]]:
     type_set = {e["event_type"] for e in events}
     if WC.EVENT_BAG_FINALIZED in type_set:
         return False, "already_finalized", {}
+    hand_packed = False
+    for e in events:
+        if e["event_type"] != WC.EVENT_CARD_ASSIGNED:
+            continue
+        payload = e.get("payload") if isinstance(e, dict) else {}
+        if not isinstance(payload, dict):
+            continue
+        meta = payload.get("metadata")
+        if isinstance(meta, dict) and bool(meta.get("hand_packed")):
+            hand_packed = True
+            break
     has_blister = WC.EVENT_BLISTER_COMPLETE in type_set
     has_seal = WC.EVENT_SEALING_COMPLETE in type_set
     has_pack = WC.EVENT_PACKAGING_SNAPSHOT in type_set
-    if has_blister and has_seal and has_pack:
+    blister_ok = has_blister or hand_packed
+    if blister_ok and has_seal and has_pack:
         return True, "eligible", {}
     reasons = []
-    if not has_blister:
+    if not blister_ok:
         reasons.append("missing_blister")
     if not has_seal:
         reasons.append("missing_sealing")
     if not has_pack:
         reasons.append("missing_packaging")
+    if hand_packed:
+        reasons.append("hand_packed_blister_bypassed")
     return False, "not_eligible", {"reasons": reasons}
 
 
@@ -204,6 +218,7 @@ def create_workflow_bag_with_card(
     bag_number: Optional[str],
     receipt_number: Optional[str],
     user_id: Optional[int],
+    hand_packed: bool = False,
     inventory_bag_id: Optional[int] = None,
     qr_card_id: Optional[int] = None,
 ) -> Tuple[int, int]:
@@ -248,7 +263,11 @@ def create_workflow_bag_with_card(
         append_workflow_event(
             conn,
             WC.EVENT_CARD_ASSIGNED,
-            {"qr_card_id": qr_card_id, "workflow_bag_id": bag_id},
+            {
+                "qr_card_id": qr_card_id,
+                "workflow_bag_id": bag_id,
+                "metadata": {"hand_packed": bool(hand_packed)},
+            },
             bag_id,
             user_id=user_id,
         )
@@ -273,6 +292,7 @@ def assign_inventory_bag_to_card(
     user_id: Optional[int],
     card_scan_token: Optional[str] = None,
     receipt_number_override: Optional[str] = None,
+    hand_packed: bool = False,
 ) -> Tuple[int, int]:
     """
     Link a receiving/shipment bag (``bags`` row) to the next idle QR card.
@@ -337,6 +357,7 @@ def assign_inventory_bag_to_card(
         bag_number=bag_number,
         receipt_number=receipt_number,
         user_id=user_id,
+        hand_packed=bool(hand_packed),
         inventory_bag_id=inventory_bag_id,
         qr_card_id=selected_qr_card_id,
     )
