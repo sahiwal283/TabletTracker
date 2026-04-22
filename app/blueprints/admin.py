@@ -241,13 +241,13 @@ def product_config():
             # Get all products with their tablet type and calculation details
             products = conn.execute('''
                 SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, 
-                       COALESCE(pd.category, tt.category) as category,
+                       COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) as category,
                        (SELECT GROUP_CONCAT(pat.tablet_type_id)
                         FROM product_allowed_tablet_types pat
                         WHERE pat.product_details_id = pd.id) AS allowed_tablet_type_ids_csv
                 FROM product_details pd
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-                ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
+                ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
             
             # Check if category column exists and add it if missing
@@ -277,6 +277,24 @@ def product_config():
             ''').fetchall()
             category_list = [cat['category'] for cat in categories] if categories else []
             category_set = set(category_list)
+
+            # Product-only categories: ``product_details.category`` overrides tablet type for display,
+            # but those names were invisible if no tablet type (and no created_categories row) used them.
+            try:
+                pd_cat_rows = conn.execute(
+                    """
+                    SELECT DISTINCT TRIM(pd.category) AS c
+                    FROM product_details pd
+                    WHERE pd.category IS NOT NULL AND TRIM(pd.category) != ""
+                    """
+                ).fetchall()
+                for row in pd_cat_rows:
+                    c = row["c"] if isinstance(row, dict) else row[0]
+                    if c and c not in category_set:
+                        category_list.append(c)
+                        category_set.add(c)
+            except Exception as e:
+                current_app.logger.warning("Warning: Could not load product_details categories: %s", e)
             
             # Get created categories from app_settings (may not be in use yet)
             try:
