@@ -627,6 +627,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedTab && document.getElementById(`content-${savedTab}`)) {
         switchTab(savedTab);
     }
+
+    document.getElementById('edit-prod-tablet-type')?.addEventListener('change', syncEditProductPrimaryAllowedLocks);
+    document.getElementById('edit-prod-allowed-filter')?.addEventListener('input', filterEditProductAllowedRows);
 });
 
 // Tablet Type CRUD
@@ -1235,21 +1238,60 @@ document.addEventListener('DOMContentLoaded', loadMachines);
 // ===== EDIT PRODUCT (Card/Bottle) =====
 let editingProductIdGeneral = null;
 
+function syncEditProductPrimaryAllowedLocks() {
+    const primary = document.getElementById('edit-prod-tablet-type')?.value;
+    const pid = primary ? parseInt(primary, 10) : NaN;
+    document.querySelectorAll('.edit-prod-allowed-cb').forEach(cb => {
+        const vid = parseInt(cb.value, 10);
+        const row = cb.closest('.edit-allowed-row');
+        if (!isNaN(pid) && vid === pid) {
+            cb.checked = true;
+            cb.disabled = true;
+            row?.classList.add('opacity-70', 'bg-slate-100');
+        } else {
+            cb.disabled = false;
+            row?.classList.remove('opacity-70', 'bg-slate-100');
+        }
+    });
+}
+
+function filterEditProductAllowedRows() {
+    const raw = document.getElementById('edit-prod-allowed-filter')?.value || '';
+    const q = raw.trim().toLowerCase();
+    document.querySelectorAll('#edit-prod-allowed-checkboxes .edit-allowed-cat-group').forEach(group => {
+        let visibleCount = 0;
+        group.querySelectorAll('.edit-allowed-row').forEach(row => {
+            const t = row.getAttribute('data-search-text') || '';
+            const show = !q || t.includes(q);
+            row.classList.toggle('hidden', !show);
+            if (show) visibleCount++;
+        });
+        group.classList.toggle('hidden', visibleCount === 0);
+    });
+}
+
 function openEditProductModal(id, name, tabletTypeId, ppd, tpp, isBottle, tpb, bpd, category, allowedCsv) {
     editingProductIdGeneral = id;
     document.getElementById('edit-prod-name').value = name;
     document.getElementById('edit-prod-category').value = category || '';
     document.getElementById('edit-prod-tablet-type').value = tabletTypeId || '';
-    const allowedSel = document.getElementById('edit-prod-allowed-tablets');
-    if (allowedSel) {
-        const allowedSet = new Set(
-            (allowedCsv || '').split(',').map(s => s.trim()).filter(Boolean).map(s => parseInt(s, 10)).filter(n => !isNaN(n))
-        );
-        if (tabletTypeId) allowedSet.add(parseInt(String(tabletTypeId), 10));
-        Array.from(allowedSel.options).forEach(opt => {
-            opt.selected = allowedSet.has(parseInt(opt.value, 10));
-        });
-    }
+    const filt = document.getElementById('edit-prod-allowed-filter');
+    if (filt) filt.value = '';
+
+    document.querySelectorAll('.edit-prod-allowed-cb').forEach(cb => {
+        cb.checked = false;
+        cb.disabled = false;
+    });
+    const allowedSet = new Set(
+        (allowedCsv || '').split(',').map(s => s.trim()).filter(Boolean).map(s => parseInt(s, 10)).filter(n => !isNaN(n))
+    );
+    if (tabletTypeId) allowedSet.add(parseInt(String(tabletTypeId), 10));
+    document.querySelectorAll('.edit-prod-allowed-cb').forEach(cb => {
+        const vid = parseInt(cb.value, 10);
+        if (allowedSet.has(vid)) cb.checked = true;
+    });
+    syncEditProductPrimaryAllowedLocks();
+    filterEditProductAllowedRows();
     
     // Set product type radio
     if (isBottle) {
@@ -1291,10 +1333,13 @@ async function saveEditProduct() {
         return;
     }
     
-    const allowedSel = document.getElementById('edit-prod-allowed-tablets');
-    const allowed_tablet_type_ids = allowedSel
-        ? Array.from(allowedSel.selectedOptions).map(o => parseInt(o.value, 10)).filter(n => !isNaN(n))
-        : [];
+    const idSet = new Set();
+    document.querySelectorAll('.edit-prod-allowed-cb:checked').forEach(cb => {
+        const v = parseInt(cb.value, 10);
+        if (!isNaN(v)) idSet.add(v);
+    });
+    if (tabletTypeId) idSet.add(parseInt(tabletTypeId, 10));
+    const allowed_tablet_type_ids = Array.from(idSet).sort((a, b) => a - b);
 
     const data = {
         id: editingProductIdGeneral,
@@ -1339,8 +1384,8 @@ async function saveEditProduct() {
 </script>
 
 <!-- Edit Product Modal (Card/Bottle) -->
-<div id="edit-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-edit-product-overlay>
-    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+<div id="edit-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" data-close-edit-product-overlay>
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-auto my-4">
         <div class="bg-gradient-to-r from-blue-600 to-teal-600 text-white px-6 py-4 rounded-t-lg">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Edit Product</h3>
@@ -1363,22 +1408,65 @@ async function saveEditProduct() {
                 <p class="text-xs text-gray-500 mt-1">Override the tablet type's category if this product belongs to a different brand/line</p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Primary tablet type</label>
                 <select id="edit-prod-tablet-type" class="form-input w-full">
                     <option value="">Select tablet type...</option>
-                    {% for tt in tablet_types %}
-                    <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                    {% for category in categories %}
+                    {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
+                    {% if category_tablets %}
+                    <optgroup label="{{ category }}">
+                        {% for tt in category_tablets | sort(attribute='tablet_type_name') %}
+                        <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
                     {% endfor %}
+                    {% set uncat_for_opt = tablet_types | rejectattr('category') | list %}
+                    {% if uncat_for_opt %}
+                    <optgroup label="Uncategorized">
+                        {% for tt in uncat_for_opt | sort(attribute='tablet_type_name') %}
+                        <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
                 </select>
             </div>
             <div id="edit-prod-allowed-wrap">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Allowed tablet types for bags</label>
-                <p class="text-xs text-gray-500 mb-1">Primary type above is always included. Hold Ctrl/Cmd to select additional physical flavors that may be used for this finished product.</p>
-                <select id="edit-prod-allowed-tablets" class="form-input w-full min-h-[100px]" multiple size="6">
-                    {% for tt in tablet_types %}
-                    <option value="{{ tt.id }}">{{ tt.tablet_type_name }}</option>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Also allow these tablet types (physical bags)</label>
+                <p class="text-xs text-gray-500 mb-2">The primary type is always allowed for receiving. Check any <strong>additional</strong> flavors that may run as this finished SKU. Use the filter to find names quickly.</p>
+                <input type="search" id="edit-prod-allowed-filter" class="form-input w-full mb-2" placeholder="Filter by name…" autocomplete="off">
+                <div id="edit-prod-allowed-checkboxes" class="max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-slate-50/80 text-left">
+                    {% for category in categories %}
+                    {% set category_tablets = tablet_types | selectattr('category', 'equalto', category) | list %}
+                    {% if category_tablets %}
+                    <div class="edit-allowed-cat-group border-b border-gray-200 last:border-b-0">
+                        <div class="sticky top-0 z-10 bg-slate-200/95 px-3 py-1.5 text-xs font-semibold text-slate-700">{{ category }}</div>
+                        <div class="px-2 py-2 space-y-0.5">
+                            {% for tt in category_tablets | sort(attribute='tablet_type_name') %}
+                            <label class="edit-allowed-row flex items-start gap-2 rounded-md px-2 py-1 hover:bg-white cursor-pointer border border-transparent hover:border-slate-200" data-search-text="{{ (tt.tablet_type_name or '') | lower }}">
+                                <input type="checkbox" class="edit-prod-allowed-cb mt-0.5 shrink-0" value="{{ tt.id }}">
+                                <span class="text-sm text-gray-800 leading-snug">{{ tt.tablet_type_name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% endfor %}
-                </select>
+                    {% set uncat_for_cb = tablet_types | rejectattr('category') | list %}
+                    {% if uncat_for_cb %}
+                    <div class="edit-allowed-cat-group border-b border-gray-200 last:border-b-0">
+                        <div class="sticky top-0 z-10 bg-amber-100/95 px-3 py-1.5 text-xs font-semibold text-amber-900">Uncategorized</div>
+                        <div class="px-2 py-2 space-y-0.5">
+                            {% for tt in uncat_for_cb | sort(attribute='tablet_type_name') %}
+                            <label class="edit-allowed-row flex items-start gap-2 rounded-md px-2 py-1 hover:bg-white cursor-pointer border border-transparent hover:border-slate-200" data-search-text="{{ (tt.tablet_type_name or '') | lower }}">
+                                <input type="checkbox" class="edit-prod-allowed-cb mt-0.5 shrink-0" value="{{ tt.id }}">
+                                <span class="text-sm text-gray-800 leading-snug">{{ tt.tablet_type_name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Product Type</label>

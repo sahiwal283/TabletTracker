@@ -1,6 +1,8 @@
 """
 Tablet Types API routes for managing tablet types, products, and categories.
 """
+from typing import Optional
+
 from flask import Blueprint, request, jsonify, current_app
 import traceback
 import json
