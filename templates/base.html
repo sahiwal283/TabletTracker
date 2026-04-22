@@ -989,33 +989,13 @@ async function saveSubmissionEdit() {
     }
     
     try {
-        if (window.sessionEmployeeRole === 'warehouse_staff' || window.sessionEmployeeRole === 'warehouse_lead') {
-            const unlocked = await ensureWarehouseSubmissionEditUnlockedInteractive();
-            if (!unlocked) {
-                return;
-            }
-        }
-
-        let response = await csrfFetch(`/api/submission/${submissionId}/edit`, {
+        const response = await csrfFetch(`/api/submission/${submissionId}/edit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
         });
         
-        let result = await response.json();
-
-        if (!result.success && result.code === 'WAREHOUSE_EDIT_LOCKED') {
-            const ok = await openWarehouseEditUnlockModal();
-            if (!ok) {
-                return;
-            }
-            response = await csrfFetch(`/api/submission/${submissionId}/edit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-            result = await response.json();
-        }
+        const result = await response.json();
         
         if (result.success) {
             // Use showSuccess if available, otherwise alert
