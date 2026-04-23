@@ -621,7 +621,6 @@
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Time</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Type</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Employee</th>
-                                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Product</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Cuts</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Blisters Made</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Station Duration</th>
@@ -641,7 +640,6 @@
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-900">
                                                             <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
                                                         </td>
-                                                        <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ (sub.displays_made or 0) * 2 }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.station_duration_display or '—' }}</td>
@@ -662,7 +660,6 @@
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Time</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Type</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Employee</th>
-                                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Product</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Turns</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Cards Sealed</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Station Duration</th>
@@ -682,7 +679,6 @@
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-900">
                                                             <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
                                                         </td>
-                                                        <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.station_duration_display or '—' }}</td>
@@ -703,7 +699,6 @@
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Time</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Type</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Employee</th>
-                                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Product</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Displays Made</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Cards Remaining</th>
                                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Ripped Cards</th>
@@ -725,7 +720,6 @@
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-900">
                                                             <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
                                                         </td>
-                                                        <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.damaged_tablets if sub.damaged_tablets is not none else '' }}</td>
