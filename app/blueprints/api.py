@@ -1335,7 +1335,8 @@ def get_submission_details(submission_id):
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            )) as tablets_per_package_final,
-                   COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count, 
+                   COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
+                   b.estimated_tablets_from_weight as estimated_count_by_weight,
                    r.id as receive_id, r.received_date, r.receive_name as receive_name_from_receive,
                    m.machine_name, m.cards_per_turn as machine_cards_per_turn,
                    m.machine_role AS machine_role,
@@ -1393,12 +1394,20 @@ def get_submission_details(submission_id):
                         submission_dict['submission_type'] = 'bottle'
             
             # If bag_label_count is 0 or missing but bag_id exists, try to get it directly from bags table
-            if submission_dict.get('bag_id') and (not submission_dict.get('bag_label_count') or submission_dict.get('bag_label_count') == 0):
-                bag_row = conn.execute('SELECT bag_label_count FROM bags WHERE id = ?', (submission_dict.get('bag_id'),)).fetchone()
+            if submission_dict.get('bag_id') and (
+                (not submission_dict.get('bag_label_count') or submission_dict.get('bag_label_count') == 0)
+                or submission_dict.get('estimated_count_by_weight') is None
+            ):
+                bag_row = conn.execute(
+                    'SELECT bag_label_count, estimated_tablets_from_weight FROM bags WHERE id = ?',
+                    (submission_dict.get('bag_id'),)
+                ).fetchone()
                 if bag_row:
                     bag_dict = dict(bag_row)
                     if bag_dict.get('bag_label_count'):
                         submission_dict['bag_label_count'] = bag_dict.get('bag_label_count')
+                    if bag_dict.get('estimated_tablets_from_weight') is not None:
+                        submission_dict['estimated_count_by_weight'] = bag_dict.get('estimated_tablets_from_weight')
             
             # Get machine information for machine submissions
             # First try to get from the JOIN we already did
