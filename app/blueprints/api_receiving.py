@@ -13,7 +13,10 @@ from werkzeug.utils import secure_filename
 from app.utils.db_utils import db_read_only, db_transaction, ReceivingRepository, BagRepository
 from app.utils.auth_utils import admin_required, role_required, employee_required
 from app.services.tracking_service import refresh_shipment_row
-from app.services.bag_matching_service import find_matching_bags_with_receive_names
+from app.services.bag_matching_service import (
+    build_receive_name,
+    find_matching_bags_with_receive_names,
+)
 from app.services.receiving_service import (
     get_receiving_with_details, 
     close_receiving,
@@ -39,6 +42,18 @@ bp = Blueprint('api_receiving', __name__)
 
 
 BATCH_VALUE_PATTERN = re.compile(r'^[A-Za-z0-9-]+$')
+WORKFLOW_RECEIPT_SUFFIX_PATTERN = re.compile(
+    r'-(?:seal|blister)(?:-e\d+)?$|-(?:pkg|take)-e\d+$',
+    re.IGNORECASE,
+)
+
+
+def _receipt_family_root(receipt_number: str) -> str:
+    """Collapse workflow lane/event suffixes to canonical receipt root."""
+    s = (receipt_number or '').strip()
+    if not s:
+        return ''
+    return WORKFLOW_RECEIPT_SUFFIX_PATTERN.sub('', s)
 
 
 def _parse_zoho_po_quantity(value):
@@ -2739,6 +2754,58 @@ def get_possible_receives_for_submission(submission_id):
                 submission_dict,
                 exclude_closed_bags
             )
+
+            # Legacy workflow rows may still carry lane/event suffix receipts
+            # (e.g. 1893-4-seal-e5). If direct box/bag matching yields nothing,
+            # derive possible receives from sibling rows in the same receipt family.
+            if not matching_bags:
+                source_receipt = (submission_dict.get('receipt_number') or '').strip()
+                family_root = _receipt_family_root(source_receipt)
+                if family_root and family_root != source_receipt:
+                    family_rows = conn.execute(
+                        '''
+                        SELECT DISTINCT ws.bag_id,
+                               b.bag_number,
+                               b.bag_label_count,
+                               sb.box_number,
+                               r.id AS receive_id,
+                               r.received_date,
+                               r.receive_name AS stored_receive_name,
+                               po.po_number,
+                               po.id AS po_id,
+                               tt.tablet_type_name
+                        FROM warehouse_submissions ws
+                        JOIN bags b ON b.id = ws.bag_id
+                        JOIN small_boxes sb ON sb.id = b.small_box_id
+                        JOIN receiving r ON r.id = sb.receiving_id
+                        JOIN purchase_orders po ON po.id = r.po_id
+                        LEFT JOIN tablet_types tt ON tt.id = b.tablet_type_id
+                        WHERE ws.bag_id IS NOT NULL
+                          AND ws.id != ?
+                          AND (
+                            ws.receipt_number = ?
+                            OR ws.receipt_number LIKE ?
+                            OR ws.receipt_number LIKE ?
+                            OR ws.receipt_number LIKE ?
+                            OR ws.receipt_number LIKE ?
+                          )
+                        ORDER BY r.received_date DESC, ws.bag_id DESC
+                        ''',
+                        (
+                            submission_id,
+                            family_root,
+                            family_root + '-seal%',
+                            family_root + '-blister%',
+                            family_root + '-pkg-e%',
+                            family_root + '-take-e%',
+                        ),
+                    ).fetchall()
+                    if family_rows:
+                        matching_bags = []
+                        for row in family_rows:
+                            bag = dict(row)
+                            bag['receive_name'] = build_receive_name(bag, conn)
+                            matching_bags.append(bag)
             
             if not submission_dict.get('bag_number'):
                 # Fallback: try to find receives by tablet type
@@ -2905,17 +2972,35 @@ def assign_submission_to_receive(submission_id):
 
             target_ids = [submission_id]
             if source_receipt and source_employee and source_submission_date:
+                receipt_root = _receipt_family_root(source_receipt) or source_receipt
                 siblings = conn.execute(
                     '''
                     SELECT id
                     FROM warehouse_submissions
                     WHERE id != ?
-                      AND receipt_number = ?
+                      AND (
+                        receipt_number = ?
+                        OR receipt_number = ?
+                        OR receipt_number LIKE ?
+                        OR receipt_number LIKE ?
+                        OR receipt_number LIKE ?
+                        OR receipt_number LIKE ?
+                      )
                       AND employee_name = ?
                       AND submission_date = ?
                       AND COALESCE(submission_type, 'packaged') != 'repack'
                     ''',
-                    (submission_id, source_receipt, source_employee, source_submission_date),
+                    (
+                        submission_id,
+                        source_receipt,
+                        receipt_root,
+                        receipt_root + '-seal%',
+                        receipt_root + '-blister%',
+                        receipt_root + '-pkg-e%',
+                        receipt_root + '-take-e%',
+                        source_employee,
+                        source_submission_date,
+                    ),
                 ).fetchall()
                 target_ids.extend([int(r['id']) for r in siblings])
 
