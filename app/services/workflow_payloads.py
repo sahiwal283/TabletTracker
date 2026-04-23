@@ -23,7 +23,7 @@ _ALLOWED: Dict[str, FrozenSet[str]] = {
     WC.EVENT_BLISTER_COMPLETE: frozenset({"count_total", "employee_name"}),
     WC.EVENT_SEALING_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_PACKAGING_SNAPSHOT: frozenset(
-        {"display_count", "reason", "employee_name", "packs_remaining", "damaged_tablets"}
+        {"display_count", "reason", "employee_name", "packs_remaining", "cards_reopened"}
     ),
     WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: frozenset(
         {"displays_taken", "employee_name", "note"}

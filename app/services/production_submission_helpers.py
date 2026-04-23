@@ -612,8 +612,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         displays_made = int(data.get('displays_made', 0) or 0)
         packs_remaining = int(data.get('packs_remaining', 0) or 0)
         loose_tablets = int(data.get('loose_tablets', 0) or 0)
-        # Column name is legacy: value is cards re-opened (packaging loss), not tablets.
-        damaged_tablets = int(data.get('damaged_tablets', 0) or 0)
+        cards_reopened = int(data.get('cards_reopened', 0) or 0)
     except (ValueError, TypeError):
         raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for counts'})
 
@@ -874,7 +873,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
             """
             INSERT INTO warehouse_submissions
             (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
+             displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
              submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
             """,
@@ -888,7 +887,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
                 displays_made,
                 packs_remaining,
                 loose_tablets,
-                damaged_tablets,
+                cards_reopened,
                 submission_date,
                 admin_notes,
                 bag_id,

@@ -738,7 +738,7 @@
       await emitEvent('PACKAGING_SNAPSHOT', {
         display_count: countTotal,
         packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
-        damaged_tablets: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+        cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
         reason: 'paused_end_of_day',
         employee_name: requiredEmployeeName(),
       });
@@ -759,7 +759,7 @@
     await emitEvent('PACKAGING_SNAPSHOT', {
       display_count: countTotal,
       packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
-      damaged_tablets: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+      cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
       reason: 'final_submit',
       employee_name: requiredEmployeeName(),
     });

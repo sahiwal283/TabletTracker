@@ -902,14 +902,14 @@ def build_dimensions(
                     by_day_by_flavor_displays[tid].get(day, 0.0) + (part / tpd)
                 )
 
-    # Packaging loss (cards ripped/re-opened) is stored in damaged_tablets
+    # Packaging loss (cards ripped/re-opened) is stored in cards_reopened
     # on packaged/repack submissions and should be tracked separately from output.
-    # Fallback to loose_tablets for legacy rows where damaged_tablets was not used.
+    # Fallback to loose_tablets for legacy rows where cards_reopened was not used.
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st not in ("packaged", "repack"):
             continue
-        ripped_cards = int(sub.get("damaged_tablets") or 0)
+        ripped_cards = int(sub.get("cards_reopened") or 0)
         if ripped_cards <= 0:
             ripped_cards = int(sub.get("loose_tablets") or 0)
         if ripped_cards <= 0:
@@ -1104,7 +1104,7 @@ def aggregate_stage_yield(
     Summarize per-bag stage-yield over a date window (one row per bag in window).
     Excludes anomalous negative transitions for aggregate rate stats.
     """
-    from app.services.bag_running_totals import compute_bag_check_running_totals
+    from app.services.bag_check_totals import compute_bag_check_totals
 
     if not _parse_date(date_from) or not _parse_date(date_to):
         return {"success": False, "error": "date_from and date_to (YYYY-MM-DD) are required"}
@@ -1150,12 +1150,12 @@ def aggregate_stage_yield(
                 tid = dict(bro).get("tablet_type_id") if bro else None
                 if tid is None or int(tid) != int(tablet_type_id):
                     continue
-            m = compute_bag_check_running_totals(conn, bid)
+            m = compute_bag_check_totals(conn, bid)
             if not m:
                 continue
-            B = m.get("machine_blister_running_total", 0) or 0
-            S = m.get("machine_sealing_running_total", 0) or 0
-            P = m.get("packaged_running_total", 0) or 0
+            B = m.get("machine_blister_tablets_total", 0) or 0
+            S = m.get("machine_sealing_tablets_total", 0) or 0
+            P = m.get("packaged_tablets_total", 0) or 0
             if B == 0 and S == 0 and P == 0:
                 bags_all_zero += 1
                 continue

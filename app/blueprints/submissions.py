@@ -845,10 +845,10 @@ def submissions_list():
             # Calculate running totals by bag PER PO (each PO has its own physical bags)
             # Separate running totals for each submission type
             # Process in chronological order (oldest first) for correct running totals
-            bag_running_totals = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (all types)
-            bag_running_totals_bag = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (bag type only)
-            bag_running_totals_machine = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (machine type only)
-            bag_running_totals_packaged = {}  # Key: (po_id, product_name, "box/bag"), Value: running_total (packaged type only)
+            bag_cumulative_packaged = {}
+            bag_totals_bag = {}
+            bag_totals_machine = {}
+            bag_totals_packaged = {}
             submissions_dict = {}  # Store by submission ID for later lookup
             
             # First pass: Calculate running totals in chronological order (oldest first)
@@ -864,52 +864,45 @@ def submissions_list():
                 individual_calc = sub_dict.get('calculated_total', 0) or 0
                 submission_type = sub_dict.get('submission_type', 'packaged')
                 
-                # Initialize running totals for this bag if not exists
-                if bag_key not in bag_running_totals:
-                    bag_running_totals[bag_key] = 0
-                if bag_key not in bag_running_totals_bag:
-                    bag_running_totals_bag[bag_key] = 0
-                if bag_key not in bag_running_totals_machine:
-                    bag_running_totals_machine[bag_key] = 0
-                if bag_key not in bag_running_totals_packaged:
-                    bag_running_totals_packaged[bag_key] = 0
+                if bag_key not in bag_cumulative_packaged:
+                    bag_cumulative_packaged[bag_key] = 0
+                if bag_key not in bag_totals_bag:
+                    bag_totals_bag[bag_key] = 0
+                if bag_key not in bag_totals_machine:
+                    bag_totals_machine[bag_key] = 0
+                if bag_key not in bag_totals_packaged:
+                    bag_totals_packaged[bag_key] = 0
                 
-                # Update appropriate running total based on submission type
                 if submission_type == 'bag':
-                    # For bag count submissions, use loose_tablets (the actual count from form)
                     bag_count_value = sub_dict.get('loose_tablets', 0) or 0
-                    bag_running_totals_bag[bag_key] += bag_count_value
+                    bag_totals_bag[bag_key] += bag_count_value
                 elif submission_type == 'machine':
-                    bag_running_totals_machine[bag_key] += individual_calc
+                    bag_totals_machine[bag_key] += individual_calc
                 elif submission_type == 'repack':
                     pass
                 elif submission_type == 'packaged':
-                    bag_running_totals_packaged[bag_key] += individual_calc
+                    bag_totals_packaged[bag_key] += individual_calc
                 
-                # Update total running total (only packaged counts - machine counts are consumed, not in bag)
-                # Bag counts are also separate inventory counts, not added to total
                 if submission_type == 'packaged':
-                    bag_running_totals[bag_key] += individual_calc
+                    bag_cumulative_packaged[bag_key] += individual_calc
                 
-                # Add running total and comparison fields
                 sub_dict['individual_calc'] = individual_calc
-                sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
-                sub_dict['bag_running_total'] = bag_running_totals_bag[bag_key]
-                sub_dict['machine_running_total'] = bag_running_totals_machine[bag_key]
-                sub_dict['packaged_running_total'] = bag_running_totals_packaged[bag_key]
-                sub_dict['running_total'] = bag_running_totals[bag_key]
+                sub_dict['total_tablets'] = individual_calc
+                sub_dict['bag_submission_tablets_total'] = bag_totals_bag[bag_key]
+                sub_dict['machine_tablets_total'] = bag_totals_machine[bag_key]
+                sub_dict['packaged_tablets_total'] = bag_totals_packaged[bag_key]
+                sub_dict['cumulative_bag_tablets'] = bag_cumulative_packaged[bag_key]
                 
-                # Compare running total to bag label count
                 bag_count = sub_dict.get('bag_label_count', 0) or 0
-                running_total = bag_running_totals[bag_key]
+                packaged_cumulative = bag_cumulative_packaged[bag_key]
                 
                 # Determine status - check if bag_id is NULL, not just bag_label_count
                 # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
                 if not sub_dict.get('bag_id'):
                     sub_dict['count_status'] = 'no_bag'
-                elif abs(running_total - bag_count) <= 5:  # Allow 5 tablet tolerance
+                elif abs(packaged_cumulative - bag_count) <= 5:  # Allow 5 tablet tolerance
                     sub_dict['count_status'] = 'match'
-                elif running_total < bag_count:
+                elif packaged_cumulative < bag_count:
                     sub_dict['count_status'] = 'under'
                 else:
                     sub_dict['count_status'] = 'over'
@@ -991,10 +984,10 @@ def submissions_list():
                 # Get the pre-calculated running totals from the first pass
                 if sub_id in submissions_dict:
                     pre_calculated = submissions_dict[sub_id]
-                    sub_dict['bag_running_total'] = pre_calculated.get('bag_running_total', 0)
-                    sub_dict['machine_running_total'] = pre_calculated.get('machine_running_total', 0)
-                    sub_dict['packaged_running_total'] = pre_calculated.get('packaged_running_total', 0)
-                    sub_dict['running_total'] = pre_calculated.get('running_total', 0)
+                    sub_dict['bag_submission_tablets_total'] = pre_calculated.get('bag_submission_tablets_total', 0)
+                    sub_dict['machine_tablets_total'] = pre_calculated.get('machine_tablets_total', 0)
+                    sub_dict['packaged_tablets_total'] = pre_calculated.get('packaged_tablets_total', 0)
+                    sub_dict['cumulative_bag_tablets'] = pre_calculated.get('cumulative_bag_tablets', 0)
                     sub_dict['count_status'] = pre_calculated.get('count_status', 'no_bag')
                     sub_dict['has_discrepancy'] = pre_calculated.get('has_discrepancy', 0)
                     sub_dict['receive_name'] = pre_calculated.get('receive_name')
@@ -1308,7 +1301,7 @@ def export_submissions_csv():
             submissions_raw = conn.execute(query, params).fetchall()
             
             # Calculate running totals by bag PER PO (same logic as all_submissions)
-            bag_running_totals = {}
+            bag_cumulative_packaged = {}
             submissions_processed = []
             
             for sub in submissions_raw:
@@ -1319,26 +1312,23 @@ def export_submissions_csv():
                 individual_calc = sub_dict.get('calculated_total', 0) or 0
                 submission_type = sub_dict.get('submission_type', 'packaged')
                 
-                # Update total running total (only packaged counts - machine counts are consumed, not in bag)
-                # Bag counts are also separate inventory counts, not added to total
-                if bag_key not in bag_running_totals:
-                    bag_running_totals[bag_key] = 0
+                if bag_key not in bag_cumulative_packaged:
+                    bag_cumulative_packaged[bag_key] = 0
                 if submission_type == 'packaged':
-                    bag_running_totals[bag_key] += individual_calc
-                # repack: PO-level only; do not affect per-bag running totals (matches list view)
+                    bag_cumulative_packaged[bag_key] += individual_calc
                 
                 sub_dict['individual_calc'] = individual_calc
-                sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
-                sub_dict['running_total'] = bag_running_totals[bag_key]
+                sub_dict['total_tablets'] = individual_calc
+                sub_dict['cumulative_bag_tablets'] = bag_cumulative_packaged[bag_key]
                 
                 bag_count = sub_dict.get('bag_label_count', 0) or 0
-                running_total = bag_running_totals[bag_key]
+                packaged_cumulative = bag_cumulative_packaged[bag_key]
                 
                 if bag_count == 0:
                     sub_dict['count_status'] = 'No Bag Label'
-                elif abs(running_total - bag_count) <= 5:
+                elif abs(packaged_cumulative - bag_count) <= 5:
                     sub_dict['count_status'] = 'Match'
-                elif running_total < bag_count:
+                elif packaged_cumulative < bag_count:
                     sub_dict['count_status'] = 'Under'
                 else:
                     sub_dict['count_status'] = 'Over'
@@ -1372,9 +1362,9 @@ def export_submissions_csv():
             'Packs Remaining',
             'Bottle Sealing Machine Count',
             'Loose Tablets',
-            'Damaged Tablets',
+            'Cards re-opened',
             'Total Tablets (Individual)',
-            'Running Total (Bag)',
+            'Cumulative bag (packaged)',
             'Bag Label Count',
             'Count Status',
             'PO Assignment Verified',
@@ -1405,9 +1395,9 @@ def export_submissions_csv():
                     sub.get('packs_remaining', 0),
                     sub.get('bottle_sealing_machine_count', ''),
                     sub.get('loose_tablets', 0),
-                    sub.get('damaged_tablets', 0),
+                    sub.get('cards_reopened', 0),
                     sub.get('individual_calc', 0),
-                    sub.get('running_total', 0),
+                    sub.get('cumulative_bag_tablets', 0),
                     sub.get('bag_label_count', 0),
                     sub.get('count_status', ''),
                     'Yes' if sub.get('po_verified', 0) else 'No',

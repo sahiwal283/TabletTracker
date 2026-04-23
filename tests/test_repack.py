@@ -17,7 +17,7 @@ class TestRepackCalculator(unittest.TestCase):
             "displays_made": 1,
             "packs_remaining": 0,
             "loose_tablets": 99,
-            "damaged_tablets": 50,
+            "cards_reopened": 50,
         }
         self.assertEqual(calculate_repack_output_good(sub, 5, 8), 5 * 8)
 

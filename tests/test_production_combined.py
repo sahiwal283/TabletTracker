@@ -92,7 +92,7 @@ class TestProductionCombined(unittest.TestCase):
             "machine_entries": [{"machine_id": 1, "machine_count": 2}],
             "displays_made": 1,
             "packs_remaining": 0,
-            "damaged_tablets": 0,
+            "cards_reopened": 0,
             "employee_name": "Test Admin",
         }
         r = _csrf_post(self.client, "/api/submissions/production-combined", body)
@@ -131,7 +131,7 @@ class TestProductionCombined(unittest.TestCase):
             "machine_entries": [{"machine_id": 1, "machine_count": 1}],
             "displays_made": 0,
             "packs_remaining": 0,
-            "damaged_tablets": 0,
+            "cards_reopened": 0,
             "employee_name": "Test Admin",
         }
         r1 = _csrf_post(self.client, "/api/submissions/production-combined", body)
@@ -150,7 +150,7 @@ class TestProductionCombined(unittest.TestCase):
             "machine_entries": [{"machine_id": 1, "machine_count": 1}],
             "displays_made": 0,
             "packs_remaining": 0,
-            "damaged_tablets": 0,
+            "cards_reopened": 0,
             "employee_name": "Test Admin",
             "bag_start_time": "2026-03-30T16:00",
             "bag_end_time": "2026-03-30T10:00",

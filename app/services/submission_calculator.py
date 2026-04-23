@@ -19,7 +19,7 @@ def calculate_packaged_submission_total(
              (packs_remaining * tablets_per_package) +
              loose_tablets
 
-    The ``damaged_tablets`` column stores **cards re-opened** (ripped/destroyed blister
+    The ``cards_reopened`` column stores **cards re-opened** (ripped/destroyed blister
     packaging for defects). It is operational packaging-loss tracking only and must not
     be included in tablet totals.
 
@@ -28,7 +28,7 @@ def calculate_packaged_submission_total(
             - displays_made (int, optional)
             - packs_remaining (int, optional)
             - loose_tablets (int, optional)
-            - damaged_tablets (int, optional; excluded from this total)
+            - cards_reopened (int, optional; excluded from this total)
         packages_per_display: Number of packages per display (from product_details)
         tablets_per_package: Number of tablets per package (from product_details)
     
@@ -55,7 +55,7 @@ def calculate_repack_output_good(
 ) -> int:
     """
     Tablets credited to PO good_count from a repack submission.
-    Uses finished displays/partial cards only (no loose; damaged does not affect PO).
+    Uses finished displays/partial cards only (no loose; cards_reopened does not affect PO good).
     """
     displays_made = submission.get('displays_made', 0) or 0
     packs_remaining = submission.get('packs_remaining', 0) or 0

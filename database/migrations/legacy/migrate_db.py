@@ -91,7 +91,7 @@ def migrate_database():
                     displays_made INTEGER DEFAULT 0,
                     single_packs_remaining INTEGER DEFAULT 0,
                     loose_tablets INTEGER DEFAULT 0,
-                    damaged_tablets INTEGER DEFAULT 0,
+                    cards_reopened INTEGER DEFAULT 0,
                     employee_name TEXT,
                     submission_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (po_id) REFERENCES purchase_orders (id),

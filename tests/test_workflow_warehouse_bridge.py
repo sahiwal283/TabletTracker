@@ -74,7 +74,7 @@ CREATE TABLE warehouse_submissions (
     displays_made INTEGER,
     packs_remaining INTEGER,
     loose_tablets INTEGER,
-    damaged_tablets INTEGER,
+    cards_reopened INTEGER,
     submission_date TEXT,
     admin_notes TEXT,
     submission_type TEXT DEFAULT 'packaged',

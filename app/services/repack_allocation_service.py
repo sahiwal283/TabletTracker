@@ -54,11 +54,11 @@ def _packaged_tablets_for_bag(conn, bag_id: int) -> int:
     )
 
 
-def _damaged_tablets_for_bag(conn, bag_id: int) -> int:
-    """Sum cards re-opened (``damaged_tablets``) on submissions for this bag (packaging loss)."""
+def _cards_reopened_for_bag(conn, bag_id: int) -> int:
+    """Sum ``cards_reopened`` on submissions for this bag (packaging loss)."""
     row = conn.execute(
         """
-        SELECT COALESCE(SUM(COALESCE(ws.damaged_tablets, 0)), 0) AS total_dmg
+        SELECT COALESCE(SUM(COALESCE(ws.cards_reopened, 0)), 0) AS total_dmg
         FROM warehouse_submissions ws
         WHERE ws.bag_id = ?
         AND ws.submission_type IN ('packaged', 'machine', 'bag', 'bottle')
@@ -91,7 +91,7 @@ def load_bags_for_po_flavor(conn, po_id: int, tablet_type_id: int) -> List[Dict[
         label = r.get("bag_label_count") or r.get("pill_count") or 0
         packaged = _packaged_tablets_for_bag(conn, bag_id)
         remaining = max(0, int(label) - int(packaged))
-        damage = _damaged_tablets_for_bag(conn, bag_id)
+        damage = _cards_reopened_for_bag(conn, bag_id)
         receive_name = r.get("receive_name")
         if not receive_name and r.get("po_number") and r.get("receiving_id"):
             n = conn.execute(

@@ -421,7 +421,7 @@ class ProductionReportGenerator:
             'total_displays': 0,
             'total_packages': 0,
             'total_loose': 0,
-            'total_damaged': 0,
+            'total_cards_reopened': 0,
             'total_tablets': 0,
             'by_product': {},
             'by_employee': {},
@@ -433,26 +433,26 @@ class ProductionReportGenerator:
             displays_tablets = (sub['displays_made'] or 0) * (sub['packages_per_display'] or 0) * (sub['tablets_per_package'] or 0)
             package_tablets = (sub['packs_remaining'] or 0) * (sub['tablets_per_package'] or 0)
             loose_tablets = sub['loose_tablets'] or 0
-            damaged_tablets = sub['damaged_tablets'] or 0
+            cards_reopened = sub.get('cards_reopened') or 0
             total_tablets = displays_tablets + package_tablets + loose_tablets
 
-            # Overall totals (damaged_tablets = cards re-opened; not tablet units)
+            # Packaging loss (cards re-opened), not po_lines.damaged
             breakdown['total_displays'] += sub['displays_made'] or 0
             breakdown['total_packages'] += sub['packs_remaining'] or 0
             breakdown['total_loose'] += sub['loose_tablets'] or 0
-            breakdown['total_damaged'] += damaged_tablets
+            breakdown['total_cards_reopened'] += cards_reopened
             breakdown['total_tablets'] += total_tablets
             
             # By product
             product = sub['product_name']
             if product not in breakdown['by_product']:
                 breakdown['by_product'][product] = {
-                    'displays': 0, 'packages': 0, 'loose': 0, 'damaged': 0, 'total_tablets': 0
+                    'displays': 0, 'packages': 0, 'loose': 0, 'cards_reopened': 0, 'total_tablets': 0
                 }
             breakdown['by_product'][product]['displays'] += sub['displays_made'] or 0
             breakdown['by_product'][product]['packages'] += sub['packs_remaining'] or 0
             breakdown['by_product'][product]['loose'] += sub['loose_tablets'] or 0
-            breakdown['by_product'][product]['damaged'] += sub['damaged_tablets'] or 0
+            breakdown['by_product'][product]['cards_reopened'] += cards_reopened
             breakdown['by_product'][product]['total_tablets'] += total_tablets
             
             # By employee
@@ -525,7 +525,7 @@ class ProductionReportGenerator:
             ['Total Purchase Orders', f"{summary['total_pos']:,}"],
             ['Total Tablets Ordered', f"{summary['total_ordered']:,}"],
             ['Total Tablets Produced', f"{summary['total_produced']:,}"],
-            ['Cards re-opened (packaging loss)', f"{summary['total_damaged']:,}"],
+            ['Damaged at receiving (PO, tablets)', f"{summary['total_damaged']:,}"],
             ['Production Efficiency', f"{summary['efficiency_rate']:.1f}%"],
             ['Average Pack Time', f"{summary['average_pack_time']:.1f} days" if summary['average_pack_time'] else "N/A"]
         ]
@@ -727,7 +727,7 @@ class ProductionReportGenerator:
                 ['Total Displays Made', f"{breakdown['total_displays']:,}"],
                 ['Packages Remaining', f"{breakdown['total_packages']:,}"],
                 ['Loose Tablets', f"{breakdown['total_loose']:,}"],
-                ['Cards re-opened (packaging loss)', f"{breakdown['total_damaged']:,}"],
+                ['Cards re-opened (packaging loss)', f"{breakdown['total_cards_reopened']:,}"],
                 ['Total Tablets', f"{breakdown['total_tablets']:,}"],
                 ['Total Submissions', f"{len(po_data['submissions']):,}"]
             ]
@@ -795,11 +795,11 @@ class ProductionReportGenerator:
                 # Aggregate product stats
                 for prod, data in po['production_breakdown']['by_product'].items():
                     if prod not in all_products:
-                        all_products[prod] = {'displays': 0, 'packages': 0, 'loose': 0, 'damaged': 0}
+                        all_products[prod] = {'displays': 0, 'packages': 0, 'loose': 0, 'cards_reopened': 0}
                     all_products[prod]['displays'] += data['displays']
                     all_products[prod]['packages'] += data['packages']
                     all_products[prod]['loose'] += data['loose']
-                    all_products[prod]['damaged'] += data['damaged']
+                    all_products[prod]['cards_reopened'] += data['cards_reopened']
         
         # Pack time distribution
         if pack_times:
@@ -832,14 +832,14 @@ class ProductionReportGenerator:
         if all_products:
             prod_heading = Paragraph("Product Performance Summary", self.styles['Heading3'])
             
-            prod_data = [['Product', 'Total Displays', 'Total Packages', 'Loose Tablets', 'Damaged']]
+            prod_data = [['Product', 'Total Displays', 'Total Packages', 'Loose Tablets', 'Cards re-opened']]
             for prod, data in sorted(all_products.items()):
                 prod_data.append([
                     prod,
                     str(data['displays']),
                     str(data['packages']),
                     str(data['loose']),
-                    str(data['damaged'])
+                    str(data['cards_reopened'])
                 ])
             
             prod_table = Table(prod_data, colWidths=[2*inch, 1*inch, 1*inch, 1*inch, 1*inch])
@@ -1041,12 +1041,12 @@ class ProductionReportGenerator:
                            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                            WHERE ws.bag_id = b.id AND ws.submission_type = 'packaged'
                        ), 0) as packaged_count,
-                       -- Damaged count
+                       -- Cards re-opened (packaging loss) sum for bag
                        COALESCE((
-                           SELECT SUM(COALESCE(ws.damaged_tablets, 0))
+                           SELECT SUM(COALESCE(ws.cards_reopened, 0))
                            FROM warehouse_submissions ws
                            WHERE ws.bag_id = b.id
-                       ), 0) as damaged_count
+                       ), 0) as cards_reopened_count
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
                 JOIN tablet_types tt ON b.tablet_type_id = tt.id
@@ -1096,14 +1096,14 @@ class ProductionReportGenerator:
             
             # Bags table
             table_data = [[
-                'Box', 'Bag', 'Product', 'Received', 'Machine', 'Packaged', 'Damaged', 'Total Counted', 'Remaining', '% Complete'
+                'Box', 'Bag', 'Product', 'Received', 'Machine', 'Packaged', 'Cards re-op.', 'Total Counted', 'Remaining', '% Complete'
             ]]
             
             for bag in bags_data:
                 received = bag.get('bag_label_count', 0) or 0
                 machine = bag.get('machine_count', 0) or 0
                 packaged = bag.get('packaged_count', 0) or 0
-                damaged = bag.get('damaged_count', 0) or 0
+                cards_reopened = bag.get('cards_reopened_count', 0) or 0
                 total_counted = machine + packaged
                 remaining = received - total_counted
                 percent_complete = round((total_counted / received * 100) if received > 0 else 0, 1)
@@ -1115,7 +1115,7 @@ class ProductionReportGenerator:
                     f"{received:,}",
                     f"{machine:,}",
                     f"{packaged:,}",
-                    f"{damaged:,}",
+                    f"{cards_reopened:,}",
                     f"{total_counted:,}",
                     f"{remaining:,}",
                     f"{percent_complete}%"

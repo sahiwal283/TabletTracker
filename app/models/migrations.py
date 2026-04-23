@@ -229,7 +229,27 @@ class MigrationRunner:
         )
         self._add_column_if_not_exists('warehouse_submissions', 'bag_start_time', 'TEXT')
         self._add_column_if_not_exists('warehouse_submissions', 'bag_end_time', 'TEXT')
-    
+
+        # v4.0.0: packaging loss column (cards re-opened), was misnamed damaged_tablets
+        if self._column_exists('warehouse_submissions', 'damaged_tablets') and not self._column_exists(
+            'warehouse_submissions', 'cards_reopened'
+        ):
+            try:
+                self.c.execute(
+                    'ALTER TABLE warehouse_submissions RENAME COLUMN damaged_tablets TO cards_reopened'
+                )
+            except sqlite3.Error as exc:
+                logger.warning(
+                    'Could not RENAME COLUMN damaged_tablets → cards_reopened: %s; trying add+copy', exc
+                )
+                self._add_column_if_not_exists('warehouse_submissions', 'cards_reopened', 'INTEGER DEFAULT 0')
+                try:
+                    self.c.execute(
+                        'UPDATE warehouse_submissions SET cards_reopened = COALESCE(damaged_tablets, 0)'
+                    )
+                except sqlite3.Error as ex2:
+                    logger.warning('Could not backfill cards_reopened: %s', ex2)
+
     def _migrate_shipments(self):
         """Migrate shipments table"""
         columns_to_add = {

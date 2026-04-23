@@ -136,7 +136,7 @@ class SchemaManager:
             displays_made INTEGER DEFAULT 0,
             packs_remaining INTEGER DEFAULT 0,
             loose_tablets INTEGER DEFAULT 0,
-            damaged_tablets INTEGER DEFAULT 0,
+            cards_reopened INTEGER DEFAULT 0,
             discrepancy_flag BOOLEAN DEFAULT FALSE,
             assigned_po_id INTEGER,
             bottles_made INTEGER DEFAULT 0,

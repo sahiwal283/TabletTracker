@@ -2,7 +2,7 @@
 import sqlite3
 import unittest
 
-from app.services.bag_running_totals import compute_bag_check_running_totals
+from app.services.bag_check_totals import compute_bag_check_totals
 from app.services.reporting_analytics_service import aggregate_stage_yield
 
 
@@ -92,14 +92,14 @@ class TestBagStageYield(unittest.TestCase):
         self.conn.close()
 
     def test_compute_bag_stage_yields(self):
-        m = compute_bag_check_running_totals(self.conn, 1)
+        m = compute_bag_check_totals(self.conn, 1)
         self.assertEqual(m["blisters_from_blister_counter"], 2)
         self.assertEqual(m["cards_from_sealing_counter"], 10)
         # 1 display * 5 = 5 cards packed
         self.assertEqual(m["cards_in_packaged_output"], 5)
-        self.assertEqual(m["machine_blister_running_total"], 8)
-        self.assertEqual(m["machine_sealing_running_total"], 40)
-        self.assertEqual(m["packaged_running_total"], 20)
+        self.assertEqual(m["machine_blister_tablets_total"], 8)
+        self.assertEqual(m["machine_sealing_tablets_total"], 40)
+        self.assertEqual(m["packaged_tablets_total"], 20)
         self.assertTrue(m["pipeline_stages_present"]["blisters"])
         self.assertTrue(m["pipeline_stages_present"]["sealing"])
         self.assertTrue(m["pipeline_stages_present"]["packaged"])

@@ -86,7 +86,7 @@ def _calculate_submission_counts(submission: Dict[str, Any]) -> Dict[str, int]:
             + (submission.get('packs_remaining', 0) or 0) * tablets_per_package
             + (submission.get('loose_tablets', 0) or 0)
         )
-    # damaged_tablets column = cards re-opened (packaging); do not apply to PO damaged_count
+    # ``cards_reopened`` (packaging) does not apply to po_lines.damaged_count
     return {'good': good_tablets, 'damaged': 0}
 
 
@@ -148,7 +148,7 @@ def _reassign_one_submission_to_po(conn, submission_id: int, new_po_id: int) -> 
 
     counts = _calculate_submission_counts(submission)
     good_tablets = counts['good']
-    damaged_tablets = counts['damaged']
+    receiving_damaged_to_po = counts['damaged']
     old_po_id = submission.get('assigned_po_id')
 
     if old_po_id:
@@ -166,7 +166,7 @@ def _reassign_one_submission_to_po(conn, submission_id: int, new_po_id: int) -> 
                 (old_line['id'],)
             ).fetchone()
             new_good = max(0, (current_line['good_count'] or 0) - good_tablets)
-            new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_tablets)
+            new_damaged = max(0, (current_line['damaged_count'] or 0) - receiving_damaged_to_po)
             conn.execute(
                 '''
                 UPDATE po_lines
@@ -194,7 +194,7 @@ def _reassign_one_submission_to_po(conn, submission_id: int, new_po_id: int) -> 
         SET good_count = good_count + ?, damaged_count = damaged_count + ?
         WHERE id = ?
         ''',
-        (good_tablets, damaged_tablets, new_line['id'])
+        (good_tablets, receiving_damaged_to_po, new_line['id'])
     )
     _refresh_po_header_totals(conn, new_po_id)
 

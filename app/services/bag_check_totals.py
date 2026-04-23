@@ -1,4 +1,4 @@
-"""Bag-level running totals and timing for verification UI (matches get_submission_details semantics)."""
+"""Bag-level cumulative tablet totals and timing for verification UI (matches get_submission_details)."""
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -28,9 +28,9 @@ def _safe_rate(numer: int, denom: int) -> Optional[float]:
     return round(numer / denom, 6)
 
 
-def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
+def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
     """
-    Chronological running totals for all warehouse_submissions tied to this bag
+    Cumulative per-stage tablet totals for all warehouse_submissions for this bag
     (same WHERE shape as get_bag_submissions_payload), aligned with
     app.blueprints.api.get_submission_details bag-keyed accumulation.
     """
@@ -92,10 +92,10 @@ def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
         bag_params + bag_params,
     ).fetchall()
 
-    bag_running_total = 0
-    machine_blister_running_total = 0
-    machine_sealing_running_total = 0
-    packaged_running_total = 0
+    bag_submission_tablets_total = 0
+    machine_blister_tablets_total = 0
+    machine_sealing_tablets_total = 0
+    packaged_tablets_total = 0
 
     # Physical/counter unit accumulators (card flow: 1 machine blister = 1 sealed card in normal flow)
     blisters_from_blister_counter = 0
@@ -141,7 +141,7 @@ def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
                     if tpp
                     else (bag_sub_dict.get('tablets_pressed_into_cards') or 0)
                 )
-                machine_blister_running_total += individual_total
+                machine_blister_tablets_total += individual_total
             else:
                 if primary_sealing_machine_id is None and bag_sub_dict.get('machine_id'):
                     primary_sealing_machine_id = int(bag_sub_dict['machine_id'])
@@ -151,10 +151,10 @@ def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
                 tablets_from_cards = (packs_remaining * bag_tablets_per_package) or 0
                 loose_tablets = bag_sub_dict.get('loose_tablets') or 0
                 individual_total = max(stored_tablets, tablets_from_cards, loose_tablets, 0)
-                machine_sealing_running_total += individual_total
+                machine_sealing_tablets_total += individual_total
         elif bag_sub_type == 'bag':
             individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
-            bag_running_total += individual_total
+            bag_submission_tablets_total += individual_total
         elif bag_sub_type == 'repack':
             ppd = bag_sub_dict.get('packages_per_display', 0) or 0
             tpp = int(
@@ -163,7 +163,7 @@ def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
                 or 0
             )
             r_tablets = calculate_repack_output_good(bag_sub_dict, ppd, tpp)
-            packaged_running_total += r_tablets
+            packaged_tablets_total += r_tablets
             dm = bag_sub_dict.get('displays_made', 0) or 0
             pr = bag_sub_dict.get('packs_remaining', 0) or 0
             cards_in_packaged_output += int(dm * ppd + pr)
@@ -178,13 +178,13 @@ def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
                 + (packs_remaining * tablets_per_package)
                 + loose_tablets
             )
-            packaged_running_total += individual_total
+            packaged_tablets_total += individual_total
             cards_in_packaged_output += int(displays_made * packages_per_display + packs_remaining)
             packaged_loose_tablets += int(loose_tablets)
 
-    B = machine_blister_running_total
-    S = machine_sealing_running_total
-    P = packaged_running_total
+    B = machine_blister_tablets_total
+    S = machine_sealing_tablets_total
+    P = packaged_tablets_total
 
     loss_b_s_tablets = max(0, B - S)
     loss_s_p_tablets = max(0, S - P)
@@ -255,22 +255,21 @@ def compute_bag_check_running_totals(conn, bag_id: int) -> Dict[str, Any]:
     if not bag_label_count:
         bag_label_count = bag.get('pill_count', 0) or 0
 
-    if abs(packaged_running_total - bag_label_count) <= 5:
+    if abs(packaged_tablets_total - bag_label_count) <= 5:
         count_status = 'match'
-        tablet_difference = abs(packaged_running_total - bag_label_count)
-    elif packaged_running_total < bag_label_count:
+        tablet_difference = abs(packaged_tablets_total - bag_label_count)
+    elif packaged_tablets_total < bag_label_count:
         count_status = 'under'
-        tablet_difference = bag_label_count - packaged_running_total
+        tablet_difference = bag_label_count - packaged_tablets_total
     else:
         count_status = 'over'
-        tablet_difference = packaged_running_total - bag_label_count
+        tablet_difference = packaged_tablets_total - bag_label_count
 
     return {
-        'bag_running_total': bag_running_total,
-        'machine_blister_running_total': machine_blister_running_total,
-        'machine_sealing_running_total': machine_sealing_running_total,
-        'packaged_running_total': packaged_running_total,
-        'running_total': packaged_running_total,
+        'bag_submission_tablets_total': bag_submission_tablets_total,
+        'machine_blister_tablets_total': machine_blister_tablets_total,
+        'machine_sealing_tablets_total': machine_sealing_tablets_total,
+        'packaged_tablets_total': packaged_tablets_total,
         'count_status': count_status,
         'tablet_difference': tablet_difference,
         'aggregated_bag_start_time': first_bag_start,

@@ -937,7 +937,7 @@ def reassign_all_submissions():
             # Step 2: Get all submissions in order with their creation timestamp
             all_submissions_rows = conn.execute('''
                 SELECT ws.id, ws.product_name, ws.displays_made, 
-                       ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets, ws.tablets_pressed_into_cards,
+                       ws.packs_remaining, ws.loose_tablets, ws.cards_reopened, ws.tablets_pressed_into_cards,
                        COALESCE(ws.submission_type, 'packaged') as submission_type, ws.created_at
                 FROM warehouse_submissions ws
                 ORDER BY ws.created_at ASC
@@ -1020,8 +1020,8 @@ def reassign_all_submissions():
                         good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
                                       submission.get('packs_remaining', 0) * tablets_per_package + 
                                       submission.get('loose_tablets', 0))
-                    # damaged_tablets column = cards re-opened; not applied to PO damaged_count
-                    damaged_tablets = 0
+                    # cards_re-opened (cards_reopened) does not apply to po_lines.damaged_count
+                    packaging_cards_reopened = 0
                     
                     # Find the first PO that hasn't reached its ordered quantity yet
                     # This allows sequential filling: complete PO-127, then PO-131, then PO-135, etc.
@@ -1055,7 +1055,7 @@ def reassign_all_submissions():
                     # Allocate counts to PO lines from the assigned PO only
                     # Note: We do NOT cap at ordered quantity - actual production may exceed the PO
                     remaining_good = good_tablets
-                    remaining_damaged = damaged_tablets
+                    remaining_damaged = packaging_cards_reopened
                     
                     for line in assigned_po_lines:
                         if remaining_good <= 0 and remaining_damaged <= 0:
@@ -1155,7 +1155,7 @@ def recalculate_po_counts():
                     ws.displays_made,
                     ws.packs_remaining,
                     ws.loose_tablets,
-                    ws.damaged_tablets,
+                    ws.cards_reopened,
                     ws.tablets_pressed_into_cards,
                     COALESCE(ws.submission_type, 'packaged') as submission_type,
                     ws.created_at,
@@ -1201,18 +1201,18 @@ def recalculate_po_counts():
                         'submission_id': sub['submission_id'],
                         'product_name': sub['product_name'],
                         'good_tablets': good_tablets,
-                        'damaged_tablets': sub['damaged_tablets'] or 0,
+                        'cards_reopened': sub['cards_reopened'] or 0,
                         'created_at': sub['created_at'],
                         'po_id': sub['assigned_po_id']
                     })
                     current_app.logger.warning(f"⚠️ Skipped submission ID {sub['submission_id']}: {sub['product_name']} - {good_tablets} tablets (no inventory_item_id)")
                     continue
                 
-                # Calculate good and damaged counts based on submission type
+                # Calculate good and receiving-line damaged counts (packaging cards_reopened never here)
                 submission_type = sub.get('submission_type', 'packaged')
                 if submission_type == 'machine':
                     good_tablets = sub.get('tablets_pressed_into_cards', 0) or 0
-                    damaged_tablets = 0
+                    line_damaged_delta = 0
                 elif submission_type == 'repack':
                     packages_per_display = sub['packages_per_display'] or 0
                     tablets_per_package = sub['tablets_per_package'] or 0
@@ -1220,7 +1220,7 @@ def recalculate_po_counts():
                         (sub['displays_made'] or 0) * packages_per_display * tablets_per_package +
                         (sub['packs_remaining'] or 0) * tablets_per_package
                     )
-                    damaged_tablets = 0
+                    line_damaged_delta = 0
                 else:
                     packages_per_display = sub['packages_per_display'] or 0
                     tablets_per_package = sub['tablets_per_package'] or 0
@@ -1229,15 +1229,15 @@ def recalculate_po_counts():
                         (sub['packs_remaining'] or 0) * tablets_per_package +
                         (sub['loose_tablets'] or 0)
                     )
-                    damaged_tablets = 0
+                    line_damaged_delta = 0
                 
-                # Add to running total for this PO line
+                # Add to cumulative totals for this PO line
                 key = (po_id, inventory_item_id)
                 if key not in po_line_totals:
                     po_line_totals[key] = {'good': 0, 'damaged': 0}
                 
                 po_line_totals[key]['good'] += good_tablets
-                po_line_totals[key]['damaged'] += damaged_tablets
+                po_line_totals[key]['damaged'] += line_damaged_delta
             
             # Step 3: Update each PO line with the calculated totals
             updated_count = 0
@@ -1296,7 +1296,7 @@ def recalculate_po_counts():
                     if product not in skipped_by_product:
                         skipped_by_product[product] = {'good': 0, 'damaged': 0}
                     skipped_by_product[product]['good'] += skip['good_tablets']
-                    skipped_by_product[product]['damaged'] += skip['damaged_tablets']
+                    skipped_by_product[product]['damaged'] += skip['cards_reopened']
                 
                 message += f'\n\n⚠️ WARNING: {len(skipped_submissions)} submissions were skipped (missing product configuration):\n'
                 for product, totals in skipped_by_product.items():
@@ -1660,7 +1660,7 @@ def get_submission_details(submission_id):
             submission_dict['receive_name'] = receive_name
             submission_dict.pop('receive_name_from_receive', None)
             
-            # Calculate bag running totals for this submission
+            # Cumulative bag check totals for this submission (chronological through this row)
             # Get all submissions to the same bag up to and including this submission (chronological order)
             if submission_dict.get('assigned_po_id') and submission_dict.get('product_name') and submission_dict.get('box_number') is not None and submission_dict.get('bag_number') is not None:
                 # Same physical bag: match bag_id (repack + rows that store bag_id) OR legacy box_number+bag_number on row
@@ -1696,13 +1696,12 @@ def get_submission_details(submission_id):
                       submission_dict.get('created_at'),
                       bid, bid, bx, bn)).fetchall()
                 
-                # Calculate running totals
-                bag_running_total = 0
-                machine_running_total = 0
-                machine_blister_running_total = 0
-                machine_sealing_running_total = 0
-                packaged_running_total = 0
-                total_running_total = 0
+                # Cumulative per-stage tablet totals for this physical bag
+                bag_submission_tablets_total = 0
+                machine_tablets_total = 0
+                machine_blister_tablets_total = 0
+                machine_sealing_tablets_total = 0
+                packaged_tablets_total = 0
                 
                 for bag_sub in bag_submissions:
                     bag_sub_dict = dict(bag_sub)
@@ -1722,20 +1721,20 @@ def get_submission_details(submission_id):
                                 if tpp
                                 else (bag_sub_dict.get('tablets_pressed_into_cards') or 0)
                             )
-                            machine_blister_running_total += individual_total
+                            machine_blister_tablets_total += individual_total
                         else:
                             packs_remaining = bag_sub_dict.get('packs_remaining', 0) or 0
                             stored_tablets = bag_sub_dict.get('tablets_pressed_into_cards') or 0
                             tablets_from_cards = (packs_remaining * bag_tablets_per_package) or 0
                             loose_tablets = bag_sub_dict.get('loose_tablets') or 0
                             individual_total = max(stored_tablets, tablets_from_cards, loose_tablets, 0)
-                            machine_sealing_running_total += individual_total
-                        machine_running_total += individual_total
+                            machine_sealing_tablets_total += individual_total
+                        machine_tablets_total += individual_total
                         # Machine counts are NOT added to total - they're consumed in production
                     elif bag_sub_type == 'bag':
                         # For bag count submissions, use loose_tablets (the actual count from form)
                         individual_total = bag_sub_dict.get('loose_tablets', 0) or 0
-                        bag_running_total += individual_total
+                        bag_submission_tablets_total += individual_total
                         # Bag counts are NOT added to total - they're just inventory counts
                     elif bag_sub_type == 'repack':
                         # Repack credits PO good; physical bag totals stay packaged-only (no double-count)
@@ -1751,41 +1750,34 @@ def get_submission_details(submission_id):
                             (packs_remaining * tablets_per_package) +
                             loose_tablets
                         )
-                        packaged_running_total += individual_total
-                        # Only packaged counts are added to total - these are tablets actually in the bag
-                        total_running_total += individual_total
+                        packaged_tablets_total += individual_total
                 
-                submission_dict['bag_running_total'] = bag_running_total
-                submission_dict['machine_running_total'] = machine_running_total
-                submission_dict['machine_blister_running_total'] = machine_blister_running_total
-                submission_dict['machine_sealing_running_total'] = machine_sealing_running_total
-                submission_dict['packaged_running_total'] = packaged_running_total
-                # Total should only include packaged counts (tablets actually in the bag)
-                # Machine counts are consumed, bag counts are just inventory
-                submission_dict['running_total'] = packaged_running_total
+                submission_dict['bag_submission_tablets_total'] = bag_submission_tablets_total
+                submission_dict['machine_tablets_total'] = machine_tablets_total
+                submission_dict['machine_blister_tablets_total'] = machine_blister_tablets_total
+                submission_dict['machine_sealing_tablets_total'] = machine_sealing_tablets_total
+                submission_dict['packaged_tablets_total'] = packaged_tablets_total
                 
-                # Calculate count status and tablet difference
-                # Use packaged_running_total for comparison - machine counts are consumed, not in bag
+                # Compare packaged tablet flow to bag label; machine/bag-inventory rows excluded from match
                 bag_label_count = submission_dict.get('bag_label_count', 0) or 0
                 if not submission_dict.get('bag_id'):
                     submission_dict['count_status'] = 'no_bag'
                     submission_dict['tablet_difference'] = None
-                elif abs(packaged_running_total - bag_label_count) <= 5:  # Allow 5 tablet tolerance
+                elif abs(packaged_tablets_total - bag_label_count) <= 5:  # Allow 5 tablet tolerance
                     submission_dict['count_status'] = 'match'
-                    submission_dict['tablet_difference'] = abs(packaged_running_total - bag_label_count)
-                elif packaged_running_total < bag_label_count:
+                    submission_dict['tablet_difference'] = abs(packaged_tablets_total - bag_label_count)
+                elif packaged_tablets_total < bag_label_count:
                     submission_dict['count_status'] = 'under'
-                    submission_dict['tablet_difference'] = bag_label_count - packaged_running_total
+                    submission_dict['tablet_difference'] = bag_label_count - packaged_tablets_total
                 else:
                     submission_dict['count_status'] = 'over'
-                    submission_dict['tablet_difference'] = packaged_running_total - bag_label_count
+                    submission_dict['tablet_difference'] = packaged_tablets_total - bag_label_count
             else:
-                submission_dict['bag_running_total'] = 0
-                submission_dict['machine_running_total'] = 0
-                submission_dict['machine_blister_running_total'] = 0
-                submission_dict['machine_sealing_running_total'] = 0
-                submission_dict['packaged_running_total'] = 0
-                submission_dict['running_total'] = 0
+                submission_dict['bag_submission_tablets_total'] = 0
+                submission_dict['machine_tablets_total'] = 0
+                submission_dict['machine_blister_tablets_total'] = 0
+                submission_dict['machine_sealing_tablets_total'] = 0
+                submission_dict['packaged_tablets_total'] = 0
                 submission_dict['count_status'] = 'no_bag'
                 submission_dict['tablet_difference'] = None
             
@@ -1927,7 +1919,7 @@ def edit_submission(submission_id):
             # Get the submission's current PO assignment
             submission = conn.execute('''
                 SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
-                       loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
+                       loose_tablets, cards_reopened, tablets_pressed_into_cards, inventory_item_id,
                        bottles_made, machine_id,
                        COALESCE(submission_type, 'packaged') as submission_type,
                        repack_vendor_return_notes, repack_machine_count,
@@ -2072,7 +2064,7 @@ def edit_submission(submission_id):
                 old_good = (submission['displays_made'] * packages_per_display * tablets_per_package +
                            submission['packs_remaining'] * tablets_per_package +
                            submission['loose_tablets'])
-            # Cards re-opened (damaged_tablets col) does not affect PO damaged_count
+            # Cards re-opened (cards_reopened) does not affect PO damaged_count
             old_damaged = 0
             
             # Validate and convert input data
@@ -2080,7 +2072,7 @@ def edit_submission(submission_id):
                 displays_made = int(data.get('displays_made', 0) or 0)
                 packs_remaining = int(data.get('packs_remaining', 0) or 0)
                 loose_tablets = int(data.get('loose_tablets', 0) or 0) if submission_type not in ['machine', 'bottle', 'repack'] else 0
-                damaged_tablets = int(data.get('damaged_tablets', 0) or 0) if submission_type not in ('bottle', 'repack') else 0
+                cards_reopened = int(data.get('cards_reopened', 0) or 0) if submission_type not in ('bottle', 'repack') else 0
                 tablets_pressed_into_cards = int(data.get('tablets_pressed_into_cards', 0) or 0) if submission_type == 'machine' else 0
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for counts'}), 400
@@ -2208,24 +2200,24 @@ def edit_submission(submission_id):
                     conn.execute('''
                         UPDATE warehouse_submissions
                         SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
-                            damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                            cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                             submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
                             machine_id = ?, bag_start_time = ?
                         WHERE id = ?
                     ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
-                          damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                          cards_reopened, new_box_number, new_bag_number, new_bag_id,
                           data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
                           product_name_to_use, inventory_item_id, new_machine_id, bag_start_parsed, submission_id))
                 else:
                     conn.execute('''
                         UPDATE warehouse_submissions
                         SET displays_made = ?, packs_remaining = ?, tablets_pressed_into_cards = ?, 
-                            damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                            cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                             submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
                             machine_id = ?
                         WHERE id = ?
                     ''', (displays_made, packs_remaining, tablets_pressed_into_cards,
-                          damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                          cards_reopened, new_box_number, new_bag_number, new_bag_id,
                           data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number, 
                           product_name_to_use, inventory_item_id, new_machine_id, submission_id))
             elif submission_type == 'bottle':
@@ -2233,7 +2225,7 @@ def edit_submission(submission_id):
                 conn.execute('''
                     UPDATE warehouse_submissions
                     SET displays_made = ?, packs_remaining = ?, bottles_made = ?, loose_tablets = 0,
-                        damaged_tablets = 0, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                        cards_reopened = 0, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                         submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
                         bottle_sealing_machine_count = ?
                     WHERE id = ?
@@ -2274,7 +2266,7 @@ def edit_submission(submission_id):
                 conn.execute(
                     '''
                     UPDATE warehouse_submissions
-                    SET displays_made = ?, packs_remaining = ?, loose_tablets = 0, damaged_tablets = 0,
+                    SET displays_made = ?, packs_remaining = ?, loose_tablets = 0, cards_reopened = 0,
                         bag_id = ?, needs_review = ?,
                         submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
                         repack_bag_allocations = ?, repack_vendor_return_notes = ?,
@@ -2302,23 +2294,23 @@ def edit_submission(submission_id):
                     conn.execute('''
                         UPDATE warehouse_submissions
                         SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
-                                damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                                 submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
                                 bag_end_time = ?
                         WHERE id = ?
                     ''', (displays_made, packs_remaining, loose_tablets,
-                              damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                              cards_reopened, new_box_number, new_bag_number, new_bag_id,
                               data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
                               product_name_to_use, inventory_item_id, bag_end_parsed, submission_id))
                 else:
                     conn.execute('''
                         UPDATE warehouse_submissions
                         SET displays_made = ?, packs_remaining = ?, loose_tablets = ?, 
-                                damaged_tablets = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
                                 submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
                         WHERE id = ?
                     ''', (displays_made, packs_remaining, loose_tablets,
-                              damaged_tablets, new_box_number, new_bag_number, new_bag_id,
+                              cards_reopened, new_box_number, new_bag_number, new_bag_id,
                               data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
                               product_name_to_use, inventory_item_id, submission_id))
             
@@ -2442,7 +2434,7 @@ def delete_submission(submission_id):
             # Get the submission details
             submission = conn.execute('''
                 SELECT assigned_po_id, product_name, displays_made, packs_remaining, 
-                       loose_tablets, damaged_tablets, tablets_pressed_into_cards, inventory_item_id,
+                       loose_tablets, cards_reopened, tablets_pressed_into_cards, inventory_item_id,
                        bottles_made,
                        COALESCE(submission_type, 'packaged') as submission_type
                 FROM warehouse_submissions
@@ -2506,8 +2498,8 @@ def delete_submission(submission_id):
                                submission['packs_remaining'] * (product.get('tablets_per_package') or 0) +
                                submission['loose_tablets'])
             
-            # Cards re-opened field does not affect PO damaged_count
-            damaged_tablets = 0
+            # Packaging cards re-opened do not affect PO line damaged_count
+            receiving_damaged_subtract = 0
             
             # Remove counts from PO line if assigned
             if old_po_id and inventory_item_id:
@@ -2525,7 +2517,7 @@ def delete_submission(submission_id):
                     ''', (po_line['id'],)).fetchone()
                     
                     new_good = max(0, (current_line['good_count'] or 0) - good_tablets)
-                    new_damaged = max(0, (current_line['damaged_count'] or 0) - damaged_tablets)
+                    new_damaged = max(0, (current_line['damaged_count'] or 0) - receiving_damaged_subtract)
                     
                     # Remove counts from PO line
                     conn.execute('''
@@ -2619,7 +2611,7 @@ def resync_unassigned_submissions():
             # Note: Use 'id' instead of 'rowid' for better compatibility
             unassigned_rows = conn.execute('''
                 SELECT ws.id, ws.product_name, ws.displays_made, 
-                       ws.packs_remaining, ws.loose_tablets, ws.damaged_tablets, ws.tablets_pressed_into_cards,
+                       ws.packs_remaining, ws.loose_tablets, ws.cards_reopened, ws.tablets_pressed_into_cards,
                        COALESCE(ws.submission_type, 'packaged') as submission_type
                 FROM warehouse_submissions ws
                 WHERE ws.assigned_po_id IS NULL
@@ -2689,25 +2681,25 @@ def resync_unassigned_submissions():
                 if not po_lines:
                     continue
                 
-                # Calculate good and damaged counts based on submission type
+                # Good tablets and PO-line damaged delta (packaging cards_reopened never here)
                 submission_type = submission.get('submission_type', 'packaged')
                 if submission_type == 'machine':
                     good_tablets = submission.get('tablets_pressed_into_cards', 0) or 0
-                    damaged_tablets = 0
+                    line_damaged_delta = 0
                 elif submission_type == 'repack':
                     packages_per_display = product.get('packages_per_display') or 0
                     tablets_per_package = product.get('tablets_per_package') or 0
                     good_tablets = calculate_repack_output_good(
                         submission, packages_per_display, tablets_per_package
                     )
-                    damaged_tablets = 0
+                    line_damaged_delta = 0
                 else:
                     packages_per_display = product.get('packages_per_display') or 0
                     tablets_per_package = product.get('tablets_per_package') or 0
                     good_tablets = (submission.get('displays_made', 0) * packages_per_display * tablets_per_package + 
                                   submission.get('packs_remaining', 0) * tablets_per_package + 
                                   submission.get('loose_tablets', 0))
-                    damaged_tablets = 0
+                    line_damaged_delta = 0
                 
                 # Assign to first available PO
                 assigned_po_id = po_lines[0]['po_id']
@@ -2726,7 +2718,7 @@ def resync_unassigned_submissions():
                     UPDATE po_lines 
                     SET good_count = good_count + ?, damaged_count = damaged_count + ?
                     WHERE id = ?
-                ''', (good_tablets, damaged_tablets, line['id']))
+                ''', (good_tablets, line_damaged_delta, line['id']))
                 
                 updated_pos.add(line['po_id'])
                 
@@ -2852,7 +2844,7 @@ def get_po_submissions(po_id):
                         ws.displays_made,
                         ws.packs_remaining,
                         ws.loose_tablets,
-                        ws.damaged_tablets,
+                        ws.cards_reopened,
                         ws.tablets_pressed_into_cards,
                         ws.created_at,
                         ws.submission_date,
@@ -2895,7 +2887,7 @@ def get_po_submissions(po_id):
                         ws.displays_made,
                         ws.packs_remaining,
                         ws.loose_tablets,
-                        ws.damaged_tablets,
+                        ws.cards_reopened,
                         ws.tablets_pressed_into_cards,
                         ws.created_at,
                         ws.created_at as submission_date,
@@ -2934,9 +2926,9 @@ def get_po_submissions(po_id):
             submissions_raw = conn.execute(submissions_query, tuple(po_ids_to_query)).fetchall()
             current_app.logger.debug(f"🔍 get_po_submissions: Found {len(submissions_raw)} submissions for PO {po_id} ({po_number}) including related POs: {po_ids_to_query}")
             
-            # Calculate total tablets and running bag totals for each submission
-            # Also calculate separate totals for machine vs packaged+bag counts
-            bag_running_totals = {}
+            # Total tablets and cumulative packaged total per bag key (for check vs label)
+            # Also track separate totals for machine vs packaged+bag counts
+            bag_cumulative_packaged = {}
             submissions = []
             machine_total = 0
             packaged_total = 0
@@ -2993,39 +2985,33 @@ def get_po_submissions(po_id):
                     repack_total += total_tablets
                 # Bag counts are separate from packaged counts - they're just inventory counts, not production
                 
-                # Calculate running total by bag PER PO (only for packaged submissions, NOT bag counts)
+                # Cumulative packaged tablets by bag key PER PO (packaged only; not bag inv. or repack for this bar)
                 if submission_type == 'packaged':
                     bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-                    # Key includes PO ID so each PO tracks its own bag totals independently
                     bag_key = (po_id, sub_dict.get('product_name', ''), bag_identifier)
-                    if bag_key not in bag_running_totals:
-                        bag_running_totals[bag_key] = 0
-                    bag_running_totals[bag_key] += total_tablets
-                    sub_dict['running_total'] = bag_running_totals[bag_key]
+                    if bag_key not in bag_cumulative_packaged:
+                        bag_cumulative_packaged[bag_key] = 0
+                    bag_cumulative_packaged[bag_key] += total_tablets
+                    sub_dict['cumulative_bag_tablets'] = bag_cumulative_packaged[bag_key]
                     
-                    # Determine count status (only for packaged submissions)
-                    # Check if bag_id is NULL, not just bag_label_count
-                    # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
                     if not sub_dict.get('bag_id'):
                         sub_dict['count_status'] = 'no_bag'
                     else:
                         bag_count = sub_dict.get('bag_label_count', 0) or 0
-                        if abs(bag_running_totals[bag_key] - bag_count) <= 5:
+                        if abs(bag_cumulative_packaged[bag_key] - bag_count) <= 5:
                             sub_dict['count_status'] = 'match'
-                        elif bag_running_totals[bag_key] < bag_count:
+                        elif bag_cumulative_packaged[bag_key] < bag_count:
                             sub_dict['count_status'] = 'under'
                         else:
                             sub_dict['count_status'] = 'over'
                 elif submission_type == 'bag':
-                    # Bag counts don't have running totals - they're just inventory counts
-                    sub_dict['running_total'] = total_tablets
+                    sub_dict['cumulative_bag_tablets'] = total_tablets
                     sub_dict['count_status'] = None
                 elif submission_type == 'repack':
-                    sub_dict['running_total'] = total_tablets
+                    sub_dict['cumulative_bag_tablets'] = total_tablets
                     sub_dict['count_status'] = 'repack_po'
                 else:
-                    # Machine counts don't have bag running totals
-                    sub_dict['running_total'] = total_tablets
+                    sub_dict['cumulative_bag_tablets'] = total_tablets
                     sub_dict['count_status'] = None
                 
                 submissions.append(sub_dict)

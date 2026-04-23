@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.0] - 2026-04-23
+
+### Breaking
+- **Database:** `warehouse_submissions.damaged_tablets` is renamed to **`cards_reopened`** (packaging: blister cards re-opened / torn). Migration runs on app startup; existing DBs are updated via `ALTER TABLE ... RENAME COLUMN` (or add+copy fallback).
+- **API / forms / workflow:** JSON and form field **`damaged_tablets`** is replaced with **`cards_reopened`** everywhere for warehouse submissions. Clients posting the old name must be updated.
+- **Bag check fields:** Cumulative per-bag keys were renamed: `bag_running_total` → `bag_submission_tablets_total`, `machine_blister_running_total` → `machine_blister_tablets_total`, `machine_sealing_running_total` → `machine_sealing_tablets_total`, `packaged_running_total` → `packaged_tablets_total`, `machine_running_total` → `machine_tablets_total` (submission details). The duplicate **`running_total`** (when equal to packaged-only total) is removed; use **`packaged_tablets_total`**. List/PO views use **`cumulative_bag_tablets`** for the former “Running” line (cumulative packaged flow per bag key; other submission types still expose a per-row value as before).
+- **Module:** `app.services.bag_running_totals` → **`app.services.bag_check_totals`**; `compute_bag_check_running_totals` → **`compute_bag_check_totals`**.
+- **Removed:** dead **`app_old.py`**.
+
+### Fixed
+- **Executive summary PDF row** that mislabeled **PO receiving damage** as “Cards re-opened”; the metric is now titled **“Damaged at receiving (PO, tablets)”**.
+
 ## [3.10.10] - 2026-04-23
 
 ### Changed

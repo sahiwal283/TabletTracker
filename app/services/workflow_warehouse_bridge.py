@@ -215,7 +215,7 @@ def upsert_packaged_from_workflow_packaging(
     event_id: Optional[int] = None,
     employee_name: Optional[str] = None,
     packs_remaining: int = 0,
-    damaged_tablets: int = 0,
+    cards_reopened: int = 0,
     receipt_mode: str = "pkg",
 ) -> Dict[str, Any]:
     """
@@ -228,14 +228,14 @@ def upsert_packaged_from_workflow_packaging(
     ``receipt_mode`` ``taken``: pull-for-delivery / order receipt ``-take-e<event_id>`` — tablets
     from ``displays_made`` still roll into PO good output like snapshots; admin notes label the row.
 
-    ``packs_remaining`` / ``damaged_tablets`` match the production packaging form (cards remaining /
-    cards re-opened; legacy column name for cards ripped).
+    ``packs_remaining`` / ``cards_reopened`` match the production packaging form (cards remaining /
+    cards re-opened).
 
     Counts feed the same aggregates as the production form (displays × packages/display × tablets/package).
     """
     if displays_made < 0:
         return {"ok": False, "reason": "invalid_displays_made", "skipped": True}
-    if packs_remaining < 0 or damaged_tablets < 0:
+    if packs_remaining < 0 or cards_reopened < 0:
         return {"ok": False, "reason": "invalid_packaging_counts", "skipped": True}
     rm = (receipt_mode or "pkg").strip().lower()
     if rm not in ("pkg", "taken"):
@@ -410,7 +410,7 @@ def upsert_packaged_from_workflow_packaging(
         """
         INSERT INTO warehouse_submissions
         (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-         displays_made, packs_remaining, loose_tablets, damaged_tablets, submission_date, admin_notes,
+         displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
          submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
         """,
@@ -424,7 +424,7 @@ def upsert_packaged_from_workflow_packaging(
             int(displays_made),
             int(packs_remaining),
             0,
-            int(damaged_tablets),
+            int(cards_reopened),
             submission_date,
             admin_notes,
             bag_id,
@@ -481,7 +481,7 @@ def sync_if_packaging_snapshot(
     except (TypeError, ValueError):
         pr = 0
     try:
-        dt = int(payload.get("damaged_tablets") or 0)
+        dt = int(payload.get("cards_reopened") or 0)
     except (TypeError, ValueError):
         dt = 0
     return upsert_packaged_from_workflow_packaging(
@@ -492,7 +492,7 @@ def sync_if_packaging_snapshot(
         event_id=event_id,
         employee_name=_employee_name_from_payload(payload),
         packs_remaining=pr,
-        damaged_tablets=dt,
+        cards_reopened=dt,
     )
 
 
@@ -521,7 +521,7 @@ def sync_if_packaging_taken_for_order(
         event_id=event_id,
         employee_name=_employee_name_from_payload(payload),
         packs_remaining=0,
-        damaged_tablets=0,
+        cards_reopened=0,
         receipt_mode="taken",
     )
 

@@ -1040,7 +1040,7 @@ def submit_repack():
                     """
                     INSERT INTO warehouse_submissions
                     (employee_name, product_name, inventory_item_id, box_number, bag_number,
-                     displays_made, packs_remaining, loose_tablets, damaged_tablets,
+                     displays_made, packs_remaining, loose_tablets, cards_reopened,
                      submission_date, admin_notes, submission_type,
                      bag_id, assigned_po_id, needs_review, receipt_number,
                      repack_bag_allocations, repack_vendor_return_notes, repack_allocation_version,
