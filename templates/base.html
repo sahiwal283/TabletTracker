@@ -3277,12 +3277,16 @@ async function viewSubmissionDetails(submissionId) {
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h4>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Submission Type</label>
-                                    <div class="mt-1">${typeBadge}</div>
+                                    <label class="text-xs text-gray-500 uppercase">Receipt #</label>
+                                    <div class="mt-1 text-gray-900 text-xl font-semibold tracking-tight">${sub.receipt_number || 'N/A'}</div>
                                 </div>
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Receipt #</label>
-                                    <div class="mt-1 inline-flex items-center px-3 py-1 rounded-md bg-indigo-50 text-indigo-900 text-lg font-bold tracking-wide">${sub.receipt_number || 'N/A'}</div>
+                                    <label class="text-xs text-gray-500 uppercase">Bag Name</label>
+                                    <div class="mt-1 text-gray-900 text-xl font-semibold tracking-tight">${bagNameDisplay}</div>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-500 uppercase">Submission Type</label>
+                                    <div class="mt-1">${typeBadge}</div>
                                 </div>
                                 <div>
                                     <label class="text-xs text-gray-500 uppercase">Employee</label>
@@ -3295,10 +3299,6 @@ async function viewSubmissionDetails(submissionId) {
                                 <div>
                                     <label class="text-xs text-gray-500 uppercase">Tablet Used</label>
                                     <div class="mt-1 text-gray-900">${sub.tablet_used_name || sub.tablet_type_name || sub.product_name || 'N/A'}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag Name</label>
-                                    <div class="mt-1 inline-flex items-center px-3 py-1 rounded-md bg-indigo-50 text-indigo-900 text-lg font-bold tracking-wide">${bagNameDisplay}</div>
                                 </div>
                                 <div class="col-span-2 mt-1 pt-3 border-t border-gray-200">
                                     <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Station Timing</div>
