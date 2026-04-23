@@ -3177,6 +3177,9 @@ async function viewSubmissionDetails(submissionId) {
         const bagStartDisplay = bagTimeEastern(sub.bag_start_time);
         const bagEndDisplay = bagTimeEastern(sub.bag_end_time);
         const bagDurationDisplay = durationDisplay(sub.bag_start_time, sub.bag_end_time);
+        const flavorDisplay = sub.tablet_used_name || sub.tablet_type_name || 'N/A';
+        const estimatedCountByWeightDisplay = sub.estimated_count_by_weight != null ? sub.estimated_count_by_weight : (sub.bag_label_count != null ? sub.bag_label_count : 'N/A');
+        const bagLabelCountDisplay = sub.bag_label_count != null ? sub.bag_label_count : 'N/A';
         const bagNameDisplay = (() => {
             const receipt = (sub.receipt_number || '').trim();
             const po = (sub.po_number || '').trim();
@@ -3314,21 +3317,6 @@ async function viewSubmissionDetails(submissionId) {
                                 <div>
                                     <label class="text-xs text-gray-500 uppercase">Station Duration</label>
                                     <div class="mt-1 text-gray-900">${stationDurationDisplay}</div>
-                                </div>
-                                <div class="col-span-2 mt-1 pt-3 border-t border-gray-200">
-                                    <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Bag Timing</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag Start (Eastern)</label>
-                                    <div class="mt-1 text-gray-900">${bagStartDisplay}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag End (Eastern)</label>
-                                    <div class="mt-1 text-gray-900">${bagEndDisplay}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag Duration</label>
-                                    <div class="mt-1 text-gray-900">${bagDurationDisplay}</div>
                                 </div>
                             </div>
                         </div>
@@ -3505,6 +3493,7 @@ async function viewSubmissionDetails(submissionId) {
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">Bag Name</label>
                                         <div class="mt-1 text-gray-900 font-medium">${bagNameDisplay}</div>
+                                        <div class="mt-1 text-sm text-gray-600">Flavor: ${flavorDisplay}</div>
                                     </div>
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">Receive Date</label>
@@ -3516,14 +3505,18 @@ async function viewSubmissionDetails(submissionId) {
                                     </div>
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">Estimated Count (Based on Weight)</label>
-                                        <div class="mt-1 text-gray-900">${sub.bag_label_count != null ? sub.bag_label_count : 'N/A'}</div>
+                                        <div class="mt-1 text-gray-900">${estimatedCountByWeightDisplay}</div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
+                                        <div class="mt-1 text-gray-900">${bagLabelCountDisplay}</div>
                                     </div>
                                 </div>
                                 ${repackRecvHtml}
 
-                                <!-- Purchase Order Assignment -->
+                                <!-- PO Status -->
                                 <div class="mt-4 pt-4 border-t border-gray-200">
-                                    <h5 class="text-base font-semibold text-gray-700 mb-3">Purchase Order Assignment</h5>
+                                    <h5 class="text-base font-semibold text-gray-700 mb-3">PO Status</h5>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">PO Closed</label>
@@ -3531,11 +3524,26 @@ async function viewSubmissionDetails(submissionId) {
                                             ${sub.po_closed ? '<span class="text-red-600 font-medium">Yes</span>' : '<span class="text-green-600 font-medium">No</span>'}
                                         </div>
                                     </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">Assignment</label>
-                                        <div class="mt-1 text-gray-900">${sub.assigned_po_id ? 'Assigned' : 'Not assigned'}</div>
-                                    </div>
                                 </div>
+                                </div>
+
+                                <!-- Bag Timing -->
+                                <div class="mt-4 pt-4 border-t border-gray-200">
+                                    <h5 class="text-base font-semibold text-gray-700 mb-3">Bag Timing</h5>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Bag Start (Eastern)</label>
+                                            <div class="mt-1 text-gray-900">${bagStartDisplay}</div>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Bag End (Eastern)</label>
+                                            <div class="mt-1 text-gray-900">${bagEndDisplay}</div>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-500 uppercase">Bag Duration</label>
+                                            <div class="mt-1 text-gray-900">${bagDurationDisplay}</div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Bag Check Running Totals -->
