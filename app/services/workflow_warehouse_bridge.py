@@ -403,17 +403,8 @@ def upsert_packaged_from_workflow_packaging(
 
     submission_date = datetime.now().date().isoformat()
     emp = employee_name or "QR workflow"
-    if rm == "taken":
-        admin_notes = (
-            f"QR workflow packaging taken for delivery/order (workflow_bag_id={workflow_bag_id}, "
-            f"workflow_event_id={event_id})"
-        )
-    else:
-        admin_notes = f"QR workflow packaging sync (workflow_bag_id={workflow_bag_id}"
-        if event_id is not None:
-            admin_notes += f", workflow_event_id={event_id})"
-        else:
-            admin_notes += ")"
+    # QR workflow sync rows should not add noisy auto-notes.
+    admin_notes = None
 
     conn.execute(
         """
@@ -856,13 +847,6 @@ def upsert_machine_from_workflow_scan(
     )
     base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
     lane_label = "sealing" if key == "seal" else "blister"
-    admin_notes = (
-        f"QR workflow {lane_label} sync (workflow_bag_id={workflow_bag_id}, "
-        f"station_id={station_row.get('id')}"
-    )
-    if event_id is not None:
-        admin_notes += f", workflow_event_id={event_id}"
-    admin_notes += ")"
 
     if count_total < 0:
         return {"ok": False, "reason": "invalid_count_total", "skipped": True}
@@ -916,7 +900,6 @@ def upsert_machine_from_workflow_scan(
         "receipt_number": receipt,
         "confirm_reserved_override": True,
         "confirm_unassigned_submit": True,
-        "machine_admin_notes": admin_notes,
     }
 
     entries = [{"machine_id": machine_id, "machine_count": int(count_total)}]
