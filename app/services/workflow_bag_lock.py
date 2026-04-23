@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import threading
-from typing import Dict
 
 _lock_guard = threading.Lock()
-_bag_locks: Dict[int, threading.Lock] = {}
+_bag_locks: dict[int, threading.Lock] = {}
 
 
 def bag_write_lock(workflow_bag_id: int) -> threading.Lock:

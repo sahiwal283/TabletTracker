@@ -1,4 +1,3 @@
-
 """HTTP helpers: structured JSON errors + simple in-process rate limit for floor API."""
 
 from __future__ import annotations
@@ -6,15 +5,16 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
-from flask import Request, jsonify, request
+from flask import Request, jsonify
 from flask_limiter.util import get_remote_address
 
 LOGGER = logging.getLogger(__name__)
 
-_floor_buckets: Dict[str, List[float]] = defaultdict(list)
+_floor_buckets: dict[str, list[float]] = defaultdict(list)
 _FLOOR_WINDOW_SEC = 60.0
 _FLOOR_MAX = 120
 
@@ -24,9 +24,9 @@ def workflow_json(
     message: str,
     *,
     status: int = 400,
-    details: Optional[Dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ):
-    body: Dict[str, Any] = {"code": code, "message": message}
+    body: dict[str, Any] = {"code": code, "message": message}
     if details is not None:
         body["details"] = details
     return jsonify(body), status
@@ -54,6 +54,6 @@ def rate_limit_floor(f: Callable) -> Callable:
     return wrapped
 
 
-def read_json_body(req: Request) -> Dict[str, Any]:
+def read_json_body(req: Request) -> dict[str, Any]:
     data = req.get_json(silent=True)
     return data if isinstance(data, dict) else {}

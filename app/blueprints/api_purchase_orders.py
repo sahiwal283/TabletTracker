@@ -3,16 +3,16 @@ Purchase Order API routes.
 
 This module handles all purchase order-related API endpoints.
 """
-from flask import Blueprint, request, jsonify, current_app, session
-from datetime import datetime
-from decimal import Decimal, InvalidOperation
 import traceback
-from app.utils.db_utils import db_read_only, db_transaction
-from app.utils.auth_utils import role_required
-from app.services.zoho_service import zoho_api, parse_zoho_item_weight_grams
+from decimal import Decimal, InvalidOperation
+
+from flask import Blueprint, current_app, jsonify, request, session
+
+from app.services.purchase_order_service import create_or_update_overs_po_for_push, get_overs_po_preview
 from app.services.purchase_order_service import create_overs_po as create_overs_po_service
-from app.services.purchase_order_service import get_overs_po_preview
-from app.services.purchase_order_service import create_or_update_overs_po_for_push
+from app.services.zoho_service import parse_zoho_item_weight_grams, zoho_api
+from app.utils.auth_utils import role_required
+from app.utils.db_utils import db_read_only, db_transaction
 
 bp = Blueprint('api_purchase_orders', __name__)
 
@@ -27,7 +27,7 @@ def _safe_decimal_or_none(value):
     try:
         parsed = Decimal(text)
     except (InvalidOperation, TypeError, ValueError):
-        raise ValueError("damage_weight_kg must be a number")
+        raise ValueError("damage_weight_kg must be a number") from None
     return parsed
 
 
@@ -86,11 +86,11 @@ def sync_zoho_pos():
         current_app.logger.info("🔄 Starting Zoho PO sync...")
         with db_transaction() as conn:
             current_app.logger.info("✅ Database connection established")
-            
+
             current_app.logger.info("📡 Calling Zoho API sync function...")
             success, message = zoho_api.sync_tablet_pos_to_db(conn)
             current_app.logger.info(f"✅ Sync completed. Success: {success}, Message: {message}")
-            
+
             if success:
                 return jsonify({'message': message, 'success': True})
             else:
@@ -208,7 +208,7 @@ def get_po_lines(po_id):
             lines = conn.execute('''
                 SELECT * FROM po_lines WHERE po_id = ? ORDER BY line_item_name
             ''', (po_id,)).fetchall()
-            
+
             # Count unverified submissions for this PO
             unverified_query = '''
                 SELECT COUNT(*) as count
@@ -217,7 +217,7 @@ def get_po_lines(po_id):
             '''
             unverified_count_row = conn.execute(unverified_query, (po_id,)).fetchone()
             unverified_count = dict(unverified_count_row) if unverified_count_row else None
-            
+
             # Get current PO details including status and parent
             current_po_row = conn.execute('''
                 SELECT po_number, closed, internal_status, zoho_status, parent_po_number
@@ -238,13 +238,13 @@ def get_po_lines(po_id):
                     po_status = current_po.get('zoho_status')
                 else:
                     po_status = 'Open'
-            
+
             # Check if there's an overs PO linked to this parent PO
             overs_po = None
             if current_po_number:
                 overs_po_record_row = conn.execute('''
-                    SELECT id, po_number 
-                    FROM purchase_orders 
+                    SELECT id, po_number
+                    FROM purchase_orders
                     WHERE parent_po_number = ?
                 ''', (current_po_number,)).fetchone()
                 if overs_po_record_row:
@@ -253,13 +253,13 @@ def get_po_lines(po_id):
                         'id': overs_po_record.get('id'),
                         'po_number': overs_po_record.get('po_number')
                     }
-            
+
             # Check if this is an overs PO (has a parent)
             parent_po = None
             if current_po and current_po.get('parent_po_number'):
                 parent_po_record_row = conn.execute('''
-                    SELECT id, po_number 
-                    FROM purchase_orders 
+                    SELECT id, po_number
+                    FROM purchase_orders
                     WHERE po_number = ?
                 ''', (current_po.get('parent_po_number'),)).fetchone()
                 if parent_po_record_row:
@@ -268,7 +268,7 @@ def get_po_lines(po_id):
                         'id': parent_po_record.get('id'),
                         'po_number': parent_po_record.get('po_number')
                     }
-            
+
             damage_closeout_by_line = _load_damage_closeout_by_line(conn, po_id)
 
             # Calculate round numbers, received counts, and submission counts for each line item
@@ -276,7 +276,7 @@ def get_po_lines(po_id):
             for line in lines:
                 line_dict = dict(line)
                 round_number = None
-                
+
                 if line_dict.get('inventory_item_id') and current_po_number:
                     # Find all POs containing this inventory_item_id, ordered by PO number (oldest first)
                     pos_with_item = conn.execute('''
@@ -286,15 +286,15 @@ def get_po_lines(po_id):
                         WHERE pl.inventory_item_id = ?
                         ORDER BY po.po_number ASC
                     ''', (line_dict['inventory_item_id'],)).fetchall()
-                    
+
                     # Find the position of current PO in this list (1-indexed = round number)
                     for idx, po_row in enumerate(pos_with_item, start=1):
                         if po_row['po_number'] == current_po_number:
                             round_number = idx
                             break
-                
+
                 line_dict['round_number'] = round_number
-                
+
                 # Get received count from bags (bag_label_count sum for this PO and inventory_item_id)
                 received_count_row = conn.execute('''
                     SELECT COALESCE(SUM(b.bag_label_count), 0) as total_received
@@ -304,22 +304,22 @@ def get_po_lines(po_id):
                     JOIN tablet_types tt ON b.tablet_type_id = tt.id
                     WHERE r.po_id = ? AND tt.inventory_item_id = ?
                 ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
-                
+
                 received_count = dict(received_count_row) if received_count_row else None
                 line_dict['received_count'] = received_count.get('total_received', 0) if received_count else 0
-                
+
                 # Get machine count (from warehouse_submissions)
                 machine_count_row = conn.execute('''
                     SELECT COALESCE(SUM(COALESCE(ws.tablets_pressed_into_cards, ws.loose_tablets, 0)), 0) as total_machine
                     FROM warehouse_submissions ws
-                    WHERE ws.assigned_po_id = ? 
-                    AND ws.inventory_item_id = ? 
+                    WHERE ws.assigned_po_id = ?
+                    AND ws.inventory_item_id = ?
                     AND ws.submission_type = 'machine'
                 ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
-                
+
                 machine_count = dict(machine_count_row) if machine_count_row else None
                 line_dict['machine_count'] = machine_count.get('total_machine', 0) if machine_count else 0
-                
+
                 # Get packaged count (from packaged submissions only, NOT bag counts)
                 packaged_count_row = conn.execute('''
                     SELECT COALESCE(SUM(
@@ -329,22 +329,22 @@ def get_po_lines(po_id):
                     ), 0) as total_packaged
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    WHERE ws.assigned_po_id = ? 
-                    AND ws.inventory_item_id = ? 
+                    WHERE ws.assigned_po_id = ?
+                    AND ws.inventory_item_id = ?
                     AND ws.submission_type = 'packaged'
                 ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
-                
+
                 packaged_count = dict(packaged_count_row) if packaged_count_row else None
-                
+
                 # Get bag count separately (from bag count submissions only)
                 bag_count_row = conn.execute('''
                     SELECT COALESCE(SUM(COALESCE(ws.loose_tablets, 0)), 0) as total_bag
                     FROM warehouse_submissions ws
-                    WHERE ws.assigned_po_id = ? 
-                    AND ws.inventory_item_id = ? 
+                    WHERE ws.assigned_po_id = ?
+                    AND ws.inventory_item_id = ?
                     AND ws.submission_type = 'bag'
                 ''', (po_id, line_dict.get('inventory_item_id'))).fetchone()
-                
+
                 bag_count = dict(bag_count_row) if bag_count_row else None
                 line_dict['packaged_count'] = packaged_count.get('total_packaged', 0) if packaged_count else 0
                 line_dict['bag_count'] = bag_count.get('total_bag', 0) if bag_count else 0
@@ -362,9 +362,9 @@ def get_po_lines(po_id):
                 line_dict['damage_grams_per_tablet'] = (
                     damage_closeout.get('grams_per_tablet') if damage_closeout else None
                 )
-                
+
                 lines_with_rounds.append(line_dict)
-            
+
             missing_weight_count = sum(
                 1
                 for line in lines_with_rounds
@@ -381,7 +381,7 @@ def get_po_lines(po_id):
                     'missing_weight_count': missing_weight_count
                 },
             }
-            
+
             return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Error getting PO lines: {str(e)}")

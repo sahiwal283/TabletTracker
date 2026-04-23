@@ -2,31 +2,31 @@
 Helper functions for routes that need database schema checks
 These functions ensure tables/columns exist before use
 """
-from typing import Optional, Any
+
 import logging
+from typing import Any
+
 from app.models.database import init_db
 from app.utils.db_utils import db_query
 
 logger = logging.getLogger(__name__)
 
 
-def get_setting(setting_key: str, default_value: Optional[Any] = None) -> Optional[Any]:
+def get_setting(setting_key: str, default_value: Any | None = None) -> Any | None:
     """
     Get a setting value from app_settings table.
-    
+
     Args:
         setting_key: The setting key to retrieve
         default_value: Default value to return if setting not found
-    
+
     Returns:
         Setting value or default_value if not found
     """
     try:
         init_db()  # Ensure all tables exist
         result = db_query(
-            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-            (setting_key,),
-            fetch_one=True
+            'SELECT setting_value FROM app_settings WHERE setting_key = ?', (setting_key,), fetch_one=True
         )
         if result:
             return result['setting_value']
@@ -89,16 +89,3 @@ def ensure_machine_counts_table() -> None:
 def ensure_machine_count_columns() -> None:
     """Ensure machine count columns exist"""
     init_db()  # Migrations handle this
-
-
-
-
-
-
-
-
-
-
-
-
-

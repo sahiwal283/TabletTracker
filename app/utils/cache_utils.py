@@ -2,9 +2,11 @@
 Simple in-memory TTL cache for expensive read-only data (dashboard, report summaries).
 Reduces repeated DB load when users refresh or switch tabs.
 """
-import time
+
 import threading
-from typing import Any, Callable, Optional
+import time
+from collections.abc import Callable
+from typing import Any
 
 _lock = threading.Lock()
 _store: dict = {}  # key -> (value, expiry_ts)
@@ -14,7 +16,7 @@ def _now() -> float:
     return time.monotonic()
 
 
-def get(key: str) -> Optional[Any]:
+def get(key: str) -> Any | None:
     """Return cached value if present and not expired, else None."""
     with _lock:
         entry = _store.get(key)

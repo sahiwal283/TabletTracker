@@ -1,13 +1,14 @@
 """Bag-level cumulative tablet totals and timing for verification UI (matches get_submission_details)."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.services.submission_calculator import calculate_repack_output_good
 from app.services.submission_details_service import BLISTER_BLISTERS_PER_CUT
 
 
-def _bag_match_params(conn, bag_id: int) -> Optional[Dict[str, Any]]:
+def _bag_match_params(conn, bag_id: int) -> dict[str, Any] | None:
     row = conn.execute(
         '''
         SELECT b.id, b.bag_label_count, b.pill_count, tt.inventory_item_id, sb.box_number, r.po_id, b.bag_number
@@ -22,13 +23,13 @@ def _bag_match_params(conn, bag_id: int) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
 
 
-def _safe_rate(numer: int, denom: int) -> Optional[float]:
+def _safe_rate(numer: int, denom: int) -> float | None:
     if denom <= 0 or numer < 0:
         return None
     return round(numer / denom, 6)
 
 
-def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
+def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
     """
     Cumulative per-stage tablet totals for all warehouse_submissions for this bag
     (same WHERE shape as get_bag_submissions_payload), aligned with
@@ -105,11 +106,11 @@ def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
     cards_in_packaged_output = 0
     packaged_loose_tablets = 0
 
-    primary_blister_machine_id: Optional[int] = None
-    primary_sealing_machine_id: Optional[int] = None
+    primary_blister_machine_id: int | None = None
+    primary_sealing_machine_id: int | None = None
 
-    first_bag_start: Optional[str] = None
-    last_bag_end: Optional[str] = None
+    first_bag_start: str | None = None
+    last_bag_end: str | None = None
 
     for bag_sub in rows:
         bag_sub_dict = dict(bag_sub)
@@ -124,9 +125,7 @@ def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
         bag_sub_type = bag_sub_dict.get('submission_type') or 'packaged'
         if bag_sub_type == 'machine':
             bag_tablets_per_package = (
-                bag_sub_dict.get('tablets_per_package_final')
-                or bag_sub_dict.get('tablets_per_package')
-                or 0
+                bag_sub_dict.get('tablets_per_package_final') or bag_sub_dict.get('tablets_per_package') or 0
             )
             machine_role = (bag_sub_dict.get('machine_role') or 'sealing').strip().lower()
             if machine_role == 'blister':
@@ -136,11 +135,7 @@ def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
                 tpp = int(bag_tablets_per_package or 0)
                 blisters_made = cuts * BLISTER_BLISTERS_PER_CUT
                 blisters_from_blister_counter += blisters_made
-                individual_total = (
-                    blisters_made * tpp
-                    if tpp
-                    else (bag_sub_dict.get('tablets_pressed_into_cards') or 0)
-                )
+                individual_total = blisters_made * tpp if tpp else (bag_sub_dict.get('tablets_pressed_into_cards') or 0)
                 machine_blister_tablets_total += individual_total
             else:
                 if primary_sealing_machine_id is None and bag_sub_dict.get('machine_id'):
@@ -157,11 +152,7 @@ def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
             bag_submission_tablets_total += individual_total
         elif bag_sub_type == 'repack':
             ppd = bag_sub_dict.get('packages_per_display', 0) or 0
-            tpp = int(
-                bag_sub_dict.get('tablets_per_package')
-                or bag_sub_dict.get('tablets_per_package_final')
-                or 0
-            )
+            tpp = int(bag_sub_dict.get('tablets_per_package') or bag_sub_dict.get('tablets_per_package_final') or 0)
             r_tablets = calculate_repack_output_good(bag_sub_dict, ppd, tpp)
             packaged_tablets_total += r_tablets
             dm = bag_sub_dict.get('displays_made', 0) or 0
@@ -199,8 +190,8 @@ def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
         and cards_from_sealing_counter > 0
         and cards_from_sealing_counter > blisters_from_blister_counter
     )
-    neg_s_p = (S > 0 and P > 0 and P > S)
-    neg_b_p = (B > 0 and P > 0 and P > B)
+    neg_s_p = S > 0 and P > 0 and P > S
+    neg_b_p = B > 0 and P > 0 and P > B
 
     pipeline_stages_present = {
         'blisters': B > 0 or blisters_from_blister_counter > 0,
@@ -214,32 +205,24 @@ def compute_bag_check_totals(conn, bag_id: int) -> Dict[str, Any]:
         'sealing_to_packaged': loss_s_p_tablets if (S > 0 and P > 0) else None,
         'blister_to_packaged': loss_b_p_tablets if (B > 0 and P > 0) else None,
     }
-    stage_transition_loss_rates: Dict[str, Optional[float]] = {
+    stage_transition_loss_rates: dict[str, float | None] = {
         'blister_to_sealing': _safe_rate(loss_b_s_tablets, B) if B > 0 and S > 0 else None,
         'sealing_to_packaged': _safe_rate(loss_s_p_tablets, S) if S > 0 and P > 0 else None,
         'blister_to_packaged': _safe_rate(loss_b_p_tablets, B) if B > 0 and P > 0 else None,
     }
-    stage_transition_losses_cards: Dict[str, Optional[int]] = {
+    stage_transition_losses_cards: dict[str, int | None] = {
         'blister_to_sealing': (
-            loss_b_s_cards
-            if blisters_from_blister_counter > 0 and cards_from_sealing_counter > 0
-            else None
+            loss_b_s_cards if blisters_from_blister_counter > 0 and cards_from_sealing_counter > 0 else None
         ),
         'sealing_to_packaged': (
             loss_s_p_cards
-            if S > 0
-            and P > 0
-            and (cards_from_sealing_counter > 0 or cards_in_packaged_output > 0)
+            if S > 0 and P > 0 and (cards_from_sealing_counter > 0 or cards_in_packaged_output > 0)
             else None
         ),
-        'blister_to_packaged': (
-            loss_b_p_cards
-            if blisters_from_blister_counter > 0 and P > 0
-            else None
-        ),
+        'blister_to_packaged': (loss_b_p_cards if blisters_from_blister_counter > 0 and P > 0 else None),
     }
 
-    stage_transition_loss_rates_cards: Dict[str, Optional[float]] = {
+    stage_transition_loss_rates_cards: dict[str, float | None] = {
         'blister_to_sealing': _safe_rate(loss_b_s_cards, blisters_from_blister_counter)
         if blisters_from_blister_counter > 0 and cards_from_sealing_counter > 0
         else None,

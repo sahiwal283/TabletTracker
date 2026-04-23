@@ -1,12 +1,14 @@
 """
 Authentication and login routes
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
-from datetime import datetime, timedelta
 import hmac
+from datetime import datetime
+
 from config import Config
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+
 from app.utils.auth_utils import verify_password
-from app.utils.db_utils import db_query, db_read_only
+from app.utils.db_utils import db_read_only
 from app.utils.version_display import read_version_constants
 
 bp = Blueprint('auth', __name__)
@@ -27,7 +29,7 @@ def index():
     # Check if already authenticated
     if session.get('admin_authenticated'):
         return redirect(url_for('admin.admin_panel'))
-    
+
     if session.get('employee_authenticated'):
         # Smart redirect based on role
         role = session.get('employee_role', 'warehouse_staff')
@@ -35,16 +37,16 @@ def index():
             return redirect(url_for('dashboard.dashboard_view'))
         else:
             return redirect(url_for('production.warehouse_form'))
-    
+
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         login_type = request.form.get('login_type', 'employee')
-        
+
         if not username or not password:
             flash('Username and password are required', 'error')
             return render_template('unified_login.html')
-        
+
         if login_type == 'admin':
             # Admin login - use constant-time comparison to prevent timing attacks
             admin_password = Config.ADMIN_PASSWORD
@@ -65,11 +67,11 @@ def index():
             try:
                 with db_read_only() as conn:
                     employee = conn.execute('''
-                        SELECT id, username, full_name, password_hash, role, is_active 
-                        FROM employees 
+                        SELECT id, username, full_name, password_hash, role, is_active
+                        FROM employees
                         WHERE username = ? AND is_active = TRUE
                     ''', (username,)).fetchone()
-                    
+
                     if employee and verify_password(password, employee['password_hash']):
                         # Prevent session fixation by clearing old session and creating new one
                         session.clear()
@@ -79,7 +81,7 @@ def index():
                         session['employee_username'] = employee['username']
                         session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
                         session.permanent = True
-                        
+
                         # Smart redirect based on role
                         role = employee['role'] if employee['role'] else 'warehouse_staff'
                         if role in ['manager', 'admin']:
@@ -97,7 +99,7 @@ def index():
                 current_app.logger.error(f"Login error in index(): {str(e)}")
                 flash('An error occurred during login', 'error')
                 return render_template('unified_login.html')
-    
+
     # Show unified login page
     return render_template('unified_login.html')
 
@@ -113,7 +115,7 @@ def logout():
     session.pop('employee_username', None)
     session.pop('employee_role', None)
     session.pop('login_time', None)
-    
+
     flash('You have been logged out successfully', 'success')
     return redirect(url_for('auth.index'))
 

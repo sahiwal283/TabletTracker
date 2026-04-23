@@ -1,21 +1,18 @@
 """
 Receiving admin workflows extracted from blueprint handlers.
 """
-from typing import Dict, Any, Optional
+
+from typing import Any
 
 
-def _require_manager_or_admin(user_role: Optional[str], is_admin: bool, action_message: str) -> Optional[Dict[str, Any]]:
+def _require_manager_or_admin(user_role: str | None, is_admin: bool, action_message: str) -> dict[str, Any] | None:
     if user_role not in ['warehouse_lead', 'manager', 'admin'] and not is_admin:
         return {'success': False, 'status_code': 403, 'error': action_message}
     return None
 
 
-def toggle_receiving_closed(conn, receiving_id: int, user_role: Optional[str], is_admin: bool) -> Dict[str, Any]:
-    denied = _require_manager_or_admin(
-        user_role,
-        is_admin,
-        'Only managers and admins can close receives'
-    )
+def toggle_receiving_closed(conn, receiving_id: int, user_role: str | None, is_admin: bool) -> dict[str, Any]:
+    denied = _require_manager_or_admin(user_role, is_admin, 'Only managers and admins can close receives')
     if denied:
         return denied
 
@@ -26,7 +23,7 @@ def toggle_receiving_closed(conn, receiving_id: int, user_role: Optional[str], i
         LEFT JOIN purchase_orders po ON r.po_id = po.id
         WHERE r.id = ?
         ''',
-        (receiving_id,)
+        (receiving_id,),
     ).fetchone()
     if not receiving:
         return {'success': False, 'status_code': 404, 'error': 'Receiving record not found'}
@@ -44,7 +41,7 @@ def toggle_receiving_closed(conn, receiving_id: int, user_role: Optional[str], i
                 SELECT id FROM small_boxes WHERE receiving_id = ?
             )
             ''',
-            (receiving_id,)
+            (receiving_id,),
         )
     else:
         conn.execute(
@@ -55,24 +52,16 @@ def toggle_receiving_closed(conn, receiving_id: int, user_role: Optional[str], i
                 SELECT id FROM small_boxes WHERE receiving_id = ?
             )
             ''',
-            (receiving_id,)
+            (receiving_id,),
         )
 
     po_info = receiving['po_number'] or 'Unassigned'
     action = 'closed' if new_closed else 'reopened'
-    return {
-        'success': True,
-        'closed': new_closed,
-        'message': f'Successfully {action} receive (PO: {po_info})'
-    }
+    return {'success': True, 'closed': new_closed, 'message': f'Successfully {action} receive (PO: {po_info})'}
 
 
-def toggle_bag_closed(conn, bag_id: int, user_role: Optional[str], is_admin: bool) -> Dict[str, Any]:
-    denied = _require_manager_or_admin(
-        user_role,
-        is_admin,
-        'Only managers and admins can close bags'
-    )
+def toggle_bag_closed(conn, bag_id: int, user_role: str | None, is_admin: bool) -> dict[str, Any]:
+    denied = _require_manager_or_admin(user_role, is_admin, 'Only managers and admins can close bags')
     if denied:
         return denied
 
@@ -84,7 +73,7 @@ def toggle_bag_closed(conn, bag_id: int, user_role: Optional[str], is_admin: boo
         JOIN tablet_types tt ON b.tablet_type_id = tt.id
         WHERE b.id = ?
         ''',
-        (bag_id,)
+        (bag_id,),
     ).fetchone()
     if not bag_row:
         return {'success': False, 'status_code': 404, 'error': 'Bag not found'}
@@ -94,14 +83,10 @@ def toggle_bag_closed(conn, bag_id: int, user_role: Optional[str], is_admin: boo
     conn.execute('UPDATE bags SET status = ? WHERE id = ?', (new_status, bag_id))
     action = 'closed' if new_status == 'Closed' else 'reopened'
     bag_info = f"{bag.get('tablet_type_name', 'Unknown')} - Box {bag.get('box_number', 'N/A')}, Bag {bag.get('bag_number', 'N/A')}"
-    return {
-        'success': True,
-        'status': new_status,
-        'message': f'Successfully {action} bag: {bag_info}'
-    }
+    return {'success': True, 'status': new_status, 'message': f'Successfully {action} bag: {bag_info}'}
 
 
-def publish_receiving(conn, receiving_id: int) -> Dict[str, Any]:
+def publish_receiving(conn, receiving_id: int) -> dict[str, Any]:
     receive = conn.execute('SELECT status FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
     if not receive:
         return {'success': False, 'status_code': 404, 'error': 'Receive not found'}
@@ -112,11 +97,11 @@ def publish_receiving(conn, receiving_id: int) -> Dict[str, Any]:
     return {
         'success': True,
         'message': 'Receive published successfully! Now available for production.',
-        'status': 'published'
+        'status': 'published',
     }
 
 
-def unpublish_receiving(conn, receiving_id: int) -> Dict[str, Any]:
+def unpublish_receiving(conn, receiving_id: int) -> dict[str, Any]:
     receive = conn.execute('SELECT status FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
     if not receive:
         return {'success': False, 'status_code': 404, 'error': 'Receive not found'}
@@ -131,26 +116,30 @@ def unpublish_receiving(conn, receiving_id: int) -> Dict[str, Any]:
         JOIN small_boxes sb ON b.small_box_id = sb.id
         WHERE sb.receiving_id = ?
         ''',
-        (receiving_id,)
+        (receiving_id,),
     ).fetchone()
     if submission_count and submission_count['count'] > 0:
         return {
             'success': False,
             'status_code': 400,
-            'error': f'Cannot unpublish: {submission_count["count"]} submission(s) already exist for this receive. Delete submissions first.'
+            'error': f'Cannot unpublish: {submission_count["count"]} submission(s) already exist for this receive. Delete submissions first.',
         }
 
     conn.execute('UPDATE receiving SET status = ? WHERE id = ?', ('draft', receiving_id))
     return {
         'success': True,
         'message': 'Receive moved to draft. Will not appear in production until published again.',
-        'status': 'draft'
+        'status': 'draft',
     }
 
 
-def assign_po_to_receiving(conn, receiving_id: int, po_id: Optional[int], user_role: Optional[str]) -> Dict[str, Any]:
+def assign_po_to_receiving(conn, receiving_id: int, po_id: int | None, user_role: str | None) -> dict[str, Any]:
     if user_role not in ['warehouse_lead', 'manager', 'admin']:
-        return {'success': False, 'status_code': 403, 'error': 'Only warehouse leads, managers, and admins can assign POs'}
+        return {
+            'success': False,
+            'status_code': 403,
+            'error': 'Only warehouse leads, managers, and admins can assign POs',
+        }
 
     receiving = conn.execute('SELECT id FROM receiving WHERE id = ?', (receiving_id,)).fetchone()
     if not receiving:
@@ -165,8 +154,4 @@ def assign_po_to_receiving(conn, receiving_id: int, po_id: Optional[int], user_r
         if po:
             po_number = po['po_number']
 
-    return {
-        'success': True,
-        'message': 'PO assignment updated successfully',
-        'po_number': po_number
-    }
+    return {'success': True, 'message': 'PO assignment updated successfully', 'po_number': po_number}

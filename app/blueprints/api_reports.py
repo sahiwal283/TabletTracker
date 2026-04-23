@@ -1,15 +1,18 @@
 """
 Reports API routes for generating production and vendor reports.
 """
-from flask import Blueprint, request, jsonify, make_response, current_app
-from datetime import datetime
 import traceback
-from app.utils.db_utils import db_read_only
-from app.utils.auth_utils import role_required
-from app.utils.cache_utils import get, set as cache_set
-from app.services.report_service import ProductionReportGenerator
-from app.services import reporting_analytics_service as analytics
+from datetime import datetime
+
 from config import Config
+from flask import Blueprint, current_app, jsonify, make_response, request
+
+from app.services import reporting_analytics_service as analytics
+from app.services.report_service import ProductionReportGenerator
+from app.utils.auth_utils import role_required
+from app.utils.cache_utils import get
+from app.utils.cache_utils import set as cache_set
+from app.utils.db_utils import db_read_only
 
 PO_SUMMARY_CACHE_KEY = 'api_reports_po_summary'
 PO_SUMMARY_CACHE_TTL = 30.0
@@ -23,28 +26,28 @@ def generate_production_report():
     """Generate comprehensive production report PDF"""
     try:
         data = request.get_json() or {}
-        
+
         start_date = data.get('start_date')
-        end_date = data.get('end_date') 
+        end_date = data.get('end_date')
         po_numbers = data.get('po_numbers', [])
         tablet_type_id = data.get('tablet_type_id')
         report_type = data.get('report_type', 'production')
         receive_id = data.get('receive_id')
-        
+
         if start_date:
             try:
                 datetime.strptime(start_date, '%Y-%m-%d')
             except ValueError:
                 return jsonify({'error': 'Invalid start_date format. Use YYYY-MM-DD'}), 400
-        
+
         if end_date:
             try:
                 datetime.strptime(end_date, '%Y-%m-%d')
             except ValueError:
                 return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
-        
+
         generator = ProductionReportGenerator(db_path=Config.DATABASE_PATH)
-        
+
         if report_type == 'vendor':
             pdf_content = generator.generate_vendor_report(
                 start_date=start_date,
@@ -69,13 +72,13 @@ def generate_production_report():
             )
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'production_report_{timestamp}.pdf'
-        
+
         response = make_response(pdf_content)
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
+
         return response
-        
+
     except Exception as e:
         error_trace = traceback.format_exc()
         current_app.logger.error(f"Report generation error: {str(e)}\n{error_trace}")
@@ -103,9 +106,9 @@ def get_po_summary_for_reports():
                     'total_count': 0,
                     'message': 'No purchase orders found'
                 })
-        
+
             query = '''
-                SELECT 
+                SELECT
                 po.id,
                 po.po_number,
                 po.tablet_type,
@@ -126,15 +129,15 @@ def get_po_summary_for_reports():
                 LIMIT 100
             '''
             pos = conn.execute(query).fetchall()
-            
+
             po_list = []
             for po_row in pos:
                 po = dict(po_row)
-                
+
                 pack_time = None
                 delivery_date = po.get('actual_delivery') or po.get('delivered_at')
                 completion_date = po.get('last_submission') or (po.get('updated_at')[:10] if po.get('internal_status') == 'Complete' and po.get('updated_at') else None)
-                
+
                 if delivery_date and completion_date:
                     try:
                         del_dt = datetime.strptime(str(delivery_date)[:10], '%Y-%m-%d')
@@ -142,7 +145,7 @@ def get_po_summary_for_reports():
                         pack_time = (comp_dt - del_dt).days
                     except (ValueError, TypeError):
                         pack_time = None
-                
+
                 po_list.append({
                     'po_number': po.get('po_number') or 'N/A',
                     'tablet_type': po.get('tablet_type') or 'N/A',

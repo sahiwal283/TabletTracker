@@ -1,13 +1,13 @@
 """
 Tablet Types API routes for managing tablet types, products, and categories.
 """
-from typing import Optional
-
-from flask import Blueprint, request, jsonify, current_app
-import traceback
 import json
-from app.utils.db_utils import db_read_only, db_transaction
+import traceback
+
+from flask import Blueprint, current_app, jsonify, request
+
 from app.utils.auth_utils import admin_required, role_required
+from app.utils.db_utils import db_read_only, db_transaction
 
 bp = Blueprint('api_tablet_types', __name__)
 
@@ -20,62 +20,62 @@ def update_tablet_type_inventory():
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
-            
+
         tablet_type_id = data.get('tablet_type_id')
         if not tablet_type_id:
             return jsonify({'success': False, 'error': 'Tablet type ID required'}), 400
-            
+
         inventory_item_id = (data.get('inventory_item_id') or '').strip()
-        
+
         is_bottle_only = data.get('is_bottle_only', False)
         is_variety_pack = data.get('is_variety_pack', False)
         tablets_per_bottle = data.get('tablets_per_bottle')
         bottles_per_pack = data.get('bottles_per_pack')
-        
+
         with db_transaction() as conn:
             updates = []
             params = []
-            
+
             if inventory_item_id:
                 existing = conn.execute('''
-                    SELECT tablet_type_name FROM tablet_types 
+                    SELECT tablet_type_name FROM tablet_types
                     WHERE inventory_item_id = ? AND id != ?
                 ''', (inventory_item_id, tablet_type_id)).fetchone()
-                
+
                 if existing:
                     return jsonify({
-                        'success': False, 
+                        'success': False,
                         'error': f'Inventory ID already used by {existing["tablet_type_name"]}'
                     })
                 updates.append('inventory_item_id = ?')
                 params.append(inventory_item_id)
             else:
                 updates.append('inventory_item_id = NULL')
-            
+
             if 'is_bottle_only' in data:
                 updates.append('is_bottle_only = ?')
                 params.append(is_bottle_only)
-            
+
             if 'is_variety_pack' in data:
                 updates.append('is_variety_pack = ?')
                 params.append(is_variety_pack)
-            
+
             if 'tablets_per_bottle' in data:
                 updates.append('tablets_per_bottle = ?')
                 params.append(tablets_per_bottle)
-            
+
             if 'bottles_per_pack' in data:
                 updates.append('bottles_per_pack = ?')
                 params.append(bottles_per_pack)
-            
+
             if updates:
                 params.append(tablet_type_id)
                 conn.execute(f'''
-                    UPDATE tablet_types 
+                    UPDATE tablet_types
                     SET {', '.join(updates)}
                     WHERE id = ?
                 ''', tuple(params))
-            
+
             return jsonify({'success': True, 'message': 'Tablet type updated successfully'})
     except Exception as e:
         current_app.logger.error(f"Error updating tablet type inventory: {str(e)}")
@@ -87,7 +87,7 @@ def update_tablet_type_inventory():
 @admin_required
 def save_product():
     """Save or update a product configuration
-    
+
     Supports three product types:
     1. Regular blister card products: uses packages_per_display, tablets_per_package
     2. Bottle products (single flavor): uses tablets_per_bottle, bottles_per_display
@@ -95,68 +95,68 @@ def save_product():
     """
     try:
         data = request.get_json()
-        
+
         product_name = data.get('product_name', '').strip()
         if not product_name:
             return jsonify({'success': False, 'error': 'Product name is required'}), 400
-        
+
         # Get optional category (products can have independent categories from tablet types)
         category = data.get('category', '').strip() or None
-        
+
         is_bottle_product = data.get('is_bottle_product', False)
         is_variety_pack = data.get('is_variety_pack', False)
-        
+
         # Validate based on product type
         if is_variety_pack:
             # Variety pack: needs tablets_per_bottle, bottles_per_display, variety_pack_contents
             tablets_per_bottle = data.get('tablets_per_bottle')
             bottles_per_display = data.get('bottles_per_display')
             variety_pack_contents = data.get('variety_pack_contents')
-            
+
             if not tablets_per_bottle or not bottles_per_display:
                 return jsonify({'success': False, 'error': 'Variety packs require tablets_per_bottle and bottles_per_display'}), 400
             if not variety_pack_contents:
                 return jsonify({'success': False, 'error': 'Variety packs require variety_pack_contents'}), 400
-            
+
             tablet_type_id = None  # Variety packs don't reference a single tablet type
             packages_per_display = 0
             tablets_per_package = 0
-            
+
         elif is_bottle_product:
             # Bottle product (single flavor): needs tablet_type_id, tablets_per_bottle, bottles_per_display
             tablet_type_id = data.get('tablet_type_id')
             tablets_per_bottle = data.get('tablets_per_bottle')
             bottles_per_display = data.get('bottles_per_display')
-            
+
             if not tablet_type_id:
                 return jsonify({'success': False, 'error': 'Bottle products require a tablet type'}), 400
             if not tablets_per_bottle or not bottles_per_display:
                 return jsonify({'success': False, 'error': 'Bottle products require tablets_per_bottle and bottles_per_display'}), 400
-            
+
             tablet_type_id = int(tablet_type_id)
             packages_per_display = 0
             tablets_per_package = 0
             variety_pack_contents = None
-            
+
         else:
             # Regular blister card product
             tablet_type_id = data.get('tablet_type_id')
             packages_per_display = data.get('packages_per_display')
             tablets_per_package = data.get('tablets_per_package')
-            
+
             if not tablet_type_id or not packages_per_display or not tablets_per_package:
                 return jsonify({'success': False, 'error': 'Card products require tablet_type_id, packages_per_display, and tablets_per_package'}), 400
-            
+
             tablet_type_id = int(tablet_type_id)
             packages_per_display = int(packages_per_display)
             tablets_per_package = int(tablets_per_package)
             tablets_per_bottle = None
             bottles_per_display = None
             variety_pack_contents = None
-        
+
         from app.services.product_tablet_allowlist import sync_product_allowed_tablets
 
-        def _parse_allowed_extra(raw) -> Optional[list]:
+        def _parse_allowed_extra(raw) -> list | None:
             """``None`` = caller should only sync primary; list = extra type ids (non-variety)."""
             if raw is None:
                 return None
@@ -179,11 +179,11 @@ def save_product():
                     product_id = int(data['id'])
                 except (ValueError, TypeError):
                     return jsonify({'success': False, 'error': 'Invalid product ID'}), 400
-                    
+
                 conn.execute('''
-                    UPDATE product_details 
+                    UPDATE product_details
                     SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?,
-                        is_bottle_product = ?, is_variety_pack = ?, tablets_per_bottle = ?, 
+                        is_bottle_product = ?, is_variety_pack = ?, tablets_per_bottle = ?,
                         bottles_per_display = ?, variety_pack_contents = ?, category = ?
                     WHERE id = ?
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
@@ -214,7 +214,7 @@ def save_product():
                         is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents, category)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
-                      is_bottle_product, is_variety_pack, tablets_per_bottle, 
+                      is_bottle_product, is_variety_pack, tablets_per_bottle,
                       bottles_per_display, variety_pack_contents, category))
                 new_id = int(cur.lastrowid)
                 message = f"Created {product_name}"
@@ -236,7 +236,7 @@ def save_product():
                         extra_tablet_type_ids=extras,
                         clear_only=False,
                     )
-            
+
             return jsonify({'success': True, 'message': message})
     except Exception as e:
         current_app.logger.error(f"Error saving product: {str(e)}")
@@ -254,13 +254,13 @@ def delete_product(product_id):
             product = conn.execute('SELECT product_name FROM product_details WHERE id = ?', (product_id,)).fetchone()
             if not product:
                 return jsonify({'success': False, 'error': 'Product not found'}), 404
-            
+
             conn.execute(
                 'DELETE FROM product_allowed_tablet_types WHERE product_details_id = ?',
                 (product_id,),
             )
             conn.execute('DELETE FROM product_details WHERE id = ?', (product_id,))
-            
+
             return jsonify({'success': True, 'message': f"Deleted {product['product_name']}"})
     except Exception as e:
         current_app.logger.error(f"Error deleting product: {str(e)}")
@@ -274,16 +274,16 @@ def get_or_create_tablet_type():
     try:
         data = request.get_json()
         tablet_type_name = data.get('tablet_type_name', '').strip()
-        
+
         if not tablet_type_name:
             return jsonify({'success': False, 'error': 'Tablet type name required'}), 400
-        
+
         with db_transaction() as conn:
             existing = conn.execute(
-                'SELECT id FROM tablet_types WHERE tablet_type_name = ?', 
+                'SELECT id FROM tablet_types WHERE tablet_type_name = ?',
                 (tablet_type_name,)
             ).fetchone()
-            
+
             if existing:
                 tablet_type_id = existing['id']
             else:
@@ -292,7 +292,7 @@ def get_or_create_tablet_type():
                     (tablet_type_name,)
                 )
                 tablet_type_id = cursor.lastrowid
-            
+
             return jsonify({'success': True, 'tablet_type_id': tablet_type_id})
     except Exception as e:
         current_app.logger.error(f"Error getting/creating tablet type: {str(e)}")
@@ -306,16 +306,16 @@ def update_tablet_inventory_ids():
     try:
         with db_transaction() as conn:
             tablet_types = conn.execute('''
-                SELECT id, tablet_type_name 
-                FROM tablet_types 
+                SELECT id, tablet_type_name
+                FROM tablet_types
                 WHERE inventory_item_id IS NULL OR inventory_item_id = ''
             ''').fetchall()
-            
+
             updated_count = 0
-            
+
             for tablet_type in tablet_types:
                 current_app.logger.info(f"Processing tablet type: {tablet_type['tablet_type_name']}")
-                
+
                 # Find matching PO line items by tablet type name
                 po_lines = conn.execute('''
                     SELECT DISTINCT pl.inventory_item_id
@@ -326,17 +326,17 @@ def update_tablet_inventory_ids():
                     AND pl.inventory_item_id != ''
                     LIMIT 1
                 ''', (tablet_type['tablet_type_name'],)).fetchall()
-                
+
                 if po_lines:
                     inventory_item_id = po_lines[0]['inventory_item_id']
                     conn.execute('''
-                        UPDATE tablet_types 
+                        UPDATE tablet_types
                         SET inventory_item_id = ?
                         WHERE id = ?
                     ''', (inventory_item_id, tablet_type['id']))
                     updated_count += 1
                     current_app.logger.info(f"Updated {tablet_type['tablet_type_name']} with inventory_item_id: {inventory_item_id}")
-            
+
             return jsonify({
                 'success': True,
                 'message': f'Updated {updated_count} tablet type(s) with inventory item IDs'
@@ -354,14 +354,14 @@ def get_tablet_type_categories():
     try:
         with db_read_only() as conn:
             tablet_types = conn.execute('''
-                SELECT id, tablet_type_name, category 
-                FROM tablet_types 
+                SELECT id, tablet_type_name, category
+                FROM tablet_types
                 ORDER BY tablet_type_name
             ''').fetchall()
-            
+
             categories = {}
             unassigned = []
-            
+
             for tt in tablet_types:
                 category = tt['category'] if tt['category'] else None
                 if not category:
@@ -376,14 +376,14 @@ def get_tablet_type_categories():
                         'id': tt['id'],
                         'name': tt['tablet_type_name']
                     })
-            
+
             if unassigned:
                 if 'Other' not in categories:
                     categories['Other'] = []
                 categories['Other'].extend(unassigned)
-            
+
             category_order = sorted(categories.keys())
-            
+
             return jsonify({
                 'success': True,
                 'categories': categories,
@@ -403,17 +403,17 @@ def update_tablet_type_category():
         data = request.get_json()
         tablet_type_id = data.get('tablet_type_id')
         category = data.get('category')
-        
+
         if not tablet_type_id:
             return jsonify({'success': False, 'error': 'Tablet type ID required'}), 400
-        
+
         with db_transaction() as conn:
             conn.execute('''
-                UPDATE tablet_types 
+                UPDATE tablet_types
                 SET category = ?
                 WHERE id = ?
             ''', (category, tablet_type_id))
-            
+
             # If a category was assigned (not removed), check if we can remove it from created_categories
             # since it's now "in use" and will appear in the tablet_types query
             if category:
@@ -421,21 +421,21 @@ def update_tablet_type_category():
                     created_categories_json = conn.execute('''
                         SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
                     ''').fetchone()
-                    
+
                     if created_categories_json and created_categories_json['setting_value']:
                         created_categories = set(json.loads(created_categories_json['setting_value']))
                         if category in created_categories:
                             # This was a newly created category that's now being used - remove from created list
                             created_categories.remove(category)
                             conn.execute('''
-                                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description)
                                 VALUES (?, ?, ?)
-                            ''', ('created_categories', json.dumps(list(created_categories)), 
+                            ''', ('created_categories', json.dumps(list(created_categories)),
                                   'List of categories that have been created but may not have tablet types yet'))
                 except Exception as e:
                     # Not critical - just log and continue
                     current_app.logger.warning(f"Could not clean up created categories: {e}")
-            
+
             return jsonify({'success': True, 'message': 'Category updated successfully'})
     except Exception as e:
         current_app.logger.error(f"Error updating tablet type category: {str(e)}")
@@ -462,7 +462,7 @@ def get_tablet_types():
                 LEFT JOIN product_details pd ON tt.id = pd.tablet_type_id
                 ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), COALESCE(pd.product_name, tt.tablet_type_name)
             ''').fetchall()
-            
+
             return jsonify({
                 'success': True,
                 'tablet_types': [dict(row) for row in products]
@@ -481,15 +481,15 @@ def get_categories():
         with db_read_only() as conn:
             # Get categories from tablet_types (in use)
             categories = conn.execute('''
-                SELECT DISTINCT category 
-                FROM tablet_types 
+                SELECT DISTINCT category
+                FROM tablet_types
                 WHERE category IS NOT NULL AND category != ''
                 ORDER BY category
             ''').fetchall()
-            
+
             category_list = [cat['category'] for cat in categories] if categories else []
             category_set = set(category_list)
-            
+
             # Get created categories from app_settings (may not be in use yet)
             try:
                 created_categories_json = conn.execute('''
@@ -504,7 +504,7 @@ def get_categories():
                             category_set.add(cat)
             except Exception as e:
                 current_app.logger.warning(f"Could not load created categories: {e}")
-            
+
             # Get deleted categories
             deleted_categories_set = set()
             try:
@@ -518,7 +518,7 @@ def get_categories():
                         deleted_categories_set = set()
             except Exception as e:
                 current_app.logger.warning(f"Could not load deleted categories: {e}")
-            
+
             # Get category order
             try:
                 category_order_json = conn.execute('''
@@ -534,11 +534,11 @@ def get_categories():
             except Exception as e:
                 current_app.logger.warning(f"Could not load category order: {e}")
                 preferred_order = sorted(category_list)
-            
+
             # Filter out deleted categories and sort
             all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
             all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
-            
+
             return jsonify({'success': True, 'categories': all_categories})
     except Exception as e:
         current_app.logger.error(f"Error getting categories: {str(e)}")
@@ -552,21 +552,21 @@ def add_category():
     try:
         data = request.get_json()
         category_name = data.get('category_name', '').strip()
-        
+
         if not category_name:
             return jsonify({'success': False, 'error': 'Category name required'}), 400
-        
+
         with db_transaction() as conn:
             # Check if category already exists in tablet_types
             existing = conn.execute('''
-                SELECT DISTINCT category 
-                FROM tablet_types 
+                SELECT DISTINCT category
+                FROM tablet_types
                 WHERE category = ?
             ''', (category_name,)).fetchone()
-            
+
             if existing:
                 return jsonify({'success': False, 'error': 'Category already exists'}), 400
-            
+
             # Get existing created categories from app_settings
             created_categories = set()
             try:
@@ -577,23 +577,23 @@ def add_category():
                     created_categories = set(json.loads(created_categories_json['setting_value']))
             except Exception:
                 created_categories = set()
-            
+
             # Check if already in created categories
             if category_name in created_categories:
                 return jsonify({'success': False, 'error': 'Category already exists'}), 400
-            
+
             # Add new category to created_categories
             created_categories.add(category_name)
-            
+
             # Save back to app_settings
             conn.execute('''
-                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description)
                 VALUES (?, ?, ?)
-            ''', ('created_categories', json.dumps(list(created_categories)), 
+            ''', ('created_categories', json.dumps(list(created_categories)),
                   'List of categories that have been created but may not have tablet types yet'))
-            
+
             return jsonify({
-                'success': True, 
+                'success': True,
                 'message': f'Category "{category_name}" created successfully!'
             })
     except Exception as e:
@@ -610,51 +610,51 @@ def rename_category():
         data = request.get_json()
         old_name = data.get('old_name', '').strip()
         new_name = data.get('new_name', '').strip()
-        
+
         if not old_name or not new_name:
             return jsonify({'success': False, 'error': 'Both old and new category names required'}), 400
-        
+
         if old_name == new_name:
             return jsonify({'success': False, 'error': 'New name must be different from old name'}), 400
-        
+
         with db_transaction() as conn:
             existing = conn.execute('''
-                SELECT DISTINCT category 
-                FROM tablet_types 
+                SELECT DISTINCT category
+                FROM tablet_types
                 WHERE category = ?
             ''', (new_name,)).fetchone()
-            
+
             if existing:
                 return jsonify({'success': False, 'error': 'Category name already exists'}), 400
-            
+
             old_exists = conn.execute('''
                 SELECT COUNT(*) as count
-                FROM tablet_types 
+                FROM tablet_types
                 WHERE category = ?
             ''', (old_name,)).fetchone()
-            
+
             if old_exists['count'] == 0:
                 return jsonify({'success': False, 'error': f'Category "{old_name}" not found or has no tablet types assigned'}), 404
-            
+
             cursor = conn.execute('''
-                UPDATE tablet_types 
+                UPDATE tablet_types
                 SET category = ?
                 WHERE category = ?
             ''', (new_name, old_name))
-            
+
             rows_updated = cursor.rowcount
-            
+
             verify_update = conn.execute('''
                 SELECT COUNT(*) as count
-                FROM tablet_types 
+                FROM tablet_types
                 WHERE category = ?
             ''', (new_name,)).fetchone()
-            
+
             if verify_update['count'] != old_exists['count']:
                 return jsonify({'success': False, 'error': 'Failed to update all tablet types. Transaction rolled back.'}), 500
-            
+
             return jsonify({
-                'success': True, 
+                'success': True,
                 'message': f'Category renamed from "{old_name}" to "{new_name}" ({rows_updated} tablet types updated)'
             })
     except Exception as e:
@@ -669,79 +669,79 @@ def delete_category():
     try:
         data = request.get_json()
         category_name = data.get('category_name', '').strip()
-        
+
         if not category_name:
             return jsonify({'success': False, 'error': 'Category name required'}), 400
-        
+
         with db_transaction() as conn:
             category_exists = conn.execute('''
             SELECT COUNT(*) as count
-            FROM tablet_types 
+            FROM tablet_types
             WHERE category = ?
         ''', (category_name,)).fetchone()
-        
+
             rows_updated = 0
-        
+
             if category_exists['count'] > 0:
                 cursor = conn.execute('''
-                    UPDATE tablet_types 
+                    UPDATE tablet_types
                     SET category = NULL
                     WHERE category = ?
                 ''', (category_name,))
-                
+
                 rows_updated = cursor.rowcount
-                
+
                 verify_delete = conn.execute('''
                     SELECT COUNT(*) as count
-                    FROM tablet_types 
+                    FROM tablet_types
                     WHERE category = ?
                 ''', (category_name,)).fetchone()
-                
+
                 if verify_delete['count'] != 0:
                     return jsonify({'success': False, 'error': 'Failed to delete category. Transaction rolled back.'}), 500
-            
+
             # Remove from created_categories if it exists there
             try:
                 created_categories_json = conn.execute('''
                     SELECT setting_value FROM app_settings WHERE setting_key = 'created_categories'
                 ''').fetchone()
-                
+
                 if created_categories_json and created_categories_json['setting_value']:
                     created_categories = set(json.loads(created_categories_json['setting_value']))
                     if category_name in created_categories:
                         created_categories.remove(category_name)
                         conn.execute('''
-                            INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                            INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description)
                             VALUES (?, ?, ?)
-                        ''', ('created_categories', json.dumps(list(created_categories)), 
+                        ''', ('created_categories', json.dumps(list(created_categories)),
                               'List of categories that have been created but may not have tablet types yet'))
             except Exception as e:
                 current_app.logger.warning(f"Could not remove from created categories: {e}")
-            
+
             # Track as deleted
             try:
                 deleted_categories_json = conn.execute('''
                     SELECT setting_value FROM app_settings WHERE setting_key = 'deleted_categories'
                 ''').fetchone()
-                
+
                 deleted_categories = set()
                 if deleted_categories_json and deleted_categories_json['setting_value']:
                     try:
                         deleted_categories = set(json.loads(deleted_categories_json['setting_value']))
                     except (json.JSONDecodeError, ValueError, TypeError):
                         deleted_categories = set()
-                
+
                 deleted_categories.add(category_name)
-                
+
                 conn.execute('''
-                    INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description) 
+                    INSERT OR REPLACE INTO app_settings (setting_key, setting_value, description)
                     VALUES (?, ?, ?)
                 ''', ('deleted_categories', json.dumps(list(deleted_categories)), 'List of deleted categories that should not appear'))
             except Exception as e:
                 current_app.logger.warning(f"Could not track deleted category: {e}")
-            
+
             return jsonify({
-                'success': True, 
+                'success': True,
                 'message': f'Category "{category_name}" deleted. {rows_updated} tablet type(s) have been unassigned.'
             })
     except Exception as e:
@@ -758,40 +758,40 @@ def add_tablet_type():
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
-            
+
         tablet_type_name = (data.get('tablet_type_name') or '').strip()
         inventory_item_id = (data.get('inventory_item_id') or '').strip()
         category = (data.get('category') or '').strip()
-        
+
         if not tablet_type_name:
             return jsonify({'success': False, 'error': 'Tablet type name required'}), 400
-            
+
         with db_transaction() as conn:
             existing = conn.execute(
-                'SELECT id FROM tablet_types WHERE tablet_type_name = ?', 
+                'SELECT id FROM tablet_types WHERE tablet_type_name = ?',
                 (tablet_type_name,)
             ).fetchone()
-            
+
             if existing:
                 return jsonify({'success': False, 'error': 'Tablet type already exists'}), 400
-        
+
             if inventory_item_id:
                 existing_id = conn.execute(
                     'SELECT tablet_type_name FROM tablet_types WHERE inventory_item_id = ?',
                     (inventory_item_id,)
                 ).fetchone()
-                
+
                 if existing_id:
                     return jsonify({
-                        'success': False, 
+                        'success': False,
                         'error': f'Inventory ID already used by {existing_id["tablet_type_name"]}'
                     }), 400
-        
+
             conn.execute('''
                 INSERT INTO tablet_types (tablet_type_name, inventory_item_id, category)
                 VALUES (?, ?, ?)
             ''', (tablet_type_name, inventory_item_id if inventory_item_id else None, category if category else None))
-            
+
             return jsonify({'success': True, 'message': f'Added tablet type: {tablet_type_name}'})
     except Exception as e:
         current_app.logger.error(f"Error adding tablet type: {str(e)}")
@@ -806,20 +806,20 @@ def delete_tablet_type(tablet_type_id):
     try:
         with db_transaction() as conn:
             tablet_type = conn.execute(
-                'SELECT tablet_type_name FROM tablet_types WHERE id = ?', 
+                'SELECT tablet_type_name FROM tablet_types WHERE id = ?',
                 (tablet_type_id,)
             ).fetchone()
-            
+
             if not tablet_type:
                 return jsonify({'success': False, 'error': 'Tablet type not found'}), 404
-            
+
             conn.execute(
                 'DELETE FROM product_allowed_tablet_types WHERE tablet_type_id = ?',
                 (tablet_type_id,),
             )
             conn.execute('DELETE FROM product_details WHERE tablet_type_id = ?', (tablet_type_id,))
             conn.execute('DELETE FROM tablet_types WHERE id = ?', (tablet_type_id,))
-            
+
             return jsonify({'success': True, 'message': f'Deleted {tablet_type["tablet_type_name"]} and its products'})
     except Exception as e:
         current_app.logger.error(f"Error deleting tablet type: {str(e)}")
@@ -833,16 +833,16 @@ def refresh_products():
     """Clear and rebuild products with updated configuration"""
     try:
         from setup_db import setup_sample_data
-        
+
         with db_transaction() as conn:
             conn.execute('DELETE FROM warehouse_submissions')
             conn.execute('DELETE FROM product_details')
             conn.execute('DELETE FROM tablet_types')
-        
+
         setup_sample_data()
-        
+
         return jsonify({
-            'success': True, 
+            'success': True,
             'message': 'Products refreshed with updated configuration'
         })
     except Exception as e:

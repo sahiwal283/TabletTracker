@@ -5,18 +5,27 @@ Lightweight performance instrumentation for baseline and post-refactor compariso
 - Optional query-level timing for heavy SQL blocks.
 - Server-Timing response header when enabled for frontend visibility.
 """
-import time
+
 import logging
+import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
 # Paths we care about for baseline (dashboard + report APIs)
-PERF_TRACKED_PREFIXES = ("/dashboard", "/api/reports", "/api/po", "/api/receiving", "/api/submission", "/api/receives", "/api/bag")
+PERF_TRACKED_PREFIXES = (
+    "/dashboard",
+    "/api/reports",
+    "/api/po",
+    "/api/receiving",
+    "/api/submission",
+    "/api/receives",
+    "/api/bag",
+)
 
 
-def should_log_perf(path: Optional[str]) -> bool:
+def should_log_perf(path: str | None) -> bool:
     """Return True if we should log timing for this path."""
     if not path:
         return False
@@ -24,7 +33,7 @@ def should_log_perf(path: Optional[str]) -> bool:
 
 
 @contextmanager
-def query_timer(label: str, log_fn: Optional[Callable[[str, float], None]] = None):
+def query_timer(label: str, log_fn: Callable[[str, float], None] | None = None):
     """
     Context manager that logs elapsed time for a block (e.g. a DB query).
     Use from views to establish per-query baselines.

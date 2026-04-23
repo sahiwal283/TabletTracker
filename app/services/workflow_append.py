@@ -1,12 +1,11 @@
-
 """Single write path for workflow_events rows."""
 
 from __future__ import annotations
 
 import json
-import time
 import sqlite3
-from typing import Any, Dict, Optional
+import time
+from typing import Any
 
 from app.services.workflow_payloads import normalize_payload
 
@@ -18,12 +17,12 @@ def utc_ms_now() -> int:
 def append_workflow_event(
     conn: sqlite3.Connection,
     event_type: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     workflow_bag_id: int,
     *,
-    station_id: Optional[int] = None,
-    user_id: Optional[int] = None,
-    device_id: Optional[str] = None,
+    station_id: int | None = None,
+    user_id: int | None = None,
+    device_id: str | None = None,
 ) -> int:
     """Insert one workflow_events row (caller controls transaction boundaries)."""
     p = normalize_payload(event_type, payload)

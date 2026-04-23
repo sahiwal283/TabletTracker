@@ -1,4 +1,3 @@
-
 """SQLite transaction helpers: BEGIN IMMEDIATE + bounded SQLITE_BUSY retries."""
 
 from __future__ import annotations
@@ -7,8 +6,9 @@ import logging
 import random
 import sqlite3
 import time
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Callable, Generator, Optional, TypeVar
+from typing import TypeVar
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def run_with_busy_retry(
     op_name: str = "workflow_write",
 ) -> T:
     """Run fn(); on SQLITE_BUSY retry up to MAX_BUSY_ATTEMPTS with jitter."""
-    last_exc: Optional[Exception] = None
+    last_exc: Exception | None = None
     for attempt in range(1, MAX_BUSY_ATTEMPTS + 1):
         try:
             return fn()

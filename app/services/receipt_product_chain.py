@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from typing import Optional
 
 from app.services.production_submission_helpers import ProductionSubmissionError
 
 
-def receipt_chain_key(receipt_number: Optional[str]) -> str:
+def receipt_chain_key(receipt_number: str | None) -> str:
     """Strip workflow suffixes so ``BASE-seal``, ``BASE-blister-e1``, ``BASE-pkg-e2`` share one key."""
     s = (receipt_number or "").strip()
     if not s:
@@ -23,7 +22,7 @@ def receipt_chain_key(receipt_number: Optional[str]) -> str:
 def assert_receipt_product_chain(
     conn: sqlite3.Connection,
     *,
-    receipt_number: Optional[str],
+    receipt_number: str | None,
     product_name: str,
 ) -> None:
     """

@@ -1,11 +1,10 @@
-
 """Per-event-type allowed top-level payload keys (v1 guardrails)."""
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, FrozenSet, Optional, Tuple
+from typing import Any
 
 from flask import current_app
 
@@ -14,9 +13,9 @@ from app.services import workflow_constants as WC
 LOGGER = logging.getLogger(__name__)
 
 # Keys always allowed in addition to documented fields
-_EXTRA_KEYS: FrozenSet[str] = frozenset({"metadata", "extra"})
+_EXTRA_KEYS: frozenset[str] = frozenset({"metadata", "extra"})
 
-_ALLOWED: Dict[str, FrozenSet[str]] = {
+_ALLOWED: dict[str, frozenset[str]] = {
     WC.EVENT_CARD_ASSIGNED: frozenset({"qr_card_id", "workflow_bag_id"}),
     WC.EVENT_BAG_CLAIMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_STATION_RESUMED: frozenset({"station_id", "station_kind", "note"}),
@@ -25,14 +24,10 @@ _ALLOWED: Dict[str, FrozenSet[str]] = {
     WC.EVENT_PACKAGING_SNAPSHOT: frozenset(
         {"display_count", "reason", "employee_name", "packs_remaining", "cards_reopened"}
     ),
-    WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: frozenset(
-        {"displays_taken", "employee_name", "note"}
-    ),
+    WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: frozenset({"displays_taken", "employee_name", "note"}),
     WC.EVENT_BAG_FINALIZED: frozenset({"finalization_rule_version"}),
     WC.EVENT_CARD_FORCE_RELEASED: frozenset({"qr_card_id", "workflow_bag_id", "reason"}),
-    WC.EVENT_STATION_SCAN_TOKEN_ROTATED: frozenset(
-        {"station_id", "old_token_prefix", "new_token_prefix"}
-    ),
+    WC.EVENT_STATION_SCAN_TOKEN_ROTATED: frozenset({"station_id", "old_token_prefix", "new_token_prefix"}),
 }
 
 
@@ -43,7 +38,7 @@ def _is_debug_fail_loud() -> bool:
         return False
 
 
-def normalize_payload(event_type: str, payload: Any) -> Dict[str, Any]:
+def normalize_payload(event_type: str, payload: Any) -> dict[str, Any]:
     """Validate top-level keys; return a plain dict (copy)."""
     if not isinstance(payload, dict):
         msg = "payload must be a JSON object"

@@ -3,19 +3,20 @@ Reporting analytics: PO flavor/shipment summaries, trends, and dimension slices.
 
 Uses tablet_types.tablet_type_name as the primary "flavor" dimension for rows.
 """
+
 from __future__ import annotations
 
 import hashlib
 import math
 import sqlite3
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from app.services.submission_query_service import apply_resolved_bag_fields, build_submission_base_query
 from app.services.submission_calculator import calculate_submission_total_with_fallback
+from app.services.submission_query_service import apply_resolved_bag_fields, build_submission_base_query
 
 
-def _parse_date(s: Optional[str]) -> Optional[str]:
+def _parse_date(s: str | None) -> str | None:
     if not s:
         return None
     try:
@@ -25,7 +26,7 @@ def _parse_date(s: Optional[str]) -> Optional[str]:
         return None
 
 
-def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     v = str(value).strip()
@@ -48,13 +49,13 @@ def _parse_dt(value: Optional[str]) -> Optional[datetime]:
     return None
 
 
-def _safe_avg(packed: int, bags: int) -> Optional[float]:
+def _safe_avg(packed: int, bags: int) -> float | None:
     if bags <= 0 or packed <= 0:
         return None
     return round(packed / bags, 2)
 
 
-def _product_details_tuple(row: Dict[str, Any]) -> Tuple[Optional[Dict], Optional[Dict]]:
+def _product_details_tuple(row: dict[str, Any]) -> tuple[dict | None, dict | None]:
     pd_primary = None
     if row.get("packages_per_display") is not None or row.get("tablets_per_package") is not None:
         pd_primary = {
@@ -67,7 +68,7 @@ def _product_details_tuple(row: Dict[str, Any]) -> Tuple[Optional[Dict], Optiona
     return pd_primary, pd_fallback
 
 
-def packed_output_tablets(conn: sqlite3.Connection, sub: Dict[str, Any]) -> int:
+def packed_output_tablets(conn: sqlite3.Connection, sub: dict[str, Any]) -> int:
     """Tablets counted as 'packed' production output for reporting."""
     st = (sub.get("submission_type") or "packaged").lower()
     if st in ("bag", "machine"):
@@ -95,14 +96,10 @@ def packed_output_tablets(conn: sqlite3.Connection, sub: Dict[str, Any]) -> int:
         return int((sub.get("bottles_made") or 0) * tpb)
 
     pd_primary, pd_fallback = _product_details_tuple(sub)
-    return int(
-        calculate_submission_total_with_fallback(sub, pd_primary, pd_fallback)
-    )
+    return int(calculate_submission_total_with_fallback(sub, pd_primary, pd_fallback))
 
 
-def packed_tablets_allocations(
-    conn: sqlite3.Connection, sub: Dict[str, Any]
-) -> List[Tuple[int, int, int]]:
+def packed_tablets_allocations(conn: sqlite3.Connection, sub: dict[str, Any]) -> list[tuple[int, int, int]]:
     """
     Split packed output by tablet flavor (and receiving) for reporting.
 
@@ -134,7 +131,7 @@ def packed_tablets_allocations(
         ).fetchall()
         alloc_total = sum(int(r["tablets"] or 0) for r in rows)
         if rows and alloc_total > 0:
-            out: List[Tuple[int, int, int]] = []
+            out: list[tuple[int, int, int]] = []
             for r in rows:
                 tid = r["tid"]
                 if tid is None:
@@ -168,7 +165,7 @@ def packed_tablets_allocations(
     return [(tt_key, n, recv)]
 
 
-def _tablets_per_display_by_flavor(conn: sqlite3.Connection) -> Dict[int, float]:
+def _tablets_per_display_by_flavor(conn: sqlite3.Connection) -> dict[int, float]:
     """
     Build tablet_type_id -> tablets_per_display from product configuration.
 
@@ -185,7 +182,7 @@ def _tablets_per_display_by_flavor(conn: sqlite3.Connection) -> Dict[int, float]
         ORDER BY id ASC
         """
     ).fetchall()
-    out: Dict[int, float] = {}
+    out: dict[int, float] = {}
     for row in rows:
         tid = int(row["tablet_type_id"])
         if tid in out:
@@ -196,17 +193,17 @@ def _tablets_per_display_by_flavor(conn: sqlite3.Connection) -> Dict[int, float]
 
 def _submission_report_rows(
     conn: sqlite3.Connection,
-    po_id: Optional[int] = None,
-    po_number: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    vendor_name: Optional[str] = None,
-    tablet_type_id: Optional[int] = None,
-) -> List[Dict[str, Any]]:
+    po_id: int | None = None,
+    po_number: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    vendor_name: str | None = None,
+    tablet_type_id: int | None = None,
+) -> list[dict[str, Any]]:
     """Load submission rows with joins for reporting (no row limit)."""
     query = build_submission_base_query(include_calculated_total=False)
     clauses = ["1=1"]
-    params: List[Any] = []
+    params: list[Any] = []
 
     if po_id is not None:
         # Variety-pack bottle rows often omit assigned_po_id; tie them to the PO via
@@ -262,9 +259,7 @@ def _submission_report_rows(
     return out
 
 
-def _flavor_id_name(
-    sub: Dict[str, Any], conn: Optional[sqlite3.Connection] = None
-) -> Tuple[Optional[int], str]:
+def _flavor_id_name(sub: dict[str, Any], conn: sqlite3.Connection | None = None) -> tuple[int | None, str]:
     """
     Resolve flavor for a submission row. Prefer joined tablet_type_id / tablet_type_name
     (query uses COALESCE(product, inventory fallback, bag tablet type)).
@@ -289,9 +284,7 @@ def _flavor_id_name(
     # and tablet_types.tablet_type_name.
     product_name = (sub.get("product_name") or "").strip()
     if conn and product_name:
-        norm_expr = (
-            "REPLACE(REPLACE(REPLACE(LOWER(TRIM({})), '-', ''), ' ', ''), '_', '')"
-        )
+        norm_expr = "REPLACE(REPLACE(REPLACE(LOWER(TRIM({})), '-', ''), ' ', ''), '_', '')"
         row = conn.execute(
             f"""
             SELECT tt.id, tt.tablet_type_name
@@ -334,7 +327,7 @@ def get_report_fingerprint(conn: sqlite3.Connection) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
 
-def get_filter_metadata(conn: sqlite3.Connection) -> Dict[str, Any]:
+def get_filter_metadata(conn: sqlite3.Connection) -> dict[str, Any]:
     vendors = [
         r["vendor_name"]
         for r in conn.execute(
@@ -392,7 +385,7 @@ def get_filter_metadata(conn: sqlite3.Connection) -> Dict[str, Any]:
     }
 
 
-def get_receives_for_po(conn: sqlite3.Connection, po_id: int) -> List[Dict[str, Any]]:
+def get_receives_for_po(conn: sqlite3.Connection, po_id: int) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
         SELECT r.id, r.received_date, r.receive_name, r.po_id,
@@ -426,7 +419,7 @@ def get_receives_for_po(conn: sqlite3.Connection, po_id: int) -> List[Dict[str, 
     return out
 
 
-def _ordered_by_flavor(conn: sqlite3.Connection, po_id: int) -> Dict[int, Dict[str, Any]]:
+def _ordered_by_flavor(conn: sqlite3.Connection, po_id: int) -> dict[int, dict[str, Any]]:
     """Map tablet_type_id -> {ordered, line_name}."""
     rows = conn.execute(
         """
@@ -437,7 +430,7 @@ def _ordered_by_flavor(conn: sqlite3.Connection, po_id: int) -> Dict[int, Dict[s
         """,
         (po_id,),
     ).fetchall()
-    by_tt: Dict[int, Dict[str, Any]] = {}
+    by_tt: dict[int, dict[str, Any]] = {}
     for row in rows:
         r = dict(row)
         inv = r.get("inventory_item_id")
@@ -466,7 +459,7 @@ def _ordered_by_flavor(conn: sqlite3.Connection, po_id: int) -> Dict[int, Dict[s
 
 def _received_bags_by_flavor_receive(
     conn: sqlite3.Connection, po_id: int
-) -> Tuple[Dict[Tuple[int, int], Dict[str, Any]], Dict[int, str]]:
+) -> tuple[dict[tuple[int, int], dict[str, Any]], dict[int, str]]:
     """
     Keys: (receive_id, tablet_type_id) -> received, bags_count, flavor_name.
     Also returns receive_id -> label map.
@@ -490,7 +483,7 @@ def _received_bags_by_flavor_receive(
         """,
         (po_id,),
     ).fetchall()
-    agg: Dict[Tuple[int, int], Dict[str, Any]] = {}
+    agg: dict[tuple[int, int], dict[str, Any]] = {}
     for row in rows:
         r = dict(row)
         rid = r["receive_id"]
@@ -515,12 +508,10 @@ def _received_bags_by_flavor_receive(
     return agg, recv_meta
 
 
-def _packed_by_flavor_receive(
-    conn: sqlite3.Connection, po_id: int
-) -> Dict[Tuple[Optional[int], int], int]:
+def _packed_by_flavor_receive(conn: sqlite3.Connection, po_id: int) -> dict[tuple[int | None, int], int]:
     """(tablet_type_id, receive_id) -> packed (receive_id -1 = unassigned)."""
     subs = _submission_report_rows(conn, po_id=po_id)
-    packed: Dict[Tuple[Optional[int], int], int] = {}
+    packed: dict[tuple[int | None, int], int] = {}
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
@@ -534,7 +525,7 @@ def _packed_by_flavor_receive(
     return packed
 
 
-def build_po_overview(conn: sqlite3.Connection, po_id: int) -> Dict[str, Any]:
+def build_po_overview(conn: sqlite3.Connection, po_id: int) -> dict[str, Any]:
     """Total view: per-flavor rows + grand totals."""
     po = conn.execute(
         "SELECT id, po_number, vendor_name, tablet_type FROM purchase_orders WHERE id = ?",
@@ -561,13 +552,13 @@ def build_po_overview(conn: sqlite3.Connection, po_id: int) -> Dict[str, Any]:
 
     # Totals per flavor (across receives)
     flavor_ids = set()
-    for (_rid, tid) in recv_bags.keys():
+    for _rid, tid in recv_bags.keys():
         flavor_ids.add(tid)
     for ttid, _rr in packed_map.keys():
         flavor_ids.add(ttid)
     flavor_ids.update(t for t in ordered_map.keys() if t > 0)
 
-    rows_out: List[Dict[str, Any]] = []
+    rows_out: list[dict[str, Any]] = []
     for tid in sorted(flavor_ids, key=_sort_name):
         if tid == -2:
             flavor_name = "Unmapped (no tablet type)"
@@ -576,20 +567,12 @@ def build_po_overview(conn: sqlite3.Connection, po_id: int) -> Dict[str, Any]:
                 "SELECT tablet_type_name FROM tablet_types WHERE id = ?",
                 (tid,),
             ).fetchone()
-            flavor_name = (
-                name_row["tablet_type_name"]
-                if name_row
-                else ordered_map.get(tid, {}).get("name", "Unknown")
-            )
+            flavor_name = name_row["tablet_type_name"] if name_row else ordered_map.get(tid, {}).get("name", "Unknown")
 
         ordered = int(ordered_map.get(tid, {}).get("ordered", 0))
-        received = sum(
-            v["received"] for (r, t), v in recv_bags.items() if t == tid
-        )
+        received = sum(v["received"] for (r, t), v in recv_bags.items() if t == tid)
         bags = sum(v["bags"] for (r, t), v in recv_bags.items() if t == tid)
-        packed = sum(
-            v for (tt, rr), v in packed_map.items() if tt == tid
-        )
+        packed = sum(v for (tt, rr), v in packed_map.items() if tt == tid)
         rows_out.append(
             {
                 "tablet_type_id": tid,
@@ -642,7 +625,7 @@ def build_po_overview(conn: sqlite3.Connection, po_id: int) -> Dict[str, Any]:
     }
 
 
-def build_po_shipments(conn: sqlite3.Connection, po_id: int) -> Dict[str, Any]:
+def build_po_shipments(conn: sqlite3.Connection, po_id: int) -> dict[str, Any]:
     """Per-receive (shipment) sections with flavor rows."""
     base = build_po_overview(conn, po_id)
     if not base.get("success"):
@@ -664,18 +647,18 @@ def build_po_shipments(conn: sqlite3.Connection, po_id: int) -> Dict[str, Any]:
         ).fetchone()
         return (nm["tablet_type_name"] if nm else "") or ""
 
-    shipments: List[Dict[str, Any]] = []
+    shipments: list[dict[str, Any]] = []
     for rec in receives:
         rid = rec["id"]
         flavor_keys = set()
-        for (r, t) in recv_bags.keys():
+        for r, t in recv_bags.keys():
             if r == rid:
                 flavor_keys.add(t)
-        for (tt, r) in packed_map.keys():
+        for tt, r in packed_map.keys():
             if r == rid:
                 flavor_keys.add(tt)
 
-        sec_rows: List[Dict[str, Any]] = []
+        sec_rows: list[dict[str, Any]] = []
         for tid in sorted(flavor_keys, key=_shipment_row_sort_name):
             if tid == -2:
                 flavor_name = "Unmapped (no tablet type)"
@@ -731,11 +714,11 @@ def build_trends(
     conn: sqlite3.Connection,
     date_from: str,
     date_to: str,
-    vendor_name: Optional[str] = None,
-    po_id: Optional[int] = None,
-    tablet_type_id: Optional[int] = None,
+    vendor_name: str | None = None,
+    po_id: int | None = None,
+    tablet_type_id: int | None = None,
     bucket: str = "day",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Time series: packed tablets and received tablets (by receive date)."""
     df = _parse_date(date_from)
     dt = _parse_date(date_to)
@@ -752,8 +735,8 @@ def build_trends(
     )
 
     tpd_map = _tablets_per_display_by_flavor(conn)
-    packed_by_day: Dict[str, int] = {}
-    packed_displays_by_day: Dict[str, float] = {}
+    packed_by_day: dict[str, int] = {}
+    packed_displays_by_day: dict[str, float] = {}
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
@@ -773,7 +756,7 @@ def build_trends(
 
     # Received by receiving date (bags sum)
     rclause = "r.received_date IS NOT NULL AND DATE(r.received_date) >= ? AND DATE(r.received_date) <= ?"
-    rparams: List[Any] = [df, dt]
+    rparams: list[Any] = [df, dt]
     if vendor_name:
         rclause += " AND po.vendor_name = ?"
         rparams.append(vendor_name)
@@ -820,10 +803,10 @@ def build_dimensions(
     conn: sqlite3.Connection,
     date_from: str,
     date_to: str,
-    vendor_name: Optional[str] = None,
-    po_id: Optional[int] = None,
-    tablet_type_id: Optional[int] = None,
-) -> Dict[str, Any]:
+    vendor_name: str | None = None,
+    po_id: int | None = None,
+    tablet_type_id: int | None = None,
+) -> dict[str, Any]:
     """Flavor-first analytics: totals in window + optional single-flavor breakdown."""
     df = _parse_date(date_from)
     dt = _parse_date(date_to)
@@ -839,16 +822,16 @@ def build_dimensions(
         date_to=dt,
     )
     tpd_map = _tablets_per_display_by_flavor(conn)
-    by_flavor: Dict[int, int] = {}
-    by_flavor_displays: Dict[int, float] = {}
-    by_day_by_flavor: Dict[int, Dict[str, int]] = {}
-    by_day_by_flavor_displays: Dict[int, Dict[str, float]] = {}
-    ripped_cards_by_flavor: Dict[int, int] = {}
-    ripped_cards_by_day: Dict[str, int] = {}
+    by_flavor: dict[int, int] = {}
+    by_flavor_displays: dict[int, float] = {}
+    by_day_by_flavor: dict[int, dict[str, int]] = {}
+    by_day_by_flavor_displays: dict[int, dict[str, float]] = {}
+    ripped_cards_by_flavor: dict[int, int] = {}
+    ripped_cards_by_day: dict[str, int] = {}
     ripped_cards_total = 0
-    throughput_rows: List[Tuple[str, float, float, int]] = []
+    throughput_rows: list[tuple[str, float, float, int]] = []
     # tuple: (day, duration_minutes, tablets_per_hour, tablets_packed)
-    throughput_groups: Dict[str, Dict[str, Any]] = {}
+    throughput_groups: dict[str, dict[str, Any]] = {}
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         n = packed_output_tablets(conn, sub)
@@ -898,9 +881,7 @@ def build_dimensions(
             if tpd and tpd > 0:
                 if tid not in by_day_by_flavor_displays:
                     by_day_by_flavor_displays[tid] = {}
-                by_day_by_flavor_displays[tid][day] = (
-                    by_day_by_flavor_displays[tid].get(day, 0.0) + (part / tpd)
-                )
+                by_day_by_flavor_displays[tid][day] = by_day_by_flavor_displays[tid].get(day, 0.0) + (part / tpd)
 
     # Packaging loss (cards ripped/re-opened) is stored in cards_reopened
     # on packaged/repack submissions and should be tracked separately from output.
@@ -957,9 +938,7 @@ def build_dimensions(
                 {
                     "date": d,
                     "packed": by_day_by_flavor[tablet_type_id].get(d, 0),
-                    "packed_displays": round(
-                        by_day_by_flavor_displays.get(tablet_type_id, {}).get(d, 0.0), 2
-                    ),
+                    "packed_displays": round(by_day_by_flavor_displays.get(tablet_type_id, {}).get(d, 0.0), 2),
                 }
             )
     ripped_by_flavor = []
@@ -980,8 +959,7 @@ def build_dimensions(
             }
         )
     ripped_series = [
-        {"date": d, "ripped_cards": int(ripped_cards_by_day[d])}
-        for d in sorted(ripped_cards_by_day.keys())
+        {"date": d, "ripped_cards": int(ripped_cards_by_day[d])} for d in sorted(ripped_cards_by_day.keys())
     ]
     total_packed_displays = round(sum(by_flavor_displays.values()), 2)
     loss_rate_cards_per_display = None
@@ -1008,7 +986,7 @@ def build_dimensions(
         "avg_tablets_per_hour": None,
         "total_tablets_measured": 0,
     }
-    throughput_series: List[Dict[str, Any]] = []
+    throughput_series: list[dict[str, Any]] = []
     if throughput_rows:
         minutes_values = sorted(x[1] for x in throughput_rows)
         tph_values = [x[2] for x in throughput_rows]
@@ -1026,7 +1004,7 @@ def build_dimensions(
             "total_tablets_measured": int(total_tabs),
         }
 
-        by_day_t: Dict[str, Dict[str, float]] = {}
+        by_day_t: dict[str, dict[str, float]] = {}
         for day, minutes, tph, _tabs in throughput_rows:
             if day not in by_day_t:
                 by_day_t[day] = {"count": 0.0, "minutes_total": 0.0, "tph_total": 0.0}
@@ -1058,7 +1036,7 @@ def build_dimensions(
     }
 
 
-def _percentile_sorted(sorted_vals: List[float], p: float) -> Optional[float]:
+def _percentile_sorted(sorted_vals: list[float], p: float) -> float | None:
     if not sorted_vals:
         return None
     n = len(sorted_vals)
@@ -1067,9 +1045,7 @@ def _percentile_sorted(sorted_vals: List[float], p: float) -> Optional[float]:
     return round(sorted_vals[idx], 6)
 
 
-def _summary_stats(
-    rates: List[float], loss_sum: int, den_sum: int
-) -> Dict[str, Any]:
+def _summary_stats(rates: list[float], loss_sum: int, den_sum: int) -> dict[str, Any]:
     if not rates:
         return {
             "n": 0,
@@ -1097,9 +1073,9 @@ def aggregate_stage_yield(
     conn: sqlite3.Connection,
     date_from: str,
     date_to: str,
-    tablet_type_id: Optional[int] = None,
-    machine_id: Optional[int] = None,
-) -> Dict[str, Any]:
+    tablet_type_id: int | None = None,
+    machine_id: int | None = None,
+) -> dict[str, Any]:
     """
     Summarize per-bag stage-yield over a date window (one row per bag in window).
     Excludes anomalous negative transitions for aggregate rate stats.
@@ -1123,17 +1099,17 @@ def aggregate_stage_yield(
     bag_ids = [r["bag_id"] for r in rows]
 
     # Per-transition accumulators: lists of per-bag rates, and sum(loss), sum(denom) for weighted mean
-    def collect() -> Dict[str, Any]:
-        b_s_t_r: List[float] = []
-        s_p_t_r: List[float] = []
-        b_p_t_r: List[float] = []
+    def collect() -> dict[str, Any]:
+        b_s_t_r: list[float] = []
+        s_p_t_r: list[float] = []
+        b_p_t_r: list[float] = []
         b_s_t_loss = b_s_t_den = 0
         s_p_t_loss = s_p_t_den = 0
         b_p_t_loss = b_p_t_den = 0
 
-        b_s_c_r: List[float] = []
-        s_p_c_r: List[float] = []
-        b_p_c_r: List[float] = []
+        b_s_c_r: list[float] = []
+        s_p_c_r: list[float] = []
+        b_p_c_r: list[float] = []
         b_s_c_loss = b_s_c_den = 0
         s_p_c_loss = s_p_c_den = 0
         b_p_c_loss = b_p_c_den = 0
@@ -1174,22 +1150,14 @@ def aggregate_stage_yield(
 
             bags_included += 1
 
-            if (
-                B > 0
-                and S > 0
-                and not q.get("negative_blister_to_sealing")
-            ):
+            if B > 0 and S > 0 and not q.get("negative_blister_to_sealing"):
                 r = rates_t.get("blister_to_sealing")
                 if r is not None and losses_t.get("blister_to_sealing") is not None:
                     b_s_t_r.append(float(r))
                     b_s_t_loss += int(losses_t["blister_to_sealing"] or 0)
                     b_s_t_den += B
                 rc = rates_c.get("blister_to_sealing")
-                if (
-                    rc is not None
-                    and losses_c.get("blister_to_sealing") is not None
-                    and bl > 0
-                ):
+                if rc is not None and losses_c.get("blister_to_sealing") is not None and bl > 0:
                     b_s_c_r.append(float(rc))
                     b_s_c_loss += int(losses_c["blister_to_sealing"] or 0)
                     b_s_c_den += bl
@@ -1201,11 +1169,7 @@ def aggregate_stage_yield(
                     s_p_t_loss += int(losses_t["sealing_to_packaged"] or 0)
                     s_p_t_den += S
                 rc = rates_c.get("sealing_to_packaged")
-                if (
-                    rc is not None
-                    and cs > 0
-                    and losses_c.get("sealing_to_packaged") is not None
-                ):
+                if rc is not None and cs > 0 and losses_c.get("sealing_to_packaged") is not None:
                     s_p_c_r.append(float(rc))
                     s_p_c_loss += int(losses_c["sealing_to_packaged"] or 0)
                     s_p_c_den += cs
@@ -1217,11 +1181,7 @@ def aggregate_stage_yield(
                     b_p_t_loss += int(losses_t["blister_to_packaged"] or 0)
                     b_p_t_den += B
                 rc = rates_c.get("blister_to_packaged")
-                if (
-                    rc is not None
-                    and bl > 0
-                    and losses_c.get("blister_to_packaged") is not None
-                ):
+                if rc is not None and bl > 0 and losses_c.get("blister_to_packaged") is not None:
                     b_p_c_r.append(float(rc))
                     b_p_c_loss += int(losses_c["blister_to_packaged"] or 0)
                     b_p_c_den += bl

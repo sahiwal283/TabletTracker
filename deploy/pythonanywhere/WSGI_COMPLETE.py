@@ -27,18 +27,3 @@ except Exception as e:
     error_msg = f"❌ CRITICAL: Failed to create Flask app: {str(e)}\n{traceback.format_exc()}"
     print(error_msg)
     raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

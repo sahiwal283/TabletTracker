@@ -2,12 +2,10 @@
 Parse and format bag timing fields as America/New_York wall time, stored UTC-naive in DB
 (consistent with to_est filter expectations in api.py).
 """
+
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
-from typing import Optional
-
 from zoneinfo import ZoneInfo
 
 _NY = ZoneInfo("America/New_York")
@@ -19,7 +17,7 @@ def utc_now_naive_string() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def parse_eastern_input_to_utc_naive_string(value: Optional[str]) -> Optional[str]:
+def parse_eastern_input_to_utc_naive_string(value: str | None) -> str | None:
     """
     Interpret user input (datetime-local or 'YYYY-MM-DD HH:MM') as Eastern local time;
     return UTC naive string for storage. None/empty -> None.
@@ -47,7 +45,7 @@ def parse_eastern_input_to_utc_naive_string(value: Optional[str]) -> Optional[st
     return utc_dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def parse_optional_eastern(value: Optional[str]) -> Optional[str]:
+def parse_optional_eastern(value: str | None) -> str | None:
     """Like parse_eastern_input_to_utc_naive_string but returns None on empty; raises ValueError on bad input."""
     if value is None or (isinstance(value, str) and not str(value).strip()):
         return None

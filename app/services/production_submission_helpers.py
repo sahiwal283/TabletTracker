@@ -1,22 +1,22 @@
 """
 Shared execution logic for machine, packaged, and combined production submissions.
 """
+
 import sqlite3
 from datetime import datetime
 
 from flask import current_app
 
-from app.services.submission_context_service import normalize_optional_text
-from app.utils.receive_tracking import (
-    find_bag_for_submission,
-    find_bag_for_submission_allowlist,
-    find_bag_for_submission_for_product,
-)
 from app.services.product_tablet_allowlist import (
     allowed_tablet_type_ids_for_product,
     inventory_item_id_for_bag_tablet,
 )
+from app.services.submission_context_service import normalize_optional_text
 from app.utils.eastern_datetime import parse_optional_eastern, utc_now_naive_string
+from app.utils.receive_tracking import (
+    find_bag_for_submission_allowlist,
+    find_bag_for_submission_for_product,
+)
 from app.utils.route_helpers import get_setting
 
 
@@ -182,9 +182,7 @@ def parse_machine_submission_entries(data):
 
 
 def _machine_admin_notes(data):
-    return normalize_optional_text(
-        data.get('machine_admin_notes') or data.get('admin_notes') or ''
-    )
+    return normalize_optional_text(data.get('machine_admin_notes') or data.get('admin_notes') or '')
 
 
 def _ensure_default_count_date(data: dict) -> None:
@@ -253,7 +251,9 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
     if not inventory_item_id:
         raise ProductionSubmissionError(
             400,
-            {'error': f'Product "{product.get("product_name")}" is missing inventory_item_id. Please configure this in admin.'},
+            {
+                'error': f'Product "{product.get("product_name")}" is missing inventory_item_id. Please configure this in admin.'
+            },
         )
 
     box_number_raw = data.get('box_number')
@@ -342,9 +342,7 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
     if receipt_number:
         from app.services.receipt_product_chain import assert_receipt_product_chain
 
-        assert_receipt_product_chain(
-            conn, receipt_number=receipt_number, product_name=product["product_name"]
-        )
+        assert_receipt_product_chain(conn, receipt_number=receipt_number, product_name=product["product_name"])
 
     if receipt_number:
         for entry in entries:
@@ -395,14 +393,12 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
     try:
         bag_start_time = parse_optional_eastern(data.get('bag_start_time'))
     except ValueError as ve:
-        raise ProductionSubmissionError(400, {'error': f'Invalid bag start time: {ve}'})
+        raise ProductionSubmissionError(400, {'error': f'Invalid bag start time: {ve}'}) from ve
 
     def cards_per_turn_for(mid):
         cp = None
         if mid:
-            machine_row = conn.execute(
-                'SELECT cards_per_turn FROM machines WHERE id = ?', (mid,)
-            ).fetchone()
+            machine_row = conn.execute('SELECT cards_per_turn FROM machines WHERE id = ?', (mid,)).fetchone()
             if machine_row:
                 cp = dict(machine_row).get('cards_per_turn')
         if not cp:
@@ -521,9 +517,7 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
 
 
 def _packaged_admin_notes(data):
-    return normalize_optional_text(
-        data.get('packaged_admin_notes') or data.get('admin_notes') or ''
-    )
+    return normalize_optional_text(data.get('packaged_admin_notes') or data.get('admin_notes') or '')
 
 
 def execute_packaged_submission(conn, data, employee_name: str) -> dict:
@@ -537,7 +531,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         try:
             pid = int(data['product_id'])
         except (TypeError, ValueError):
-            raise ProductionSubmissionError(400, {'error': 'Invalid product_id'})
+            raise ProductionSubmissionError(400, {'error': 'Invalid product_id'}) from None
         prow = conn.execute('SELECT product_name FROM product_details WHERE id = ?', (pid,)).fetchone()
         if not prow:
             raise ProductionSubmissionError(400, {'error': 'Product not found'})
@@ -606,7 +600,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         packages_per_display = int(packages_per_display)
         tablets_per_package = int(tablets_per_package)
     except (ValueError, TypeError):
-        raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for product configuration'})
+        raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for product configuration'}) from None
 
     try:
         displays_made = int(data.get('displays_made', 0) or 0)
@@ -614,7 +608,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         loose_tablets = int(data.get('loose_tablets', 0) or 0)
         cards_reopened = int(data.get('cards_reopened', 0) or 0)
     except (ValueError, TypeError):
-        raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for counts'})
+        raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for counts'}) from None
 
     submission_date = data.get('submission_date', datetime.now().date().isoformat())
 
@@ -666,8 +660,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
             )
         elif ep.get("assigned_po_id") and not ep.get("bag_id"):
             po_hint = (
-                " It has no bag link yet; use Submissions History with receipt search to open submission "
-                f"#{ep['id']}."
+                f" It has no bag link yet; use Submissions History with receipt search to open submission #{ep['id']}."
             )
         raise ProductionSubmissionError(
             400,
@@ -838,7 +831,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
                 raise ProductionSubmissionError(
                     500,
                     {'error': 'Database schema error: inventory_item_id column missing. Please run migration script.'},
-                )
+                ) from alter_error
     except Exception as pragma_error:
         current_app.logger.error(f'Error checking table schema: {pragma_error}')
 
@@ -846,7 +839,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
     try:
         bag_start_for_order = parse_optional_eastern(data.get('bag_start_time'))
     except ValueError as ve:
-        raise ProductionSubmissionError(400, {'error': f'Invalid bag start time: {ve}'})
+        raise ProductionSubmissionError(400, {'error': f'Invalid bag start time: {ve}'}) from ve
 
     bag_end_time = None
     try:
@@ -855,7 +848,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         else:
             bag_end_time = utc_now_naive_string()
     except ValueError as ve:
-        raise ProductionSubmissionError(400, {'error': f'Invalid bag end time: {ve}'})
+        raise ProductionSubmissionError(400, {'error': f'Invalid bag end time: {ve}'}) from ve
 
     if bag_start_for_order is not None and bag_end_time < bag_start_for_order:
         raise ProductionSubmissionError(
@@ -908,7 +901,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
                 {
                     'error': f'Database schema error: {str(e)}. Please ensure inventory_item_id column exists in warehouse_submissions table.'
                 },
-            )
+            ) from e
         raise
 
     if error_message:

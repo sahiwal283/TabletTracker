@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
 
 
-def allowed_tablet_type_ids_for_product(conn: sqlite3.Connection, product_id: int) -> List[int]:
+def allowed_tablet_type_ids_for_product(conn: sqlite3.Connection, product_id: int) -> list[int]:
     """Return ordered unique tablet_type ids allowed for this product (receiving / bag match)."""
     pid = int(product_id)
     try:
@@ -22,17 +22,13 @@ def allowed_tablet_type_ids_for_product(conn: sqlite3.Connection, product_id: in
         rows = ()
     if rows:
         return [int(dict(r)["tablet_type_id"]) for r in rows]
-    prow = conn.execute(
-        "SELECT tablet_type_id FROM product_details WHERE id = ?", (pid,)
-    ).fetchone()
+    prow = conn.execute("SELECT tablet_type_id FROM product_details WHERE id = ?", (pid,)).fetchone()
     if prow and prow["tablet_type_id"] is not None:
         return [int(prow["tablet_type_id"])]
     return []
 
 
-def product_allows_tablet_type(
-    conn: sqlite3.Connection, product_id: int, tablet_type_id: int
-) -> bool:
+def product_allows_tablet_type(conn: sqlite3.Connection, product_id: int, tablet_type_id: int) -> bool:
     allowed = allowed_tablet_type_ids_for_product(conn, product_id)
     return int(tablet_type_id) in allowed
 
@@ -41,8 +37,8 @@ def sync_product_allowed_tablets(
     conn: sqlite3.Connection,
     *,
     product_details_id: int,
-    primary_tablet_type_id: Optional[int],
-    extra_tablet_type_ids: Optional[Sequence[int]] = None,
+    primary_tablet_type_id: int | None,
+    extra_tablet_type_ids: Sequence[int] | None = None,
     clear_only: bool = False,
 ) -> None:
     """
@@ -51,9 +47,7 @@ def sync_product_allowed_tablets(
     """
     pid = int(product_details_id)
     try:
-        conn.execute(
-            "DELETE FROM product_allowed_tablet_types WHERE product_details_id = ?", (pid,)
-        )
+        conn.execute("DELETE FROM product_allowed_tablet_types WHERE product_details_id = ?", (pid,))
     except sqlite3.OperationalError:
         return
     if clear_only or primary_tablet_type_id is None:
@@ -77,7 +71,7 @@ def sync_product_allowed_tablets(
             return
 
 
-def inventory_item_id_for_bag_tablet(conn: sqlite3.Connection, bag_id: int) -> Optional[str]:
+def inventory_item_id_for_bag_tablet(conn: sqlite3.Connection, bag_id: int) -> str | None:
     row = conn.execute(
         """
         SELECT tt.inventory_item_id

@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional, Tuple
 
 import requests
-from flask import current_app
-
 from config import Config
+from flask import current_app
 
 _logger = logging.getLogger(__name__)
 
 
-def extract_message(update: Dict) -> Optional[Dict]:
+def extract_message(update: dict) -> dict | None:
     if not isinstance(update, dict):
         return None
     return update.get("message") or update.get("edited_message")
@@ -31,7 +29,7 @@ def parse_command(text: str) -> tuple[str, str]:
     return cmd, args
 
 
-def parse_daily_command_args(args: str) -> Tuple[Optional[str], bool]:
+def parse_daily_command_args(args: str) -> tuple[str | None, bool]:
     """
     Parse /daily arguments.
 
@@ -53,7 +51,7 @@ def parse_daily_command_args(args: str) -> Tuple[Optional[str], bool]:
     return tokens[0], False
 
 
-def is_message_allowed(message: Dict) -> bool:
+def is_message_allowed(message: dict) -> bool:
     chat = message.get("chat") or {}
     frm = message.get("from") or {}
     chat_id = chat.get("id")
@@ -81,7 +79,7 @@ def telegram_send_message(chat_id: int, text: str) -> None:
     }
     response = requests.post(url, json=payload, timeout=10)
     if response.status_code >= 400:
-        msg = "telegram_send_message failed: %s %s" % (response.status_code, response.text)
+        msg = f"telegram_send_message failed: {response.status_code} {response.text}"
         try:
             current_app.logger.error(msg)
         except RuntimeError:
@@ -89,7 +87,7 @@ def telegram_send_message(chat_id: int, text: str) -> None:
         response.raise_for_status()
 
 
-def format_daily_summary(summary: Dict) -> str:
+def format_daily_summary(summary: dict) -> str:
     lines = [
         f"Daily production summary ({summary['day']}, America/New_York)",
     ]
@@ -97,10 +95,10 @@ def format_daily_summary(summary: Dict) -> str:
         lines.append(f"Through (NY local): {summary['through_ny']}")
     lines.extend(
         [
-        f"Total displays made: {summary['total_displays_made']}",
-        f"Total display-equivalent: {summary['total_display_equivalent']}",
-        "",
-        "By product:",
+            f"Total displays made: {summary['total_displays_made']}",
+            f"Total display-equivalent: {summary['total_display_equivalent']}",
+            "",
+            "By product:",
         ]
     )
     products = summary.get("products") or []
@@ -119,7 +117,7 @@ def format_daily_summary(summary: Dict) -> str:
     return "\n".join(lines)
 
 
-def format_station_status(station_kind: str, station_row: Optional[Dict]) -> str:
+def format_station_status(station_kind: str, station_row: dict | None) -> str:
     if not station_row:
         return f"No claimed bag currently found for {station_kind} station."
     return (
@@ -128,7 +126,7 @@ def format_station_status(station_kind: str, station_row: Optional[Dict]) -> str
     )
 
 
-def format_counts_today(counts: Dict) -> str:
+def format_counts_today(counts: dict) -> str:
     return f"Bags blistered on {counts['day']} (America/New_York): {counts['bags_blistered']}"
 
 

@@ -1,36 +1,35 @@
 """
 Production routes - warehouse submissions, bag counts, machine counts
 """
-from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, current_app
-from datetime import datetime
 import json
 import traceback
-from app.utils.db_utils import db_read_only, db_transaction
-from app.utils.repack_po import apply_po_line_delta
-from app.services.submission_calculator import calculate_repack_output_good
+from datetime import datetime
+
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
+
+from app.services.production_submission_helpers import (
+    ProductionSubmissionError,
+    execute_machine_submission,
+    execute_packaged_submission,
+    parse_machine_submission_entries,
+)
 from app.services.repack_allocation_service import (
     allocate_repack_tablets,
     allocation_payload_to_json,
 )
+from app.services.submission_calculator import calculate_repack_output_good
 from app.services.submission_context_service import (
-    resolve_submission_employee_name,
     normalize_optional_text,
+    resolve_submission_employee_name,
 )
 from app.utils.auth_utils import employee_required
-from app.utils.route_helpers import (
-    ensure_submission_type_column,
-    ensure_machine_counts_table, ensure_machine_count_columns
-)
+from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.receive_tracking import find_bag_for_submission
-from app.utils.eastern_datetime import (
-    parse_optional_eastern,
-    utc_now_naive_string,
-)
-from app.services.production_submission_helpers import (
-    ProductionSubmissionError,
-    parse_machine_submission_entries,
-    execute_machine_submission,
-    execute_packaged_submission,
+from app.utils.repack_po import apply_po_line_delta
+from app.utils.route_helpers import (
+    ensure_machine_count_columns,
+    ensure_machine_counts_table,
+    ensure_submission_type_column,
 )
 
 bp = Blueprint('production', __name__)
@@ -54,19 +53,19 @@ def production_form():
             AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
             ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
-            
+
             # Convert to list of dicts
             products = [dict(p) for p in products]
-            
+
             # Get all tablet types for bag count dropdown
             tablet_types_raw = conn.execute('''
-                SELECT * FROM tablet_types 
+                SELECT * FROM tablet_types
                 ORDER BY tablet_type_name
             ''').fetchall()
-            
+
             # Convert to list of dicts for proper JSON serialization
             tablet_types = [dict(tt) for tt in tablet_types_raw]
-            
+
             # Get employee info for display (handle admin users)
             employee = None
             if session.get('admin_authenticated'):
@@ -78,13 +77,13 @@ def production_form():
                 employee = conn.execute('''
                     SELECT full_name FROM employees WHERE id = ?
                 ''', (session.get('employee_id'),)).fetchone()
-            
+
             # Get today's date for the date picker
             today_date = datetime.now().date().isoformat()
-            
+
             # Check if user is admin or manager (for admin notes access)
             is_admin = session.get('admin_authenticated') or session.get('employee_role') in ['admin', 'manager']
-            
+
             return render_template('production.html', products=products, tablet_types=tablet_types, employee=employee, today_date=today_date, is_admin=is_admin)
     except Exception as e:
         # Log error and re-raise to let Flask handle it
@@ -141,21 +140,21 @@ def submit_warehouse():
 @bp.route('/api/submissions/bag-count', methods=['POST'])
 def submit_count():
     """Process manual count submission for PO close-outs - RECEIVE-BASED TRACKING
-    
+
     Bag counts are for RAW MATERIAL (entire bags of tablets), not packaged products.
     Use tablet_type_id since we're counting unpackaged tablets.
     """
     try:
         data = request.get_json() if request.is_json else request.form
-        
+
         # Ensure submission_type column exists
         ensure_submission_type_column()
-        
+
         # Validate required fields
         tablet_type_id = data.get('tablet_type_id')
         if not tablet_type_id:
             return jsonify({'error': 'Tablet type is required'}), 400
-        
+
         with db_transaction() as conn:
             employee_result = resolve_submission_employee_name(
                 conn,
@@ -166,67 +165,67 @@ def submit_count():
             if not employee_result.get('success'):
                 return jsonify({'error': employee_result.get('error', 'Employee resolution failed')}), employee_result.get('status_code', 400)
             employee_name = employee_result['employee_name']
-            
+
             # Get tablet type details
             tablet_type = conn.execute('''
                 SELECT id, tablet_type_name, inventory_item_id
                 FROM tablet_types
                 WHERE id = ?
             ''', (tablet_type_id,)).fetchone()
-            
+
             if not tablet_type:
                 return jsonify({'error': 'Tablet type not found'}), 400
-            
+
             # Convert Row to dict for safe access
             tablet_type = dict(tablet_type)
-            
+
             # Extract values
             inventory_item_id = tablet_type.get('inventory_item_id')
             if not inventory_item_id:
                 return jsonify({'error': 'Tablet type inventory_item_id not found'}), 400
-            
+
             # Safe type conversion
             try:
                 actual_count = int(data.get('actual_count', 0) or 0)
             except (ValueError, TypeError):
                 return jsonify({'error': 'Invalid numeric values for counts'}), 400
-            
+
             # Get submission_date (defaults to today if not provided)
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
-            
+
             # Notes are optional and available to all users.
             admin_notes = normalize_optional_text(data.get('admin_notes', ''))
-            
+
             # RECEIVE-BASED TRACKING: Find matching bag in receives
             # NEW: Pass bag_number first, box_number as optional parameter
             # Bag count submissions: exclude closed bags
             bag, needs_review, error_message = find_bag_for_submission(
                 conn, tablet_type_id, data.get('bag_number'), data.get('box_number'), submission_type='bag'
             )
-            
+
             if error_message:
                 return jsonify({'error': error_message}), 404
-            
+
             # If needs_review, bag will be None (ambiguous submission)
             bag_id = bag['id'] if bag else None
             assigned_po_id = bag['po_id'] if bag else None
             # Use box_number from matched bag if available (ensures we store actual box_number)
             submission_box_number = bag.get('box_number') if bag else data.get('box_number')
-            
+
             # Insert count record with bag_id (or NULL if needs review)
             # Use tablet_type_name for product_name since this is raw material counting
             conn.execute('''
-            INSERT INTO warehouse_submissions 
-            (employee_name, product_name, inventory_item_id, box_number, bag_number, 
-             bag_id, assigned_po_id, needs_review, loose_tablets, 
+            INSERT INTO warehouse_submissions
+            (employee_name, product_name, inventory_item_id, box_number, bag_number,
+             bag_id, assigned_po_id, needs_review, loose_tablets,
              submission_date, admin_notes, submission_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bag')
             ''', (employee_name, tablet_type.get('tablet_type_name'), inventory_item_id, submission_box_number,
                   data.get('bag_number'), bag_id, assigned_po_id, needs_review,
                   actual_count, submission_date, admin_notes))
-            
+
             message = 'Count flagged for manager review - multiple matching receives found.' if needs_review else 'Bag count submitted successfully!'
-            
+
             return jsonify({
                 'success': True,
                 'message': message,
@@ -337,10 +336,10 @@ def get_machine_count_by_receipt():
     """
     try:
         receipt_number = request.args.get('receipt')
-        
+
         if not receipt_number:
             return jsonify({'error': 'Receipt number required'}), 400
-        
+
         with db_read_only() as conn:
             # Find all machine count submissions with this receipt number
             # Join with product_details and tablet_types to get tablet type info
@@ -356,7 +355,7 @@ def get_machine_count_by_receipt():
             AND ws.submission_type = 'machine'
             ORDER BY ws.created_at ASC
         ''', (receipt_number,)).fetchall()
-        
+
         if len(machine_counts) == 0:
             return jsonify({
                 'success': False,
@@ -391,16 +390,16 @@ def get_machine_count_by_receipt():
 @employee_required
 def submit_bottles():
     """Submit bottle production - for bottle-only products and variety packs
-    
+
     For bottle-only products: User specifies bag, deducts from that bag
     For variety packs: Auto-deducts from reserved bags per flavor based on config
     """
     try:
         data = request.get_json()
-        
+
         # Ensure submission_type column exists
         ensure_submission_type_column()
-        
+
         # Required fields - using product_details.id
         product_id = data.get('product_id')
         displays_made = data.get('displays_made', 0) or 0
@@ -412,10 +411,10 @@ def submit_bottles():
             return jsonify({'error': 'Invalid bottle sealing machine count'}), 400
         if bottle_sealing_machine_count < 0:
             return jsonify({'error': 'Bottle sealing machine count must be >= 0'}), 400
-        
+
         if not product_id:
             return jsonify({'error': 'Product is required'}), 400
-        
+
         with db_transaction() as conn:
             employee_result = resolve_submission_employee_name(
                 conn,
@@ -426,7 +425,7 @@ def submit_bottles():
             if not employee_result.get('success'):
                 return jsonify({'error': employee_result.get('error', 'Employee resolution failed')}), employee_result.get('status_code', 400)
             employee_name = employee_result['employee_name']
-            
+
             # Get product details (now from product_details table)
             product = conn.execute('''
                 SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id
@@ -434,50 +433,50 @@ def submit_bottles():
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE pd.id = ?
             ''', (product_id,)).fetchone()
-            
+
             if not product:
                 return jsonify({'error': 'Product not found'}), 400
-            
+
             product = dict(product)
             is_variety_pack = product.get('is_variety_pack', False)
             is_bottle_product = product.get('is_bottle_product', False)
             tablets_per_bottle = product.get('tablets_per_bottle', 0) or 0
             bottles_per_display = product.get('bottles_per_display', 0) or 0
-            
+
             # Calculate total bottles made = (displays × bottles/display) + remaining
             bottles_made = (displays_made * bottles_per_display) + bottles_remaining
-            
+
             if not is_variety_pack and not is_bottle_product:
                 return jsonify({'error': 'This product is not configured for bottle production'}), 400
-            
+
             # Get submission_date, receipt_number, and admin_notes
             submission_date = data.get('submission_date', datetime.now().date().isoformat())
             receipt_number = (data.get('receipt_number') or '').strip() or None
             admin_notes = normalize_optional_text(data.get('admin_notes', ''))
-            
+
             deduction_details = []
-            
+
             if is_variety_pack:
                 # Variety pack: deduct from reserved bags per flavor
                 variety_contents = product.get('variety_pack_contents')
                 if not variety_contents:
                     return jsonify({'error': 'Variety pack contents not configured'}), 400
-                
+
                 try:
                     import json
                     contents = json.loads(variety_contents)
                 except (json.JSONDecodeError, TypeError):
                     return jsonify({'error': 'Invalid variety pack contents configuration'}), 400
-                
+
                 # Deduct from reserved bags for each flavor
                 for flavor in contents:
                     flavor_tt_id = flavor.get('tablet_type_id')
                     tablets_per_flavor = flavor.get('tablets_per_bottle', 0)
                     tablets_needed = bottles_made * tablets_per_flavor
-                    
+
                     if tablets_needed <= 0:
                         continue
-                    
+
                     # Find reserved bags for this flavor
                     reserved_bags = conn.execute('''
                         SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count,
@@ -491,21 +490,21 @@ def submit_bottles():
                         AND COALESCE(b.status, 'Available') != 'Closed'
                         ORDER BY b.bag_number
                     ''', (flavor_tt_id,)).fetchall()
-                    
+
                     if not reserved_bags:
                         return jsonify({
                             'error': f'No reserved bags found for flavor ID {flavor_tt_id}. Please reserve bags first.'
                         }), 400
-                    
+
                     # Calculate remaining tablets per bag and deduct
                     tablets_still_needed = tablets_needed
                     for bag_row in reserved_bags:
                         if tablets_still_needed <= 0:
                             break
-                        
+
                         bag = dict(bag_row)
                         original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
-                        
+
                         # Get already packaged count for this bag
                         packaged_total = conn.execute('''
                             SELECT COALESCE(SUM(
@@ -516,7 +515,7 @@ def submit_bottles():
                             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                             WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
                         ''', (bag['id'],)).fetchone()
-                        
+
                         # Bottle submissions (bottle-only products with bag_id)
                         bottle_direct = conn.execute('''
                             SELECT COALESCE(SUM(
@@ -526,25 +525,25 @@ def submit_bottles():
                             LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                             WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
                         ''', (bag['id'],)).fetchone()
-                        
+
                         # Variety pack deductions via junction table
                         bottle_junction = conn.execute('''
                             SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
                             FROM submission_bag_deductions sbd
                             WHERE sbd.bag_id = ?
                         ''', (bag['id'],)).fetchone()
-                        
+
                         already_used = (packaged_total['total'] if packaged_total else 0) + \
                                        (bottle_direct['total'] if bottle_direct else 0) + \
                                        (bottle_junction['total'] if bottle_junction else 0)
                         remaining = max(0, original_count - already_used)
-                        
+
                         if remaining <= 0:
                             continue
-                        
+
                         tablets_to_deduct = min(remaining, tablets_still_needed)
                         tablets_still_needed -= tablets_to_deduct
-                        
+
                         deduction_details.append({
                             'bag_id': bag['id'],
                             'tablet_type_name': bag.get('tablet_type_name'),
@@ -553,12 +552,12 @@ def submit_bottles():
                             'tablets_deducted': tablets_to_deduct,
                             'po_id': bag.get('po_id')
                         })
-                    
+
                     if tablets_still_needed > 0:
                         return jsonify({
                             'error': f'Not enough tablets in reserved bags for {flavor.get("tablet_type_name", "flavor")}. Need {tablets_needed}, only have {tablets_needed - tablets_still_needed} available.'
                         }), 400
-                
+
                 po_ids = {d.get('po_id') for d in deduction_details if d.get('po_id') is not None}
                 if len(po_ids) == 1:
                     variety_assigned_po_id = next(iter(po_ids))
@@ -569,55 +568,55 @@ def submit_bottles():
 
                 # Create ONE submission record for the variety pack
                 conn.execute('''
-                    INSERT INTO warehouse_submissions 
+                    INSERT INTO warehouse_submissions
                     (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
                      packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
                      bottle_sealing_machine_count, assigned_po_id, needs_review)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?, ?, 0)
-                ''', (employee_name, product.get('product_name'), 
+                ''', (employee_name, product.get('product_name'),
                       product.get('inventory_item_id'), bottles_made, displays_made,
                       bottles_remaining, submission_date, receipt_number, admin_notes,
                       bottle_sealing_machine_count, variety_assigned_po_id))
-                
+
                 # Get the submission ID we just created
                 submission_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-                
+
                 # Create junction table entries for each bag deduction
                 for deduction in deduction_details:
                     conn.execute('''
-                        INSERT INTO submission_bag_deductions 
+                        INSERT INTO submission_bag_deductions
                         (submission_id, bag_id, tablets_deducted)
                         VALUES (?, ?, ?)
                     ''', (submission_id, deduction.get('bag_id'), deduction.get('tablets_deducted')))
-                
+
             else:
                 # Bottle-only product: deduct from user-specified bag
                 bag_number = data.get('bag_number')
                 box_number = data.get('box_number')
-                
+
                 if not bag_number:
                     return jsonify({'error': 'Bag number is required for bottle-only products'}), 400
-                
+
                 # Find the bag using product's tablet_type_id
                 tablet_type_id_for_bag = product.get('tablet_type_id')
                 bag, needs_review, error_message = find_bag_for_submission(
                     conn, tablet_type_id_for_bag, bag_number, box_number, submission_type='bottle'
                 )
-                
+
                 if error_message:
                     return jsonify({'error': error_message}), 404
-                
+
                 bag_id = bag['id'] if bag else None
                 assigned_po_id = bag['po_id'] if bag else None
                 submission_box_number = bag.get('box_number') if bag else box_number
-                
+
                 # Calculate tablets used
                 tablets_used = bottles_made * tablets_per_bottle
-                
+
                 # Verify bag has enough tablets
                 if bag:
                     original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
-                    
+
                     # Packaged submissions (card products)
                     packaged_total = conn.execute('''
                         SELECT COALESCE(SUM(
@@ -628,7 +627,7 @@ def submit_bottles():
                         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                         WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
                     ''', (bag['id'],)).fetchone()
-                    
+
                     # Bottle submissions (bottle-only products with bag_id)
                     bottle_direct = conn.execute('''
                         SELECT COALESCE(SUM(
@@ -638,25 +637,25 @@ def submit_bottles():
                         LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                         WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
                     ''', (bag['id'],)).fetchone()
-                    
+
                     # Variety pack deductions via junction table
                     bottle_junction = conn.execute('''
                         SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
                         FROM submission_bag_deductions sbd
                         WHERE sbd.bag_id = ?
                     ''', (bag['id'],)).fetchone()
-                    
+
                     already_used = (packaged_total['total'] if packaged_total else 0) + \
                                    (bottle_direct['total'] if bottle_direct else 0) + \
                                    (bottle_junction['total'] if bottle_junction else 0)
                     remaining = max(0, original_count - already_used)
-                    
+
                     # Check if submission exceeds remaining count - warn but don't block
                     overpack_warning = None
                     if tablets_used > remaining:
                         overpack_warning = f'⚠️ Bag may be overpacked: Need {tablets_used}, only {remaining} calculated remaining. Submission allowed but flagged for review.'
                         current_app.logger.warning(f"Bottle submission for bag {bag['id']}: {overpack_warning}")
-                    
+
                     deduction_details.append({
                         'bag_id': bag['id'],
                         'tablet_type_name': product.get('tablet_type_name') or product.get('product_name'),
@@ -666,27 +665,27 @@ def submit_bottles():
                         'po_id': assigned_po_id,
                         'overpack_warning': overpack_warning
                     })
-                
+
                 # Create submission record for bottle-only product
                 conn.execute('''
-                    INSERT INTO warehouse_submissions 
+                    INSERT INTO warehouse_submissions
                     (employee_name, product_name, inventory_item_id, box_number, bag_number,
                      bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
                      packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
                      bottle_sealing_machine_count)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?)
-                ''', (employee_name, product.get('product_name'), 
+                ''', (employee_name, product.get('product_name'),
                       product.get('inventory_item_id'), submission_box_number, bag_number,
                       bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
                       bottles_remaining, submission_date, receipt_number, admin_notes,
                       bottle_sealing_machine_count))
-            
+
             total_tablets = bottles_made * tablets_per_bottle if tablets_per_bottle else sum(d['tablets_deducted'] for d in deduction_details)
-            
+
             # Check if any deductions have warnings
             warnings = [d.get('overpack_warning') for d in deduction_details if d.get('overpack_warning')]
             warning_message = warnings[0] if warnings else None
-            
+
             return jsonify({
                 'success': True,
                 'message': f'Bottle submission recorded: {bottles_made} bottles ({total_tablets} tablets)',
@@ -707,14 +706,14 @@ def submit_bottles():
 @employee_required
 def get_bottle_products():
     """Get products that can be used with the bottles form
-    
+
     Returns products where is_bottle_product = true OR is_variety_pack = true
     """
     try:
         with db_read_only() as conn:
             products = conn.execute('''
                 SELECT pd.id, pd.product_name, pd.tablet_type_id,
-                       pd.is_bottle_product, pd.is_variety_pack, 
+                       pd.is_bottle_product, pd.is_variety_pack,
                        pd.tablets_per_bottle, pd.bottles_per_display,
                        pd.variety_pack_contents,
                        tt.tablet_type_name, tt.inventory_item_id
@@ -723,7 +722,7 @@ def get_bottle_products():
                 WHERE pd.is_bottle_product = 1 OR pd.is_variety_pack = 1
                 ORDER BY pd.product_name
             ''').fetchall()
-            
+
             return jsonify({
                 'success': True,
                 'products': [dict(p) for p in products]

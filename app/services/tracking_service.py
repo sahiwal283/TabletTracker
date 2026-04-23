@@ -1,13 +1,13 @@
-import time
-import base64
-import sqlite3
-from typing import Optional, Dict, Any
 import logging
+import sqlite3
+import time
+from typing import Any
+
 import requests
-from datetime import datetime
 from config import Config
 
 logger = logging.getLogger(__name__)
+
 
 class UPSTrackingClient:
     """Minimal UPS OAuth2 + Tracking API client."""
@@ -16,7 +16,7 @@ class UPSTrackingClient:
         self.base = Config.UPS_API_BASE.rstrip('/')
         self.client_id = Config.UPS_CLIENT_ID
         self.client_secret = Config.UPS_CLIENT_SECRET
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._token_expiry: float = 0
 
     def _get_token(self) -> str:
@@ -35,7 +35,7 @@ class UPSTrackingClient:
         self._token_expiry = time.time() + int(expires_in)
         return self._token
 
-    def track(self, tracking_number: str) -> Dict[str, Any]:
+    def track(self, tracking_number: str) -> dict[str, Any]:
         token = self._get_token()
         url = f"{self.base}/api/track/v1/details/{tracking_number}"
         headers = {
@@ -52,7 +52,7 @@ class UPSTrackingClient:
         return data
 
 
-def normalize_ups_response(data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_ups_response(data: dict[str, Any]) -> dict[str, Any]:
     """Map UPS response to our unified schema."""
     status_text = "Unknown"
     est_delivery = None
@@ -101,7 +101,7 @@ class FedExTrackingClient:
         self.api_key = Config.FEDEX_API_KEY
         self.api_secret = Config.FEDEX_API_SECRET
         self.account = Config.FEDEX_ACCOUNT_NUMBER
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._token_expiry: float = 0
 
     def _get_token(self) -> str:
@@ -126,7 +126,7 @@ class FedExTrackingClient:
         self._token_expiry = time.time() + int(expires_in)
         return self._token
 
-    def track(self, tracking_number: str) -> Dict[str, Any]:
+    def track(self, tracking_number: str) -> dict[str, Any]:
         token = self._get_token()
         url = f"{self.base}/track/v1/trackingnumbers"
         headers = {
@@ -147,7 +147,7 @@ class FedExTrackingClient:
         return resp.json()
 
 
-def normalize_fedex_response(data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_fedex_response(data: dict[str, Any]) -> dict[str, Any]:
     status_text = "Unknown"
     est_delivery = None
     delivered_at = None
@@ -179,7 +179,7 @@ def normalize_fedex_response(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> Dict[str, Any]:
+def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> dict[str, Any]:
     """Fetch shipment, call provider, and persist results."""
     try:
         cur = conn.cursor()
@@ -211,8 +211,8 @@ def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> Dict[str
 
         cur.execute(
             """
-            UPDATE shipments SET 
-                tracking_status = ?, 
+            UPDATE shipments SET
+                tracking_status = ?,
                 estimated_delivery = COALESCE(?, estimated_delivery),
                 delivered_at = COALESCE(?, delivered_at),
                 last_checkpoint = ?,
@@ -231,7 +231,7 @@ def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> Dict[str
         conn.commit()
 
         return {"success": True, "shipment_id": shipment_id, "data": norm}
-    
+
     except Exception as e:
         if conn:
             try:
@@ -240,4 +240,3 @@ def refresh_shipment_row(conn: sqlite3.Connection, shipment_id: int) -> Dict[str
                 # Preserve original tracking error response.
                 pass
         return {"success": False, "error": str(e)}
-

@@ -2,18 +2,18 @@
 Database migration utilities
 Handles schema changes and column additions
 """
-import sqlite3
 import logging
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
 
 class MigrationRunner:
     """Runs database migrations safely"""
-    
+
     def __init__(self, cursor):
         self.c = cursor
-    
+
     def run_all(self):
         """Run all migrations"""
         self._migrate_machines()
@@ -46,67 +46,67 @@ class MigrationRunner:
             )
         except sqlite3.Error as exc:
             logger.warning("Could not backfill machines.machine_role: %s", exc)
-    
+
     def _migrate_purchase_orders(self):
         """Migrate purchase_orders table"""
         # Add zoho_status column
         self._add_column_if_not_exists('purchase_orders', 'zoho_status', 'TEXT')
-        
+
         # Add internal_status column
         self._add_column_if_not_exists('purchase_orders', 'internal_status', 'TEXT DEFAULT "Active"')
-        
+
         # Add parent_po_number column
         self._add_column_if_not_exists('purchase_orders', 'parent_po_number', 'TEXT')
 
         # Add vendor metadata columns (used for PO selectors and reporting context)
         self._add_column_if_not_exists('purchase_orders', 'vendor_id', 'TEXT')
         self._add_column_if_not_exists('purchase_orders', 'vendor_name', 'TEXT')
-        
+
         # Add machine count columns
         self._add_column_if_not_exists('purchase_orders', 'machine_good_count', 'INTEGER DEFAULT 0')
         self._add_column_if_not_exists('purchase_orders', 'machine_damaged_count', 'INTEGER DEFAULT 0')
-    
+
     def _migrate_po_lines(self):
         """Migrate po_lines table"""
         # Add machine count columns
         self._add_column_if_not_exists('po_lines', 'machine_good_count', 'INTEGER DEFAULT 0')
         self._add_column_if_not_exists('po_lines', 'machine_damaged_count', 'INTEGER DEFAULT 0')
-        
+
         # Add Zoho line_item_id column (v2.23.4+dev) - required for creating purchase receives
         self._add_column_if_not_exists('po_lines', 'zoho_line_item_id', 'TEXT')
-    
+
     def _migrate_tablet_types(self):
         """Migrate tablet_types table"""
         # Add category column
         self._add_column_if_not_exists('tablet_types', 'category', 'TEXT')
-        
+
         # Add category_id column
         self._add_column_if_not_exists('tablet_types', 'category_id', 'INTEGER')
-    
+
         # Legacy variety pack columns on tablet_types (deprecated - moved to product_details in v2.24.2)
         # Keep for backwards compatibility but prefer product_details columns
         self._add_column_if_not_exists('tablet_types', 'is_variety_pack', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('tablet_types', 'tablets_per_bottle', 'INTEGER')
         self._add_column_if_not_exists('tablet_types', 'bottles_per_pack', 'INTEGER')
         self._add_column_if_not_exists('tablet_types', 'variety_pack_contents', 'TEXT')
-        
+
         # Add bottle-only flag (v2.24.0+dev) - products sold only in bottles, not blister cards
         self._add_column_if_not_exists('tablet_types', 'is_bottle_only', 'BOOLEAN DEFAULT 0')
-    
+
     def _migrate_product_details(self):
         """Migrate product_details table - add variety pack and bottle product columns (v2.24.2+dev)"""
         # Add bottle product flag - for products sold in bottles (not blister cards)
         self._add_column_if_not_exists('product_details', 'is_bottle_product', 'BOOLEAN DEFAULT 0')
-        
+
         # Add variety pack flag - for products that combine multiple tablet types
         self._add_column_if_not_exists('product_details', 'is_variety_pack', 'BOOLEAN DEFAULT 0')
-        
+
         # Add tablets per bottle - how many tablets in one bottle
         self._add_column_if_not_exists('product_details', 'tablets_per_bottle', 'INTEGER')
-        
+
         # Add bottles per display - how many bottles in a display/pack
         self._add_column_if_not_exists('product_details', 'bottles_per_display', 'INTEGER')
-        
+
         # Add variety pack contents - JSON array of {tablet_type_id, tablets_per_bottle}
         self._add_column_if_not_exists('product_details', 'variety_pack_contents', 'TEXT')
 
@@ -141,7 +141,7 @@ class MigrationRunner:
             )
         except sqlite3.Error as exc:
             logger.warning("product_allowed_tablet_types migration: %s", exc)
-    
+
     def _migrate_warehouse_submissions(self):
         """Migrate warehouse_submissions table"""
         # Add submission_date column
@@ -152,14 +152,14 @@ class MigrationRunner:
                 self.c.execute('UPDATE warehouse_submissions SET submission_date = DATE(created_at) WHERE submission_date IS NULL')
             except sqlite3.Error as exc:
                 logger.warning("Could not add/backfill submission_date column: %s", exc)
-        
+
         # Add po_assignment_verified column
         if not self._column_exists('warehouse_submissions', 'po_assignment_verified'):
             try:
                 self.c.execute('ALTER TABLE warehouse_submissions ADD COLUMN po_assignment_verified BOOLEAN DEFAULT FALSE')
             except sqlite3.Error as exc:
                 logger.warning("Could not add po_assignment_verified column: %s", exc)
-        
+
         # Add inventory_item_id column
         if not self._column_exists('warehouse_submissions', 'inventory_item_id'):
             try:
@@ -177,10 +177,10 @@ class MigrationRunner:
                 ''')
             except sqlite3.Error as exc:
                 logger.warning("Could not add/backfill inventory_item_id column: %s", exc)
-        
+
         # Add admin_notes column
         self._add_column_if_not_exists('warehouse_submissions', 'admin_notes', 'TEXT')
-        
+
         # Add submission_type column
         if not self._column_exists('warehouse_submissions', 'submission_type'):
             try:
@@ -188,10 +188,10 @@ class MigrationRunner:
                 self.c.execute('UPDATE warehouse_submissions SET submission_type = "packaged" WHERE submission_type IS NULL')
             except sqlite3.Error as exc:
                 logger.warning("Could not add/backfill submission_type column: %s", exc)
-        
+
         # Add machine_id column for machine submissions
         self._add_column_if_not_exists('warehouse_submissions', 'machine_id', 'INTEGER REFERENCES machines(id)')
-        
+
         # Add tablets_pressed_into_cards column for machine submissions
         # This properly stores the total tablets pressed into cards (turns × cards_per_turn × tablets_per_package)
         # Previously stored in loose_tablets which was misleading for machine submissions
@@ -209,13 +209,13 @@ class MigrationRunner:
                 ''')
             except Exception as e:
                 logger.warning(f"Could not add tablets_pressed_into_cards column: {str(e)}")
-    
+
         # Add receipt_number column for tracking receipt numbers
         self._add_column_if_not_exists('warehouse_submissions', 'receipt_number', 'TEXT')
-        
+
         # Add bottles_made column for bottle-based submissions (v2.24.0+dev)
         self._add_column_if_not_exists('warehouse_submissions', 'bottles_made', 'INTEGER DEFAULT 0')
-        
+
         # Repack (tablet search) — end-of-PO mixed-bag output; bag splits stored as JSON
         self._add_column_if_not_exists('warehouse_submissions', 'repack_bag_allocations', 'TEXT')
         self._add_column_if_not_exists('warehouse_submissions', 'repack_vendor_return_notes', 'TEXT')
@@ -261,34 +261,34 @@ class MigrationRunner:
         }
         for col, coltype in columns_to_add.items():
             self._add_column_if_not_exists('shipments', col, coltype)
-    
+
     def _migrate_bags(self):
         """Migrate bags table"""
         self._add_column_if_not_exists('bags', 'pill_count', 'INTEGER')
         self._add_column_if_not_exists('bags', 'tablet_type_id', 'INTEGER')
         self._add_column_if_not_exists('bags', 'batch_number', 'TEXT')
         self._add_column_if_not_exists('bags', 'batch_source', 'TEXT')
-        
+
         # Add Zoho receive push tracking columns (v2.23.0+dev)
         self._add_column_if_not_exists('bags', 'zoho_receive_pushed', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('bags', 'zoho_receive_id', 'TEXT')
         self._add_column_if_not_exists('bags', 'zoho_receive_overs_id', 'TEXT')
-        
+
         # Add bottle reservation flag (v2.24.0+dev) - for variety pack bag reservation
         self._add_column_if_not_exists('bags', 'reserved_for_bottles', 'BOOLEAN DEFAULT 0')
         self._add_column_if_not_exists('bags', 'bag_weight_kg', 'REAL')
         self._add_column_if_not_exists('bags', 'estimated_tablets_from_weight', 'INTEGER')
-    
+
     def _migrate_tablet_type_categories(self):
         """Migrate tablet_type_categories table - ensure it exists"""
         # Table creation is handled in schema, but we ensure category_id column exists
         pass
-    
+
     def _migrate_receiving(self):
         """Migrate receiving table - add receive_name column"""
         # Add receive_name column
         self._add_column_if_not_exists('receiving', 'receive_name', 'TEXT')
-        
+
         # Note: Backfilling is handled by the standalone backfill script
         # This ensures proper sequential numbering per PO
 
@@ -311,15 +311,15 @@ class MigrationRunner:
     def _migrate_small_boxes(self):
         """Migrate small_boxes table."""
         self._add_column_if_not_exists('small_boxes', 'batch_number_default', 'TEXT')
-    
+
     def _migrate_machine_counts(self):
         """Migrate machine_counts table - add machine_id column"""
         # Add machine_id column to link machine counts to specific machines
         self._add_column_if_not_exists('machine_counts', 'machine_id', 'INTEGER REFERENCES machines(id)')
-    
+
     def _migrate_submission_bag_deductions(self):
         """Create submission_bag_deductions junction table if not exists (v2.24.16+dev)
-        
+
         This table links variety pack submissions to multiple bags with individual deduction amounts.
         Replaces the hacky approach of creating multiple submission records with loose_tablets.
         """
@@ -335,7 +335,7 @@ class MigrationRunner:
             )''')
         except Exception as e:
             logger.warning(f"Could not create submission_bag_deductions table: {str(e)}")
-    
+
 
 
     def _migrate_workflow(self):
@@ -491,7 +491,7 @@ class MigrationRunner:
             return column_name in existing_cols
         except sqlite3.Error:
             return False
-    
+
     def _add_column_if_not_exists(self, table_name, column_name, column_def):
         """Add a column to a table if it doesn't exist"""
         if not self._column_exists(table_name, column_name):

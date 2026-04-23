@@ -1,11 +1,10 @@
-
 """Terminal policy: evaluate_finalization + try_finalize + force-release + bag creation."""
 
 from __future__ import annotations
 
 import logging
 import sqlite3
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from app.services import workflow_constants as WC
 from app.services.workflow_append import append_workflow_event
@@ -22,7 +21,7 @@ from app.utils.db_utils import BagRepository
 LOGGER = logging.getLogger(__name__)
 
 
-def evaluate_finalization(events: list) -> Tuple[bool, str, Dict[str, Any]]:
+def evaluate_finalization(events: list) -> tuple[bool, str, dict[str, Any]]:
     """Pure: may emit BAG_FINALIZED?"""
     type_set = {e["event_type"] for e in events}
     if WC.EVENT_BAG_FINALIZED in type_set:
@@ -56,14 +55,14 @@ def evaluate_finalization(events: list) -> Tuple[bool, str, Dict[str, Any]]:
     return False, "not_eligible", {"reasons": reasons}
 
 
-def _qr_card_id_for_bag_assignment(events: list) -> Optional[int]:
+def _qr_card_id_for_bag_assignment(events: list) -> int | None:
     for e in reversed(events):
         if e["event_type"] == WC.EVENT_CARD_ASSIGNED:
             return int(e["payload"]["qr_card_id"])
     return None
 
 
-def _dup_finalize_payload(conn: sqlite3.Connection, workflow_bag_id: int) -> Dict[str, Any]:
+def _dup_finalize_payload(conn: sqlite3.Connection, workflow_bag_id: int) -> dict[str, Any]:
     facts = mechanical_bag_facts(conn, workflow_bag_id)
     fin = [e for e in facts["events"] if e["event_type"] == WC.EVENT_BAG_FINALIZED][0]
     return {
@@ -77,23 +76,21 @@ def try_finalize(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
     *,
-    station_id: Optional[int] = None,
-    user_id: Optional[int] = None,
-    device_id: Optional[str] = None,
-) -> Tuple[str, Dict[str, Any]]:
+    station_id: int | None = None,
+    user_id: int | None = None,
+    device_id: str | None = None,
+) -> tuple[str, dict[str, Any]]:
     """Emit BAG_FINALIZED + release card in one transaction (or idempotent duplicate)."""
     lock = bag_write_lock(workflow_bag_id)
 
-    def _inner() -> Tuple[str, Dict[str, Any]]:
+    def _inner() -> tuple[str, dict[str, Any]]:
         with lock:
             try:
                 with immediate_transaction(conn):
                     events = load_events_for_bag(conn, workflow_bag_id)
                     ok, reason, details = evaluate_finalization(events)
                     if reason == "already_finalized":
-                        LOGGER.info(
-                            "workflow_finalize idempotent_duplicate bag_id=%s", workflow_bag_id
-                        )
+                        LOGGER.info("workflow_finalize idempotent_duplicate bag_id=%s", workflow_bag_id)
                         return ("duplicate", _dup_finalize_payload(conn, workflow_bag_id))
                     if not ok:
                         return (
@@ -158,12 +155,12 @@ def force_release_card(
     workflow_bag_id: int,
     qr_card_id: int,
     reason: str,
-    user_id: Optional[int],
-) -> Tuple[str, Dict[str, Any]]:
+    user_id: int | None,
+) -> tuple[str, dict[str, Any]]:
     """Admin: CARD_FORCE_RELEASED + qr_cards update; idempotent if already idle."""
     lock = bag_write_lock(workflow_bag_id)
 
-    def _inner() -> Tuple[str, Dict[str, Any]]:
+    def _inner() -> tuple[str, dict[str, Any]]:
         with lock:
             with immediate_transaction(conn):
                 events = load_events_for_bag(conn, workflow_bag_id)
@@ -202,9 +199,7 @@ def force_release_card(
                     """,
                     (WC.QR_CARD_STATUS_IDLE, qr_card_id, workflow_bag_id),
                 )
-        LOGGER.info(
-            "force_release fresh_success bag_id=%s card_id=%s", workflow_bag_id, qr_card_id
-        )
+        LOGGER.info("force_release fresh_success bag_id=%s card_id=%s", workflow_bag_id, qr_card_id)
         return ("ok", {"idempotent_duplicate": False})
 
     return run_with_busy_retry(_inner, op_name="force_release")
@@ -213,15 +208,15 @@ def force_release_card(
 def create_workflow_bag_with_card(
     conn: sqlite3.Connection,
     *,
-    product_id: Optional[int],
-    box_number: Optional[str],
-    bag_number: Optional[str],
-    receipt_number: Optional[str],
-    user_id: Optional[int],
+    product_id: int | None,
+    box_number: str | None,
+    bag_number: str | None,
+    receipt_number: str | None,
+    user_id: int | None,
     hand_packed: bool = False,
-    inventory_bag_id: Optional[int] = None,
-    qr_card_id: Optional[int] = None,
-) -> Tuple[int, int]:
+    inventory_bag_id: int | None = None,
+    qr_card_id: int | None = None,
+) -> tuple[int, int]:
     """
     Claim a specific idle card (or next idle), insert workflow_bags, emit CARD_ASSIGNED,
     update qr_cards — one txn.
@@ -274,7 +269,7 @@ def create_workflow_bag_with_card(
     return bag_id, qr_card_id
 
 
-def _normalize_workflow_receipt(raw: Optional[str]) -> Optional[str]:
+def _normalize_workflow_receipt(raw: str | None) -> str | None:
     """Strip and cap length for ``workflow_bags.receipt_number``; empty → None."""
     if raw is None:
         return None
@@ -289,11 +284,11 @@ def assign_inventory_bag_to_card(
     *,
     inventory_bag_id: int,
     product_id: int,
-    user_id: Optional[int],
-    card_scan_token: Optional[str] = None,
-    receipt_number_override: Optional[str] = None,
+    user_id: int | None,
+    card_scan_token: str | None = None,
+    receipt_number_override: str | None = None,
     hand_packed: bool = False,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """
     Link a receiving/shipment bag (``bags`` row) to the next idle QR card.
 
@@ -335,7 +330,7 @@ def assign_inventory_bag_to_card(
     else:
         receipt_number = (inv.get("receive_name") or "").strip() or None
 
-    selected_qr_card_id: Optional[int] = None
+    selected_qr_card_id: int | None = None
     tok = (card_scan_token or "").strip()
     if tok:
         card = conn.execute(

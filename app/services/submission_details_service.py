@@ -1,11 +1,12 @@
 """Submission detail read workflows used by API routes."""
-from typing import Dict, Any, Optional
+
+from typing import Any
 
 # Must match app.blueprints.api.BLISTER_BLISTERS_PER_CUT (each cut → this many blisters).
 BLISTER_BLISTERS_PER_CUT = 2
 
 
-def _get_submission_config(conn, product_name: Optional[str], inventory_item_id: Optional[str]):
+def _get_submission_config(conn, product_name: str | None, inventory_item_id: str | None):
     config = None
     if product_name:
         config = conn.execute(
@@ -44,7 +45,7 @@ def _get_submission_config(conn, product_name: Optional[str], inventory_item_id:
     return dict(config) if config else None
 
 
-def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
+def get_bag_submissions_payload(conn, bag_id: int) -> dict[str, Any]:
     bag = conn.execute(
         '''
         SELECT b.*, tt.inventory_item_id, sb.box_number, r.po_id

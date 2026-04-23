@@ -1,4 +1,3 @@
-
 """Read-only queries and mechanical facts for workflow_events (no policy / no rule booleans)."""
 
 from __future__ import annotations
@@ -6,8 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.services import workflow_constants as WC
@@ -21,11 +19,11 @@ def production_day_for_event_ms(occurred_at_ms: int) -> date:
     return dt.astimezone(_NY).date()
 
 
-def _parse_row_payload(row: sqlite3.Row) -> Dict[str, Any]:
+def _parse_row_payload(row: sqlite3.Row) -> dict[str, Any]:
     return json.loads(row["payload"])
 
 
-def load_events_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> List[Dict[str, Any]]:
+def load_events_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> list[dict[str, Any]]:
     """All events for a bag in lexicographic order (occurred_at, id)."""
     rows = conn.execute(
         """
@@ -36,7 +34,7 @@ def load_events_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> List[
         """,
         (workflow_bag_id,),
     ).fetchall()
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for r in rows:
         out.append(
             {
@@ -53,26 +51,24 @@ def load_events_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> List[
     return out
 
 
-def latest_event_row_for_bag(
-    conn: sqlite3.Connection, workflow_bag_id: int
-) -> Optional[Dict[str, Any]]:
+def latest_event_row_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> dict[str, Any] | None:
     ev = load_events_for_bag(conn, workflow_bag_id)
     return ev[-1] if ev else None
 
 
-def event_counts_by_type(events: List[Dict[str, Any]]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def event_counts_by_type(events: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for e in events:
         t = e["event_type"]
         counts[t] = counts.get(t, 0) + 1
     return counts
 
 
-def latest_event_type_tail(events: List[Dict[str, Any]]) -> Optional[str]:
+def latest_event_type_tail(events: list[dict[str, Any]]) -> str | None:
     return events[-1]["event_type"] if events else None
 
 
-def mechanical_bag_facts(conn: sqlite3.Connection, workflow_bag_id: int) -> Dict[str, Any]:
+def mechanical_bag_facts(conn: sqlite3.Connection, workflow_bag_id: int) -> dict[str, Any]:
     """Facts + aggregates only (no is_complete / policy)."""
     events = load_events_for_bag(conn, workflow_bag_id)
     return {
@@ -84,7 +80,7 @@ def mechanical_bag_facts(conn: sqlite3.Connection, workflow_bag_id: int) -> Dict
     }
 
 
-def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Dict[str, Any]:
+def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> dict[str, Any]:
     """Human-readable bag identity for floor verification (product, box, bag, PO, shipment).
 
     Denormalized ``workflow_bags`` fields are used; when ``inventory_bag_id`` is set, receiving/PO
@@ -114,8 +110,8 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Di
     bag_s = str(bag_raw).strip() if bag_raw is not None and str(bag_raw).strip() else None
     receipt_fallback = (wb.get("receipt_number") or "").strip() or None
 
-    po_number: Optional[str] = None
-    shipment_label: Optional[str] = receipt_fallback
+    po_number: str | None = None
+    shipment_label: str | None = receipt_fallback
 
     inv_id = wb.get("inventory_bag_id")
     if inv_id:
@@ -153,7 +149,7 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Di
                 if ig is not None and str(ig).strip():
                     bag_s = str(ig).strip()
 
-    def _fmt_box_bag(label: str, raw: Optional[str]) -> Optional[str]:
+    def _fmt_box_bag(label: str, raw: str | None) -> str | None:
         if not raw:
             return None
         return f"{label} {raw}"
@@ -168,7 +164,7 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> Di
     }
 
 
-def display_stage_label(facts: Dict[str, Any]) -> str:
+def display_stage_label(facts: dict[str, Any]) -> str:
     """Cosmetic label from latest event type string — formatting only."""
     lt = facts.get("latest_event_type")
     if not lt:
@@ -187,7 +183,7 @@ def display_stage_label(facts: Dict[str, Any]) -> str:
     return pretty.get(lt, lt.replace("_", " ").title())
 
 
-def progress_summary(facts: Dict[str, Any]) -> str:
+def progress_summary(facts: dict[str, Any]) -> str:
     """Human summary from counts — cosmetic; do not use as API contract for rules."""
     c = facts.get("event_counts_by_type") or {}
     parts = []
@@ -206,9 +202,7 @@ def progress_summary(facts: Dict[str, Any]) -> str:
     return ", ".join(parts)
 
 
-def card_lifecycle_events_for_card(
-    conn: sqlite3.Connection, qr_card_id: int
-) -> List[Dict[str, Any]]:
+def card_lifecycle_events_for_card(conn: sqlite3.Connection, qr_card_id: int) -> list[dict[str, Any]]:
     """Union of bag timelines for bags that had this card + standalone force-release rows."""
     rows = conn.execute(
         """
@@ -233,7 +227,7 @@ def card_lifecycle_events_for_card(
             qr_card_id,
         ),
     ).fetchall()
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for r in rows:
         out.append(
             {
@@ -250,7 +244,7 @@ def card_lifecycle_events_for_card(
     return out
 
 
-def card_idle_fact_from_fold(events: List[Dict[str, Any]]) -> bool:
+def card_idle_fact_from_fold(events: list[dict[str, Any]]) -> bool:
     """True if canonical idle: tail lifecycle outcome is release (finalize or force)."""
     if not events:
         return True
@@ -265,16 +259,14 @@ def card_idle_fact_from_fold(events: List[Dict[str, Any]]) -> bool:
     return False
 
 
-def verify_qr_card_matches_fold(
-    conn: sqlite3.Connection, qr_card_id: int, qr_row: sqlite3.Row
-) -> bool:
+def verify_qr_card_matches_fold(conn: sqlite3.Connection, qr_card_id: int, qr_row: sqlite3.Row) -> bool:
     """Post-commit check: mutex row vs event fold (detect cache bugs)."""
     fold_idle = card_idle_fact_from_fold(card_lifecycle_events_for_card(conn, qr_card_id))
     row_idle = qr_row["status"] == WC.QR_CARD_STATUS_IDLE
     return fold_idle == row_idle
 
 
-def get_finalize_row(conn: sqlite3.Connection, workflow_bag_id: int) -> Optional[Dict[str, Any]]:
+def get_finalize_row(conn: sqlite3.Connection, workflow_bag_id: int) -> dict[str, Any] | None:
     for e in load_events_for_bag(conn, workflow_bag_id):
         if e["event_type"] == WC.EVENT_BAG_FINALIZED:
             return e

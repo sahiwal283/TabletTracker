@@ -1,22 +1,21 @@
 """TabletTracker application factory."""
 
 import os
-from datetime import timedelta
 import time
 import traceback
+from datetime import timedelta
 
+from config import Config
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
-from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_babel import Babel
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFError, CSRFProtect
-
-csrf = CSRFProtect()
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.utils.perf_utils import add_server_timing_header, log_request_duration
-from config import Config
 
+csrf = CSRFProtect()
 
 LANGUAGES = {"en": "English", "es": "Español"}
 CSP_POLICY = (
@@ -186,15 +185,14 @@ def _register_blueprints(app):
     """Import and register all blueprints."""
     from app.blueprints import (
         admin,
-        api as api_bp,
         api_admin,
         api_machines,
         api_purchase_orders,
         api_receiving,
         api_reports,
         api_submissions,
-        api_telegram,
         api_tablet_types,
+        api_telegram,
         auth,
         dashboard,
         production,
@@ -204,6 +202,9 @@ def _register_blueprints(app):
         submissions,
         workflow_floor,
         workflow_staff,
+    )
+    from app.blueprints import (
+        api as api_bp,
     )
 
     app.register_blueprint(auth.bp)

@@ -1,8 +1,9 @@
 """Shared context helpers for production submissions."""
-from typing import Any, Dict, Optional
+
+from typing import Any
 
 
-def normalize_optional_text(value: Any) -> Optional[str]:
+def normalize_optional_text(value: Any) -> str | None:
     if isinstance(value, str):
         cleaned = value.strip()
         return cleaned or None
@@ -15,9 +16,9 @@ def normalize_optional_text(value: Any) -> Optional[str]:
 def resolve_submission_employee_name(
     conn,
     submitted_employee_name: Any,
-    employee_id: Optional[int],
+    employee_id: int | None,
     admin_authenticated: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     provided_name = normalize_optional_text(submitted_employee_name)
     if provided_name:
         return {'success': True, 'employee_name': provided_name}

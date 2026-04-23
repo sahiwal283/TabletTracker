@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request, current_app
-
 from config import Config
+from flask import Blueprint, current_app, jsonify, request
+
 from app.services import telegram_bot_service as bot
 from app.services import telegram_reporting_service as reports
 from app.utils.db_utils import db_read_only

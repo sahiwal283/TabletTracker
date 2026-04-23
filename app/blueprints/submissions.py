@@ -1,22 +1,37 @@
 """
 Submissions routes
 """
+import csv
 import io
 import sqlite3
 import traceback
-import csv
 from datetime import datetime, timezone
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, make_response, current_app, session
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
+from app.blueprints.workflow_staff import _bag_display_name
 from app.services import workflow_constants as WC
-from app.services.submission_query_service import apply_resolved_bag_fields, common_receive_label_from_deductions
+from app.services.submission_list_enrichment import (
+    attach_receive_name_for_submission_row,
+    enrich_submission_row_running_totals,
+    new_running_totals_state,
+)
+from app.services.submission_query_service import apply_resolved_bag_fields
 from app.services.submissions_view_service import (
-    append_submission_common_filters,
     append_submission_archive_tab_filters,
+    append_submission_common_filters,
     append_submission_sort,
 )
-from app.blueprints.workflow_staff import _bag_display_name
 from app.services.workflow_read import display_stage_label, mechanical_bag_facts, progress_summary
 from app.services.workflow_txn import is_sqlite_busy_retryable, run_with_busy_retry
 from app.services.workflow_warehouse_bridge import delete_synced_warehouse_artifacts_for_workflow_bag
@@ -320,24 +335,24 @@ def delete_workflow_bag(workflow_bag_id: int):
 def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filter_submission_type=None):
     """
     Group submissions by receipt_number while maintaining sort order within groups.
-    
+
     Args:
         submissions: List of submission dictionaries
         sort_by: Current sort column
         sort_order: 'asc' or 'desc'
         filter_submission_type: If set, skip grouping
-    
+
     Returns:
         List of submissions grouped by receipt_number
     """
     # Skip grouping if filtering by a single submission type
     if filter_submission_type:
         return submissions
-    
+
     # Group by receipt_number
     groups = {}
     null_receipts = []
-    
+
     for sub in submissions:
         receipt = sub.get('receipt_number')
         if receipt is None or receipt == '':
@@ -346,7 +361,7 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
             if receipt not in groups:
                 groups[receipt] = []
             groups[receipt].append(sub)
-    
+
     # Sort groups by the newest/most relevant submission in each group
     # For default sort (created_at desc), use newest submission's created_at
     # For other sorts, use the primary sort value from first submission in group
@@ -384,17 +399,17 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
                 # For asc, we want the "lowest" value (first alphabetically for strings)
                 values = [sub.get(sort_by, '') for sub in receipt_group if sub.get(sort_by)]
                 return min(values) if values else ''
-    
+
     # Sort groups
-    sorted_groups = sorted(groups.items(), 
+    sorted_groups = sorted(groups.items(),
                           key=lambda x: get_group_sort_key(x[1]),
                           reverse=(sort_order == 'desc'))
-    
+
     # Flatten groups back into list
     result = []
-    for receipt, group in sorted_groups:
+    for _receipt, group in sorted_groups:
         result.extend(group)
-    
+
     # Handle NULL receipts - merge them properly based on sort order instead of appending at end
     # This ensures bottle/variety pack submissions appear in correct chronological position
     if null_receipts:
@@ -406,7 +421,7 @@ def group_by_receipt(submissions, sort_by='created_at', sort_order='desc', filte
         else:
             # For other sort types, append null receipts at end (existing behavior)
             result.extend(null_receipts)
-    
+
     return result
 
 
@@ -701,15 +716,15 @@ def submissions_list():
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
             filter_receipt_number = request.args.get('receipt_number', type=str)
-            
+
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
             active_tab = request.args.get('tab', 'packaged_machine', type=str)
-            
+
             # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
             sort_order = request.args.get('sort_order', 'desc')  # Default descending
-            
+
             # Build query with optional filters
             # Use stored receive_name from receiving table
             query = '''
@@ -718,7 +733,7 @@ def submissions_list():
                    COALESCE(m.machine_role, 'sealing') AS machine_role,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (
-                       SELECT pd2.tablets_per_package 
+                       SELECT pd2.tablets_per_package
                        FROM product_details pd2
                        JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                        WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -746,7 +761,7 @@ def submissions_list():
                                    MAX(
                                        COALESCE(ws.tablets_pressed_into_cards, 0),
                                        COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, (
-                                           SELECT pd2.tablets_per_package 
+                                           SELECT pd2.tablets_per_package
                                            FROM product_details pd2
                                            JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                            WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -758,7 +773,7 @@ def submissions_list():
                            END,
                            ws.loose_tablets,
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -772,14 +787,14 @@ def submissions_list():
                        )
                        WHEN 'repack' THEN (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            ), 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -788,19 +803,19 @@ def submissions_list():
                        )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            ), 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
-                           ), 0)) + 
+                           ), 0)) +
                        ws.loose_tablets
                        )
                    END as calculated_total
@@ -814,9 +829,9 @@ def submissions_list():
             LEFT JOIN machines m ON ws.machine_id = m.id
             WHERE 1=1
             '''
-            
+
             params = []
-            
+
             query, params = append_submission_common_filters(
                 query,
                 params,
@@ -836,147 +851,37 @@ def submissions_list():
                 active_tab,
                 relax_po_closed_for_receipt_search=bool((filter_receipt_number or "").strip()),
             )
-            
+
             # Get submissions ordered by created_at ASC for running total calculation
             # Always use created_at ASC for running totals regardless of user's sort preference
             query_asc = query + ' ORDER BY ws.created_at ASC'
             submissions_raw_asc = conn.execute(query_asc, params).fetchall()
-            
-            # Calculate running totals by bag PER PO (each PO has its own physical bags)
-            # Separate running totals for each submission type
-            # Process in chronological order (oldest first) for correct running totals
-            bag_cumulative_packaged = {}
-            bag_totals_bag = {}
-            bag_totals_machine = {}
-            bag_totals_packaged = {}
+
+            totals_state = new_running_totals_state()
             submissions_dict = {}  # Store by submission ID for later lookup
-            
+
             # First pass: Calculate running totals in chronological order (oldest first)
             for sub in submissions_raw_asc:
                 sub_dict = dict(sub)
                 apply_resolved_bag_fields(sub_dict)
-                # Create bag identifier from box_number/bag_number
-                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-                # Key includes PO ID so each PO tracks its own bag totals independently
-                bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
-                
-                # Individual calculation for this submission
-                individual_calc = sub_dict.get('calculated_total', 0) or 0
-                submission_type = sub_dict.get('submission_type', 'packaged')
-                
-                if bag_key not in bag_cumulative_packaged:
-                    bag_cumulative_packaged[bag_key] = 0
-                if bag_key not in bag_totals_bag:
-                    bag_totals_bag[bag_key] = 0
-                if bag_key not in bag_totals_machine:
-                    bag_totals_machine[bag_key] = 0
-                if bag_key not in bag_totals_packaged:
-                    bag_totals_packaged[bag_key] = 0
-                
-                if submission_type == 'bag':
-                    bag_count_value = sub_dict.get('loose_tablets', 0) or 0
-                    bag_totals_bag[bag_key] += bag_count_value
-                elif submission_type == 'machine':
-                    bag_totals_machine[bag_key] += individual_calc
-                elif submission_type == 'repack':
-                    pass
-                elif submission_type == 'packaged':
-                    bag_totals_packaged[bag_key] += individual_calc
-                
-                if submission_type == 'packaged':
-                    bag_cumulative_packaged[bag_key] += individual_calc
-                
-                sub_dict['individual_calc'] = individual_calc
-                sub_dict['total_tablets'] = individual_calc
-                sub_dict['bag_submission_tablets_total'] = bag_totals_bag[bag_key]
-                sub_dict['machine_tablets_total'] = bag_totals_machine[bag_key]
-                sub_dict['packaged_tablets_total'] = bag_totals_packaged[bag_key]
-                sub_dict['cumulative_bag_tablets'] = bag_cumulative_packaged[bag_key]
-                
-                bag_count = sub_dict.get('bag_label_count', 0) or 0
-                packaged_cumulative = bag_cumulative_packaged[bag_key]
-                
-                # Determine status - check if bag_id is NULL, not just bag_label_count
-                # A bag can exist with label_count=0, but if bag_id is NULL, there's no bag assigned
-                if not sub_dict.get('bag_id'):
-                    sub_dict['count_status'] = 'no_bag'
-                elif abs(packaged_cumulative - bag_count) <= 5:  # Allow 5 tablet tolerance
-                    sub_dict['count_status'] = 'match'
-                elif packaged_cumulative < bag_count:
-                    sub_dict['count_status'] = 'under'
-                else:
-                    sub_dict['count_status'] = 'over'
-                
-                if submission_type == 'repack':
-                    sub_dict['count_status'] = 'repack_po'
-                    sub_dict['has_discrepancy'] = 0
-                else:
-                    sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
-                
-                # Build receive name using stored receive_name from database
-                # Format: PO-receive-box-bag (e.g., PO-00164-1-1-2) or PO-receive-bag for flavor-based
-                # If bag_id exists, we should always be able to build a receive_name
-                receive_name = None
-                stored_receive_name = sub_dict.get('stored_receive_name')
-                box_number = sub_dict.get('box_number')
-                bag_number = sub_dict.get('bag_number')
-                bag_id = sub_dict.get('bag_id')
-                
-                # Only build receive_name if bag_id exists (submission is assigned to a bag)
-                if bag_id:
-                    if stored_receive_name:
-                        # Use stored receive_name and append box-bag if available
-                        if box_number is not None and bag_number is not None:
-                            receive_name = f"{stored_receive_name}-{box_number}-{bag_number}"
-                        elif bag_number is not None:
-                            # Flavor-based: no box number, just append bag
-                            receive_name = f"{stored_receive_name}-{bag_number}"
-                        else:
-                            # Just use stored receive_name
-                            receive_name = stored_receive_name
-                    elif sub_dict.get('receive_id') and sub_dict.get('po_number'):
-                        # Fallback for legacy records: calculate receive_number dynamically
-                        # This should only happen if receive_name wasn't backfilled
-                        receive_number_result = conn.execute('''
-                            SELECT COUNT(*) + 1 as receive_number
-                            FROM receiving r2
-                            WHERE r2.po_id = ?
-                            AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
-                                 OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
-                                     AND r2.id < ?))
-                        ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
-                              sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
-                        receive_number = receive_number_result['receive_number'] if receive_number_result else 1
-                        if box_number is not None and bag_number is not None:
-                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
-                        elif bag_number is not None:
-                            # Flavor-based: no box number
-                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{bag_number}"
-                        else:
-                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}"
-                if not receive_name and submission_type == 'bottle':
-                    # Variety packs often have no ws.bag_id; multiple bags are linked via submission_bag_deductions
-                    from_ded = common_receive_label_from_deductions(conn, sub_dict.get('id'))
-                    if from_ded:
-                        receive_name = from_ded
-                    elif sub_dict.get('is_variety_pack') and sub_dict.get('po_number'):
-                        receive_name = sub_dict['po_number']
-
-                sub_dict['receive_name'] = receive_name
-                sub_dict['station_duration_display'] = _duration_display(
-                    sub_dict.get('bag_start_time'),
-                    sub_dict.get('bag_end_time'),
+                enrich_submission_row_running_totals(
+                    sub_dict, totals_state, bag_submission_use="loose_tablets"
                 )
-                
+                attach_receive_name_for_submission_row(conn, sub_dict)
+                sub_dict["station_duration_display"] = _duration_display(
+                    sub_dict.get("bag_start_time"),
+                    sub_dict.get("bag_end_time"),
+                )
+
                 # Store in dict by submission ID for lookup
-                submissions_dict[sub_dict.get('id')] = sub_dict
-            
+                submissions_dict[sub_dict.get("id")] = sub_dict
+
             # Second pass: Get submissions in display order (based on user's sort preference) and apply pre-calculated running totals
             query = append_submission_sort(query, sort_by, sort_order)
-            
+
             submissions_raw = conn.execute(query, params).fetchall()
             submissions_processed = []
-            
+
             for sub in submissions_raw:
                 sub_dict = dict(sub)
                 apply_resolved_bag_fields(sub_dict)
@@ -992,7 +897,7 @@ def submissions_list():
                     sub_dict['has_discrepancy'] = pre_calculated.get('has_discrepancy', 0)
                     sub_dict['receive_name'] = pre_calculated.get('receive_name')
                     sub_dict['station_duration_display'] = pre_calculated.get('station_duration_display', '—')
-                
+
                 # Individual calculation for display
                 individual_calc = sub_dict.get('calculated_total', 0) or 0
                 sub_dict['individual_calc'] = individual_calc
@@ -1002,9 +907,9 @@ def submissions_list():
                         sub_dict.get('bag_start_time'),
                         sub_dict.get('bag_end_time'),
                     )
-                
+
                 submissions_processed.append(sub_dict)
-            
+
             receipt_groups_all = sort_receipt_groups(
                 build_receipt_groups(submissions_processed), sort_by, sort_order
             )
@@ -1026,7 +931,7 @@ def submissions_list():
                 start_idx = (page - 1) * per_page
                 end_idx = start_idx + per_page
                 receipt_groups = receipt_groups_all[start_idx:end_idx]
-            
+
             # Count unverified submissions (respecting current filters)
             unverified_query = '''
                 SELECT COUNT(*) as count
@@ -1067,9 +972,9 @@ def submissions_list():
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
             elif active_tab == 'bag':
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
-            
+
             unverified_count = conn.execute(unverified_query, unverified_params).fetchone()['count']
-            
+
             # Pagination info
             pagination = {
                 'page': page,
@@ -1081,7 +986,7 @@ def submissions_list():
                 'prev_page': page - 1 if page > 1 else None,
                 'next_page': page + 1 if page < total_pages else None
             }
-            
+
             # Get filter info for display
             filter_info = {}
             if filter_po_id:
@@ -1089,13 +994,13 @@ def submissions_list():
                 if po_info:
                     filter_info['po_number'] = po_info['po_number']
                     filter_info['po_id'] = filter_po_id
-            
+
             if filter_item_id:
                 item_info = conn.execute('SELECT line_item_name FROM po_lines WHERE inventory_item_id = ? LIMIT 1', (filter_item_id,)).fetchone()
                 if item_info:
                     filter_info['item_name'] = item_info['line_item_name']
                     filter_info['item_id'] = filter_item_id
-            
+
             if filter_date_from:
                 filter_info['date_from'] = filter_date_from
             if filter_date_to:
@@ -1105,16 +1010,16 @@ def submissions_list():
                 if tablet_type_info:
                     filter_info['tablet_type_name'] = tablet_type_info['tablet_type_name']
                     filter_info['tablet_type_id'] = filter_tablet_type_id
-            
+
             if filter_submission_type:
                 filter_info['submission_type'] = filter_submission_type
-            
+
             if filter_receipt_number:
                 filter_info['receipt_number'] = filter_receipt_number
-            
+
             # Get all tablet types for the filter dropdown
             tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
-            
+
             # Count archived submissions for display
             archived_count_query = '''
                 SELECT COUNT(*) as count
@@ -1123,7 +1028,7 @@ def submissions_list():
                 WHERE po.closed = TRUE
             '''
             archived_count = conn.execute(archived_count_query).fetchone()['count']
-            
+
             return render_template(
                 'submissions.html',
                 view='warehouse',
@@ -1176,15 +1081,15 @@ def export_submissions_csv():
             filter_tablet_type_id = request.args.get('tablet_type_id', type=int)
             filter_submission_type = request.args.get('submission_type', type=str)
             filter_receipt_number = request.args.get('receipt_number', type=str)
-            
+
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
             active_tab = request.args.get('tab', 'packaged_machine', type=str)
-            
+
             # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')
             sort_order = request.args.get('sort_order', 'asc')  # Default ASC for CSV export
-            
+
             # Build query with optional filters (same logic as all_submissions)
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
@@ -1192,7 +1097,7 @@ def export_submissions_csv():
                    COALESCE(m.machine_role, 'sealing') AS machine_role,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (
-                       SELECT pd2.tablets_per_package 
+                       SELECT pd2.tablets_per_package
                        FROM product_details pd2
                        JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                        WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -1209,7 +1114,7 @@ def export_submissions_csv():
                                    MAX(
                                        COALESCE(ws.tablets_pressed_into_cards, 0),
                                        COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, (
-                                           SELECT pd2.tablets_per_package 
+                                           SELECT pd2.tablets_per_package
                                            FROM product_details pd2
                                            JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                            WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -1221,7 +1126,7 @@ def export_submissions_csv():
                            END,
                            ws.loose_tablets,
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -1235,14 +1140,14 @@ def export_submissions_csv():
                        )
                        WHEN 'repack' THEN (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            ), 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -1251,19 +1156,19 @@ def export_submissions_csv():
                        )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            ), 0)) +
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
-                           ), 0)) + 
+                           ), 0)) +
                        ws.loose_tablets
                        )
                    END as calculated_total
@@ -1274,9 +1179,9 @@ def export_submissions_csv():
             LEFT JOIN machines m ON ws.machine_id = m.id
             WHERE 1=1
             '''
-            
+
             params = []
-            
+
             query, params = append_submission_common_filters(
                 query,
                 params,
@@ -1297,33 +1202,33 @@ def export_submissions_csv():
                 relax_po_closed_for_receipt_search=bool((filter_receipt_number or "").strip()),
             )
             query = append_submission_sort(query, sort_by, sort_order)
-            
+
             submissions_raw = conn.execute(query, params).fetchall()
-            
+
             # Calculate running totals by bag PER PO (same logic as all_submissions)
             bag_cumulative_packaged = {}
             submissions_processed = []
-            
+
             for sub in submissions_raw:
                 sub_dict = dict(sub)
                 bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
                 bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
-                
+
                 individual_calc = sub_dict.get('calculated_total', 0) or 0
                 submission_type = sub_dict.get('submission_type', 'packaged')
-                
+
                 if bag_key not in bag_cumulative_packaged:
                     bag_cumulative_packaged[bag_key] = 0
                 if submission_type == 'packaged':
                     bag_cumulative_packaged[bag_key] += individual_calc
-                
+
                 sub_dict['individual_calc'] = individual_calc
                 sub_dict['total_tablets'] = individual_calc
                 sub_dict['cumulative_bag_tablets'] = bag_cumulative_packaged[bag_key]
-                
+
                 bag_count = sub_dict.get('bag_label_count', 0) or 0
                 packaged_cumulative = bag_cumulative_packaged[bag_key]
-                
+
                 if bag_count == 0:
                     sub_dict['count_status'] = 'No Bag Label'
                 elif abs(packaged_cumulative - bag_count) <= 5:
@@ -1332,19 +1237,19 @@ def export_submissions_csv():
                     sub_dict['count_status'] = 'Under'
                 else:
                     sub_dict['count_status'] = 'Over'
-                
+
                 if submission_type == 'repack':
                     sub_dict['count_status'] = 'Repack PO'
-                
+
                 submissions_processed.append(sub_dict)
-            
+
             # Group submissions by receipt_number while maintaining sort order within groups
             submissions_processed = group_by_receipt(submissions_processed, sort_by, sort_order, filter_submission_type)
-            
+
             # Create CSV in memory
             output = io.StringIO()
             writer = csv.writer(output)
-            
+
             # Write header row
             writer.writerow([
             'Submission Date',
@@ -1370,7 +1275,7 @@ def export_submissions_csv():
             'PO Assignment Verified',
             'Admin Notes'
             ])
-            
+
             # Write data rows (respecting sort order)
             for sub in submissions_processed:
                 submission_date = sub.get('submission_date') or sub.get('filter_date') or ''
@@ -1378,7 +1283,7 @@ def export_submissions_csv():
                 if isinstance(created_at, str):
                     # Format datetime for CSV.
                     created_at = created_at[:19]  # Truncate to seconds
-                
+
                 writer.writerow([
                     submission_date,
                     created_at,
@@ -1403,7 +1308,7 @@ def export_submissions_csv():
                     'Yes' if sub.get('po_verified', 0) else 'No',
                     sub.get('admin_notes', '')
                 ])
-            
+
             # Generate filename with date range if applicable
             filename_parts = ['submissions']
             if filter_date_from:
@@ -1416,15 +1321,15 @@ def export_submissions_csv():
                 po_info = conn.execute('SELECT po_number FROM purchase_orders WHERE id = ?', (filter_po_id,)).fetchone()
                 if po_info:
                     filename_parts.append(f'po_{po_info["po_number"]}')
-            
+
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{'_'.join(filename_parts)}_{timestamp}.csv"
-            
+
             # Create response
             response = make_response(output.getvalue())
             response.headers['Content-Type'] = 'text/csv; charset=utf-8'
             response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
+
             return response
     except Exception as e:
         current_app.logger.error(f"Error exporting submissions CSV: {e}")

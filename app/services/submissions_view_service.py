@@ -1,6 +1,6 @@
 """Helpers for submissions list/export query composition."""
-from typing import Dict, Any, List, Tuple
 
+from typing import Any
 
 ALLOWED_SORT_COLUMNS = {
     'created_at': 'ws.created_at',
@@ -11,7 +11,7 @@ ALLOWED_SORT_COLUMNS = {
 }
 
 
-def append_submission_common_filters(query: str, params: List[Any], filters: Dict[str, Any]) -> Tuple[str, List[Any]]:
+def append_submission_common_filters(query: str, params: list[Any], filters: dict[str, Any]) -> tuple[str, list[Any]]:
     filter_po_id = filters.get('po_id')
     filter_item_id = filters.get('item_id')
     filter_date_from = filters.get('date_from')

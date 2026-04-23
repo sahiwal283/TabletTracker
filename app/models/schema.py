@@ -2,24 +2,24 @@
 Database schema management and migrations
 Consolidates all table creation from app.py init_db()
 """
+import logging
 import sqlite3
 import traceback
-import logging
 
 logger = logging.getLogger(__name__)
 
 
 class SchemaManager:
     """Manages database schema creation and migrations"""
-    
+
     def __init__(self, db_path='tablet_counter.db'):
         self.db_path = db_path
-    
+
     def initialize_all_tables(self):
         """Initialize all database tables and run migrations"""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        
+
         try:
             # Create all tables (IF NOT EXISTS ensures idempotency)
             self._create_purchase_orders_table(c)
@@ -39,17 +39,17 @@ class SchemaManager:
             self._create_tablet_type_categories_table(c)
             self._create_submission_bag_deductions_table(c)
             self._create_po_damage_closeout_lines_table(c)
-            
+
             conn.commit()  # Commit table creation before migrations
-            
+
             # Run all migrations (adds columns, backfills data)
             from app.models.migrations import MigrationRunner
             migration_runner = MigrationRunner(c)
             migration_runner.run_all()
-            
+
             # Initialize default settings
             self._initialize_default_settings(c)
-            
+
             conn.commit()
         except Exception as e:
             logger.error(f"Error initializing database schema: {str(e)}")
@@ -58,7 +58,7 @@ class SchemaManager:
             raise
         finally:
             conn.close()
-    
+
     def _create_purchase_orders_table(self, c):
         """Create purchase_orders table"""
         c.execute('''CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -77,7 +77,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-    
+
     def _create_po_lines_table(self, c):
         """Create po_lines table"""
         c.execute('''CREATE TABLE IF NOT EXISTS po_lines (
@@ -92,7 +92,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
         )''')
-    
+
     def _create_tablet_types_table(self, c):
         """Create tablet_types table"""
         c.execute('''CREATE TABLE IF NOT EXISTS tablet_types (
@@ -106,7 +106,7 @@ class SchemaManager:
             variety_pack_contents TEXT,
             is_bottle_only BOOLEAN DEFAULT 0
         )''')
-    
+
     def _create_product_details_table(self, c):
         """Create product_details table"""
         c.execute('''CREATE TABLE IF NOT EXISTS product_details (
@@ -123,7 +123,7 @@ class SchemaManager:
             category TEXT,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
-    
+
     def _create_warehouse_submissions_table(self, c):
         """Create warehouse_submissions table"""
         c.execute('''CREATE TABLE IF NOT EXISTS warehouse_submissions (
@@ -143,7 +143,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (assigned_po_id) REFERENCES purchase_orders (id)
         )''')
-    
+
     def _create_shipments_table(self, c):
         """Create shipments table"""
         c.execute('''CREATE TABLE IF NOT EXISTS shipments (
@@ -164,7 +164,7 @@ class SchemaManager:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (po_id) REFERENCES purchase_orders (id)
         )''')
-    
+
     def _create_receiving_table(self, c):
         """Create receiving table"""
         c.execute('''CREATE TABLE IF NOT EXISTS receiving (
@@ -182,7 +182,7 @@ class SchemaManager:
             FOREIGN KEY (po_id) REFERENCES purchase_orders (id),
             FOREIGN KEY (shipment_id) REFERENCES shipments (id)
         )''')
-    
+
     def _create_small_boxes_table(self, c):
         """Create small_boxes table"""
         c.execute('''CREATE TABLE IF NOT EXISTS small_boxes (
@@ -195,7 +195,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (receiving_id) REFERENCES receiving (id)
         )''')
-    
+
     def _create_bags_table(self, c):
         """Create bags table"""
         c.execute('''CREATE TABLE IF NOT EXISTS bags (
@@ -226,7 +226,7 @@ class SchemaManager:
             FOREIGN KEY (receiving_id) REFERENCES receiving (id) ON DELETE CASCADE,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
-    
+
     def _create_machine_counts_table(self, c):
         """Create machine_counts table"""
         c.execute('''CREATE TABLE IF NOT EXISTS machine_counts (
@@ -238,7 +238,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)
         )''')
-    
+
     def _create_machines_table(self, c):
         """Create machines table"""
         c.execute('''CREATE TABLE IF NOT EXISTS machines (
@@ -250,7 +250,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-        
+
         # Initialize default machines if none exist
         existing_machines = c.execute('SELECT COUNT(*) as count FROM machines').fetchone()
         if existing_machines[0] == 0:
@@ -263,7 +263,7 @@ class SchemaManager:
                     INSERT INTO machines (machine_name, cards_per_turn, machine_role, is_active)
                     VALUES (?, ?, 'sealing', TRUE)
                 ''', (machine_name, cards_per_turn))
-    
+
     def _create_employees_table(self, c):
         """Create employees table"""
         c.execute('''CREATE TABLE IF NOT EXISTS employees (
@@ -277,7 +277,7 @@ class SchemaManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-    
+
     def _create_app_settings_table(self, c):
         """Create app_settings table"""
         c.execute('''CREATE TABLE IF NOT EXISTS app_settings (
@@ -287,7 +287,7 @@ class SchemaManager:
             description TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-    
+
     def _create_tablet_type_categories_table(self, c):
         """Create tablet_type_categories table"""
         c.execute('''CREATE TABLE IF NOT EXISTS tablet_type_categories (
@@ -295,7 +295,7 @@ class SchemaManager:
             category_name TEXT UNIQUE NOT NULL,
             category_order INTEGER UNIQUE NOT NULL
         )''')
-    
+
     def _create_submission_bag_deductions_table(self, c):
         """Create submission_bag_deductions junction table for variety pack bag tracking"""
         c.execute('''CREATE TABLE IF NOT EXISTS submission_bag_deductions (
@@ -326,7 +326,7 @@ class SchemaManager:
             FOREIGN KEY (po_id) REFERENCES purchase_orders (id),
             FOREIGN KEY (po_line_id) REFERENCES po_lines (id)
         )''')
-    
+
     def _initialize_default_settings(self, c):
         """Initialize default app settings"""
         default_settings = [

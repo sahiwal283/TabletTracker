@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from app.services import workflow_constants as WC
@@ -22,13 +21,13 @@ def _ny_window_for_day(target_day: date) -> tuple[int, int]:
     return start_ms, end_ms
 
 
-def _parse_target_day(day_iso: Optional[str]) -> date:
+def _parse_target_day(day_iso: str | None) -> date:
     if day_iso:
         return datetime.strptime(day_iso[:10], "%Y-%m-%d").date()
     return datetime.now(_NY).date()
 
 
-def _parse_date_text(value: object) -> Optional[date]:
+def _parse_date_text(value: object) -> date | None:
     if value is None:
         return None
     raw = str(value).strip()
@@ -40,12 +39,12 @@ def _parse_date_text(value: object) -> Optional[date]:
         return None
 
 
-def _parse_created_at_to_ny_date(value: object) -> Optional[date]:
+def _parse_created_at_to_ny_date(value: object) -> date | None:
     dt = _parse_created_at_to_ny_datetime(value)
     return dt.date() if dt else None
 
 
-def _parse_created_at_to_ny_datetime(value: object) -> Optional[datetime]:
+def _parse_created_at_to_ny_datetime(value: object) -> datetime | None:
     """Parse warehouse_submissions.created_at (UTC-naive) to America/New_York."""
     if value is None:
         return None
@@ -53,7 +52,7 @@ def _parse_created_at_to_ny_datetime(value: object) -> Optional[datetime]:
     if not raw:
         return None
     raw = raw.split(".", 1)[0]
-    parsed: Optional[datetime] = None
+    parsed: datetime | None = None
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
             parsed = datetime.strptime(raw[:19], fmt)
@@ -66,7 +65,7 @@ def _parse_created_at_to_ny_datetime(value: object) -> Optional[datetime]:
     return dt_utc.astimezone(_NY)
 
 
-def _submission_effective_ny_datetime(sub: Dict[str, object], target_day: date) -> datetime:
+def _submission_effective_ny_datetime(sub: dict[str, object], target_day: date) -> datetime:
     """Wall-clock instant in NY used for intraday cutoffs (created_at preferred)."""
     created = _parse_created_at_to_ny_datetime(sub.get("created_at"))
     if created is not None:
@@ -80,7 +79,7 @@ def _submission_effective_ny_datetime(sub: Dict[str, object], target_day: date) 
     return datetime.combine(target_day, time.min).replace(tzinfo=_NY)
 
 
-def _is_submission_on_target_day(sub: Dict[str, object], target_day: date) -> bool:
+def _is_submission_on_target_day(sub: dict[str, object], target_day: date) -> bool:
     submission_day = _parse_date_text(sub.get("submission_date"))
     if submission_day is not None:
         return submission_day == target_day
@@ -91,9 +90,7 @@ def _is_submission_on_target_day(sub: Dict[str, object], target_day: date) -> bo
     return filter_day == target_day
 
 
-def _submission_included_through(
-    sub: Dict[str, object], target_day: date, as_of_ny: Optional[datetime]
-) -> bool:
+def _submission_included_through(sub: dict[str, object], target_day: date, as_of_ny: datetime | None) -> bool:
     if not _is_submission_on_target_day(sub, target_day):
         return False
     if as_of_ny is None:
@@ -101,7 +98,7 @@ def _submission_included_through(
     return _submission_effective_ny_datetime(sub, target_day) <= as_of_ny
 
 
-def _tablets_per_display_by_product(conn: sqlite3.Connection) -> Dict[str, float]:
+def _tablets_per_display_by_product(conn: sqlite3.Connection) -> dict[str, float]:
     rows = conn.execute(
         """
         SELECT product_name, packages_per_display, tablets_per_package
@@ -113,7 +110,7 @@ def _tablets_per_display_by_product(conn: sqlite3.Connection) -> Dict[str, float
         ORDER BY id ASC
         """
     ).fetchall()
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for row in rows:
         key = str(row["product_name"]).strip().lower()
         if key in out:
@@ -123,14 +120,14 @@ def _tablets_per_display_by_product(conn: sqlite3.Connection) -> Dict[str, float
 
 
 def _daily_product_rollup(
-    conn: sqlite3.Connection, target_day: date, as_of_ny: Optional[datetime] = None
-) -> List[Dict[str, object]]:
+    conn: sqlite3.Connection, target_day: date, as_of_ny: datetime | None = None
+) -> list[dict[str, object]]:
     # Query a small surrounding range, then apply NY-local day matching.
     range_start = (target_day - timedelta(days=1)).isoformat()
     range_end = (target_day + timedelta(days=1)).isoformat()
     submissions = _submission_report_rows(conn, date_from=range_start, date_to=range_end)
     tpd_by_product = _tablets_per_display_by_product(conn)
-    rollup: Dict[str, Dict[str, object]] = {}
+    rollup: dict[str, dict[str, object]] = {}
 
     for sub in submissions:
         if not _submission_included_through(sub, target_day, as_of_ny):
@@ -171,10 +168,10 @@ def _daily_product_rollup(
 
 def build_daily_summary(
     conn: sqlite3.Connection,
-    day_iso: Optional[str] = None,
+    day_iso: str | None = None,
     *,
     full_day: bool = False,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """
     Production summary for one America/New_York calendar day.
 
@@ -184,14 +181,14 @@ def build_daily_summary(
     target_day = _parse_target_day(day_iso)
     today_ny = datetime.now(_NY).date()
     if full_day or target_day != today_ny:
-        as_of_ny: Optional[datetime] = None
+        as_of_ny: datetime | None = None
     else:
         as_of_ny = datetime.now(_NY)
 
     rows = _daily_product_rollup(conn, target_day, as_of_ny=as_of_ny)
     total_displays = sum(int(r.get("displays_made") or 0) for r in rows)
     total_display_equivalent = round(sum(float(r.get("display_equivalent") or 0.0) for r in rows), 2)
-    through_label: Optional[str] = None
+    through_label: str | None = None
     if as_of_ny is not None:
         through_label = as_of_ny.strftime("%Y-%m-%d %I:%M %p %Z")
 
@@ -213,7 +210,7 @@ def build_daily_summary(
     }
 
 
-def get_station_current_bag(conn: sqlite3.Connection, station_kind: str) -> Optional[Dict[str, object]]:
+def get_station_current_bag(conn: sqlite3.Connection, station_kind: str) -> dict[str, object] | None:
     if station_kind not in ("blister", "sealing", "packaging"):
         return None
     row = conn.execute(
@@ -233,7 +230,7 @@ def get_station_current_bag(conn: sqlite3.Connection, station_kind: str) -> Opti
     return dict(row)
 
 
-def count_bags_blistered_today(conn: sqlite3.Connection, day_iso: Optional[str] = None) -> Dict[str, object]:
+def count_bags_blistered_today(conn: sqlite3.Connection, day_iso: str | None = None) -> dict[str, object]:
     target_day = _parse_target_day(day_iso)
     start_ms, end_ms = _ny_window_for_day(target_day)
     row = conn.execute(

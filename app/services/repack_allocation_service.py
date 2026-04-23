@@ -3,10 +3,11 @@ Repack (tablet search): distribute finished repack tablets across PO bags for re
 
 Sort: damage_metric DESC, remaining_capacity DESC. Water-fill up to per-bag capacity.
 """
+
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Allocation JSON version stored in warehouse_submissions.repack_bag_allocations
 ALLOCATION_VERSION = 1
@@ -68,7 +69,7 @@ def _cards_reopened_for_bag(conn, bag_id: int) -> int:
     return int(row["total_dmg"] if row else 0)
 
 
-def load_bags_for_po_flavor(conn, po_id: int, tablet_type_id: int) -> List[Dict[str, Any]]:
+def load_bags_for_po_flavor(conn, po_id: int, tablet_type_id: int) -> list[dict[str, Any]]:
     """All bags for PO with this tablet type, with damage and remaining capacity."""
     rows = conn.execute(
         """
@@ -84,7 +85,7 @@ def load_bags_for_po_flavor(conn, po_id: int, tablet_type_id: int) -> List[Dict[
         (po_id, tablet_type_id),
     ).fetchall()
 
-    bags: List[Dict[str, Any]] = []
+    bags: list[dict[str, Any]] = []
     for row in rows:
         r = dict(row)
         bag_id = r["bag_id"]
@@ -111,7 +112,7 @@ def load_bags_for_po_flavor(conn, po_id: int, tablet_type_id: int) -> List[Dict[
     return bags
 
 
-def sort_bags_for_repack(bags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def sort_bags_for_repack(bags: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Damage DESC, then remaining capacity DESC."""
     return sorted(
         bags,
@@ -120,9 +121,7 @@ def sort_bags_for_repack(bags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     )
 
 
-def allocate_repack_tablets(
-    conn, po_id: int, tablet_type_id: int, output_tablets: int
-) -> Tuple[Dict[str, Any], bool]:
+def allocate_repack_tablets(conn, po_id: int, tablet_type_id: int, output_tablets: int) -> tuple[dict[str, Any], bool]:
     """
     Returns allocation payload and needs_review (True if overflow could not be placed).
     """
@@ -139,7 +138,7 @@ def allocate_repack_tablets(
 
     bags = load_bags_for_po_flavor(conn, po_id, tablet_type_id)
     ordered = sort_bags_for_repack(bags)
-    allocations: List[Dict[str, Any]] = []
+    allocations: list[dict[str, Any]] = []
     left = output_tablets
 
     for b in ordered:
@@ -181,11 +180,11 @@ def allocate_repack_tablets(
     return payload, needs_review
 
 
-def allocation_payload_to_json(payload: Dict[str, Any]) -> str:
+def allocation_payload_to_json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, separators=(",", ":"))
 
 
-def parse_allocation_json(raw: Optional[str]) -> Optional[Dict[str, Any]]:
+def parse_allocation_json(raw: str | None) -> dict[str, Any] | None:
     if not raw:
         return None
     try:

@@ -6,18 +6,20 @@ This module provides:
 - Query execution helpers
 - Repository pattern classes for common entities
 """
+
+import logging
 import sqlite3
 import traceback
-import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Optional, Callable, Any, List, Dict, Tuple, Iterator
-from functools import wraps
+from typing import Any
+
 from config import Config
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _safe_rollback(conn: Optional[sqlite3.Connection]) -> None:
+def _safe_rollback(conn: sqlite3.Connection | None) -> None:
     """Rollback without masking original errors."""
     if not conn:
         return
@@ -27,7 +29,7 @@ def _safe_rollback(conn: Optional[sqlite3.Connection]) -> None:
         LOGGER.debug("Rollback skipped due to sqlite error: %s", exc)
 
 
-def _safe_close(conn: Optional[sqlite3.Connection]) -> None:
+def _safe_close(conn: sqlite3.Connection | None) -> None:
     """Close connection without masking original errors."""
     if not conn:
         return
@@ -50,10 +52,10 @@ def db_connection(read_only: bool = False) -> Iterator[sqlite3.Connection]:
     """
     Context manager for database connections.
     Ensures proper connection cleanup even on errors.
-    
+
     Args:
         read_only: If True, don't auto-commit (for read-only operations)
-    
+
     Usage:
         with db_connection() as conn:
             result = conn.execute('SELECT * FROM table')
@@ -65,7 +67,7 @@ def db_connection(read_only: bool = False) -> Iterator[sqlite3.Connection]:
         yield conn
         if not read_only:
             conn.commit()  # Auto-commit on success for write operations
-    except Exception as e:
+    except Exception:
         _safe_rollback(conn)
         raise  # Re-raise the exception
     finally:
@@ -77,7 +79,7 @@ def db_transaction() -> Iterator[sqlite3.Connection]:
     """
     Context manager for database transactions.
     Automatically commits on success, rolls back on failure.
-    
+
     Usage:
         with db_transaction() as conn:
             conn.execute('INSERT INTO table VALUES (?)', (value,))
@@ -88,7 +90,7 @@ def db_transaction() -> Iterator[sqlite3.Connection]:
         conn = get_db()
         yield conn
         conn.commit()
-    except Exception as e:
+    except Exception:
         _safe_rollback(conn)
         raise
     finally:
@@ -100,7 +102,7 @@ def db_read_only() -> Iterator[sqlite3.Connection]:
     """
     Context manager for read-only database operations.
     No commit is performed, connection is automatically closed.
-    
+
     Usage:
         with db_read_only() as conn:
             result = conn.execute('SELECT * FROM table')
@@ -113,15 +115,15 @@ def db_read_only() -> Iterator[sqlite3.Connection]:
         _safe_close(conn)
 
 
-def db_query(query: str, params: Optional[Tuple] = None, fetch_one: bool = False) -> Any:
+def db_query(query: str, params: tuple | None = None, fetch_one: bool = False) -> Any:
     """
     Execute a database query and return results.
-    
+
     Args:
         query: SQL query string
         params: Query parameters tuple/list
         fetch_one: If True, return fetchone(), else fetchall()
-    
+
     Returns:
         Query results (Row object, list of Row objects, or None)
     """
@@ -132,7 +134,7 @@ def db_query(query: str, params: Optional[Tuple] = None, fetch_one: bool = False
             result = conn.execute(query, params)
         else:
             result = conn.execute(query)
-        
+
         if fetch_one:
             return result.fetchone()
         return result.fetchall()
@@ -144,15 +146,15 @@ def db_query(query: str, params: Optional[Tuple] = None, fetch_one: bool = False
         _safe_close(conn)
 
 
-def db_execute(query: str, params: Optional[Tuple] = (), commit: bool = True) -> int:
+def db_execute(query: str, params: tuple | None = (), commit: bool = True) -> int:
     """
     Execute a database write operation with automatic connection management.
-    
+
     Args:
         query: SQL query string
         params: Query parameters tuple
         commit: Whether to commit the transaction (default: True)
-    
+
     Returns:
         Number of affected rows
     """
@@ -172,14 +174,14 @@ def db_execute(query: str, params: Optional[Tuple] = (), commit: bool = True) ->
         _safe_close(conn)
 
 
-def db_execute_many(queries: List[Tuple[str, Optional[Tuple]]], commit: bool = True) -> int:
+def db_execute_many(queries: list[tuple[str, tuple | None]], commit: bool = True) -> int:
     """
     Execute multiple database operations in a transaction.
-    
+
     Args:
         queries: List of (query, params) tuples
         commit: Whether to commit the transaction (default: True)
-    
+
     Returns:
         Total number of affected rows
     """
@@ -193,7 +195,7 @@ def db_execute_many(queries: List[Tuple[str, Optional[Tuple]]], commit: bool = T
             else:
                 cursor = conn.execute(query)
             total_rows += cursor.rowcount
-        
+
         if commit:
             conn.commit()
         return total_rows
@@ -208,31 +210,38 @@ def db_execute_many(queries: List[Tuple[str, Optional[Tuple]]], commit: bool = T
 
 # Repository Pattern Classes
 
+
 class PurchaseOrderRepository:
     """Repository for purchase order database operations."""
-    
+
     @staticmethod
-    def get_by_id(conn: sqlite3.Connection, po_id: int) -> Optional[Dict[str, Any]]:
+    def get_by_id(conn: sqlite3.Connection, po_id: int) -> dict[str, Any] | None:
         """Get purchase order by ID."""
-        row = conn.execute('''
+        row = conn.execute(
+            '''
             SELECT * FROM purchase_orders WHERE id = ?
-        ''', (po_id,)).fetchone()
+        ''',
+            (po_id,),
+        ).fetchone()
         return dict(row) if row else None
-    
+
     @staticmethod
-    def get_by_po_number(conn: sqlite3.Connection, po_number: str) -> Optional[Dict[str, Any]]:
+    def get_by_po_number(conn: sqlite3.Connection, po_number: str) -> dict[str, Any] | None:
         """Get purchase order by PO number."""
-        row = conn.execute('''
+        row = conn.execute(
+            '''
             SELECT * FROM purchase_orders WHERE po_number = ?
-        ''', (po_number,)).fetchone()
+        ''',
+            (po_number,),
+        ).fetchone()
         return dict(row) if row else None
-    
+
     @staticmethod
-    def get_open_pos(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    def get_open_pos(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         """Get all open purchase orders."""
         rows = conn.execute('''
-            SELECT * FROM purchase_orders 
-            WHERE closed = FALSE 
+            SELECT * FROM purchase_orders
+            WHERE closed = FALSE
             AND COALESCE(internal_status, '') != 'Cancelled'
             ORDER BY po_number DESC
         ''').fetchall()
@@ -241,88 +250,108 @@ class PurchaseOrderRepository:
 
 class SubmissionRepository:
     """Repository for submission database operations."""
-    
+
     @staticmethod
-    def get_by_id(conn: sqlite3.Connection, submission_id: int) -> Optional[Dict[str, Any]]:
+    def get_by_id(conn: sqlite3.Connection, submission_id: int) -> dict[str, Any] | None:
         """Get submission by ID."""
-        row = conn.execute('''
+        row = conn.execute(
+            '''
             SELECT * FROM warehouse_submissions WHERE id = ?
-        ''', (submission_id,)).fetchone()
+        ''',
+            (submission_id,),
+        ).fetchone()
         return dict(row) if row else None
-    
+
     @staticmethod
-    def get_by_bag_id(conn: sqlite3.Connection, bag_id: int) -> List[Dict[str, Any]]:
+    def get_by_bag_id(conn: sqlite3.Connection, bag_id: int) -> list[dict[str, Any]]:
         """Get all submissions for a bag."""
-        rows = conn.execute('''
-            SELECT * FROM warehouse_submissions 
-            WHERE bag_id = ? 
+        rows = conn.execute(
+            '''
+            SELECT * FROM warehouse_submissions
+            WHERE bag_id = ?
             ORDER BY created_at DESC
-        ''', (bag_id,)).fetchall()
+        ''',
+            (bag_id,),
+        ).fetchall()
         return [dict(row) for row in rows]
-    
+
     @staticmethod
-    def get_by_po_id(conn: sqlite3.Connection, po_id: int) -> List[Dict[str, Any]]:
+    def get_by_po_id(conn: sqlite3.Connection, po_id: int) -> list[dict[str, Any]]:
         """Get all submissions for a purchase order."""
-        rows = conn.execute('''
-            SELECT * FROM warehouse_submissions 
-            WHERE assigned_po_id = ? 
+        rows = conn.execute(
+            '''
+            SELECT * FROM warehouse_submissions
+            WHERE assigned_po_id = ?
             ORDER BY created_at DESC
-        ''', (po_id,)).fetchall()
+        ''',
+            (po_id,),
+        ).fetchall()
         return [dict(row) for row in rows]
 
 
 class BagRepository:
     """Repository for bag database operations."""
-    
+
     @staticmethod
-    def get_by_id(conn: sqlite3.Connection, bag_id: int) -> Optional[Dict[str, Any]]:
+    def get_by_id(conn: sqlite3.Connection, bag_id: int) -> dict[str, Any] | None:
         """Get bag by ID."""
-        row = conn.execute('''
+        row = conn.execute(
+            '''
             SELECT b.*, sb.box_number, r.po_id
             FROM bags b
             JOIN small_boxes sb ON b.small_box_id = sb.id
             JOIN receiving r ON sb.receiving_id = r.id
             WHERE b.id = ?
-        ''', (bag_id,)).fetchone()
+        ''',
+            (bag_id,),
+        ).fetchone()
         return dict(row) if row else None
-    
+
     @staticmethod
-    def get_by_receiving_id(conn: sqlite3.Connection, receiving_id: int) -> List[Dict[str, Any]]:
+    def get_by_receiving_id(conn: sqlite3.Connection, receiving_id: int) -> list[dict[str, Any]]:
         """Get all bags for a receiving with tablet type details."""
-        rows = conn.execute('''
+        rows = conn.execute(
+            '''
             SELECT b.*, sb.box_number, tt.tablet_type_name, tt.inventory_item_id
             FROM bags b
             JOIN small_boxes sb ON b.small_box_id = sb.id
             JOIN tablet_types tt ON b.tablet_type_id = tt.id
             WHERE sb.receiving_id = ?
             ORDER BY sb.box_number, b.bag_number
-        ''', (receiving_id,)).fetchall()
+        ''',
+            (receiving_id,),
+        ).fetchall()
         return [dict(row) for row in rows]
 
 
 class ReceivingRepository:
     """Repository for receiving database operations."""
-    
+
     @staticmethod
-    def get_by_id(conn: sqlite3.Connection, receiving_id: int) -> Optional[Dict[str, Any]]:
+    def get_by_id(conn: sqlite3.Connection, receiving_id: int) -> dict[str, Any] | None:
         """Get receiving by ID."""
-        row = conn.execute('''
+        row = conn.execute(
+            '''
             SELECT r.*, po.po_number, po.id as po_id
             FROM receiving r
             LEFT JOIN purchase_orders po ON r.po_id = po.id
             WHERE r.id = ?
-        ''', (receiving_id,)).fetchone()
+        ''',
+            (receiving_id,),
+        ).fetchone()
         return dict(row) if row else None
-    
+
     @staticmethod
-    def get_by_po_id(conn: sqlite3.Connection, po_id: int) -> List[Dict[str, Any]]:
+    def get_by_po_id(conn: sqlite3.Connection, po_id: int) -> list[dict[str, Any]]:
         """Get all receivings for a purchase order."""
-        rows = conn.execute('''
+        rows = conn.execute(
+            '''
             SELECT r.*, po.po_number
             FROM receiving r
             LEFT JOIN purchase_orders po ON r.po_id = po.id
             WHERE r.po_id = ?
             ORDER BY r.received_date DESC
-        ''', (po_id,)).fetchall()
+        ''',
+            (po_id,),
+        ).fetchall()
         return [dict(row) for row in rows]
-

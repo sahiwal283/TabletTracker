@@ -1,13 +1,15 @@
 """
 Submission-related API endpoints
 """
-from flask import Blueprint, jsonify, current_app
 import traceback
-from app.utils.db_utils import db_read_only
-from app.utils.auth_utils import role_required
-from app.services.submission_details_service import get_bag_submissions_payload
-from app.services.receiving_service import get_bag_with_packaged_count
+
+from flask import Blueprint, current_app, jsonify
+
 from app.services.bag_check_totals import compute_bag_check_totals
+from app.services.receiving_service import get_bag_with_packaged_count
+from app.services.submission_details_service import get_bag_submissions_payload
+from app.utils.auth_utils import role_required
+from app.utils.db_utils import db_read_only
 
 bp = Blueprint('api_submissions', __name__)
 

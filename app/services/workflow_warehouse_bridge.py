@@ -13,20 +13,20 @@ from __future__ import annotations
 import logging
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.services import workflow_constants as WC
+from app.services.product_tablet_allowlist import (
+    allowed_tablet_type_ids_for_product,
+    inventory_item_id_for_bag_tablet,
+)
 from app.services.production_submission_helpers import (
     ProductionSubmissionError,
     execute_machine_submission,
     refresh_purchase_order_header_aggregates,
 )
-from app.utils.eastern_datetime import utc_now_naive_string
-from app.services.product_tablet_allowlist import (
-    allowed_tablet_type_ids_for_product,
-    inventory_item_id_for_bag_tablet,
-)
 from app.services.receipt_product_chain import assert_receipt_product_chain
+from app.utils.eastern_datetime import utc_now_naive_string
 from app.utils.receive_tracking import find_bag_for_submission_allowlist
 
 LOGGER = logging.getLogger(__name__)
@@ -34,9 +34,7 @@ LOGGER = logging.getLogger(__name__)
 WORKFLOW_RECEIPT_PREFIX = "WORKFLOW-"
 
 
-def _receipt_base_for_workflow_bag(
-    workflow_bag: Optional[Dict[str, Any]], workflow_bag_id: int
-) -> str:
+def _receipt_base_for_workflow_bag(workflow_bag: dict[str, Any] | None, workflow_bag_id: int) -> str:
     """Prefer ``workflow_bags.receipt_number``; else ``WORKFLOW-<id>`` for bridge receipts."""
     if workflow_bag:
         rn = (workflow_bag.get("receipt_number") or "").strip()
@@ -45,7 +43,7 @@ def _receipt_base_for_workflow_bag(
     return f"{WORKFLOW_RECEIPT_PREFIX}{int(workflow_bag_id)}"
 
 
-def _has_manual_receipt(workflow_bag: Optional[Dict[str, Any]]) -> bool:
+def _has_manual_receipt(workflow_bag: dict[str, Any] | None) -> bool:
     if not workflow_bag:
         return False
     return bool((workflow_bag.get("receipt_number") or "").strip())
@@ -53,9 +51,9 @@ def _has_manual_receipt(workflow_bag: Optional[Dict[str, Any]]) -> bool:
 
 def workflow_packaged_receipt_number(
     workflow_bag_id: int,
-    event_id: Optional[int] = None,
+    event_id: int | None = None,
     *,
-    workflow_bag: Optional[Dict[str, Any]] = None,
+    workflow_bag: dict[str, Any] | None = None,
 ) -> str:
     """Packaged receipt: base from bag row or legacy ``WORKFLOW-<id>``; per snapshot when ``event_id`` is set."""
     base = _receipt_base_for_workflow_bag(workflow_bag, workflow_bag_id)
@@ -66,7 +64,7 @@ def workflow_packaged_receipt_number(
     return base
 
 
-def _coerce_int_opt(val) -> Optional[int]:
+def _coerce_int_opt(val) -> int | None:
     if val is None or val == "":
         return None
     try:
@@ -75,7 +73,7 @@ def _coerce_int_opt(val) -> Optional[int]:
         return None
 
 
-def _utc_naive_from_event_ms(occurred_at_ms: Optional[int]) -> Optional[str]:
+def _utc_naive_from_event_ms(occurred_at_ms: int | None) -> str | None:
     if not occurred_at_ms:
         return None
     try:
@@ -86,7 +84,7 @@ def _utc_naive_from_event_ms(occurred_at_ms: Optional[int]) -> Optional[str]:
     return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _event_occurred_at_ms(conn: sqlite3.Connection, event_id: Optional[int]) -> Optional[int]:
+def _event_occurred_at_ms(conn: sqlite3.Connection, event_id: int | None) -> int | None:
     if not event_id:
         return None
     try:
@@ -101,7 +99,7 @@ def _event_occurred_at_ms(conn: sqlite3.Connection, event_id: Optional[int]) -> 
     return int(dict(row).get("occurred_at") or 0) or None
 
 
-def _employee_name_from_payload(payload: Optional[Dict[str, Any]]) -> str:
+def _employee_name_from_payload(payload: dict[str, Any] | None) -> str:
     """Display name for warehouse_submissions.employee_name from floor event payload."""
     if not payload:
         return "QR workflow"
@@ -117,9 +115,9 @@ def _employee_name_from_payload(payload: Optional[Dict[str, Any]]) -> str:
 def _station_session_start_occurred_at_ms(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
-    station_id: Optional[int],
-    up_to_occurred_at_ms: Optional[int],
-) -> Optional[int]:
+    station_id: int | None,
+    up_to_occurred_at_ms: int | None,
+) -> int | None:
     """Start of the current work session at this station: latest BAG_CLAIMED or STATION_RESUMED at or before the sync event.
 
     After a pause, ``STATION_RESUMED`` becomes the session start for ``bag_start_time`` on submissions.
@@ -177,8 +175,8 @@ def _update_receipt_station_times(
     *,
     receipt_number: str,
     submission_type: str,
-    bag_start_time: Optional[str],
-    bag_end_time: Optional[str],
+    bag_start_time: str | None,
+    bag_end_time: str | None,
 ) -> None:
     # Some older schemas may not have both columns; degrade gracefully.
     try:
@@ -211,13 +209,13 @@ def upsert_packaged_from_workflow_packaging(
     workflow_bag_id: int,
     *,
     displays_made: int,
-    station_row: Optional[Dict[str, Any]] = None,
-    event_id: Optional[int] = None,
-    employee_name: Optional[str] = None,
+    station_row: dict[str, Any] | None = None,
+    event_id: int | None = None,
+    employee_name: str | None = None,
     packs_remaining: int = 0,
     cards_reopened: int = 0,
     receipt_mode: str = "pkg",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Upsert packaged submission for this workflow bag.
 
@@ -241,9 +239,7 @@ def upsert_packaged_from_workflow_packaging(
     if rm not in ("pkg", "taken"):
         return {"ok": False, "reason": "invalid_receipt_mode", "skipped": True}
 
-    wb = conn.execute(
-        "SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)
-    ).fetchone()
+    wb = conn.execute("SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)).fetchone()
     if not wb:
         return {"ok": False, "reason": "workflow_bag_not_found", "skipped": True}
     wb = dict(wb)
@@ -272,17 +268,13 @@ def upsert_packaged_from_workflow_packaging(
 
     inv = product.get("inventory_item_id")
     if not inv:
-        LOGGER.warning(
-            "workflow warehouse bridge: product %s missing inventory_item_id", product_id
-        )
+        LOGGER.warning("workflow warehouse bridge: product %s missing inventory_item_id", product_id)
         return {"ok": False, "reason": "no_inventory_item_id", "skipped": True}
 
     ppd = product.get("packages_per_display")
     tpp = product.get("tablets_per_package")
     if not ppd or not tpp or int(ppd) <= 0 or int(tpp) <= 0:
-        LOGGER.warning(
-            "workflow warehouse bridge: product %s missing package configuration", product_id
-        )
+        LOGGER.warning("workflow warehouse bridge: product %s missing package configuration", product_id)
         return {"ok": False, "reason": "incomplete_product_config", "skipped": True}
 
     tablet_type_ids = allowed_tablet_type_ids_for_product(conn, int(product_id))
@@ -314,9 +306,7 @@ def upsert_packaged_from_workflow_packaging(
             bag_id = b["id"]
             assigned_po_id = b.get("recv_po_id")
             try:
-                po_row = conn.execute(
-                    "SELECT po_id FROM bags WHERE id = ?", (inv_bid,)
-                ).fetchone()
+                po_row = conn.execute("SELECT po_id FROM bags WHERE id = ?", (inv_bid,)).fetchone()
                 if po_row is not None:
                     pk = dict(po_row) if hasattr(po_row, "keys") else None
                     if pk and pk.get("po_id") is not None:
@@ -328,9 +318,7 @@ def upsert_packaged_from_workflow_packaging(
             lbl = b.get("bag_label_count")
             if lbl is None:
                 try:
-                    p2 = conn.execute(
-                        "SELECT pill_count FROM bags WHERE id = ?", (inv_bid,)
-                    ).fetchone()
+                    p2 = conn.execute("SELECT pill_count FROM bags WHERE id = ?", (inv_bid,)).fetchone()
                     lbl = p2["pill_count"] if p2 else 0
                 except sqlite3.OperationalError:
                     lbl = 0
@@ -465,10 +453,10 @@ def sync_if_packaging_snapshot(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
     event_type: str,
-    payload: Dict[str, Any],
-    station_row: Optional[Dict[str, Any]] = None,
-    event_id: Optional[int] = None,
-) -> Optional[Dict[str, Any]]:
+    payload: dict[str, Any],
+    station_row: dict[str, Any] | None = None,
+    event_id: int | None = None,
+) -> dict[str, Any] | None:
     """If event is PACKAGING_SNAPSHOT, upsert packaged row. Returns bridge result or None."""
     if event_type != WC.EVENT_PACKAGING_SNAPSHOT:
         return None
@@ -500,10 +488,10 @@ def sync_if_packaging_taken_for_order(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
     event_type: str,
-    payload: Dict[str, Any],
-    station_row: Optional[Dict[str, Any]] = None,
-    event_id: Optional[int] = None,
-) -> Optional[Dict[str, Any]]:
+    payload: dict[str, Any],
+    station_row: dict[str, Any] | None = None,
+    event_id: int | None = None,
+) -> dict[str, Any] | None:
     """Incremental pull from active packaging (not a full snapshot). Returns bridge result or None."""
     if event_type != WC.EVENT_PACKAGING_TAKEN_FOR_ORDER:
         return None
@@ -529,9 +517,9 @@ def sync_if_packaging_taken_for_order(
 def workflow_machine_lane_receipt_number(
     workflow_bag_id: int,
     lane: str,
-    event_id: Optional[int] = None,
+    event_id: int | None = None,
     *,
-    workflow_bag: Optional[Dict[str, Any]] = None,
+    workflow_bag: dict[str, Any] | None = None,
 ) -> str:
     """Receipt for one workflow bag + lane (``seal`` or ``blister``).
 
@@ -550,7 +538,7 @@ def workflow_machine_lane_receipt_number(
     return root
 
 
-def _tablet_type_for_product(conn: sqlite3.Connection, product_id: int) -> Optional[int]:
+def _tablet_type_for_product(conn: sqlite3.Connection, product_id: int) -> int | None:
     row = conn.execute(
         "SELECT tablet_type_id FROM product_details WHERE id = ?",
         (int(product_id),),
@@ -562,7 +550,7 @@ def _tablet_type_for_product(conn: sqlite3.Connection, product_id: int) -> Optio
     return int(tid) if tid is not None else None
 
 
-def _machine_role(conn: sqlite3.Connection, machine_id: Optional[int]) -> Optional[str]:
+def _machine_role(conn: sqlite3.Connection, machine_id: int | None) -> str | None:
     if not machine_id:
         return None
     row = conn.execute(
@@ -577,7 +565,7 @@ def _machine_role(conn: sqlite3.Connection, machine_id: Optional[int]) -> Option
 def _delete_matching_workflow_machine_count(
     conn: sqlite3.Connection,
     tablet_type_id: int,
-    ws_row: Dict[str, Any],
+    ws_row: dict[str, Any],
 ) -> None:
     """Remove the ``machine_counts`` row most likely paired with this warehouse submission."""
     mid = ws_row.get("machine_id")
@@ -657,7 +645,9 @@ def _delete_matching_workflow_machine_count(
         )
 
 
-def _reverse_po_line_for_tablets(conn: sqlite3.Connection, assigned_po_id: int, inventory_item_id, tablets: int) -> None:
+def _reverse_po_line_for_tablets(
+    conn: sqlite3.Connection, assigned_po_id: int, inventory_item_id, tablets: int
+) -> None:
     if not assigned_po_id or not inventory_item_id or not tablets or tablets <= 0:
         return
     line = conn.execute(
@@ -685,7 +675,7 @@ def _reverse_po_line_for_tablets(conn: sqlite3.Connection, assigned_po_id: int, 
 
 
 def _tablet_type_id_for_machine_ws_row(
-    conn: sqlite3.Connection, ws_row: Dict[str, Any], fallback_tablet_type_id: int
+    conn: sqlite3.Connection, ws_row: dict[str, Any], fallback_tablet_type_id: int
 ) -> int:
     inv = ws_row.get("inventory_item_id")
     if inv:
@@ -703,8 +693,8 @@ def _delete_workflow_machine_lane_rows(
     receipt_number: str,
     fallback_tablet_type_id: int,
     *,
-    machine_id: Optional[int] = None,
-) -> Dict[str, Any]:
+    machine_id: int | None = None,
+) -> dict[str, Any]:
     """Remove machine submissions for this receipt, reverse PO deltas, drop paired machine_counts."""
     if machine_id is None:
         rows = conn.execute(
@@ -769,12 +759,12 @@ def upsert_machine_from_workflow_scan(
     workflow_bag_id: int,
     *,
     count_total: int,
-    station_row: Dict[str, Any],
+    station_row: dict[str, Any],
     lane: str,
     expected_machine_role: str,
-    event_id: Optional[int] = None,
-    employee_name: Optional[str] = None,
-) -> Dict[str, Any]:
+    event_id: int | None = None,
+    employee_name: str | None = None,
+) -> dict[str, Any]:
     """
     Upsert machine submission for this workflow bag + lane (sealing or blister).
 
@@ -790,9 +780,7 @@ def upsert_machine_from_workflow_scan(
     if exp not in ("sealing", "blister"):
         return {"ok": False, "reason": "invalid_expected_role", "skipped": True}
 
-    wb = conn.execute(
-        "SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)
-    ).fetchone()
+    wb = conn.execute("SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)).fetchone()
     if not wb:
         return {"ok": False, "reason": "workflow_bag_not_found", "skipped": True}
     wb = dict(wb)
@@ -842,9 +830,7 @@ def upsert_machine_from_workflow_scan(
             "detail": f"station machine role is {role}, expected {exp}",
         }
 
-    receipt = workflow_machine_lane_receipt_number(
-        workflow_bag_id, key, event_id, workflow_bag=wb
-    )
+    receipt = workflow_machine_lane_receipt_number(workflow_bag_id, key, event_id, workflow_bag=wb)
     base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
     lane_label = "sealing" if key == "seal" else "blister"
 
@@ -891,7 +877,7 @@ def upsert_machine_from_workflow_scan(
             machine_id=machine_id if exact_receipt else None,
         )
 
-    data: Dict[str, Any] = {
+    data: dict[str, Any] = {
         "product_id": int(product_id),
         "box_number": box_number,
         "bag_number": bag_number,
@@ -937,17 +923,17 @@ def sync_workflow_warehouse_events(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
     event_type: str,
-    payload: Dict[str, Any],
-    station_row: Dict[str, Any],
+    payload: dict[str, Any],
+    station_row: dict[str, Any],
     *,
-    event_id: Optional[int] = None,
-) -> Optional[Dict[str, Any]]:
+    event_id: int | None = None,
+) -> dict[str, Any] | None:
     """
     Run packaging and/or machine bridges for floor events.
 
     ``station_row`` is the resolved ``workflow_stations`` row (dict), including ``machine_id`` when set.
     """
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
 
     packaged = sync_if_packaging_snapshot(
         conn,
@@ -1007,9 +993,7 @@ def sync_workflow_warehouse_events(
     return out
 
 
-def delete_synced_warehouse_artifacts_for_workflow_bag(
-    conn: sqlite3.Connection, workflow_bag_id: int
-) -> None:
+def delete_synced_warehouse_artifacts_for_workflow_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> None:
     """
     Remove packaged + machine warehouse rows keyed by this workflow bag's bridge receipts.
 
@@ -1021,9 +1005,7 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(
     """
     wf = int(workflow_bag_id)
 
-    wb = conn.execute(
-        "SELECT product_id, receipt_number FROM workflow_bags WHERE id = ?", (wf,)
-    ).fetchone()
+    wb = conn.execute("SELECT product_id, receipt_number FROM workflow_bags WHERE id = ?", (wf,)).fetchone()
     wb_dict = dict(wb) if wb else {}
     pid = wb_dict.get("product_id")
     tid = _tablet_type_for_product(conn, int(pid)) if pid else None

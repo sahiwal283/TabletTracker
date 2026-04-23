@@ -1,12 +1,19 @@
 """
 Dashboard routes
 """
-from flask import Blueprint, render_template, flash, current_app
 import traceback
-from app.utils.db_utils import db_read_only
+
+from flask import Blueprint, current_app, flash, render_template
+
+from app.services.submission_list_enrichment import (
+    attach_receive_name_for_submission_row,
+    enrich_submission_row_running_totals,
+    new_running_totals_state,
+)
+from app.services.submission_query_service import apply_resolved_bag_fields
 from app.utils.auth_utils import role_required
+from app.utils.db_utils import db_read_only
 from app.utils.perf_utils import query_timer
-from app.services.submission_query_service import apply_resolved_bag_fields, common_receive_label_from_deductions
 
 bp = Blueprint('dashboard', __name__)
 
@@ -22,7 +29,7 @@ def dashboard_view():
 
             # Get active POs that have submissions assigned (last 10) - for PO section
             active_pos_query = '''
-            SELECT po.*, 
+            SELECT po.*,
                    COUNT(DISTINCT pl.id) as line_count,
                    COALESCE(SUM(pl.quantity_ordered), 0) as total_ordered,
                    COALESCE(po.internal_status, 'Active') as status_display,
@@ -50,7 +57,7 @@ def dashboard_view():
                        SELECT COUNT(*) + 1
                        FROM receiving r2
                        WHERE r2.po_id = r.po_id
-                       AND (r2.received_date < r.received_date 
+                       AND (r2.received_date < r.received_date
                             OR (r2.received_date = r.received_date AND r2.id < r.id))
                    ) as receive_number,
                    COUNT(DISTINCT b.id) as bag_count,
@@ -107,10 +114,10 @@ def dashboard_view():
                 current_app.logger.error(f"Error loading active receives: {e}")
                 traceback.print_exc()
                 active_receives = []
-            
+
             # Get closed POs for historical reference (removed from dashboard)
             closed_pos = []
-            
+
             # Get tablet types for report filters
             with query_timer("tablet_types", _log_query):
                 tablet_types = conn.execute('SELECT id, tablet_type_name FROM tablet_types ORDER BY tablet_type_name').fetchall()
@@ -137,7 +144,7 @@ def dashboard_view():
                            ws.tablets_pressed_into_cards,
                            ws.loose_tablets,
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -147,14 +154,14 @@ def dashboard_view():
                        )
                        WHEN 'repack' THEN (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            )), 0)) +
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -163,19 +170,19 @@ def dashboard_view():
                        )
                        ELSE (
                            (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
                            )), 0)) +
                            (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
-                           )), 0)) + 
+                           )), 0)) +
                        ws.loose_tablets
                        )
                    END as calculated_total
@@ -192,132 +199,30 @@ def dashboard_view():
             with query_timer("submissions_recent", _log_query):
                 submissions_raw = conn.execute(submissions_query).fetchall()
             current_app.logger.info(f"📊 Dashboard: Found {len(submissions_raw)} recent submissions (query returned {len(submissions_raw)} rows)")
-            
-            # Calculate running totals by bag PER PO (each PO has its own physical bags)
-            # Separate running totals for each submission type
-            bag_cumulative_packaged = {}  # (po, product, box/bag) -> sum of packaged good tablets
-            bag_totals_bag = {}  # same key -> bag-type loose tablet sum
-            bag_totals_machine = {}  # same key -> machine tablet sum
-            bag_totals_packaged = {}  # same key -> packaged good tablet sum
+
+            totals_state = new_running_totals_state()
             submissions_processed = []
-            
+
             for sub in submissions_raw:
                 sub_dict = dict(sub)
                 apply_resolved_bag_fields(sub_dict)
-                # Create bag identifier from box_number/bag_number
-                bag_identifier = f"{sub_dict.get('box_number', '')}/{sub_dict.get('bag_number', '')}"
-                # Key includes PO ID so each PO tracks its own bag totals independently
-                bag_key = (sub_dict.get('assigned_po_id'), sub_dict.get('product_name'), bag_identifier)
-                
-                # Individual calculation for this submission
-                individual_calc = sub_dict.get('calculated_total', 0) or 0
-                submission_type = sub_dict.get('submission_type', 'packaged')
-                
-                if bag_key not in bag_cumulative_packaged:
-                    bag_cumulative_packaged[bag_key] = 0
-                if bag_key not in bag_totals_bag:
-                    bag_totals_bag[bag_key] = 0
-                if bag_key not in bag_totals_machine:
-                    bag_totals_machine[bag_key] = 0
-                if bag_key not in bag_totals_packaged:
-                    bag_totals_packaged[bag_key] = 0
-                
-                if submission_type == 'bag':
-                    bag_totals_bag[bag_key] += individual_calc
-                elif submission_type == 'machine':
-                    bag_totals_machine[bag_key] += individual_calc
-                elif submission_type == 'repack':
-                    pass
-                elif submission_type == 'packaged':
-                    bag_totals_packaged[bag_key] += individual_calc
-                
-                if submission_type == 'packaged':
-                    bag_cumulative_packaged[bag_key] += individual_calc
-                
-                sub_dict['individual_calc'] = individual_calc
-                sub_dict['bag_submission_tablets_total'] = bag_totals_bag[bag_key]
-                sub_dict['machine_tablets_total'] = bag_totals_machine[bag_key]
-                sub_dict['packaged_tablets_total'] = bag_totals_packaged[bag_key]
-                sub_dict['cumulative_bag_tablets'] = bag_cumulative_packaged[bag_key]
-                
-                bag_count = sub_dict.get('bag_label_count', 0) or 0
-                packaged_cumulative = bag_cumulative_packaged[bag_key]
-                
-                if not sub_dict.get('bag_id'):
-                    sub_dict['count_status'] = 'no_bag'
-                elif abs(packaged_cumulative - bag_count) <= 5:  # Allow 5 tablet tolerance
-                    sub_dict['count_status'] = 'match'
-                elif packaged_cumulative < bag_count:
-                    sub_dict['count_status'] = 'under'
-                else:
-                    sub_dict['count_status'] = 'over'
-                
-                if submission_type == 'repack':
-                    sub_dict['count_status'] = 'repack_po'
-                    sub_dict['has_discrepancy'] = 0
-                else:
-                    sub_dict['has_discrepancy'] = 1 if sub_dict['count_status'] != 'match' and bag_count > 0 else 0
-                
-                # Build receive name using stored receive_name from database
-                # If bag_id exists, we should always be able to build a receive_name
-                receive_name = None
-                stored_receive_name = sub_dict.get('stored_receive_name')
-                box_number = sub_dict.get('box_number')
-                bag_number = sub_dict.get('bag_number')
-                bag_id = sub_dict.get('bag_id')
-                
-                # Only build receive_name if bag_id exists (submission is assigned to a bag)
-                if bag_id:
-                    if stored_receive_name:
-                        # Use stored receive_name and append box-bag if available
-                        if box_number is not None and bag_number is not None:
-                            receive_name = f"{stored_receive_name}-{box_number}-{bag_number}"
-                        elif bag_number is not None:
-                            # Flavor-based: no box number, just append bag
-                            receive_name = f"{stored_receive_name}-{bag_number}"
-                        else:
-                            # Just use stored receive_name
-                            receive_name = stored_receive_name
-                    elif sub_dict.get('receive_id') and sub_dict.get('po_number'):
-                        # Fallback for legacy records: calculate receive_number dynamically
-                        receive_number_result = conn.execute('''
-                            SELECT COUNT(*) + 1 as receive_number
-                            FROM receiving r2
-                            WHERE r2.po_id = ?
-                            AND (r2.received_date < (SELECT received_date FROM receiving WHERE id = ?)
-                                 OR (r2.received_date = (SELECT received_date FROM receiving WHERE id = ?) 
-                                     AND r2.id < ?))
-                        ''', (sub_dict.get('assigned_po_id'), sub_dict.get('receive_id'), 
-                              sub_dict.get('receive_id'), sub_dict.get('receive_id'))).fetchone()
-                        receive_number = receive_number_result['receive_number'] if receive_number_result else 1
-                        if box_number is not None and bag_number is not None:
-                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{box_number}-{bag_number}"
-                        elif bag_number is not None:
-                            # Flavor-based: no box number
-                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}-{bag_number}"
-                        else:
-                            receive_name = f"{sub_dict.get('po_number')}-{receive_number}"
-                if not receive_name and submission_type == 'bottle':
-                    from_ded = common_receive_label_from_deductions(conn, sub_dict.get('id'))
-                    if from_ded:
-                        receive_name = from_ded
-                    elif sub_dict.get('is_variety_pack') and sub_dict.get('po_number'):
-                        receive_name = sub_dict['po_number']
-
-                sub_dict['receive_name'] = receive_name
+                enrich_submission_row_running_totals(
+                    sub_dict, totals_state, bag_submission_use="individual_calc"
+                )
+                attach_receive_name_for_submission_row(conn, sub_dict)
                 submissions_processed.append(sub_dict)
-            
+
             # Submissions are already ordered DESC and limited to 10, newest first
             submissions = submissions_processed
-            
+
             # Get summary stats using closed field (boolean) and internal status (only count synced POs, not test data)
             with query_timer("stats", _log_query):
                 stats = conn.execute('''
-            SELECT 
+            SELECT
                 COUNT(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 1 END) as open_pos,
                 COUNT(CASE WHEN closed = TRUE AND zoho_po_id IS NOT NULL THEN 1 END) as closed_pos,
                 COUNT(CASE WHEN internal_status = 'Draft' AND zoho_po_id IS NOT NULL THEN 1 END) as draft_pos,
-                COALESCE(SUM(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN 
+                COALESCE(SUM(CASE WHEN closed = FALSE AND zoho_po_id IS NOT NULL THEN
                     (ordered_quantity - current_good_count - current_damaged_count) END), 0) as total_remaining
             FROM purchase_orders
             ''').fetchone()
@@ -334,18 +239,18 @@ def dashboard_view():
             # They have needs_review=TRUE and bag_id=NULL (not yet assigned)
             with query_timer("submissions_needing_review", _log_query):
                 submissions_needing_review = conn.execute('''
-            SELECT ws.*, 
+            SELECT ws.*,
                    tt.tablet_type_name,
                    (
                        CASE ws.submission_type
-                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) + 
+                           WHEN 'packaged' THEN (ws.displays_made * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0) +
                                                 ws.packs_remaining * COALESCE(pd.tablets_per_package, 0))
                            WHEN 'bag' THEN ws.loose_tablets
                            WHEN 'machine' THEN COALESCE(
                                ws.tablets_pressed_into_cards,
                                ws.loose_tablets,
                                (ws.packs_remaining * COALESCE(COALESCE(pd.tablets_per_package, (
-                               SELECT pd2.tablets_per_package 
+                               SELECT pd2.tablets_per_package
                                FROM product_details pd2
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
@@ -362,10 +267,10 @@ def dashboard_view():
             WHERE COALESCE(ws.needs_review, 0) = 1
             ORDER BY ws.created_at DESC
             ''').fetchall()
-            
+
             # Convert to list of dicts
             review_submissions = [dict(row) for row in submissions_needing_review]
-            
+
             return render_template('dashboard.html', active_pos=active_pos, active_receives=active_receives, closed_pos=closed_pos, submissions=submissions, stats=stats, verification_count=verification_count, tablet_types=tablet_types, submissions_needing_review=review_submissions)
     except Exception as e:
         current_app.logger.error(f"Error in dashboard_view: {e}")

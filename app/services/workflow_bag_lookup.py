@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Dict, List
+from typing import Any
 
 from app.services.product_tablet_allowlist import allowed_tablet_type_ids_for_product
 
@@ -14,7 +14,7 @@ def find_unassigned_inventory_bags_by_flavor_box_bag(
     tablet_type_id: int,
     box_number: int,
     bag_number: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Bags matching tablet type + small-box number + bag number, on open published receives,
     excluding closed bags. Includes bags marked ``reserved_for_bottles`` (variety/bottle deduction
@@ -51,9 +51,9 @@ def find_unassigned_inventory_bags_for_product(
     product_id: int,
     box_number: int,
     bag_number: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Union of unassigned bags for each allowed tablet type for this finished product."""
-    seen: Dict[int, Dict[str, Any]] = {}
+    seen: dict[int, dict[str, Any]] = {}
     for tid in allowed_tablet_type_ids_for_product(conn, int(product_id)):
         for row in find_unassigned_inventory_bags_by_flavor_box_bag(
             conn,

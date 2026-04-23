@@ -1,10 +1,12 @@
 """
 Receiving routes - shipment receiving and tracking
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
 import traceback
-from app.utils.db_utils import db_read_only, db_transaction
+
+from flask import Blueprint, current_app, flash, redirect, render_template, session, url_for
+
 from app.utils.auth_utils import admin_required, role_required
+from app.utils.db_utils import db_read_only
 
 bp = Blueprint('receiving', __name__)
 
@@ -18,19 +20,19 @@ def receiving_list():
             # Get all tablet types for the form dropdown
             tablet_types_rows = conn.execute('''
             SELECT id, tablet_type_name, category
-            FROM tablet_types 
+            FROM tablet_types
             ORDER BY tablet_type_name
             ''').fetchall()
             tablet_types = [dict(row) for row in tablet_types_rows]
-            
+
             # Get unique categories for dropdown grouping
             categories = sorted(list(set(tt['category'] for tt in tablet_types if tt.get('category'))))
-            
+
             po_columns = [row['name'] for row in conn.execute("PRAGMA table_info(purchase_orders)").fetchall()]
             has_vendor_name = 'vendor_name' in po_columns
             vendor_select = 'vendor_name' if has_vendor_name else "NULL as vendor_name"
             vendor_po_sql = 'po.vendor_name AS vendor_name' if has_vendor_name else "NULL AS vendor_name"
-            
+
             # Get all OPEN POs for warehouse leads/managers/admins to assign
             # (closed POs can't receive new shipments)
             purchase_orders = []
@@ -60,10 +62,10 @@ def receiving_list():
                     for row in po_tablet_rows:
                         po_key = str(row['po_id'])
                         po_tablet_type_ids_by_po.setdefault(po_key, []).append(row['tablet_type_id'])
-            
+
             # Get all receiving records with their boxes and bags (include status, PO vendor)
             receiving_records = conn.execute(f'''
-            SELECT r.*, 
+            SELECT r.*,
                    COUNT(DISTINCT sb.id) as box_count,
                    COUNT(DISTINCT b.id) as total_bags,
                    po.po_number,
@@ -77,7 +79,7 @@ def receiving_list():
             GROUP BY r.id
             ORDER BY CASE WHEN COALESCE(r.status, 'published') = 'draft' THEN 0 ELSE 1 END, r.received_date DESC
             ''').fetchall()
-            
+
             # Calculate shipment numbers for each PO (numbered sequentially by received_date)
             # Group shipments by PO and assign numbers
             po_shipment_counts = {}
@@ -93,10 +95,10 @@ def receiving_list():
                             ORDER BY received_date ASC, id ASC
                         ''', (po_id,)).fetchall()
                         po_shipment_counts[po_id] = {
-                            shipment['id']: idx + 1 
+                            shipment['id']: idx + 1
                             for idx, shipment in enumerate(po_shipments)
                         }
-            
+
             # For each receiving record, get its boxes and bags
             shipments = []
             for rec in receiving_records:
@@ -114,7 +116,7 @@ def receiving_list():
                     GROUP BY sb.id
                     ORDER BY sb.box_number
                 ''', (rec['id'],)).fetchall()
-                
+
                 # Get bags for each box with tablet type info
                 boxes_with_bags = []
                 for box in boxes:
@@ -129,17 +131,17 @@ def receiving_list():
                         'box': dict(box),
                         'bags': [dict(bag) for bag in bags]
                     })
-                
+
                 shipments.append({
                     'receiving': rec_dict,
                     'boxes': boxes_with_bags
                 })
-            
+
             # NEW: Group shipments by PO for better organization
             # Group by PO and sort receives within each PO (oldest first = bottom when reversed for display)
             po_groups = {}
             shipments_without_po = []
-            
+
             for shipment in shipments:
                 po_id = shipment['receiving']['po_id']
                 if po_id:
@@ -157,17 +159,17 @@ def receiving_list():
                     po_groups[po_id]['receives'].append(shipment)
                 else:
                     shipments_without_po.append(shipment)
-            
+
             # Sort receives within each PO group (newest first, oldest at bottom)
-            for po_id, po_group in po_groups.items():
+            for _po_id, po_group in po_groups.items():
                 po_group['receives'].sort(key=lambda x: x['receiving']['received_date'], reverse=True)
-            
+
             # Convert to list and sort by PO number (newest PO first)
-            grouped_shipments = [po_groups[po_id] for po_id in sorted(po_groups.keys(), 
-                                                                        key=lambda pid: po_groups[pid]['po_number'], 
+            grouped_shipments = [po_groups[po_id] for po_id in sorted(po_groups.keys(),
+                                                                        key=lambda pid: po_groups[pid]['po_number'],
                                                                         reverse=True)]
-            
-            return render_template('receiving.html', 
+
+            return render_template('receiving.html',
                                  tablet_types=tablet_types,
                                  categories=categories,
                                  purchase_orders=purchase_orders,
@@ -178,28 +180,28 @@ def receiving_list():
     except Exception as e:
         error_details = traceback.format_exc()
         current_app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
-        return render_template('error.html', 
+        return render_template('error.html',
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
 
 
 @bp.route('/receiving')
-@admin_required  
+@admin_required
 def receiving_management_v2():
     """Receiving management page - REBUILT VERSION"""
     try:
         with db_read_only() as conn:
-        
+
         # Simple query first - just check if we can access receiving table
             try:
                 test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
-                receiving_count = test_query['count'] if test_query else 0
+                test_query['count'] if test_query else 0
             except Exception as e:
                 return f"""
                 <h2>Database Error (v1.7.6 REBUILT)</h2>
                 <p>Cannot access receiving table: {str(e)}</p>
                 <p><a href="/debug/server-info">Check Database</a></p>
                 """
-        
+
             # Get pending shipments (delivered but not yet received)
             pending_shipments = conn.execute('''
                 SELECT s.*, po.po_number
@@ -209,7 +211,7 @@ def receiving_management_v2():
                 WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
                 ORDER BY s.delivered_at DESC, s.created_at DESC
             ''').fetchall()
-            
+
             # Get recent receiving history
             recent_receiving = conn.execute('''
             SELECT r.*, po.po_number,
@@ -222,8 +224,8 @@ def receiving_management_v2():
             ORDER BY r.received_date DESC
             LIMIT 20
             ''').fetchall()
-        
-            return render_template('receiving_management.html', 
+
+            return render_template('receiving_management.html',
                                  pending_shipments=pending_shipments,
                                  recent_receiving=recent_receiving)
     except Exception as e:
@@ -267,12 +269,12 @@ def receiving_debug():
     """Debug route to test receiving functionality"""
     try:
         with db_read_only() as conn:
-        
+
         # Test database connections
             po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
             shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
             receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
-        
+
         # Test the actual query
             pending_shipments = conn.execute('''
             SELECT s.*, po.po_number
@@ -282,7 +284,7 @@ def receiving_debug():
             WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
             ORDER BY s.delivered_at DESC, s.created_at DESC
             ''').fetchall()
-        
+
             debug_info = {
             'status': 'success',
             'database_counts': {
@@ -294,7 +296,7 @@ def receiving_debug():
             'template_exists': 'receiving_management.html exists',
             'version': '1.7.1'
             }
-        
+
             return f"""
             <h2>Receiving Debug Info (v1.7.1)</h2>
             <pre>{debug_info}</pre>
@@ -315,7 +317,7 @@ def receiving_details(receiving_id):
     """View detailed information about a specific receiving record"""
     try:
         with db_read_only() as conn:
-        
+
             # Get receiving record with PO and shipment info
             receiving = conn.execute('''
                 SELECT r.*, po.po_number, s.tracking_number, s.carrier
@@ -324,15 +326,15 @@ def receiving_details(receiving_id):
                 LEFT JOIN shipments s ON r.shipment_id = s.id
                 WHERE r.id = ?
             ''', (receiving_id,)).fetchone()
-        
+
             if not receiving:
                 flash('Receiving record not found', 'error')
                 return redirect(url_for('shipping.receiving_management_v2'))
-        
+
             # Get box summary
             boxes_summary = conn.execute('''
-                SELECT sb.*, 
-                       GROUP_CONCAT(b.bag_number) as bag_numbers, 
+                SELECT sb.*,
+                       GROUP_CONCAT(b.bag_number) as bag_numbers,
                        COUNT(b.id) as bag_count,
                        GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
                 FROM small_boxes sb
@@ -341,7 +343,7 @@ def receiving_details(receiving_id):
                 GROUP BY sb.id
                 ORDER BY sb.box_number
             ''', (receiving_id,)).fetchall()
-            
+
             # Get individual bags with details for reservation UI
             bags = conn.execute('''
                 SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count,
@@ -355,13 +357,13 @@ def receiving_details(receiving_id):
                 WHERE sb.receiving_id = ?
                 ORDER BY sb.box_number, b.bag_number
             ''', (receiving_id,)).fetchall()
-            
+
             # Calculate remaining counts for each bag (original - packaged)
             bags_with_counts = []
             for bag_row in bags:
                 bag = dict(bag_row)
                 original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
-                
+
                 packaged_total = conn.execute('''
                     SELECT COALESCE(SUM(
                         (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
@@ -371,14 +373,14 @@ def receiving_details(receiving_id):
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                     WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
                 ''', (bag['id'],)).fetchone()
-                
+
                 packaged_count = packaged_total['total'] if packaged_total else 0
                 bag['original_count'] = original_count
                 bag['packaged_count'] = packaged_count
                 bag['remaining_count'] = max(0, original_count - packaged_count)
                 bags_with_counts.append(bag)
-        
-            return render_template('receiving_details.html', 
+
+            return render_template('receiving_details.html',
                                  receiving=dict(receiving),
                                  boxes=[dict(box) for box in boxes_summary],
                                  bags=bags_with_counts)

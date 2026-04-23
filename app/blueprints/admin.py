@@ -7,12 +7,11 @@ import secrets
 import sqlite3
 import traceback
 import unicodedata
-from datetime import datetime, timedelta
-from typing import Optional
-
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session, current_app
+from datetime import datetime
 
 from config import Config
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+
 from app.services import workflow_constants as WC
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
@@ -29,7 +28,7 @@ _VALID_STATION_KINDS = frozenset({"sealing", "blister", "packaging", "combined"}
 _STATION_KIND_ORDER = ["sealing", "blister", "packaging", "combined"]
 
 
-def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: Optional[int]) -> str:
+def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: int | None) -> str:
     """PO-shipment-box-bag label for workflow/admin tables."""
     if not inventory_bag_id:
         return "—"
@@ -134,7 +133,7 @@ def _allocate_unique_station_scan_token(conn: sqlite3.Connection, station_kind: 
 
 
 def _machine_allowed_for_station_kind(
-    conn: sqlite3.Connection, station_kind: str, machine_id: Optional[int]
+    conn: sqlite3.Connection, station_kind: str, machine_id: int | None
 ) -> bool:
     """Validate ``machine_id`` for a workflow station role (production machines table)."""
     if machine_id is None:
@@ -165,7 +164,7 @@ def admin_panel():
     # Check for admin session
     if not session.get('admin_authenticated'):
         return render_template('admin_login.html')
-    
+
     try:
         ensure_app_settings_table()  # Ensure table exists
         with db_read_only() as conn:
@@ -176,7 +175,7 @@ def admin_panel():
             ).fetchone()
             cards_per_turn_value = int(cards_per_turn['setting_value']) if cards_per_turn else 1
             return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         return render_template('admin_panel.html', cards_per_turn=1)
@@ -187,22 +186,22 @@ def admin_panel():
 def admin_login():
     """Handle admin login with enhanced security"""
     password = request.form.get('password') or request.json.get('password')
-    
+
     # Get admin password from environment variable with secure default
     admin_password = Config.ADMIN_PASSWORD
-    
+
     if password == admin_password:
         session['admin_authenticated'] = True
         session['employee_role'] = 'admin'  # Set admin role for navigation
         session['login_time'] = datetime.now().isoformat()
         session.permanent = True  # Make session permanent
         # Note: session lifetime is set in app factory
-        
+
         return redirect(url_for('admin.admin_panel')) if request.form else jsonify({'success': True})
     else:
         # Log failed login attempt
         current_app.logger.warning(f"Failed admin login attempt from {request.remote_addr} at {datetime.now()}")
-        
+
         if request.form:
             flash('Invalid password', 'error')
             return render_template('admin_login.html')
@@ -240,7 +239,7 @@ def product_config():
         with db_transaction() as conn:
             # Get all products with their tablet type and calculation details
             products = conn.execute('''
-                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id, 
+                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id,
                        COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) as category,
                        (SELECT GROUP_CONCAT(pat.tablet_type_id)
                         FROM product_allowed_tablet_types pat
@@ -249,11 +248,11 @@ def product_config():
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
-            
+
             # Check if category column exists and add it if missing
             table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
             has_category_column = any(col[1] == 'category' for col in table_info)
-            
+
             if not has_category_column:
                 try:
                     conn.execute('ALTER TABLE tablet_types ADD COLUMN category TEXT')
@@ -261,18 +260,18 @@ def product_config():
                     has_category_column = True
                 except Exception as e:
                     current_app.logger.warning(f"Warning: Could not add category column: {e}")
-            
+
             # Get all tablet types
             tablet_types_rows = conn.execute('''
-                SELECT * FROM tablet_types 
+                SELECT * FROM tablet_types
                 ORDER BY COALESCE(category, 'ZZZ'), tablet_type_name
             ''').fetchall()
             tablet_types = [dict(row) for row in tablet_types_rows]
-            
+
             # Get unique categories from tablet_types (in use)
             categories = conn.execute('''
-                SELECT DISTINCT category FROM tablet_types 
-                WHERE category IS NOT NULL AND category != "" 
+                SELECT DISTINCT category FROM tablet_types
+                WHERE category IS NOT NULL AND category != ""
                 ORDER BY category
             ''').fetchall()
             category_list = [cat['category'] for cat in categories] if categories else []
@@ -295,7 +294,7 @@ def product_config():
                         category_set.add(c)
             except Exception as e:
                 current_app.logger.warning("Warning: Could not load product_details categories: %s", e)
-            
+
             # Get created categories from app_settings (may not be in use yet)
             try:
                 created_categories_json = conn.execute('''
@@ -310,7 +309,7 @@ def product_config():
                             category_set.add(cat)
             except Exception as e:
                 current_app.logger.warning(f"Warning: Could not load created categories: {e}")
-            
+
             # Get deleted categories from app_settings
             deleted_categories_set = set()
             try:
@@ -321,7 +320,7 @@ def product_config():
                     deleted_categories_set = set(json.loads(deleted_categories_json['setting_value']))
             except Exception as e:
                 current_app.logger.warning(f"Warning: Could not load deleted categories: {e}")
-            
+
             # Get category order from app_settings
             try:
                 category_order_json = conn.execute('''
@@ -334,19 +333,19 @@ def product_config():
             except Exception as e:
                 current_app.logger.warning(f"Warning: Could not load category order: {e}")
                 preferred_order = sorted(category_list)
-            
+
             # Filter out deleted categories
             all_categories = [cat for cat in category_list if cat not in deleted_categories_set]
             all_categories.sort(key=lambda x: (preferred_order.index(x) if x in preferred_order else len(preferred_order) + 1, x))
-            
+
             # Find tablet types that don't have product configurations yet
             product_tablet_type_ids = set(p['tablet_type_id'] for p in products if p['tablet_type_id'])
             tablet_types_without_products = [tt for tt in tablet_types if tt['id'] not in product_tablet_type_ids]
-            
-            return render_template('product_config.html', 
-                                   products=products, 
-                                   tablet_types=tablet_types, 
-                                   categories=all_categories, 
+
+            return render_template('product_config.html',
+                                   products=products,
+                                   tablet_types=tablet_types,
+                                   categories=all_categories,
                                    tablet_types_without_products=tablet_types_without_products)
     except Exception as e:
         current_app.logger.error(f"Error loading product config: {str(e)}")
@@ -370,10 +369,10 @@ def manage_employees():
         with db_read_only() as conn:
             employees = conn.execute('''
                 SELECT id, username, full_name, role, is_active, created_at
-                FROM employees 
+                FROM employees
                 ORDER BY role, full_name
             ''').fetchall()
-            
+
             return render_template('employee_management.html', employees=employees)
     except Exception as e:
         current_app.logger.error(f"Error in manage_employees: {e}")

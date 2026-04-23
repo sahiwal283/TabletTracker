@@ -4,8 +4,11 @@ Submission query service for building reusable SQL queries.
 This service extracts common SQL query patterns for submissions
 to reduce duplication across blueprint files.
 """
+
 import sqlite3
-from typing import Dict, List, Optional, Sequence, Tuple, Any
+from collections.abc import Sequence
+from typing import Any
+
 from app.services.submission_calculator import calculate_submission_total_with_fallback
 
 ALLOWED_ORDER_FIELDS = {
@@ -17,10 +20,7 @@ ALLOWED_ORDER_FIELDS = {
 }
 
 
-def build_safe_order_by(
-    sort_field: Optional[str] = None,
-    sort_direction: Optional[str] = None
-) -> str:
+def build_safe_order_by(sort_field: str | None = None, sort_direction: str | None = None) -> str:
     """
     Build a safe ORDER BY clause from a whitelisted field/direction pair.
 
@@ -36,7 +36,7 @@ def build_safe_order_by(
 def build_submission_base_query(include_calculated_total: bool = True) -> str:
     """
     Build the base SELECT query for submissions with all common joins.
-    
+
     This query includes:
     - warehouse_submissions (ws)
     - purchase_orders (po)
@@ -47,21 +47,21 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
     - bags (b)
     - small_boxes (sb)
     - receiving (r)
-    
+
     Args:
         include_calculated_total: If True, includes calculated_total in SELECT
             (Note: This will be calculated in Python, not SQL, for consistency)
-    
+
     Returns:
         SQL SELECT query string (without WHERE clause)
     """
     query = '''
-        SELECT ws.*, 
-               po.po_number, 
-               po.closed as po_closed, 
-               po.id as po_id_for_filter, 
+        SELECT ws.*,
+               po.po_number,
+               po.closed as po_closed,
+               po.id as po_id_for_filter,
                po.zoho_po_id,
-               pd.packages_per_display, 
+               pd.packages_per_display,
                pd.tablets_per_package,
                COALESCE(pd.tablets_per_package, pd_fallback.tablets_per_package) as tablets_per_package_final,
                tt.inventory_item_id,
@@ -95,7 +95,7 @@ def build_submission_base_query(include_calculated_total: bool = True) -> str:
     return query
 
 
-def apply_resolved_bag_fields(sub_dict: Dict[str, Any]) -> None:
+def apply_resolved_bag_fields(sub_dict: dict[str, Any]) -> None:
     """Merge bag coordinates from JOIN onto box_number / bag_number for display.
 
     Queries use ``SELECT ws.*`` plus ``COALESCE(sb..., ws...)``. Duplicate SQLite
@@ -111,13 +111,10 @@ def apply_resolved_bag_fields(sub_dict: Dict[str, Any]) -> None:
         sub_dict["bag_number"] = rbg
 
 
-def build_submission_filters(
-    filters: Dict[str, Any],
-    base_query: Optional[str] = None
-) -> Tuple[str, List[Any]]:
+def build_submission_filters(filters: dict[str, Any], base_query: str | None = None) -> tuple[str, list[Any]]:
     """
     Build WHERE clause and parameters for submission queries.
-    
+
     Supported filters:
     - po_id: Filter by purchase order ID
     - po_number: Filter by purchase order number
@@ -129,11 +126,11 @@ def build_submission_filters(
     - date_to: Filter by date (submission_date or created_at) <= date_to
     - product_name: Filter by product name
     - employee_name: Filter by employee name
-    
+
     Args:
         filters: Dictionary of filter criteria
         base_query: Optional base query string (if None, uses build_submission_base_query)
-    
+
     Returns:
         Tuple of (complete_query_string, parameter_list)
     """
@@ -141,142 +138,138 @@ def build_submission_filters(
         query = build_submission_base_query()
     else:
         query = base_query
-    
+
     where_clauses = ['1=1']  # Start with always-true condition for easy WHERE building
     params = []
-    
+
     # PO ID filter
     if 'po_id' in filters and filters['po_id'] is not None:
         where_clauses.append('ws.assigned_po_id = ?')
         params.append(filters['po_id'])
-    
+
     # PO Number filter
     if 'po_number' in filters and filters['po_number']:
         where_clauses.append('po.po_number = ?')
         params.append(filters['po_number'])
-    
+
     # Tablet Type ID filter
     if 'tablet_type_id' in filters and filters['tablet_type_id'] is not None:
         where_clauses.append('tt.id = ?')
         params.append(filters['tablet_type_id'])
-    
+
     # Submission Type filter
     if 'submission_type' in filters and filters['submission_type']:
         where_clauses.append('COALESCE(ws.submission_type, \'packaged\') = ?')
         params.append(filters['submission_type'])
-    
+
     # Needs Review filter
     if 'needs_review' in filters and filters['needs_review'] is not None:
         if filters['needs_review']:
             where_clauses.append('COALESCE(ws.needs_review, 0) = 1')
         else:
             where_clauses.append('COALESCE(ws.needs_review, 0) = 0')
-    
+
     # PO Verified filter
     if 'po_verified' in filters and filters['po_verified'] is not None:
         if filters['po_verified']:
             where_clauses.append('COALESCE(ws.po_assignment_verified, 0) = 1')
         else:
             where_clauses.append('COALESCE(ws.po_assignment_verified, 0) = 0')
-    
+
     # Date From filter
     if 'date_from' in filters and filters['date_from']:
         where_clauses.append('COALESCE(ws.submission_date, DATE(ws.created_at)) >= ?')
         params.append(filters['date_from'])
-    
+
     # Date To filter
     if 'date_to' in filters and filters['date_to']:
         where_clauses.append('COALESCE(ws.submission_date, DATE(ws.created_at)) <= ?')
         params.append(filters['date_to'])
-    
+
     # Product Name filter
     if 'product_name' in filters and filters['product_name']:
         where_clauses.append('ws.product_name = ?')
         params.append(filters['product_name'])
-    
+
     # Employee Name filter
     if 'employee_name' in filters and filters['employee_name']:
         where_clauses.append('ws.employee_name = ?')
         params.append(filters['employee_name'])
-    
+
     # Build complete query
     query += ' WHERE ' + ' AND '.join(where_clauses)
-    
+
     return query, params
 
 
 def get_submissions_with_totals(
     conn: sqlite3.Connection,
-    filters: Optional[Dict[str, Any]] = None,
-    sort_field: Optional[str] = None,
-    sort_direction: Optional[str] = None,
-    limit: Optional[int] = None
-) -> List[Dict[str, Any]]:
+    filters: dict[str, Any] | None = None,
+    sort_field: str | None = None,
+    sort_direction: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """
     Get submissions with calculated totals using Python calculation.
-    
+
     This function executes the query and then calculates totals using
     the submission_calculator service for consistency.
-    
+
     Args:
         conn: Database connection object
         filters: Optional filter dictionary (see build_submission_filters)
         sort_field: Optional field name for sorting
         sort_direction: Optional direction ('asc' or 'desc')
         limit: Optional LIMIT clause (integer)
-    
+
     Returns:
         List of submission dictionaries with calculated_total field added
     """
     if filters is None:
         filters = {}
-    
+
     # Build query
     query, params = build_submission_filters(filters)
-    
+
     query += f' ORDER BY {build_safe_order_by(sort_field, sort_direction)}'
-    
+
     # Add LIMIT
     if limit:
         safe_limit = max(1, min(int(limit), 500))
         query += f' LIMIT {safe_limit}'
-    
+
     # Execute query
     rows = conn.execute(query, params).fetchall()
-    
+
     # Convert to dicts and calculate totals
     submissions = []
     for row in rows:
         submission_dict = dict(row)
-        
+
         # Extract product details
         product_details = None
         if submission_dict.get('packages_per_display') is not None:
             product_details = {
                 'packages_per_display': submission_dict.get('packages_per_display'),
-                'tablets_per_package': submission_dict.get('tablets_per_package')
+                'tablets_per_package': submission_dict.get('tablets_per_package'),
             }
-        
+
         fallback_product_details = None
         if submission_dict.get('tablets_per_package_final') is not None:
-            fallback_product_details = {
-                'tablets_per_package': submission_dict.get('tablets_per_package_final')
-            }
-        
+            fallback_product_details = {'tablets_per_package': submission_dict.get('tablets_per_package_final')}
+
         # Calculate total using service
         calculated_total = calculate_submission_total_with_fallback(
-            submission_dict,
-            product_details,
-            fallback_product_details
+            submission_dict, product_details, fallback_product_details
         )
-        
+
         submission_dict['calculated_total'] = calculated_total
         submissions.append(submission_dict)
-    
+
     return submissions
 
 
-def longest_common_hyphen_prefix(labels: Sequence[str]) -> Optional[str]:
+def longest_common_hyphen_prefix(labels: Sequence[str]) -> str | None:
     """
     Given full bag labels like PO-00195-3-18-1, return the longest shared prefix
     (e.g. PO-00195-3 when boxes/bags differ; PO-00195 when shipments differ).
@@ -286,9 +279,9 @@ def longest_common_hyphen_prefix(labels: Sequence[str]) -> Optional[str]:
         return None
     if len(cleaned) == 1:
         return cleaned[0]
-    parts_list: List[List[str]] = [s.split('-') for s in cleaned]
+    parts_list: list[list[str]] = [s.split('-') for s in cleaned]
     min_len = min(len(p) for p in parts_list)
-    common: List[str] = []
+    common: list[str] = []
     for i in range(min_len):
         seg = parts_list[0][i]
         if all(len(p) > i and p[i] == seg for p in parts_list):
@@ -300,7 +293,7 @@ def longest_common_hyphen_prefix(labels: Sequence[str]) -> Optional[str]:
     return '-'.join(common)
 
 
-def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id: Optional[int]) -> Optional[str]:
+def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id: int | None) -> str | None:
     """
     For bottle / variety-pack rows with no single ws.bag_id, derive a display label
     from submission_bag_deductions → bags → receiving (longest common prefix of full labels).
@@ -338,7 +331,7 @@ def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id
     ).fetchall()
     if not rows:
         return None
-    labels: List[str] = []
+    labels: list[str] = []
     for row in rows:
         d = dict(row)
         rn = (d.get('receive_name') or '').strip()
@@ -346,7 +339,7 @@ def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id
         receive_seq = d.get('receive_seq')
         bx = d.get('box_number')
         bn = d.get('bag_number')
-        base: Optional[str] = None
+        base: str | None = None
         if rn:
             base = rn
         elif po_number and receive_seq is not None:
@@ -362,4 +355,3 @@ def common_receive_label_from_deductions(conn: sqlite3.Connection, submission_id
     if not labels:
         return None
     return longest_common_hyphen_prefix(labels)
-

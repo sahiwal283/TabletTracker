@@ -3,11 +3,12 @@
 Long-lived WSGI workers keep imported ``__version__`` frozen until reload. Reading the
 file each request lets headers match the tree after ``git pull`` without restarting.
 """
+
 from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 
 def _version_py_path() -> Path:
@@ -15,7 +16,7 @@ def _version_py_path() -> Path:
     return Path(__file__).resolve().parents[2] / "__version__.py"
 
 
-def read_version_constants() -> Dict[str, Any]:
+def read_version_constants() -> dict[str, Any]:
     """Parse string constants from ``__version__.py`` (best-effort)."""
     path = _version_py_path()
     try:
@@ -26,7 +27,7 @@ def read_version_constants() -> Dict[str, Any]:
             "__title__": "TabletTracker",
             "__description__": "",
         }
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     try:
         tree = ast.parse(text)
     except SyntaxError:
