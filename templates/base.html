@@ -589,7 +589,6 @@ async function refreshOpenSubmissionsModalAfterBagAction() {
     const bagId = csd.bagId;
     const boxNumber = csd.boxNumber;
     const bagNumber = csd.bagNumber;
-    const tf = csd.typeFilter !== undefined ? csd.typeFilter : null;
 
     const existing = document.getElementById('submissions-modal');
     if (existing) {
@@ -598,18 +597,11 @@ async function refreshOpenSubmissionsModalAfterBagAction() {
     window.currentSubmissionsData = null;
 
     const path = typeof window !== 'undefined' && window.location.pathname ? window.location.pathname : '';
-    if (path.includes('purchase_orders')) {
-        await viewPOSubmissions(poId, poName, inventoryItemId, tf);
-        return true;
-    }
     if (path === '/receiving' || path === '/receiving/') {
-        if (typeof typeFilter !== 'undefined') {
-            typeFilter = tf;
-        }
         await viewPOSubmissions(poId, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
         return true;
     }
-    await viewPOSubmissions(poId, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber, tf);
+    await viewPOSubmissions(poId, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
     return true;
 }
 
@@ -954,7 +946,7 @@ function refreshSubmissionsListAfterEdit() {
     } else if (isReceivingPage) {
         viewPOSubmissions(poIdNum, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
     } else {
-        viewPOSubmissions(poIdNum, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber, typeFilter);
+        viewPOSubmissions(poIdNum, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
     }
     return true;
 }
