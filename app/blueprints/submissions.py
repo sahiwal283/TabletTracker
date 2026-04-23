@@ -679,6 +679,7 @@ def submissions_list():
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.id as po_id_for_filter, po.zoho_po_id,
                    m.machine_name AS machine_display_name,
+                   COALESCE(m.machine_role, 'sealing') AS machine_role,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (
                        SELECT pd2.tablets_per_package 

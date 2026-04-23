@@ -603,9 +603,13 @@
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Employee</th>
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Product</th>
                                             {% if active_tab == 'packaged_machine' %}
-                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Displays</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Cuts</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Blisters Made</th>
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Turns</th>
-                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Cards<span class="block text-xs font-normal">(remaining)</span></th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Cards Sealed</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Displays Made</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Cards Remaining</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-600">Ripped Cards</th>
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Bag time<span class="block text-xs font-normal">(Eastern)</span></th>
                                             {% elif active_tab == 'bottles' %}
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Displays Made</th>
@@ -620,6 +624,119 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-100">
+                                        {% if active_tab == 'packaged_machine' %}
+                                            {% set blister_rows = [] %}
+                                            {% set sealing_rows = [] %}
+                                            {% set packaging_rows = [] %}
+                                            {% for sub in group.children %}
+                                                {% if sub.submission_type == 'machine' %}
+                                                    {% if (sub.machine_role or 'sealing')|lower == 'blister' %}
+                                                        {% set _ = blister_rows.append(sub) %}
+                                                    {% else %}
+                                                        {% set _ = sealing_rows.append(sub) %}
+                                                    {% endif %}
+                                                {% elif sub.submission_type in ['packaged', 'repack'] %}
+                                                    {% set _ = packaging_rows.append(sub) %}
+                                                {% endif %}
+                                            {% endfor %}
+
+                                            {% if blister_rows %}
+                                            <tr class="bg-cyan-50">
+                                                <td colspan="15" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-cyan-900">Blister Machine</td>
+                                            </tr>
+                                            {% for sub in blister_rows %}
+                                            <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    <span class="inline-flex items-center gap-1.5 max-w-[14rem] px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800" title="{% if sub.machine_display_name %}{{ sub.machine_display_name|e }}{% elif sub.machine_id %}Machine id {{ sub.machine_id }}{% else %}Machine{% endif %}">
+                                                        <span class="shrink-0" aria-hidden="true">⚙️</span>
+                                                        {% if sub.machine_display_name %}<span class="font-semibold truncate">{{ sub.machine_display_name }}</span>{% else %}<span>Machine</span>{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-900">
+                                                    <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ (sub.displays_made or 0) * 2 }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.bag_start_time|to_est if sub.bag_start_time else '—' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.receipt_number if sub.receipt_number else 'N/A' }}</td>
+                                                {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
+                                            </tr>
+                                            {% endfor %}
+                                            {% endif %}
+
+                                            {% if sealing_rows %}
+                                            <tr class="bg-blue-50">
+                                                <td colspan="15" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-blue-900">Sealing Machine</td>
+                                            </tr>
+                                            {% for sub in sealing_rows %}
+                                            <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    <span class="inline-flex items-center gap-1.5 max-w-[14rem] px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" title="{% if sub.machine_display_name %}{{ sub.machine_display_name|e }}{% elif sub.machine_id %}Machine id {{ sub.machine_id }}{% else %}Machine{% endif %}">
+                                                        <span class="shrink-0" aria-hidden="true">⚙️</span>
+                                                        {% if sub.machine_display_name %}<span class="font-semibold truncate">{{ sub.machine_display_name }}</span>{% else %}<span>Machine</span>{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-900">
+                                                    <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining is not none else '' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.bag_start_time|to_est if sub.bag_start_time else '—' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.receipt_number if sub.receipt_number else 'N/A' }}</td>
+                                                {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
+                                            </tr>
+                                            {% endfor %}
+                                            {% endif %}
+
+                                            {% if packaging_rows %}
+                                            <tr class="bg-purple-50">
+                                                <td colspan="15" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-purple-900">Packaging</td>
+                                            </tr>
+                                            {% for sub in packaging_rows %}
+                                            <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    {% if sub.submission_type == 'repack' %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900">📦 Repack</span>
+                                                    {% else %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-900">
+                                                    <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining is not none else '' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.damaged_tablets if sub.damaged_tablets is not none else '' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.bag_end_time|to_est if sub.bag_end_time else '—' }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.receipt_number if sub.receipt_number else 'N/A' }}</td>
+                                                {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
+                                            </tr>
+                                            {% endfor %}
+                                            {% endif %}
+                                        {% else %}
                                         {% for sub in group.children %}
                                         <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
@@ -652,21 +769,12 @@
                                                           title="Click to view admin notes"
                                                           data-notes-submission-id="{{ sub.id }}"
                                                           data-admin-notes="{{ (sub.admin_notes or '') | e }}"
-                                                          onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') { showAdminNotes(this.getAttribute('data-admin-notes') || ''); } else if (typeof openAdminNotesBySubmissionId === 'function') { openAdminNotesBySubmissionId({{ sub.id }}); }">📝</button>
+                                                          onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>
                                                     {% endif %}
                                                 </div>
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.product_name }}</td>
-                                            {% if active_tab == 'packaged_machine' %}
-                                            <td class="px-3 py-2 whitespace-nowrap text-gray-600">{% if sub.submission_type != 'machine' %}{{ sub.displays_made if sub.displays_made else '' }}{% endif %}</td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-gray-600">{% if sub.submission_type == 'machine' %}{{ sub.displays_made if sub.displays_made else '' }}{% endif %}</td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining else '' }}</td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
-                                                {% if sub.submission_type == 'machine' %}{{ sub.bag_start_time|to_est if sub.bag_start_time else '—' }}
-                                                {% elif sub.submission_type == 'packaged' %}{{ sub.bag_end_time|to_est if sub.bag_end_time else '—' }}
-                                                {% else %}—{% endif %}
-                                            </td>
-                                            {% elif active_tab == 'bottles' %}
+                                            {% if active_tab == 'bottles' %}
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made else '' }}</td>
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining else '' }}</td>
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{% if sub.bottle_sealing_machine_count is not none %}{{ sub.bottle_sealing_machine_count }}{% else %}—{% endif %}</td>
@@ -678,6 +786,7 @@
                                             {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
                                         </tr>
                                         {% endfor %}
+                                        {% endif %}
                                     </tbody>
                                 </table>
                             </div>
