@@ -3350,14 +3350,14 @@ async function viewSubmissionDetails(submissionId) {
                             <!-- Sealing / other machine submission -->
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 <div class="bg-blue-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Turns</label>
+                                    <label class="text-xs text-gray-500 uppercase">Presses</label>
                                     <div class="mt-1 text-2xl font-bold text-blue-600">${sub.displays_made || 0}</div>
                                     <div class="text-xs text-gray-400 mt-1">Machine count</div>
                                 </div>
                                 <div class="bg-purple-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Cards Made</label>
+                                    <label class="text-xs text-gray-500 uppercase">Cards Sealed</label>
                                     <div class="mt-1 text-2xl font-bold text-purple-600">${sub.cards_made || sub.packs_remaining || 0}</div>
-                                    <div class="text-xs text-gray-400 mt-1">Turns × Cards Per Turn</div>
+                                    <div class="text-xs text-gray-400 mt-1">Presses × Cards Per Turn</div>
                                 </div>
                                 <div class="bg-gray-50 rounded-lg p-4">
                                     <label class="text-xs text-gray-500 uppercase">Total Tablets</label>
