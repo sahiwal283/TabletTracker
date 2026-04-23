@@ -1486,6 +1486,30 @@ def get_submission_details(submission_id):
                 or 'N/A'
             )
 
+            # For receipt-scoped timing, use first station start and last station end.
+            receipt_number = (submission_dict.get('receipt_number') or '').strip()
+            if receipt_number:
+                receipt_times = conn.execute(
+                    '''
+                    SELECT MIN(NULLIF(TRIM(bag_start_time), '')) AS station_start_time,
+                           MAX(NULLIF(TRIM(bag_end_time), '')) AS station_end_time
+                    FROM warehouse_submissions
+                    WHERE receipt_number = ?
+                    ''',
+                    (receipt_number,),
+                ).fetchone()
+                if receipt_times:
+                    rt = dict(receipt_times)
+                    submission_dict['station_start_time'] = (
+                        rt.get('station_start_time') or submission_dict.get('bag_start_time')
+                    )
+                    submission_dict['station_end_time'] = (
+                        rt.get('station_end_time') or submission_dict.get('bag_end_time')
+                    )
+            else:
+                submission_dict['station_start_time'] = submission_dict.get('bag_start_time')
+                submission_dict['station_end_time'] = submission_dict.get('bag_end_time')
+
             # Recalculate cards_made using correct machine-specific cards_per_turn (sealing only)
             if submission_type == 'machine' and machine_role_norm == 'sealing':
                 machine_count = submission_dict.get('displays_made', 0) or 0

@@ -3160,8 +3160,8 @@ async function viewSubmissionDetails(submissionId) {
             });
         };
         const stationDurationDisplay = (() => {
-            const start = parseUtcLike(sub.bag_start_time);
-            const end = parseUtcLike(sub.bag_end_time);
+            const start = parseUtcLike(sub.station_start_time || sub.bag_start_time);
+            const end = parseUtcLike(sub.station_end_time || sub.bag_end_time);
             if (!start || !end) return '—';
             const totalSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
             if (totalSeconds <= 0) return '—';
@@ -3171,8 +3171,8 @@ async function viewSubmissionDetails(submissionId) {
             if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
             return `${minutes}m ${seconds}s`;
         })();
-        const bagStartDisplay = bagTimeEastern(sub.bag_start_time);
-        const bagEndDisplay = bagTimeEastern(sub.bag_end_time);
+        const stationStartDisplay = bagTimeEastern(sub.station_start_time || sub.bag_start_time);
+        const stationEndDisplay = bagTimeEastern(sub.station_end_time || sub.bag_end_time);
         
         // Get bag deductions for bottle submissions
         const bagDeductions = data.bag_deductions || [];
@@ -3284,12 +3284,12 @@ async function viewSubmissionDetails(submissionId) {
                                     <div class="mt-1 text-gray-900">${sub.receipt_number || 'N/A'}</div>
                                 </div>
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag Start (Eastern)</label>
-                                    <div class="mt-1 text-gray-900">${bagStartDisplay}</div>
+                                    <label class="text-xs text-gray-500 uppercase">Station Start (Eastern)</label>
+                                    <div class="mt-1 text-gray-900">${stationStartDisplay}</div>
                                 </div>
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag End (Eastern)</label>
-                                    <div class="mt-1 text-gray-900">${bagEndDisplay}</div>
+                                    <label class="text-xs text-gray-500 uppercase">Station End (Eastern)</label>
+                                    <div class="mt-1 text-gray-900">${stationEndDisplay}</div>
                                 </div>
                                 <div>
                                     <label class="text-xs text-gray-500 uppercase">Station Duration</label>
