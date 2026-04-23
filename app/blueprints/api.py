@@ -1325,7 +1325,7 @@ def get_submission_details(submission_id):
     try:
         with db_read_only() as conn:
             submission = conn.execute('''
-            SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id,
+            SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id, po.vendor_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (

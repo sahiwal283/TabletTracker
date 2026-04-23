@@ -3491,11 +3491,11 @@ async function viewSubmissionDetails(submissionId) {
                             `}
                         </div>
                         
-                        <!-- Receive Information -->
+                        <!-- Bag Details -->
                         <div class="mb-6">
                             <button data-toggle-next-hidden
                                     class="w-full flex items-center justify-between text-left">
-                                <h4 class="text-lg font-semibold text-gray-900">Receive Information</h4>
+                                <h4 class="text-lg font-semibold text-gray-900">Bag Details</h4>
                                 <svg class="toggle-icon w-5 h-5 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
@@ -3503,24 +3503,41 @@ async function viewSubmissionDetails(submissionId) {
                             <div class="hidden mt-4">
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="text-xs text-gray-500 uppercase">Receive Name</label>
-                                        <div class="mt-1 text-gray-900">${sub.receive_name || 'N/A'}</div>
+                                        <label class="text-xs text-gray-500 uppercase">Bag Name</label>
+                                        <div class="mt-1 text-gray-900 font-medium">${bagNameDisplay}</div>
                                     </div>
                                     <div>
                                         <label class="text-xs text-gray-500 uppercase">Receive Date</label>
                                         <div class="mt-1 text-gray-900">${sub.received_date ? new Date(sub.received_date + ' UTC').toLocaleDateString('en-US', {timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'}) : 'N/A'}</div>
                                     </div>
                                     <div>
-                                        <label class="text-xs text-gray-500 uppercase">Bag ID</label>
-                                        <div class="mt-1 text-gray-900">${sub.bag_id || 'Not assigned'}</div>
+                                        <label class="text-xs text-gray-500 uppercase">Vendor Name</label>
+                                        <div class="mt-1 text-gray-900">${sub.vendor_name || 'N/A'}</div>
                                     </div>
                                     <div>
-                                        <label class="text-xs text-gray-500 uppercase">Bag Label Count</label>
+                                        <label class="text-xs text-gray-500 uppercase">Estimated Count (Based on Weight)</label>
                                         <div class="mt-1 text-gray-900">${sub.bag_label_count != null ? sub.bag_label_count : 'N/A'}</div>
                                     </div>
                                 </div>
                                 ${repackRecvHtml}
-                                
+
+                                <!-- Purchase Order Assignment -->
+                                <div class="mt-4 pt-4 border-t border-gray-200">
+                                    <h5 class="text-base font-semibold text-gray-700 mb-3">Purchase Order Assignment</h5>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">PO Closed</label>
+                                        <div class="mt-1">
+                                            ${sub.po_closed ? '<span class="text-red-600 font-medium">Yes</span>' : '<span class="text-green-600 font-medium">No</span>'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-500 uppercase">Assignment</label>
+                                        <div class="mt-1 text-gray-900">${sub.assigned_po_id ? 'Assigned' : 'Not assigned'}</div>
+                                    </div>
+                                </div>
+                                </div>
+
                                 <!-- Bag Check Running Totals -->
                                 <div class="mt-4 pt-4 border-t border-gray-200">
                                     <h5 class="text-base font-semibold text-gray-700 mb-3">Bag Check Running Totals</h5>
@@ -3556,45 +3573,6 @@ async function viewSubmissionDetails(submissionId) {
                                         ` : ''}
                                     </div>
                                     ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- PO Assignment -->
-                        <div class="mb-6">
-                            <button data-toggle-next-hidden
-                                    class="w-full flex items-center justify-between text-left">
-                                <h4 class="text-lg font-semibold text-gray-900">Purchase Order Assignment</h4>
-                                <svg class="toggle-icon w-5 h-5 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                </svg>
-                            </button>
-                            <div class="hidden mt-4">
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">Assigned PO ID</label>
-                                        <div class="mt-1 text-gray-900">${sub.assigned_po_id || 'Not assigned'}</div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">PO Number</label>
-                                        <div class="mt-1 text-gray-900">${sub.po_number || 'N/A'}</div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">Zoho PO ID</label>
-                                        <div class="mt-1 text-gray-900">${sub.zoho_po_id || 'N/A'}</div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">PO Closed</label>
-                                        <div class="mt-1">
-                                            ${sub.po_closed ? '<span class="text-red-600 font-medium">Yes</span>' : '<span class="text-green-600 font-medium">No</span>'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs text-gray-500 uppercase">Needs Review</label>
-                                        <div class="mt-1">
-                                            ${sub.needs_review ? '<span class="text-orange-600 font-medium">Yes</span>' : '<span class="text-gray-600">No</span>'}
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
