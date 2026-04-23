@@ -55,20 +55,10 @@
             return;
         }
 
-        // Notes trigger must win over row click/details modal.
+        // Notes icon handles itself via inline onclick in templates.
         var notesButton = el.closest('.js-admin-notes-trigger');
         if (notesButton) {
-            event.preventDefault();
             event.stopPropagation();
-            var inlineNotes = notesButton.getAttribute('data-admin-notes') || '';
-            if (inlineNotes && typeof window.showAdminNotes === 'function') {
-                window.showAdminNotes(inlineNotes);
-                return;
-            }
-            var notesId = parseInt(notesButton.getAttribute('data-notes-submission-id') || '', 10);
-            if (!Number.isNaN(notesId) && typeof window.openAdminNotesBySubmissionId === 'function') {
-                window.openAdminNotesBySubmissionId(notesId);
-            }
             return;
         }
 
