@@ -1339,6 +1339,7 @@ def get_submission_details(submission_id):
                    r.id as receive_id, r.received_date, r.receive_name as receive_name_from_receive,
                    m.machine_name, m.cards_per_turn as machine_cards_per_turn,
                    m.machine_role AS machine_role,
+                   tt.tablet_type_name,
                    (
                        SELECT COUNT(*) + 1
                        FROM receiving r2
@@ -1352,6 +1353,7 @@ def get_submission_details(submission_id):
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
             LEFT JOIN machines m ON ws.machine_id = m.id
+            LEFT JOIN tablet_types tt ON tt.inventory_item_id = ws.inventory_item_id
                 WHERE ws.id = ?
             ''', (submission_id,)).fetchone()
             
@@ -1476,6 +1478,13 @@ def get_submission_details(submission_id):
                 if machine_role_norm not in ('sealing', 'blister'):
                     machine_role_norm = 'sealing'
                 submission_dict['machine_role'] = machine_role_norm
+
+            # Prefer tablet type display name for UX; fallback to product label.
+            submission_dict['tablet_used_name'] = (
+                submission_dict.get('tablet_type_name')
+                or submission_dict.get('product_name')
+                or 'N/A'
+            )
 
             # Recalculate cards_made using correct machine-specific cards_per_turn (sealing only)
             if submission_type == 'machine' and machine_role_norm == 'sealing':

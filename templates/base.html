@@ -3139,53 +3139,40 @@ async function viewSubmissionDetails(submissionId) {
         const canManageSubmissionActions = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson | safe }}");
         const canOpenSubmissionEdit = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager', 'warehouse_staff', 'warehouse_lead'] or session.get('admin_authenticated')) | tojson | safe }}");
         
-        // Format dates - properly handle UTC timestamps
-        // submission_date is date-only (YYYY-MM-DD), created_at is full timestamp
-        const submissionDate = sub.submission_date ? (() => {
-            // Parse date-only string as local date (don't add timezone)
-            const parts = sub.submission_date.split('-');
-            if (parts.length === 3) {
-                const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                return d.toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
-            }
-            return sub.submission_date;
-        })() : 'N/A';
-        
-        const createdDate = sub.created_at ? (() => {
-            // Parse timestamp as UTC, then convert to EST
-            const utcDate = new Date(sub.created_at + (sub.created_at.includes('Z') ? '' : ' UTC'));
-            return utcDate.toLocaleString('en-US', { 
-                timeZone: 'America/New_York',
-                year: 'numeric',
-                month: 'numeric', 
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            });
-        })() : 'N/A';
-
-        // Bag times stored as UTC-naive strings (same convention as created_at); display in Eastern
-        const bagTimeEastern = (ts) => {
+        // Bag times stored as UTC-naive strings (same convention as created_at); display in Eastern.
+        const parseUtcLike = (ts) => {
             if (!ts) return '—';
             const s = String(ts).trim();
             const iso = s.includes('T') ? s : s.replace(' ', 'T');
             const utcDate = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
-            if (Number.isNaN(utcDate.getTime())) return '—';
+            if (Number.isNaN(utcDate.getTime())) return null;
+            return utcDate;
+        };
+        const bagTimeEastern = (ts) => {
+            const utcDate = parseUtcLike(ts);
+            if (!utcDate) return '—';
             return utcDate.toLocaleString('en-US', {
                 timeZone: 'America/New_York',
-                year: 'numeric',
-                month: 'numeric',
-                day: 'numeric',
                 hour: 'numeric',
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
             });
         };
-        const bagStartDisplay = sub.submission_type === 'machine' ? bagTimeEastern(sub.bag_start_time) : null;
-        const bagEndDisplay = sub.submission_type === 'packaged' ? bagTimeEastern(sub.bag_end_time) : null;
+        const stationDurationDisplay = (() => {
+            const start = parseUtcLike(sub.bag_start_time);
+            const end = parseUtcLike(sub.bag_end_time);
+            if (!start || !end) return '—';
+            const totalSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+            if (totalSeconds <= 0) return '—';
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+            return `${minutes}m ${seconds}s`;
+        })();
+        const bagStartDisplay = bagTimeEastern(sub.bag_start_time);
+        const bagEndDisplay = bagTimeEastern(sub.bag_end_time);
         
         // Get bag deductions for bottle submissions
         const bagDeductions = data.bag_deductions || [];
@@ -3281,8 +3268,8 @@ async function viewSubmissionDetails(submissionId) {
                                     <div class="mt-1 text-gray-900">${sub.product_name || 'N/A'}</div>
                                 </div>
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Inventory Item ID</label>
-                                    <div class="mt-1 text-gray-600 font-mono text-sm">${sub.inventory_item_id || 'N/A'}</div>
+                                    <label class="text-xs text-gray-500 uppercase">Tablet Used</label>
+                                    <div class="mt-1 text-gray-900">${sub.tablet_used_name || sub.tablet_type_name || sub.product_name || 'N/A'}</div>
                                 </div>
                                 <div>
                                     <label class="text-xs text-gray-500 uppercase">Box Number</label>
@@ -3297,25 +3284,17 @@ async function viewSubmissionDetails(submissionId) {
                                     <div class="mt-1 text-gray-900">${sub.receipt_number || 'N/A'}</div>
                                 </div>
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Submission Date</label>
-                                    <div class="mt-1 text-gray-900">${submissionDate}</div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Created At</label>
-                                    <div class="mt-1 text-gray-900">${createdDate}</div>
-                                </div>
-                                ${bagStartDisplay !== null ? `
-                                <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag start (Eastern)</label>
+                                    <label class="text-xs text-gray-500 uppercase">Bag Start (Eastern)</label>
                                     <div class="mt-1 text-gray-900">${bagStartDisplay}</div>
                                 </div>
-                                ` : ''}
-                                ${bagEndDisplay !== null ? `
                                 <div>
-                                    <label class="text-xs text-gray-500 uppercase">Bag end (Eastern)</label>
+                                    <label class="text-xs text-gray-500 uppercase">Bag End (Eastern)</label>
                                     <div class="mt-1 text-gray-900">${bagEndDisplay}</div>
                                 </div>
-                                ` : ''}
+                                <div>
+                                    <label class="text-xs text-gray-500 uppercase">Station Duration</label>
+                                    <div class="mt-1 text-gray-900">${stationDurationDisplay}</div>
+                                </div>
                             </div>
                         </div>
                         
