@@ -2641,7 +2641,7 @@ def get_receives_list():
 
 
 @bp.route('/api/submission/<int:submission_id>/possible-receives', methods=['GET'])
-@role_required('dashboard')
+@employee_required
 def get_possible_receives_for_submission(submission_id):
     """Get all possible receives that match a submission's flavor, box, bag"""
     try:
@@ -2939,7 +2939,7 @@ def get_possible_receives_for_submission(submission_id):
 
 
 @bp.route('/api/submission/<int:submission_id>/assign-receive', methods=['POST'])
-@role_required('dashboard')
+@employee_required
 def assign_submission_to_receive(submission_id):
     """Assign a submission to a specific receive bag"""
     try:
