@@ -55,6 +55,20 @@
             return;
         }
 
+        // Notes trigger must win over row click/details modal.
+        var notesButton = el.closest('.js-admin-notes-trigger');
+        if (notesButton) {
+            event.preventDefault();
+            event.stopPropagation();
+            var notesId = parseInt(notesButton.getAttribute('data-notes-submission-id') || '', 10);
+            if (!Number.isNaN(notesId) && typeof window.openAdminNotesBySubmissionId === 'function') {
+                window.openAdminNotesBySubmissionId(notesId);
+            } else if (typeof window.showAdminNotes === 'function') {
+                window.showAdminNotes(notesButton.getAttribute('data-admin-notes') || '');
+            }
+            return;
+        }
+
         var row = el.closest('tr[data-submission-id]');
         if (row && typeof window.viewSubmissionDetails === 'function') {
             var rowId = parseInt(row.getAttribute('data-submission-id'), 10);
