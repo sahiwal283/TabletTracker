@@ -582,6 +582,14 @@ window.openAdminNotesBySubmissionId = openAdminNotesBySubmissionId;
             if (!el) return;
             const trig = el.closest('.js-admin-notes-trigger');
             if (!trig) return;
+            const inlineNotes = trig.getAttribute('data-admin-notes') || '';
+            if (inlineNotes && typeof window.showAdminNotes === 'function') {
+                ev.preventDefault();
+                ev.stopPropagation();
+                ev.stopImmediatePropagation();
+                window.showAdminNotes(inlineNotes);
+                return;
+            }
             const sid = trig.getAttribute('data-notes-submission-id');
             if (sid) {
                 ev.preventDefault();
@@ -596,7 +604,7 @@ window.openAdminNotesBySubmissionId = openAdminNotesBySubmissionId;
             ev.preventDefault();
             ev.stopPropagation();
             ev.stopImmediatePropagation();
-            window.showAdminNotes(trig.getAttribute('data-admin-notes') || '');
+            window.showAdminNotes('');
         },
         true
     );

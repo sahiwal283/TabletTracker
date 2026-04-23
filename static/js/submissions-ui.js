@@ -60,11 +60,14 @@
         if (notesButton) {
             event.preventDefault();
             event.stopPropagation();
+            var inlineNotes = notesButton.getAttribute('data-admin-notes') || '';
+            if (inlineNotes && typeof window.showAdminNotes === 'function') {
+                window.showAdminNotes(inlineNotes);
+                return;
+            }
             var notesId = parseInt(notesButton.getAttribute('data-notes-submission-id') || '', 10);
             if (!Number.isNaN(notesId) && typeof window.openAdminNotesBySubmissionId === 'function') {
                 window.openAdminNotesBySubmissionId(notesId);
-            } else if (typeof window.showAdminNotes === 'function') {
-                window.showAdminNotes(notesButton.getAttribute('data-admin-notes') || '');
             }
             return;
         }

@@ -651,7 +651,7 @@
                                                           class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger"
                                                           title="Click to view admin notes"
                                                           data-notes-submission-id="{{ sub.id }}"
-                                                          onclick="event.stopPropagation(); event.preventDefault(); if (typeof openAdminNotesBySubmissionId === 'function') openAdminNotesBySubmissionId({{ sub.id }});">📝</button>
+                                                          data-admin-notes="{{ (sub.admin_notes or '') | e }}">📝</button>
                                                     {% endif %}
                                                 </div>
                                             </td>
