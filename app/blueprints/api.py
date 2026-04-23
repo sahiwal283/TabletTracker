@@ -1339,7 +1339,8 @@ def get_submission_details(submission_id):
                    r.id as receive_id, r.received_date, r.receive_name as receive_name_from_receive,
                    m.machine_name, m.cards_per_turn as machine_cards_per_turn,
                    m.machine_role AS machine_role,
-                   tt.tablet_type_name,
+                   tt_submission.tablet_type_name AS submission_tablet_type_name,
+                   tt_bag.tablet_type_name AS bag_tablet_type_name,
                    (
                        SELECT COUNT(*) + 1
                        FROM receiving r2
@@ -1353,7 +1354,8 @@ def get_submission_details(submission_id):
             LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
             LEFT JOIN receiving r ON sb.receiving_id = r.id
             LEFT JOIN machines m ON ws.machine_id = m.id
-            LEFT JOIN tablet_types tt ON tt.inventory_item_id = ws.inventory_item_id
+            LEFT JOIN tablet_types tt_submission ON tt_submission.inventory_item_id = ws.inventory_item_id
+            LEFT JOIN tablet_types tt_bag ON tt_bag.id = b.tablet_type_id
                 WHERE ws.id = ?
             ''', (submission_id,)).fetchone()
             
@@ -1481,7 +1483,8 @@ def get_submission_details(submission_id):
 
             # Prefer tablet type display name for UX; fallback to product label.
             submission_dict['tablet_used_name'] = (
-                submission_dict.get('tablet_type_name')
+                submission_dict.get('bag_tablet_type_name')
+                or submission_dict.get('submission_tablet_type_name')
                 or submission_dict.get('product_name')
                 or 'N/A'
             )
