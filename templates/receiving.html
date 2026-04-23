@@ -2603,6 +2603,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         const isAdminOrManager = JSON.parse("{{ (session.get('employee_role') in ['admin', 'manager', 'warehouse_lead'] or session.get('admin_authenticated')) | tojson | safe }}");
         const isAdmin = JSON.parse("{{ (session.get('employee_role') == 'admin' or session.get('admin_authenticated')) | tojson | safe }}");
         const isManager = JSON.parse("{{ (session.get('employee_role') == 'manager') | tojson | safe }}");
+        const isWarehouseLead = JSON.parse("{{ (session.get('employee_role') == 'warehouse_lead') | tojson | safe }}");
 
         // PO-wide: optional flavor filter. Bag drill-down: show all rows for the bag (machine rows may omit inventory_item_id).
         let filteredSubmissions = data.submissions;
@@ -2671,8 +2672,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     </div>
                     <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
         ${bagId !== null && bagMeta ? bagSubmissionsVerificationPanelHtml(bagMeta, {
-            bagId, receiveId, receiveName, boxNumber, bagNumber,
-            displayProductName, escBagAttr, isAdmin, isManager,
+            bagId, displayProductName,
         }) : ''}
         <div id="submissions-modal-list">
         `;
@@ -2745,33 +2745,15 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
 
         modalContent += `</div>`;
 
-        const bagClosePushFooter = (bagId !== null && bagMeta && isAdminOrManager) ? `
-                    <div class="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-6 py-4 flex flex-wrap gap-3 justify-end items-center">
-                        <span class="text-sm text-gray-600 mr-auto">
-                            ${bagMeta.status === 'Closed' ? '<span class="text-green-700 font-medium">Bag closed</span>' : '<span class="text-amber-700 font-medium">Bag open</span>'}
-                            ${bagMeta.zoho_receive_pushed ? ' · <span class="text-green-700">Pushed to Zoho</span>' : ''}
-                        </span>
-                        ${!bagMeta.zoho_receive_pushed ? `
-                        <button type="button"
-                            data-bag-close-and-push-zoho
-                            data-bag-close-and-push-zoho-bag-id="${bagId}"
-                            data-bag-close-and-push-zoho-name="${escBagAttr(bagMeta.tablet_type_name || displayProductName || 'Product')}"
-                            data-bag-close-and-push-zoho-bag-number="${bagMeta.bag_number != null ? bagMeta.bag_number : (bagNumber || 0)}"
-                            data-bag-close-and-push-zoho-box-number="${bagMeta.box_number != null ? bagMeta.box_number : (boxNumber || 0)}"
-                            data-bag-close-and-push-zoho-received="${bagMeta.received_count || 0}"
-                            data-bag-close-and-push-zoho-packaged="${bagMeta.packaged_count || 0}"
-                            data-bag-close-and-push-zoho-receive-id="${receiveId || bagMeta.receiving_id || 0}"
-                            data-bag-close-and-push-zoho-receive-name="${escBagAttr(receiveName || bagMeta.receive_name || '')}"
-                            data-bag-close-and-push-zoho-closed="${bagMeta.status === 'Closed' ? 'true' : 'false'}"
-                            data-bag-close-and-push-zoho-pushed="${bagMeta.zoho_receive_pushed ? 'true' : 'false'}"
-                            class="inline-flex items-center px-4 py-2 rounded-lg font-medium transition-colors bg-indigo-600 hover:bg-indigo-700 text-white shadow">
-                            Close &amp; push to Zoho
-                        </button>
-                        ` : ''}
-                    </div>
-        ` : '';
+        const bagModalFooter = (bagId !== null && bagMeta)
+            ? bagSubmissionsModalFooterHtml(bagMeta, {
+                bagId, receiveId, receiveName, boxNumber, bagNumber,
+                displayProductName, escBagAttr, isAdmin, isManager, isWarehouseLead,
+                showFooter: isAdminOrManager,
+            })
+            : '';
         
-        modalContent += `</div>${bagClosePushFooter}</div></div>`;
+        modalContent += `</div>${bagModalFooter}</div></div>`;
         
         const modalDiv = document.createElement('div');
         modalDiv.id = 'submissions-modal';

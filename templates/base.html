@@ -489,46 +489,18 @@ function _bagOverviewDuration(startTs, endTs) {
     return `${minutes}m ${seconds}s`;
 }
 
-/** Shared “Bag verification” + actions for bag-scoped submissions modals (receiving, dashboard). */
+/** Shared bag verification block for bag-scoped submissions modals (receiving, dashboard). */
 function bagSubmissionsVerificationPanelHtml(bagMeta, ctx) {
     const bagId = ctx.bagId;
-    const receiveId = ctx.receiveId;
-    const receiveName = ctx.receiveName;
-    const boxNumber = ctx.boxNumber;
-    const bagNumber = ctx.bagNumber;
     const displayProductName = ctx.displayProductName;
-    const escBagAttr = ctx.escBagAttr;
-    const isAdmin = ctx.isAdmin;
-    const isManager = ctx.isManager;
     if (!bagMeta || bagId == null) return '';
-    const effReceiveId = receiveId || bagMeta.receiving_id || 0;
-    const effReceiveName = receiveName || bagMeta.receive_name || '';
     const flavor = bagMeta.tablet_type_name || displayProductName || '';
-    const zohoPushed = !!(bagMeta.zoho_receive_pushed);
-    const isClosed = bagMeta.status === 'Closed';
-    const isReserved = bagMeta.reserved_for_bottles === 1 || bagMeta.reserved_for_bottles === true;
-    const safeName = escBagAttr(bagMeta.tablet_type_name || displayProductName || 'Product');
-    const safeRecv = escBagAttr(effReceiveName);
-    const safeBatchNum = escBagAttr(String(bagMeta.batch_number || ''));
-    const safeBatchSrc = escBagAttr(String(bagMeta.batch_source || ''));
     const poOpen = !bagMeta.po_closed;
     let checkLine = '';
     const cs = bagMeta.count_status;
     if (cs === 'match') checkLine = '<span class="text-green-600 font-semibold">Match</span>';
     else if (cs === 'under') checkLine = '<span class="text-amber-600 font-semibold">Under (' + Number(bagMeta.tablet_difference || 0).toLocaleString() + ')</span>';
     else if (cs === 'over') checkLine = '<span class="text-red-600 font-semibold">Over (+' + Number(bagMeta.tablet_difference || 0).toLocaleString() + ')</span>';
-    const bn = bagMeta.bag_number != null ? bagMeta.bag_number : bagNumber;
-    const bx = bagMeta.box_number != null ? bagMeta.box_number : boxNumber;
-    const canAct = isAdmin || isManager;
-    const actions = canAct && effReceiveId ? `
-        <div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-gray-200">
-            ${!zohoPushed && (isAdmin || isManager) ? `<button type="button" data-toggle-bag-reservation-id="${bagId}" data-toggle-bag-reservation-state="${isReserved}" data-toggle-bag-reservation-name="${safeName}" data-toggle-bag-reservation-bag-number="${bn}" data-toggle-bag-reservation-box-number="${bx}" data-toggle-bag-reservation-receive-id="${effReceiveId}" data-toggle-bag-reservation-receive-name="${safeRecv}" class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-slate-600 hover:text-slate-800'} underline whitespace-nowrap">${isReserved ? '🍾 Unreserve' : '📦 Reserve'}</button>` : ''}
-            <button type="button" data-open-quick-bag-batch-id="${bagId}" data-open-quick-bag-batch-name="${safeName}" data-open-quick-bag-batch-number="${bn}" data-open-quick-bag-box-number="${bx}" data-open-quick-bag-batch-number-value="${safeBatchNum}" data-open-quick-bag-batch-source="${safeBatchSrc}" data-open-quick-bag-receive-id="${effReceiveId}" data-open-quick-bag-receive-name="${safeRecv}" class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">🧾 Batch</button>
-            ${isClosed && !zohoPushed ? `<button type="button" data-open-push-zoho-bag-id="${bagId}" data-open-push-zoho-name="${safeName}" data-open-push-zoho-bag-number="${bn}" data-open-push-zoho-box-number="${bx}" data-open-push-zoho-received="${bagMeta.received_count || 0}" data-open-push-zoho-packaged="${bagMeta.packaged_count || 0}" data-open-push-zoho-receive-id="${effReceiveId}" data-open-push-zoho-receive-name="${safeRecv}" class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">📤 Push to Zoho</button>` : ''}
-            <button type="button" data-toggle-bag-closed-id="${bagId}" data-toggle-bag-closed-state="${isClosed}" data-toggle-bag-closed-name="${safeName}" data-toggle-bag-closed-bag-number="${bn}" data-toggle-bag-closed-box-number="${bx}" data-toggle-bag-closed-receive-id="${effReceiveId}" data-toggle-bag-closed-receive-name="${safeRecv}" class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">${isClosed ? '🔓 Reopen' : '🔒 Close'}</button>
-        </div>
-    ` : '';
-
     let bagTimesSection = '';
     if (bagMeta.aggregated_bag_start_time || bagMeta.aggregated_bag_end_time) {
         const bStart = _bagOverviewTimeEastern(bagMeta.aggregated_bag_start_time);
@@ -567,9 +539,70 @@ function bagSubmissionsVerificationPanelHtml(bagMeta, ctx) {
                 ${checkLine ? '<div class="mt-2">' + checkLine + '</div>' : ''}
             </div>
             ${bagTimesSection}
-            ${actions}
         </div>
     `;
+}
+
+/**
+ * Footer for bag-scoped submissions modal: status on the left, Reserve / Batch / Push to Zoho / Close on the right.
+ * ctx: bagId, receiveId, receiveName, boxNumber, bagNumber, displayProductName, escBagAttr,
+ *      isAdmin, isManager, isWarehouseLead (optional), showFooter (e.g. admin/manager/warehouse_lead).
+ */
+function bagSubmissionsModalFooterHtml(bagMeta, ctx) {
+    if (!bagMeta || ctx.bagId == null || !ctx.showFooter) {
+        return '';
+    }
+    const bagId = ctx.bagId;
+    const receiveId = ctx.receiveId;
+    const receiveName = ctx.receiveName;
+    const boxNumber = ctx.boxNumber;
+    const bagNumber = ctx.bagNumber;
+    const displayProductName = ctx.displayProductName;
+    const escBagAttr = ctx.escBagAttr;
+    const isAdmin = !!ctx.isAdmin;
+    const isManager = !!ctx.isManager;
+    const isWarehouseLead = !!ctx.isWarehouseLead;
+    const effReceiveId = receiveId || bagMeta.receiving_id || 0;
+    const effReceiveName = receiveName || bagMeta.receive_name || '';
+    const zohoPushed = !!bagMeta.zoho_receive_pushed;
+    const isClosed = bagMeta.status === 'Closed';
+    const isReserved = bagMeta.reserved_for_bottles === 1 || bagMeta.reserved_for_bottles === true;
+    const safeName = escBagAttr(bagMeta.tablet_type_name || displayProductName || 'Product');
+    const safeRecv = escBagAttr(effReceiveName);
+    const safeBatchNum = escBagAttr(String(bagMeta.batch_number || ''));
+    const safeBatchSrc = escBagAttr(String(bagMeta.batch_source || ''));
+    const bn = bagMeta.bag_number != null ? bagMeta.bag_number : bagNumber;
+    const bx = bagMeta.box_number != null ? bagMeta.box_number : boxNumber;
+    const canReserve = !zohoPushed && (isAdmin || isManager);
+    const canBagOps = !!effReceiveId && (isAdmin || isManager || isWarehouseLead);
+
+    const statusLeft = `
+                        <span class="text-sm text-gray-600">
+                            ${bagMeta.status === 'Closed' ? '<span class="text-green-700 font-medium">Bag closed</span>' : '<span class="text-amber-700 font-medium">Bag open</span>'}
+                            ${bagMeta.zoho_receive_pushed ? ' · <span class="text-green-700">Pushed to Zoho</span>' : ''}
+                        </span>`;
+
+    const parts = [];
+    if (canReserve) {
+        parts.push(`<button type="button" data-toggle-bag-reservation-id="${bagId}" data-toggle-bag-reservation-state="${isReserved}" data-toggle-bag-reservation-name="${safeName}" data-toggle-bag-reservation-bag-number="${bn}" data-toggle-bag-reservation-box-number="${bx}" data-toggle-bag-reservation-receive-id="${effReceiveId}" data-toggle-bag-reservation-receive-name="${safeRecv}" class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-slate-600 hover:text-slate-800'} underline whitespace-nowrap">${isReserved ? '🍾 Unreserve' : '📦 Reserve'}</button>`);
+    }
+    if (canBagOps) {
+        parts.push(`<button type="button" data-open-quick-bag-batch-id="${bagId}" data-open-quick-bag-batch-name="${safeName}" data-open-quick-bag-batch-number="${bn}" data-open-quick-bag-box-number="${bx}" data-open-quick-bag-batch-number-value="${safeBatchNum}" data-open-quick-bag-batch-source="${safeBatchSrc}" data-open-quick-bag-receive-id="${effReceiveId}" data-open-quick-bag-receive-name="${safeRecv}" class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">🧾 Batch</button>`);
+        if (isClosed && !zohoPushed) {
+            parts.push(`<button type="button" data-open-push-zoho-bag-id="${bagId}" data-open-push-zoho-name="${safeName}" data-open-push-zoho-bag-number="${bn}" data-open-push-zoho-box-number="${bx}" data-open-push-zoho-received="${bagMeta.received_count || 0}" data-open-push-zoho-packaged="${bagMeta.packaged_count || 0}" data-open-push-zoho-receive-id="${effReceiveId}" data-open-push-zoho-receive-name="${safeRecv}" class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">📤 Push to Zoho</button>`);
+        }
+        parts.push(`<button type="button" data-toggle-bag-closed-id="${bagId}" data-toggle-bag-closed-state="${isClosed}" data-toggle-bag-closed-name="${safeName}" data-toggle-bag-closed-bag-number="${bn}" data-toggle-bag-closed-box-number="${bx}" data-toggle-bag-closed-receive-id="${effReceiveId}" data-toggle-bag-closed-receive-name="${safeRecv}" class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">${isClosed ? '🔓 Reopen' : '🔒 Close'}</button>`);
+    }
+
+    const actionsRight = parts.length
+        ? `<div class="flex flex-wrap items-center gap-x-4 gap-y-2 justify-end">${parts.join('')}</div>`
+        : '';
+
+    return `
+                    <div class="flex-shrink-0 border-t border-gray-200 bg-gray-50 px-6 py-4 flex flex-wrap gap-3 items-center justify-between">
+                        ${statusLeft}
+                        ${actionsRight}
+                    </div>`;
 }
 
 /**
@@ -603,62 +636,6 @@ async function refreshOpenSubmissionsModalAfterBagAction() {
     }
     await viewPOSubmissions(poId, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
     return true;
-}
-
-/**
- * Close bag (if open) then open Push to Zoho modal — for bag submissions view without returning to receive.
- */
-async function closeBagAndOpenPushToZoho(bagId, productName, bagNumber, boxNumber, receivedCount, packagedCount, receiveId, receiveName, isClosed, zohoPushed) {
-    if (zohoPushed) {
-        if (typeof showError === 'function') {
-            showError('This bag was already pushed to Zoho.');
-        } else {
-            alert('This bag was already pushed to Zoho.');
-        }
-        return;
-    }
-    const ok = window.confirm(
-        isClosed
-            ? 'Open Push to Zoho for this bag? (Bag is already closed.)'
-            : 'Close this bag and open Push to Zoho? The bag will no longer accept new submissions.'
-    );
-    if (!ok) {
-        return;
-    }
-    try {
-        if (!isClosed) {
-            const response = await csrfFetch(`/api/bag/${bagId}/close`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            });
-            const data = await response.json();
-            if (!data.success) {
-                if (typeof showError === 'function') {
-                    showError(data.error || 'Failed to close bag');
-                } else {
-                    alert(data.error || 'Failed to close bag');
-                }
-                return;
-            }
-        }
-        openPushToZohoModal(
-            bagId,
-            productName || 'Product',
-            bagNumber,
-            boxNumber,
-            receivedCount || 0,
-            packagedCount || 0,
-            receiveId,
-            receiveName || ''
-        );
-    } catch (e) {
-        console.error(e);
-        if (typeof showError === 'function') {
-            showError('Failed: ' + (e.message || e));
-        } else {
-            alert('Failed: ' + e);
-        }
-    }
 }
 
 // Show admin notes - defined early (explicit window for delegated handlers in external scripts)
@@ -5416,22 +5393,6 @@ document.addEventListener('click', function (event) {
             parseInt(pushZohoOpen.dataset.openPushZohoPackaged || '0', 10),
             parseInt(pushZohoOpen.dataset.openPushZohoReceiveId || '0', 10),
             pushZohoOpen.dataset.openPushZohoReceiveName || ''
-        );
-        return;
-    }
-    const bagClosePushZoho = event.target.closest('[data-bag-close-and-push-zoho]');
-    if (bagClosePushZoho) {
-        closeBagAndOpenPushToZoho(
-            parseInt(bagClosePushZoho.dataset.bagCloseAndPushZohoBagId, 10),
-            bagClosePushZoho.dataset.bagCloseAndPushZohoName || 'Product',
-            parseInt(bagClosePushZoho.dataset.bagCloseAndPushZohoBagNumber || '0', 10),
-            parseInt(bagClosePushZoho.dataset.bagCloseAndPushZohoBoxNumber || '0', 10),
-            parseInt(bagClosePushZoho.dataset.bagCloseAndPushZohoReceived || '0', 10),
-            parseInt(bagClosePushZoho.dataset.bagCloseAndPushZohoPackaged || '0', 10),
-            parseInt(bagClosePushZoho.dataset.bagCloseAndPushZohoReceiveId || '0', 10),
-            bagClosePushZoho.dataset.bagCloseAndPushZohoReceiveName || '',
-            bagClosePushZoho.dataset.bagCloseAndPushZohoClosed === 'true',
-            bagClosePushZoho.dataset.bagCloseAndPushZohoPushed === 'true'
         );
         return;
     }
