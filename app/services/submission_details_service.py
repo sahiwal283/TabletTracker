@@ -144,8 +144,14 @@ def get_bag_submissions_payload(conn, bag_id: int) -> Dict[str, Any]:
                 tpp = int(tpp or 0)
                 total = (blisters_made * tpp) if tpp else (sub.get('tablets_pressed_into_cards') or 0)
             else:
-                tablets_pressed = sub.get('tablets_pressed_into_cards') or 0
-                total = tablets_pressed or ((sub.get('packs_remaining') or 0) * tpp)
+                # Sealing: match get_submission_details — legacy rows may store card count in
+                # tablets_pressed_into_cards; prefer max vs cards × tablets_per_package.
+                packs_remaining = sub.get('packs_remaining', 0) or 0
+                stored_tablets = sub.get('tablets_pressed_into_cards') or 0
+                tpp_i = int(tpp or 0)
+                tablets_from_cards = (packs_remaining * tpp_i) if tpp_i else 0
+                loose_tablets = sub.get('loose_tablets') or 0
+                total = max(stored_tablets, tablets_from_cards, loose_tablets, 0)
         elif submission_type == 'bottle':
             deductions = conn.execute(
                 'SELECT SUM(tablets_deducted) as total FROM submission_bag_deductions WHERE submission_id = ?',
