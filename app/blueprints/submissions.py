@@ -436,6 +436,42 @@ def _created_at_sort_timestamp(val) -> float:
         return float("-inf")
 
 
+def _parse_utc_like_datetime(val):
+    """Parse DB timestamps (UTC-like naive strings) to datetime."""
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val
+    s = str(val).strip()
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s[:26], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _duration_display(start_val, end_val) -> str:
+    """Human-readable duration between start/end timestamps."""
+    start_dt = _parse_utc_like_datetime(start_val)
+    end_dt = _parse_utc_like_datetime(end_val)
+    if not start_dt or not end_dt:
+        return "—"
+    delta_seconds = int((end_dt - start_dt).total_seconds())
+    if delta_seconds <= 0:
+        return "—"
+    hours = delta_seconds // 3600
+    minutes = (delta_seconds % 3600) // 60
+    seconds = delta_seconds % 60
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m"
+    if minutes > 0:
+        return f"{minutes}m {seconds:02d}s"
+    return f"{seconds}s"
+
+
 def _submission_calendar_date_end_ts(sub: dict) -> float:
     """
     Business calendar day from submission_date / filter_date (date-only), end-of-day UTC.
@@ -920,6 +956,10 @@ def submissions_list():
                         receive_name = sub_dict['po_number']
 
                 sub_dict['receive_name'] = receive_name
+                sub_dict['station_duration_display'] = _duration_display(
+                    sub_dict.get('bag_start_time'),
+                    sub_dict.get('bag_end_time'),
+                )
                 
                 # Store in dict by submission ID for lookup
                 submissions_dict[sub_dict.get('id')] = sub_dict
@@ -944,11 +984,17 @@ def submissions_list():
                     sub_dict['count_status'] = pre_calculated.get('count_status', 'no_bag')
                     sub_dict['has_discrepancy'] = pre_calculated.get('has_discrepancy', 0)
                     sub_dict['receive_name'] = pre_calculated.get('receive_name')
+                    sub_dict['station_duration_display'] = pre_calculated.get('station_duration_display', '—')
                 
                 # Individual calculation for display
                 individual_calc = sub_dict.get('calculated_total', 0) or 0
                 sub_dict['individual_calc'] = individual_calc
                 sub_dict['total_tablets'] = individual_calc  # Set total_tablets for frontend compatibility
+                if 'station_duration_display' not in sub_dict:
+                    sub_dict['station_duration_display'] = _duration_display(
+                        sub_dict.get('bag_start_time'),
+                        sub_dict.get('bag_end_time'),
+                    )
                 
                 submissions_processed.append(sub_dict)
             
