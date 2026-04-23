@@ -96,7 +96,7 @@ class Config:
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     TELEGRAM_ALLOWED_CHAT_IDS = _parse_int_list_env("TELEGRAM_ALLOWED_CHAT_IDS")
     TELEGRAM_ALLOWED_USER_IDS = _parse_int_list_env("TELEGRAM_ALLOWED_USER_IDS")
-    TELEGRAM_DAILY_REPORT_TIME = os.environ.get("TELEGRAM_DAILY_REPORT_TIME", "18:10").strip() or "18:10"
+    TELEGRAM_DAILY_REPORT_TIME = os.environ.get("TELEGRAM_DAILY_REPORT_TIME", "18:30").strip() or "18:30"
     
     # Database (set DATABASE_PATH in Docker to a mounted volume, e.g. /data/tablet_counter.db)
     _config_dir = os.path.dirname(os.path.abspath(__file__))

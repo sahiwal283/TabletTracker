@@ -44,7 +44,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_ALLOWED_CHAT_IDS=123456789,-1001234567890
 # Optional
 TELEGRAM_ALLOWED_USER_IDS=123456789
-TELEGRAM_DAILY_REPORT_TIME=18:10
+TELEGRAM_DAILY_REPORT_TIME=18:30
 ```
 
 **🚨 IMPORTANT SECURITY NOTES:**
@@ -185,10 +185,12 @@ Summary:
    - Point Telegram webhook to your public endpoint:
      `https://<your-domain>/api/telegram/webhook/<TELEGRAM_BOT_TOKEN>`.
    - Add allowed chat IDs in `TELEGRAM_ALLOWED_CHAT_IDS`.
-   - **Daily summary (America/New_York)**: set `TELEGRAM_DAILY_REPORT_TIME=18:10` (or your preferred `HH:MM`).
-   - Schedule a task **every minute** (or use a system cron) that runs:
+   - **Daily summary (America/New_York)**: set `TELEGRAM_DAILY_REPORT_TIME=18:30` (or your preferred `HH:MM`). This value is used by `telegram_daily_report.py --if-due` only.
+   - **PythonAnywhere: only one scheduled task?** You cannot run `--if-due` every minute on a single daily slot. Instead:
+     1. **Chain** the Telegram send onto your existing task (same bash script or add one line at the end of your existing job). Example: see `scripts/pa_daily_runner.example.sh`.
+     2. Run **`python scripts/telegram_daily_report.py` with no flags** at the end — it sends **once** when that task runs. Set the scheduled **UTC** time on PythonAnywhere to match **6:30 PM Eastern** for your season (Eastern is UTC−5 in standard time, UTC−4 in daylight time; adjust when DST changes), **or** keep your task’s current UTC time and accept the Telegram send happening at that moment instead of 6:30 PM Eastern.
+   - **If you have cron / many runs per day**: you can use `--if-due` so the send only happens in the minute that matches `TELEGRAM_DAILY_REPORT_TIME` in America/New_York (DST-safe):
      `cd ~/TabletTracker && source venv/bin/activate && python scripts/telegram_daily_report.py --if-due`
-     The script only sends when the current NY clock minute matches `TELEGRAM_DAILY_REPORT_TIME`, so DST is handled automatically.
    - Ad hoc (same “through now” logic as `/daily` in Telegram):  
      `python scripts/telegram_daily_report.py`
 

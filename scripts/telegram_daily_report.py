@@ -49,7 +49,9 @@ def main() -> int:
         action="store_true",
         help=(
             "Only send when current America/New_York clock time matches "
-            "TELEGRAM_DAILY_REPORT_TIME (HH:MM). Use with cron every minute."
+            "TELEGRAM_DAILY_REPORT_TIME (HH:MM). Requires a scheduler that runs "
+            "often (e.g. every minute). Not usable alone on a single daily "
+            "PythonAnywhere task — chain a no-flag run instead (see docs/DEPLOYMENT.md)."
         ),
     )
     args = parser.parse_args()

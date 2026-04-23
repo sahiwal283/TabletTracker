@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.10.10] - 2026-04-23
+
+### Changed
+- **Telegram daily default time** is now **18:30** America/New_York (`TELEGRAM_DAILY_REPORT_TIME`).
+
+### Added
+- **`scripts/pa_daily_runner.example.sh`**: example for PythonAnywhere when only one scheduled task is available (chain existing jobs + `telegram_daily_report.py` without `--if-due`).
+
+### Documentation
+- **DEPLOYMENT.md**: PythonAnywhere single-task limitation for `--if-due`; how to chain sends and UTC scheduling notes.
+
+---
+
 ## [3.10.9] - 2026-04-23
 
 ### Added
