@@ -619,7 +619,6 @@
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Loose Tablets</th>
                                             {% endif %}
                                             <th class="px-3 py-2 text-left font-medium text-gray-600">Total</th>
-                                                                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Bag</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-100">
@@ -641,7 +640,7 @@
 
                                             {% if blister_rows %}
                                             <tr class="bg-cyan-50">
-                                                <td colspan="14" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-cyan-900">Blister Machine</td>
+                                                <td colspan="13" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-cyan-900">Blister Machine</td>
                                             </tr>
                                             {% for sub in blister_rows %}
                                             <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
@@ -665,14 +664,13 @@
                                                 <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
                                                 <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.station_duration_display or '—' }}</td>
                                                 <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
-                                                                                                {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
                                             </tr>
                                             {% endfor %}
                                             {% endif %}
 
                                             {% if sealing_rows %}
                                             <tr class="bg-blue-50">
-                                                <td colspan="14" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-blue-900">Sealing Machine</td>
+                                                <td colspan="13" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-blue-900">Sealing Machine</td>
                                             </tr>
                                             {% for sub in sealing_rows %}
                                             <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
@@ -696,14 +694,13 @@
                                                 <td class="px-3 py-2 whitespace-nowrap text-gray-400">—</td>
                                                 <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.station_duration_display or '—' }}</td>
                                                 <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
-                                                                                                {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
                                             </tr>
                                             {% endfor %}
                                             {% endif %}
 
                                             {% if packaging_rows %}
                                             <tr class="bg-purple-50">
-                                                <td colspan="14" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-purple-900">Packaging</td>
+                                                <td colspan="13" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-purple-900">Packaging</td>
                                             </tr>
                                             {% for sub in packaging_rows %}
                                             <tr class="hover:bg-gray-50 cursor-pointer {% if sub.po_closed %}opacity-75{% endif %}" data-submission-id="{{ sub.id }}">
@@ -728,7 +725,6 @@
                                                 <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.damaged_tablets if sub.damaged_tablets is not none else '' }}</td>
                                                 <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">{{ sub.station_duration_display or '—' }}</td>
                                                 <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
-                                                                                                {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
                                             </tr>
                                             {% endfor %}
                                             {% endif %}
@@ -778,7 +774,6 @@
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.loose_tablets if sub.loose_tablets else '' }}</td>
                                             {% endif %}
                                             <td class="px-3 py-2 whitespace-nowrap font-semibold text-gray-900">{{ sub.individual_calc }}</td>
-                                                                                        {{ submission_bag_cell_td(sub, 'px-3 py-2 whitespace-nowrap text-base') }}
                                         </tr>
                                         {% endfor %}
                                         {% endif %}
