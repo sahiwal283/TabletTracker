@@ -1482,8 +1482,9 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                 </button>
                                 `}
                             <div class="flex-1 text-center">
-                                <h3 class="text-xl font-bold">📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}-${boxNumber}-${bagNumber}` : (receiveName ? `for ${receiveName}` : `for ${poRef.po_number}`)}</h3>
-                                ${receiveName && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
+                                <h3 class="text-xl font-bold">${bagId !== null && receiveName && boxNumber !== null && bagNumber !== null ? `🎒 Bag overview · ${receiveName}-${boxNumber}-${bagNumber}` : `📋 Submissions ${receiveName && boxNumber !== null && bagNumber !== null ? `for ${receiveName}-${boxNumber}-${bagNumber}` : (receiveName ? `for ${receiveName}` : `for ${poRef.po_number}`)}`}</h3>
+                                ${bagId !== null && receiveName && boxNumber !== null && bagNumber !== null ? `<p class="text-sm text-blue-200/90 mt-0.5 font-normal">Verification, totals, and submissions for this bag</p>` : ''}
+                                ${boxNumber !== null && bagNumber !== null && !(bagId !== null && receiveName) ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
                                 ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">
                                     ${filteredSubmissions.length} submission(s) total
