@@ -1548,12 +1548,12 @@ def get_submission_details(submission_id):
                     submission_dict['cards_per_turn'] = None
                     submission_dict['machine_name'] = machine_name
                 else:
-                    # Sealing: total tablets pressed into cards is stored in tablets_pressed_into_cards
+                    # Sealing: normalize legacy rows where tablets_pressed_into_cards was stored as cards.
                     packs_remaining = submission_dict.get('packs_remaining', 0) or 0
-                    submission_dict['individual_calc'] = (submission_dict.get('tablets_pressed_into_cards') or
-                                                         submission_dict.get('loose_tablets') or
-                                                         (packs_remaining * tablets_per_package) or
-                                                         0)
+                    stored_tablets = submission_dict.get('tablets_pressed_into_cards') or 0
+                    tablets_from_cards = (packs_remaining * tablets_per_package) or 0
+                    loose_tablets = submission_dict.get('loose_tablets') or 0
+                    submission_dict['individual_calc'] = max(stored_tablets, tablets_from_cards, loose_tablets, 0)
                     submission_dict['total_tablets'] = submission_dict['individual_calc']
                     submission_dict['cards_per_turn'] = cards_per_turn
                     submission_dict['machine_name'] = machine_name

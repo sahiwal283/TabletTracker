@@ -741,7 +741,21 @@ def submissions_list():
                    COALESCE(b.bag_number, ws.bag_number) AS resolved_bag_number,
                    CASE COALESCE(ws.submission_type, 'packaged')
                        WHEN 'machine' THEN COALESCE(
-                           ws.tablets_pressed_into_cards,
+                           CASE
+                               WHEN COALESCE(m.machine_role, 'sealing') = 'sealing' THEN
+                                   MAX(
+                                       COALESCE(ws.tablets_pressed_into_cards, 0),
+                                       COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, (
+                                           SELECT pd2.tablets_per_package 
+                                           FROM product_details pd2
+                                           JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                                           WHERE tt2.inventory_item_id = ws.inventory_item_id
+                                           LIMIT 1
+                                       ), 0)
+                                   )
+                               ELSE
+                                   COALESCE(ws.tablets_pressed_into_cards, 0)
+                           END,
                            ws.loose_tablets,
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
                                SELECT pd2.tablets_per_package 
@@ -1182,6 +1196,7 @@ def export_submissions_csv():
             query = '''
             SELECT ws.*, po.po_number, po.closed as po_closed,
                    m.machine_name AS machine_display_name,
+                   COALESCE(m.machine_role, 'sealing') AS machine_role,
                    pd.packages_per_display, pd.tablets_per_package,
                    COALESCE(pd.tablets_per_package, (
                        SELECT pd2.tablets_per_package 
@@ -1196,7 +1211,21 @@ def export_submissions_csv():
                    COALESCE(ws.submission_date, DATE(ws.created_at)) as filter_date,
                    CASE COALESCE(ws.submission_type, 'packaged')
                        WHEN 'machine' THEN COALESCE(
-                           ws.tablets_pressed_into_cards,
+                           CASE
+                               WHEN COALESCE(m.machine_role, 'sealing') = 'sealing' THEN
+                                   MAX(
+                                       COALESCE(ws.tablets_pressed_into_cards, 0),
+                                       COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, (
+                                           SELECT pd2.tablets_per_package 
+                                           FROM product_details pd2
+                                           JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
+                                           WHERE tt2.inventory_item_id = ws.inventory_item_id
+                                           LIMIT 1
+                                       ), 0)
+                                   )
+                               ELSE
+                                   COALESCE(ws.tablets_pressed_into_cards, 0)
+                           END,
                            ws.loose_tablets,
                            (ws.packs_remaining * COALESCE(pd.tablets_per_package, (
                                SELECT pd2.tablets_per_package 
