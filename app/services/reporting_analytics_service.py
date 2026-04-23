@@ -1045,7 +1045,7 @@ def _percentile_sorted(sorted_vals: list[float], p: float) -> float | None:
     return round(sorted_vals[idx], 6)
 
 
-def _summary_stats(rates: list[float], loss_sum: int, den_sum: int) -> dict[str, Any]:
+def _summary_stats(rates: list[float], error_sum: int, den_sum: int) -> dict[str, Any]:
     if not rates:
         return {
             "n": 0,
@@ -1053,18 +1053,18 @@ def _summary_stats(rates: list[float], loss_sum: int, den_sum: int) -> dict[str,
             "weighted_mean": None,
             "median": None,
             "p90": None,
-            "sum_loss": 0,
+            "sum_error": 0,
             "sum_den": 0,
         }
     sr = sorted(rates)
-    wmean = (loss_sum / den_sum) if den_sum > 0 else None
+    wmean = (error_sum / den_sum) if den_sum > 0 else None
     return {
         "n": len(rates),
         "mean": round(sum(rates) / len(rates), 6),
         "weighted_mean": round(wmean, 6) if wmean is not None else None,
         "median": _percentile_sorted(sr, 0.5),
         "p90": _percentile_sorted(sr, 0.9),
-        "sum_loss": int(loss_sum),
+        "sum_error": int(error_sum),
         "sum_den": int(den_sum),
     }
 
@@ -1077,7 +1077,7 @@ def aggregate_stage_yield(
     machine_id: int | None = None,
 ) -> dict[str, Any]:
     """
-    Summarize per-bag stage-yield over a date window (one row per bag in window).
+    Summarize per-bag counter error (stage transitions) over a date window.
     Excludes anomalous negative transitions for aggregate rate stats.
     """
     from app.services.bag_check_totals import compute_bag_check_totals
@@ -1098,21 +1098,21 @@ def aggregate_stage_yield(
     ).fetchall()
     bag_ids = [r["bag_id"] for r in rows]
 
-    # Per-transition accumulators: lists of per-bag rates, and sum(loss), sum(denom) for weighted mean
+    # Per-transition accumulators: per-bag rates, and sum(error), sum(denom) for weighted mean
     def collect() -> dict[str, Any]:
         b_s_t_r: list[float] = []
         s_p_t_r: list[float] = []
         b_p_t_r: list[float] = []
-        b_s_t_loss = b_s_t_den = 0
-        s_p_t_loss = s_p_t_den = 0
-        b_p_t_loss = b_p_t_den = 0
+        b_s_t_err = b_s_t_den = 0
+        s_p_t_err = s_p_t_den = 0
+        b_p_t_err = b_p_t_den = 0
 
         b_s_c_r: list[float] = []
         s_p_c_r: list[float] = []
         b_p_c_r: list[float] = []
-        b_s_c_loss = b_s_c_den = 0
-        s_p_c_loss = s_p_c_den = 0
-        b_p_c_loss = b_p_c_den = 0
+        b_s_c_err = b_s_c_den = 0
+        s_p_c_err = s_p_c_den = 0
+        b_p_c_err = b_p_c_den = 0
 
         bags_included = 0
         bags_all_zero = 0
@@ -1140,11 +1140,11 @@ def aggregate_stage_yield(
                 ps = m.get("primary_sealing_machine_id")
                 if pb != machine_id and ps != machine_id:
                     continue
-            q = m.get("stage_yield_quality") or {}
-            rates_t = m.get("stage_transition_loss_rates") or {}
-            rates_c = m.get("stage_transition_loss_rates_cards") or {}
-            losses_t = m.get("stage_transition_losses_tablets") or {}
-            losses_c = m.get("stage_transition_losses_cards") or {}
+            q = m.get("stage_error_quality") or {}
+            rates_t = m.get("stage_transition_error_rates") or {}
+            rates_c = m.get("stage_transition_error_rates_cards") or {}
+            err_t = m.get("stage_transition_errors_tablets") or {}
+            err_c = m.get("stage_transition_errors_cards") or {}
             bl = m.get("blisters_from_blister_counter", 0) or 0
             cs = m.get("cards_from_sealing_counter", 0) or 0
 
@@ -1152,38 +1152,38 @@ def aggregate_stage_yield(
 
             if B > 0 and S > 0 and not q.get("negative_blister_to_sealing"):
                 r = rates_t.get("blister_to_sealing")
-                if r is not None and losses_t.get("blister_to_sealing") is not None:
+                if r is not None and err_t.get("blister_to_sealing") is not None:
                     b_s_t_r.append(float(r))
-                    b_s_t_loss += int(losses_t["blister_to_sealing"] or 0)
+                    b_s_t_err += int(err_t["blister_to_sealing"] or 0)
                     b_s_t_den += B
                 rc = rates_c.get("blister_to_sealing")
-                if rc is not None and losses_c.get("blister_to_sealing") is not None and bl > 0:
+                if rc is not None and err_c.get("blister_to_sealing") is not None and bl > 0:
                     b_s_c_r.append(float(rc))
-                    b_s_c_loss += int(losses_c["blister_to_sealing"] or 0)
+                    b_s_c_err += int(err_c["blister_to_sealing"] or 0)
                     b_s_c_den += bl
 
             if S > 0 and P > 0 and not q.get("negative_sealing_to_packaged"):
                 r = rates_t.get("sealing_to_packaged")
-                if r is not None and losses_t.get("sealing_to_packaged") is not None:
+                if r is not None and err_t.get("sealing_to_packaged") is not None:
                     s_p_t_r.append(float(r))
-                    s_p_t_loss += int(losses_t["sealing_to_packaged"] or 0)
+                    s_p_t_err += int(err_t["sealing_to_packaged"] or 0)
                     s_p_t_den += S
                 rc = rates_c.get("sealing_to_packaged")
-                if rc is not None and cs > 0 and losses_c.get("sealing_to_packaged") is not None:
+                if rc is not None and cs > 0 and err_c.get("sealing_to_packaged") is not None:
                     s_p_c_r.append(float(rc))
-                    s_p_c_loss += int(losses_c["sealing_to_packaged"] or 0)
+                    s_p_c_err += int(err_c["sealing_to_packaged"] or 0)
                     s_p_c_den += cs
 
             if B > 0 and P > 0 and not q.get("negative_blister_to_packaged"):
                 r = rates_t.get("blister_to_packaged")
-                if r is not None and losses_t.get("blister_to_packaged") is not None:
+                if r is not None and err_t.get("blister_to_packaged") is not None:
                     b_p_t_r.append(float(r))
-                    b_p_t_loss += int(losses_t["blister_to_packaged"] or 0)
+                    b_p_t_err += int(err_t["blister_to_packaged"] or 0)
                     b_p_t_den += B
                 rc = rates_c.get("blister_to_packaged")
-                if rc is not None and bl > 0 and losses_c.get("blister_to_packaged") is not None:
+                if rc is not None and bl > 0 and err_c.get("blister_to_packaged") is not None:
                     b_p_c_r.append(float(rc))
-                    b_p_c_loss += int(losses_c["blister_to_packaged"] or 0)
+                    b_p_c_err += int(err_c["blister_to_packaged"] or 0)
                     b_p_c_den += bl
 
         return {
@@ -1197,14 +1197,14 @@ def aggregate_stage_yield(
                 "machine_id": machine_id,
             },
             "tablets": {
-                "blister_to_sealing": _summary_stats(b_s_t_r, b_s_t_loss, b_s_t_den),
-                "sealing_to_packaged": _summary_stats(s_p_t_r, s_p_t_loss, s_p_t_den),
-                "blister_to_packaged": _summary_stats(b_p_t_r, b_p_t_loss, b_p_t_den),
+                "blister_to_sealing": _summary_stats(b_s_t_r, b_s_t_err, b_s_t_den),
+                "sealing_to_packaged": _summary_stats(s_p_t_r, s_p_t_err, s_p_t_den),
+                "blister_to_packaged": _summary_stats(b_p_t_r, b_p_t_err, b_p_t_den),
             },
             "cards": {
-                "blister_to_sealing": _summary_stats(b_s_c_r, b_s_c_loss, b_s_c_den),
-                "sealing_to_packaged": _summary_stats(s_p_c_r, s_p_c_loss, s_p_c_den),
-                "blister_to_packaged": _summary_stats(b_p_c_r, b_p_c_loss, b_p_c_den),
+                "blister_to_sealing": _summary_stats(b_s_c_r, b_s_c_err, b_s_c_den),
+                "sealing_to_packaged": _summary_stats(s_p_c_r, s_p_c_err, s_p_c_den),
+                "blister_to_packaged": _summary_stats(b_p_c_r, b_p_c_err, b_p_c_den),
             },
         }
 

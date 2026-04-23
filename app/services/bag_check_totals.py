@@ -177,13 +177,14 @@ def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
     S = machine_sealing_tablets_total
     P = packaged_tablets_total
 
-    loss_b_s_tablets = max(0, B - S)
-    loss_s_p_tablets = max(0, S - P)
-    loss_b_p_tablets = max(0, B - P)
+    # Non-negative delta = "error" between counters / counter vs packed (not always physical loss)
+    err_b_s_tablets = max(0, B - S)
+    err_s_p_tablets = max(0, S - P)
+    err_b_p_tablets = max(0, B - P)
 
-    loss_b_s_cards = max(0, blisters_from_blister_counter - cards_from_sealing_counter)
-    loss_s_p_cards = max(0, cards_from_sealing_counter - cards_in_packaged_output)
-    loss_b_p_cards = max(0, blisters_from_blister_counter - cards_in_packaged_output)
+    err_b_s_cards = max(0, blisters_from_blister_counter - cards_from_sealing_counter)
+    err_s_p_cards = max(0, cards_from_sealing_counter - cards_in_packaged_output)
+    err_b_p_cards = max(0, blisters_from_blister_counter - cards_in_packaged_output)
 
     neg_b_s = (B > 0 and S > 0 and S > B) or (
         blisters_from_blister_counter > 0
@@ -200,36 +201,36 @@ def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
     }
     incomplete_pipeline = not all(pipeline_stages_present.values())
 
-    stage_transition_losses_tablets = {
-        'blister_to_sealing': loss_b_s_tablets if (B > 0 and S > 0) else None,
-        'sealing_to_packaged': loss_s_p_tablets if (S > 0 and P > 0) else None,
-        'blister_to_packaged': loss_b_p_tablets if (B > 0 and P > 0) else None,
+    stage_transition_errors_tablets = {
+        'blister_to_sealing': err_b_s_tablets if (B > 0 and S > 0) else None,
+        'sealing_to_packaged': err_s_p_tablets if (S > 0 and P > 0) else None,
+        'blister_to_packaged': err_b_p_tablets if (B > 0 and P > 0) else None,
     }
-    stage_transition_loss_rates: dict[str, float | None] = {
-        'blister_to_sealing': _safe_rate(loss_b_s_tablets, B) if B > 0 and S > 0 else None,
-        'sealing_to_packaged': _safe_rate(loss_s_p_tablets, S) if S > 0 and P > 0 else None,
-        'blister_to_packaged': _safe_rate(loss_b_p_tablets, B) if B > 0 and P > 0 else None,
+    stage_transition_error_rates: dict[str, float | None] = {
+        'blister_to_sealing': _safe_rate(err_b_s_tablets, B) if B > 0 and S > 0 else None,
+        'sealing_to_packaged': _safe_rate(err_s_p_tablets, S) if S > 0 and P > 0 else None,
+        'blister_to_packaged': _safe_rate(err_b_p_tablets, B) if B > 0 and P > 0 else None,
     }
-    stage_transition_losses_cards: dict[str, int | None] = {
+    stage_transition_errors_cards: dict[str, int | None] = {
         'blister_to_sealing': (
-            loss_b_s_cards if blisters_from_blister_counter > 0 and cards_from_sealing_counter > 0 else None
+            err_b_s_cards if blisters_from_blister_counter > 0 and cards_from_sealing_counter > 0 else None
         ),
         'sealing_to_packaged': (
-            loss_s_p_cards
+            err_s_p_cards
             if S > 0 and P > 0 and (cards_from_sealing_counter > 0 or cards_in_packaged_output > 0)
             else None
         ),
-        'blister_to_packaged': (loss_b_p_cards if blisters_from_blister_counter > 0 and P > 0 else None),
+        'blister_to_packaged': (err_b_p_cards if blisters_from_blister_counter > 0 and P > 0 else None),
     }
 
-    stage_transition_loss_rates_cards: dict[str, float | None] = {
-        'blister_to_sealing': _safe_rate(loss_b_s_cards, blisters_from_blister_counter)
+    stage_transition_error_rates_cards: dict[str, float | None] = {
+        'blister_to_sealing': _safe_rate(err_b_s_cards, blisters_from_blister_counter)
         if blisters_from_blister_counter > 0 and cards_from_sealing_counter > 0
         else None,
-        'sealing_to_packaged': _safe_rate(loss_s_p_cards, cards_from_sealing_counter)
+        'sealing_to_packaged': _safe_rate(err_s_p_cards, cards_from_sealing_counter)
         if S > 0 and P > 0 and cards_from_sealing_counter > 0
         else None,
-        'blister_to_packaged': _safe_rate(loss_b_p_cards, blisters_from_blister_counter)
+        'blister_to_packaged': _safe_rate(err_b_p_cards, blisters_from_blister_counter)
         if blisters_from_blister_counter > 0 and P > 0
         else None,
     }
@@ -257,7 +258,7 @@ def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
         'tablet_difference': tablet_difference,
         'aggregated_bag_start_time': first_bag_start,
         'aggregated_bag_end_time': last_bag_end,
-        # Stage yield (counter / physical pack analytics)
+        # Counter / machine error vs next step or vs packed output
         'blisters_from_blister_counter': blisters_from_blister_counter,
         'cards_from_sealing_counter': cards_from_sealing_counter,
         'cards_in_packaged_output': cards_in_packaged_output,
@@ -266,11 +267,11 @@ def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
         'primary_sealing_machine_id': primary_sealing_machine_id,
         'pipeline_stages_present': pipeline_stages_present,
         'incomplete_pipeline': incomplete_pipeline,
-        'stage_transition_losses_tablets': stage_transition_losses_tablets,
-        'stage_transition_loss_rates': stage_transition_loss_rates,
-        'stage_transition_losses_cards': stage_transition_losses_cards,
-        'stage_transition_loss_rates_cards': stage_transition_loss_rates_cards,
-        'stage_yield_quality': {
+        'stage_transition_errors_tablets': stage_transition_errors_tablets,
+        'stage_transition_error_rates': stage_transition_error_rates,
+        'stage_transition_errors_cards': stage_transition_errors_cards,
+        'stage_transition_error_rates_cards': stage_transition_error_rates_cards,
+        'stage_error_quality': {
             'negative_blister_to_sealing': bool(neg_b_s),
             'negative_sealing_to_packaged': bool(neg_s_p),
             'negative_blister_to_packaged': bool(neg_b_p),

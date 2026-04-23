@@ -342,7 +342,7 @@
     }
 
     function renderStageYield(data) {
-        var errEl = document.getElementById('reports_stage_yield_error');
+        var errEl = document.getElementById('reports_counter_error_msg');
         var foot = document.getElementById('reports_stage_yield_foot');
         var tBody = document.getElementById('reports_stage_yield_tablets_body');
         var cBody = document.getElementById('reports_stage_yield_cards_body');

@@ -309,7 +309,7 @@ def reports_updates():
 @bp.route('/api/reports/stage-yield', methods=['GET'])
 @role_required('reports')
 def reports_stage_yield():
-    """Per-bag stage transition loss rates (tablets + cards) over a date window."""
+    """Per-bag counter error rates (tablets + cards) over a date window."""
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     tablet_type_id = request.args.get('tablet_type_id', type=int)

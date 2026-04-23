@@ -198,22 +198,22 @@
         </div>
 
         <div class="rounded-xl border border-gray-200 p-4 bg-white/80 mt-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-1">Counter loss (stage yield)</h4>
-            <p class="text-xs text-gray-600 mb-2">How much is “lost” between production steps for the <strong>same date and flavor</strong> filters as above. Unusual rows (e.g. more packaged than the sealing count suggests) are left out of these averages so numbers stay trustworthy.</p>
+            <h4 class="text-sm font-semibold text-gray-700 mb-1">Counter error (sealing, blister, vs packed)</h4>
+            <p class="text-xs text-gray-600 mb-2">Gap between <strong>machine / room counters</strong> and the next count (or what was actually packed) for the <strong>same date and flavor</strong> as above. This is <strong>error / mismatch</strong>, not only physical loss (warmup, re-press, and bad counts show up the same). Unusual rows (e.g. more packed than the sealing count) are excluded from these averages.</p>
             <ul class="text-xs text-gray-600 list-disc pl-4 mb-3 space-y-0.5">
-                <li><strong>Bags in sample</strong> — how many physical bags are included in that row (differs by row because not every bag goes through every step in the time window).</li>
-                <li><strong>Blended %</strong> — one overall loss rate for the period; larger runs count more than tiny ones.</li>
-                <li><strong>Typical bag (median)</strong> — the “middle” bag: half the bags were better, half were worse than this %.</li>
-                <li><strong>90th %ile (stress)</strong> — 90% of bags were <em>at or below</em> this loss %; the worst 10% of bags were higher. Useful when planning for a bad day, not a single worst bag.</li>
+                <li><strong>Bags in sample</strong> — how many physical bags are included in that row (differs by row because not every bag has every step in the window).</li>
+                <li><strong>Blended %</strong> — one overall error % for the period; larger runs count more than tiny ones.</li>
+                <li><strong>Typical bag (median)</strong> — the “middle” bag: half lower error %, half higher.</li>
+                <li><strong>90th %ile (stress)</strong> — 90% of bags were <em>at or below</em> this error %; the worst 10% were higher (use for a “bad day” plan, not one freak bag).</li>
             </ul>
-            <div id="reports_stage_yield_error" class="hidden text-sm text-red-600 mb-2"></div>
+            <div id="reports_counter_error_msg" class="hidden text-sm text-red-600 mb-2"></div>
             <div id="reports_stage_yield_tablets_wrap" class="overflow-x-auto mb-4 text-sm">
                 <div class="text-xs font-semibold text-gray-600 mb-1">By tablet count</div>
                 <table class="min-w-full divide-y divide-gray-200 text-xs" id="reports_stage_yield_tablets">
                     <thead class="bg-gray-50"><tr>
                         <th class="px-2 py-1.5 text-left">Step</th>
                         <th class="px-2 py-1.5 text-right" title="Bags included in this row">Bags in sample</th>
-                        <th class="px-2 py-1.5 text-right" title="Period-wide loss % (weighted by size)">Blended %</th>
+                        <th class="px-2 py-1.5 text-right" title="Period-wide error % (weighted by size)">Blended %</th>
                         <th class="px-2 py-1.5 text-right" title="50th percentile — typical bag">Typical %</th>
                         <th class="px-2 py-1.5 text-right" title="90th percentile — 90% of bags at or below this %">90th %ile (stress)</th>
                     </tr></thead>
@@ -226,7 +226,7 @@
                     <thead class="bg-gray-50"><tr>
                         <th class="px-2 py-1.5 text-left">Step</th>
                         <th class="px-2 py-1.5 text-right" title="Bags included in this row">Bags in sample</th>
-                        <th class="px-2 py-1.5 text-right" title="Period-wide loss % (weighted by size)">Blended %</th>
+                        <th class="px-2 py-1.5 text-right" title="Period-wide error % (weighted by size)">Blended %</th>
                         <th class="px-2 py-1.5 text-right" title="50th percentile — typical bag">Typical %</th>
                         <th class="px-2 py-1.5 text-right" title="90th percentile — 90% of bags at or below this %">90th %ile (stress)</th>
                     </tr></thead>

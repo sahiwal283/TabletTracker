@@ -103,8 +103,8 @@ class TestBagStageYield(unittest.TestCase):
         self.assertTrue(m["pipeline_stages_present"]["blisters"])
         self.assertTrue(m["pipeline_stages_present"]["sealing"])
         self.assertTrue(m["pipeline_stages_present"]["packaged"])
-        self.assertIsNotNone(m["stage_transition_losses_tablets"]["sealing_to_packaged"])
-        self.assertIsNotNone(m["stage_transition_losses_cards"]["sealing_to_packaged"])
+        self.assertIsNotNone(m["stage_transition_errors_tablets"]["sealing_to_packaged"])
+        self.assertIsNotNone(m["stage_transition_errors_cards"]["sealing_to_packaged"])
         # primary machine ids
         self.assertEqual(m["primary_blister_machine_id"], 10)
         self.assertEqual(m["primary_sealing_machine_id"], 20)
