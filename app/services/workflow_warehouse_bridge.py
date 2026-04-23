@@ -368,7 +368,20 @@ def upsert_packaged_from_workflow_packaging(
         receipt = f"{base}-pkg-e{int(event_id)}"
     else:
         receipt = base
-    if event_id is None:
+    if _has_manual_receipt(wb):
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE submission_type = 'packaged'
+              AND (
+                receipt_number = ?
+                OR receipt_number LIKE ?
+                OR receipt_number LIKE ?
+              )
+            """,
+            (base, base + "-pkg-e%", base + "-take-e%"),
+        )
+    elif event_id is None:
         conn.execute(
             """
             DELETE FROM warehouse_submissions
@@ -841,6 +854,7 @@ def upsert_machine_from_workflow_scan(
     receipt = workflow_machine_lane_receipt_number(
         workflow_bag_id, key, event_id, workflow_bag=wb
     )
+    base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
     lane_label = "sealing" if key == "seal" else "blister"
     admin_notes = (
         f"QR workflow {lane_label} sync (workflow_bag_id={workflow_bag_id}, "
@@ -854,6 +868,25 @@ def upsert_machine_from_workflow_scan(
         return {"ok": False, "reason": "invalid_count_total", "skipped": True}
 
     exact_receipt = _has_manual_receipt(wb)
+    if exact_receipt:
+        legacy_rows = conn.execute(
+            """
+            SELECT DISTINCT receipt_number
+            FROM warehouse_submissions
+            WHERE submission_type = 'machine'
+              AND receipt_number LIKE ?
+            """,
+            (base + f"-{key}%",),
+        ).fetchall()
+        for lr in legacy_rows:
+            legacy_receipt = dict(lr).get("receipt_number")
+            if legacy_receipt:
+                _delete_workflow_machine_lane_rows(
+                    conn,
+                    str(legacy_receipt),
+                    tablet_type_id,
+                    machine_id=machine_id,
+                )
     if count_total == 0:
         cleared = _delete_workflow_machine_lane_rows(
             conn,
