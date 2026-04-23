@@ -362,17 +362,17 @@
         }
         var t = data.tablets || {};
         var c = data.cards || {};
-        renderStageYieldRow(tBody, 'Blister room → sealing (counters)', t.blister_to_sealing);
-        renderStageYieldRow(tBody, 'Sealing → packaged', t.sealing_to_packaged);
-        renderStageYieldRow(tBody, 'Blister → packaged (end-to-end)', t.blister_to_packaged);
-        renderStageYieldRow(cBody, 'Blister room → sealing', c.blister_to_sealing);
-        renderStageYieldRow(cBody, 'Sealing → packaged', c.sealing_to_packaged);
-        renderStageYieldRow(cBody, 'Blister → packaged', c.blister_to_packaged);
+        renderStageYieldRow(tBody, 'Blister counter vs sealing counter', t.blister_to_sealing);
+        renderStageYieldRow(tBody, 'Sealing counter vs what was packed', t.sealing_to_packaged);
+        renderStageYieldRow(tBody, 'Blister through to pack (end-to-end)', t.blister_to_packaged);
+        renderStageYieldRow(cBody, 'Blister counter vs sealing counter', c.blister_to_sealing);
+        renderStageYieldRow(cBody, 'Sealing counter vs what was packed', c.sealing_to_packaged);
+        renderStageYieldRow(cBody, 'Blister through to pack (end-to-end)', c.blister_to_packaged);
         if (foot) {
             foot.textContent =
-                'Bags with submissions in range: ' +
+                'Bags in this date range (any step): ' +
                 (data.bags_with_submissions_in_window != null ? data.bags_with_submissions_in_window : '—') +
-                ' · With activity (non-zero totals): ' +
+                ' · Bags with a recorded total: ' +
                 (data.bags_touched != null ? data.bags_touched : '—');
         }
     }
