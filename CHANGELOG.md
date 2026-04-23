@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.10.9] - 2026-04-23
+
+### Added
+- **Telegram `/daily` intraday summary**: for the current America/New_York calendar day, `/daily` now matches “through now” (same as the scheduled push). Use `/daily full` for a full calendar day through midnight NY.
+- **`scripts/telegram_daily_report.py --if-due`**: sends only when the NY clock minute matches `TELEGRAM_DAILY_REPORT_TIME` (intended for cron every minute so 6:10pm Eastern Time tracks DST).
+
+### Changed
+- Default `TELEGRAM_DAILY_REPORT_TIME` is now **18:10** (config, env template, deployment docs).
+- **`telegram_send_message`** falls back to stdlib logging when Flask `current_app` is unavailable (CLI/cron).
+
+---
+
 ## [3.10.2] - 2026-04-20
 
 ### Fixed

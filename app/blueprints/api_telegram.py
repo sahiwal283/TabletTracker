@@ -38,8 +38,9 @@ def telegram_webhook(token: str):
         if cmd in ("/start", "/help"):
             reply = bot.help_text()
         elif cmd == "/daily":
+            day_iso, full_day = bot.parse_daily_command_args(args)
             with db_read_only() as conn:
-                summary = reports.build_daily_summary(conn, day_iso=args or None)
+                summary = reports.build_daily_summary(conn, day_iso=day_iso, full_day=full_day)
             reply = bot.format_daily_summary(summary)
         elif cmd == "/status":
             station_kind = (args or "").strip().lower()

@@ -41,6 +41,12 @@ def _parse_date_text(value: object) -> Optional[date]:
 
 
 def _parse_created_at_to_ny_date(value: object) -> Optional[date]:
+    dt = _parse_created_at_to_ny_datetime(value)
+    return dt.date() if dt else None
+
+
+def _parse_created_at_to_ny_datetime(value: object) -> Optional[datetime]:
+    """Parse warehouse_submissions.created_at (UTC-naive) to America/New_York."""
     if value is None:
         return None
     raw = str(value).strip().replace("T", " ")
@@ -56,9 +62,22 @@ def _parse_created_at_to_ny_date(value: object) -> Optional[date]:
             continue
     if parsed is None:
         return None
-    # Submission timestamps are stored as UTC-naive strings in this app.
     dt_utc = parsed.replace(tzinfo=timezone.utc)
-    return dt_utc.astimezone(_NY).date()
+    return dt_utc.astimezone(_NY)
+
+
+def _submission_effective_ny_datetime(sub: Dict[str, object], target_day: date) -> datetime:
+    """Wall-clock instant in NY used for intraday cutoffs (created_at preferred)."""
+    created = _parse_created_at_to_ny_datetime(sub.get("created_at"))
+    if created is not None:
+        return created
+    sd = _parse_date_text(sub.get("submission_date"))
+    if sd is not None:
+        return datetime.combine(sd, time.min).replace(tzinfo=_NY)
+    fd = _parse_date_text(sub.get("filter_date"))
+    if fd is not None:
+        return datetime.combine(fd, time.min).replace(tzinfo=_NY)
+    return datetime.combine(target_day, time.min).replace(tzinfo=_NY)
 
 
 def _is_submission_on_target_day(sub: Dict[str, object], target_day: date) -> bool:
@@ -70,6 +89,16 @@ def _is_submission_on_target_day(sub: Dict[str, object], target_day: date) -> bo
         return created_day == target_day
     filter_day = _parse_date_text(sub.get("filter_date"))
     return filter_day == target_day
+
+
+def _submission_included_through(
+    sub: Dict[str, object], target_day: date, as_of_ny: Optional[datetime]
+) -> bool:
+    if not _is_submission_on_target_day(sub, target_day):
+        return False
+    if as_of_ny is None:
+        return True
+    return _submission_effective_ny_datetime(sub, target_day) <= as_of_ny
 
 
 def _tablets_per_display_by_product(conn: sqlite3.Connection) -> Dict[str, float]:
@@ -93,7 +122,9 @@ def _tablets_per_display_by_product(conn: sqlite3.Connection) -> Dict[str, float
     return out
 
 
-def _daily_product_rollup(conn: sqlite3.Connection, target_day: date) -> List[Dict[str, object]]:
+def _daily_product_rollup(
+    conn: sqlite3.Connection, target_day: date, as_of_ny: Optional[datetime] = None
+) -> List[Dict[str, object]]:
     # Query a small surrounding range, then apply NY-local day matching.
     range_start = (target_day - timedelta(days=1)).isoformat()
     range_end = (target_day + timedelta(days=1)).isoformat()
@@ -102,7 +133,7 @@ def _daily_product_rollup(conn: sqlite3.Connection, target_day: date) -> List[Di
     rollup: Dict[str, Dict[str, object]] = {}
 
     for sub in submissions:
-        if not _is_submission_on_target_day(sub, target_day):
+        if not _submission_included_through(sub, target_day, as_of_ny):
             continue
         st = (sub.get("submission_type") or "packaged").lower()
         if st in ("bag", "machine"):
@@ -138,15 +169,38 @@ def _daily_product_rollup(conn: sqlite3.Connection, target_day: date) -> List[Di
     return out
 
 
-def build_daily_summary(conn: sqlite3.Connection, day_iso: Optional[str] = None) -> Dict[str, object]:
+def build_daily_summary(
+    conn: sqlite3.Connection,
+    day_iso: Optional[str] = None,
+    *,
+    full_day: bool = False,
+) -> Dict[str, object]:
+    """
+    Production summary for one America/New_York calendar day.
+
+    For *today*, defaults to partial day (submissions through "now" in NY) unless
+    ``full_day`` is True. For past dates, always the full calendar day.
+    """
     target_day = _parse_target_day(day_iso)
-    rows = _daily_product_rollup(conn, target_day)
+    today_ny = datetime.now(_NY).date()
+    if full_day or target_day != today_ny:
+        as_of_ny: Optional[datetime] = None
+    else:
+        as_of_ny = datetime.now(_NY)
+
+    rows = _daily_product_rollup(conn, target_day, as_of_ny=as_of_ny)
     total_displays = sum(int(r.get("displays_made") or 0) for r in rows)
     total_display_equivalent = round(sum(float(r.get("display_equivalent") or 0.0) for r in rows), 2)
+    through_label: Optional[str] = None
+    if as_of_ny is not None:
+        through_label = as_of_ny.strftime("%Y-%m-%d %I:%M %p %Z")
+
     return {
         "day": target_day.isoformat(),
         "total_displays_made": total_displays,
         "total_display_equivalent": total_display_equivalent,
+        "through_ny": through_label,
+        "is_partial_day": as_of_ny is not None,
         "products": [
             {
                 "product_name": r["product_name"],

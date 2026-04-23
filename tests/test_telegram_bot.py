@@ -9,6 +9,7 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from app import create_app
+from app.services import telegram_bot_service as tbot
 from app.services import telegram_reporting_service as trs
 
 _NY = ZoneInfo("America/New_York")
@@ -159,6 +160,20 @@ class TestTelegramBot(unittest.TestCase):
             "filter_date": "2026-04-22",
         }
         self.assertTrue(trs._is_submission_on_target_day(sub, date(2026, 4, 21)))
+
+    def test_parse_daily_command_args(self):
+        self.assertEqual(tbot.parse_daily_command_args(""), (None, False))
+        self.assertEqual(tbot.parse_daily_command_args("full"), (None, True))
+        self.assertEqual(tbot.parse_daily_command_args("2026-01-10"), ("2026-01-10", False))
+        self.assertEqual(tbot.parse_daily_command_args("2026-01-10 full"), ("2026-01-10", True))
+
+    def test_intraday_includes_through_ny_cutoff(self):
+        target = date(2026, 4, 21)
+        as_of = datetime(2026, 4, 21, 16, 0, tzinfo=_NY)
+        sub_early = {"submission_date": None, "created_at": "2026-04-21 12:00:00"}
+        sub_late = {"submission_date": None, "created_at": "2026-04-21 22:00:00"}
+        self.assertTrue(trs._submission_included_through(sub_early, target, as_of))
+        self.assertFalse(trs._submission_included_through(sub_late, target, as_of))
 
 
 if __name__ == "__main__":

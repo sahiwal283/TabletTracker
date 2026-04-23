@@ -44,7 +44,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_ALLOWED_CHAT_IDS=123456789,-1001234567890
 # Optional
 TELEGRAM_ALLOWED_USER_IDS=123456789
-TELEGRAM_DAILY_REPORT_TIME=18:00
+TELEGRAM_DAILY_REPORT_TIME=18:10
 ```
 
 **🚨 IMPORTANT SECURITY NOTES:**
@@ -185,7 +185,12 @@ Summary:
    - Point Telegram webhook to your public endpoint:
      `https://<your-domain>/api/telegram/webhook/<TELEGRAM_BOT_TOKEN>`.
    - Add allowed chat IDs in `TELEGRAM_ALLOWED_CHAT_IDS`.
-   - Run `scripts/telegram_daily_report.py` from cron/PythonAnywhere at your preferred time.
+   - **Daily summary (America/New_York)**: set `TELEGRAM_DAILY_REPORT_TIME=18:10` (or your preferred `HH:MM`).
+   - Schedule a task **every minute** (or use a system cron) that runs:
+     `cd ~/TabletTracker && source venv/bin/activate && python scripts/telegram_daily_report.py --if-due`
+     The script only sends when the current NY clock minute matches `TELEGRAM_DAILY_REPORT_TIME`, so DST is handled automatically.
+   - Ad hoc (same “through now” logic as `/daily` in Telegram):  
+     `python scripts/telegram_daily_report.py`
 
 ---
 

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+import logging
+from typing import Dict, Optional, Tuple
 
 import requests
 from flask import current_app
 
 from config import Config
+
+_logger = logging.getLogger(__name__)
 
 
 def extract_message(update: Dict) -> Optional[Dict]:
@@ -26,6 +29,28 @@ def parse_command(text: str) -> tuple[str, str]:
     if "@" in cmd:
         cmd = cmd.split("@", 1)[0]
     return cmd, args
+
+
+def parse_daily_command_args(args: str) -> Tuple[Optional[str], bool]:
+    """
+    Parse /daily arguments.
+
+    Returns (day_iso_or_none, full_day).
+    - ``/daily`` -> (None, False) — today through now (America/New_York).
+    - ``/daily full`` -> (None, True) — full calendar day for today.
+    - ``/daily 2026-01-15`` -> ("2026-01-15", False) — past dates: full day; if that date is *today*: through-now.
+    - ``/daily 2026-01-15 full`` -> ("2026-01-15", True) — force full calendar day when combined with ``full``.
+    """
+    raw = (args or "").strip()
+    if not raw:
+        return None, False
+    tokens = raw.split()
+    if len(tokens) >= 2 and tokens[-1].lower() == "full":
+        date_part = " ".join(tokens[:-1]).strip()
+        return (date_part if date_part else None), True
+    if len(tokens) == 1 and tokens[0].lower() == "full":
+        return None, True
+    return tokens[0], False
 
 
 def is_message_allowed(message: Dict) -> bool:
@@ -56,18 +81,28 @@ def telegram_send_message(chat_id: int, text: str) -> None:
     }
     response = requests.post(url, json=payload, timeout=10)
     if response.status_code >= 400:
-        current_app.logger.error("telegram_send_message failed: %s %s", response.status_code, response.text)
+        msg = "telegram_send_message failed: %s %s" % (response.status_code, response.text)
+        try:
+            current_app.logger.error(msg)
+        except RuntimeError:
+            _logger.error(msg)
         response.raise_for_status()
 
 
 def format_daily_summary(summary: Dict) -> str:
     lines = [
         f"Daily production summary ({summary['day']}, America/New_York)",
+    ]
+    if summary.get("through_ny"):
+        lines.append(f"Through (NY local): {summary['through_ny']}")
+    lines.extend(
+        [
         f"Total displays made: {summary['total_displays_made']}",
         f"Total display-equivalent: {summary['total_display_equivalent']}",
         "",
         "By product:",
-    ]
+        ]
+    )
     products = summary.get("products") or []
     if not products:
         lines.append("- No production submissions found.")
@@ -101,7 +136,9 @@ def help_text() -> str:
     return (
         "Available commands:\n"
         "/help - show commands\n"
-        "/daily [YYYY-MM-DD] - daily production summary\n"
+        "/daily - today's production so far (NY)\n"
+        "/daily YYYY-MM-DD - that date (today = so far; past = full day)\n"
+        "/daily full - full calendar day for today\n"
         "/status blister - current blister station bag\n"
         "/status sealing - current sealing station bag\n"
         "/status packaging - current packaging station bag\n"
