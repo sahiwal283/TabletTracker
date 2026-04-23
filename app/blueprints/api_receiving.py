@@ -2761,7 +2761,7 @@ def get_possible_receives_for_submission(submission_id):
             if not matching_bags:
                 source_receipt = (submission_dict.get('receipt_number') or '').strip()
                 family_root = _receipt_family_root(source_receipt)
-                if family_root and family_root != source_receipt:
+                if family_root:
                     family_rows = conn.execute(
                         '''
                         SELECT DISTINCT ws.bag_id,
@@ -2967,11 +2967,10 @@ def assign_submission_to_receive(submission_id):
 
             submission = dict(submission)
             source_receipt = (submission.get('receipt_number') or '').strip()
-            source_employee = submission.get('employee_name')
             source_submission_date = submission.get('submission_date')
 
             target_ids = [submission_id]
-            if source_receipt and source_employee and source_submission_date:
+            if source_receipt and source_submission_date:
                 receipt_root = _receipt_family_root(source_receipt) or source_receipt
                 siblings = conn.execute(
                     '''
@@ -2986,7 +2985,6 @@ def assign_submission_to_receive(submission_id):
                         OR receipt_number LIKE ?
                         OR receipt_number LIKE ?
                       )
-                      AND employee_name = ?
                       AND submission_date = ?
                       AND COALESCE(submission_type, 'packaged') != 'repack'
                     ''',
@@ -2998,7 +2996,6 @@ def assign_submission_to_receive(submission_id):
                         receipt_root + '-blister%',
                         receipt_root + '-pkg-e%',
                         receipt_root + '-take-e%',
-                        source_employee,
                         source_submission_date,
                     ),
                 ).fetchall()
