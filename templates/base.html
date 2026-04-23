@@ -3942,9 +3942,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         // Helper function to build bag card HTML (used by both views)
         function buildBagCardHtml(bag, tabletTypeName, inventoryItemId, boxNumber) {
             const receivedCount = bag.received_count || 0;
-            const machineCount = bag.machine_count || 0;
             const packagedCount = bag.packaged_count || 0;
-            const totalCounted = machineCount + packagedCount;
             const remaining = receivedCount - packagedCount;
             const batchNumber = bag.batch_number || '';
             const batchSource = (bag.batch_source || '').replace(/_/g, ' ');
@@ -3953,8 +3951,8 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
             const estFromWeight = bag.estimated_tablets_from_weight !== null && bag.estimated_tablets_from_weight !== undefined
                 ? Number(bag.estimated_tablets_from_weight)
                 : null;
-            const percentComplete = receivedCount > 0 
-                ? Math.round((totalCounted / receivedCount) * 100) 
+            const percentComplete = receivedCount > 0
+                ? Math.round((packagedCount / receivedCount) * 100)
                 : 0;
             
             let bgColor = 'bg-gray-50';
@@ -4048,15 +4046,11 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         </div>
                     </div>
                     
-                    <!-- Compact Stats -->
-                    <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                    <!-- Compact Stats (received vs packaged only; remaining = received − packaged) -->
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div class="bg-indigo-50 rounded px-2 py-1">
                             <div class="text-indigo-600 font-semibold">${(bag.received_count || 0).toLocaleString()}</div>
                             <div class="text-gray-500">Received</div>
-                        </div>
-                        <div class="bg-blue-50 rounded px-2 py-1">
-                            <div class="text-blue-600 font-semibold">${(bag.machine_count || 0).toLocaleString()}</div>
-                            <div class="text-gray-500">Machine</div>
                         </div>
                         <div class="bg-purple-50 rounded px-2 py-1">
                             <div class="text-purple-600 font-semibold">${(bag.packaged_count || 0).toLocaleString()}</div>
