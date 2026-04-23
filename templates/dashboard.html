@@ -1456,10 +1456,6 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                     
                     <!-- Content (scrolls; header + footer stay visible) -->
                     <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-        ${bagId !== null && bagMeta ? bagSubmissionsVerificationPanelHtml(bagMeta, {
-            bagId,
-            displayProductName: (filteredSubmissions.length > 0 ? filteredSubmissions[0].product_name : '') || (bagMeta.tablet_type_name || ''),
-        }) : ''}
         <div id="submissions-modal-list">
         `;
         
@@ -1657,6 +1653,13 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         }
         
         modalContent += `</div>`;
+
+        if (bagId !== null && bagMeta) {
+            modalContent += bagSubmissionsVerificationPanelHtml(bagMeta, {
+                bagId,
+                displayProductName: (filteredSubmissions.length > 0 ? filteredSubmissions[0].product_name : '') || (bagMeta.tablet_type_name || ''),
+            });
+        }
         
         const bagModalFooter = (bagId !== null && bagMeta)
             ? bagSubmissionsModalFooterHtml(bagMeta, {

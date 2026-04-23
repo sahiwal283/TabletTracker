@@ -2671,9 +2671,6 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                         </div>
                     </div>
                     <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-        ${bagId !== null && bagMeta ? bagSubmissionsVerificationPanelHtml(bagMeta, {
-            bagId, displayProductName,
-        }) : ''}
         <div id="submissions-modal-list">
         `;
         
@@ -2744,6 +2741,12 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         }
 
         modalContent += `</div>`;
+
+        if (bagId !== null && bagMeta) {
+            modalContent += bagSubmissionsVerificationPanelHtml(bagMeta, {
+                bagId, displayProductName,
+            });
+        }
 
         const bagModalFooter = (bagId !== null && bagMeta)
             ? bagSubmissionsModalFooterHtml(bagMeta, {
