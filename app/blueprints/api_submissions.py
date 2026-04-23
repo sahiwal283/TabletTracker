@@ -7,6 +7,7 @@ from app.utils.db_utils import db_read_only
 from app.utils.auth_utils import role_required
 from app.services.submission_details_service import get_bag_submissions_payload
 from app.services.receiving_service import get_bag_with_packaged_count
+from app.services.bag_running_totals import compute_bag_check_running_totals
 
 bp = Blueprint('api_submissions', __name__)
 
@@ -35,9 +36,13 @@ def get_bag_submissions(bag_id):
                     or bag_detail.get('pill_count')
                     or 0
                 )
+                check = compute_bag_check_running_totals(conn, bag_id)
+                if check:
+                    bag_detail.update(check)
                 po_summary = {
                     'id': bag_detail.get('po_id'),
                     'po_number': bag_detail.get('po_number'),
+                    'closed': bool(bag_detail.get('po_closed')),
                 }
 
             return jsonify({

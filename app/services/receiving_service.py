@@ -178,8 +178,11 @@ def get_bag_with_packaged_count(bag_id: int) -> Optional[Dict[str, Any]]:
                    sb.receiving_id,
                    r.po_id,
                    r.receive_name,
+                   r.received_date,
                    po.po_number,
                    po.zoho_po_id,
+                   po.vendor_name,
+                   po.closed AS po_closed,
                    tt.tablet_type_name,
                    tt.inventory_item_id,
                    pl.zoho_line_item_id
