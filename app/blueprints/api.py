@@ -1671,9 +1671,11 @@ def get_submission_details(submission_id):
                                JOIN tablet_types tt2 ON pd2.tablet_type_id = tt2.id
                                WHERE tt2.inventory_item_id = ws.inventory_item_id
                                LIMIT 1
-                           )) as tablets_per_package_final
+                           )) as tablets_per_package_final,
+                           COALESCE(m.machine_role, 'sealing') AS machine_role
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+                    LEFT JOIN machines m ON ws.machine_id = m.id
                     WHERE ws.assigned_po_id = ?
                     AND ws.product_name = ?
                     AND ws.created_at <= ?
@@ -1691,6 +1693,8 @@ def get_submission_details(submission_id):
                 # Calculate running totals
                 bag_running_total = 0
                 machine_running_total = 0
+                machine_blister_running_total = 0
+                machine_sealing_running_total = 0
                 packaged_running_total = 0
                 total_running_total = 0
                 
@@ -1700,14 +1704,26 @@ def get_submission_details(submission_id):
                     
                     # Calculate individual total for this submission
                     if bag_sub_type == 'machine':
-                        # Use tablets_pressed_into_cards, fallback to loose_tablets, then calculate from cards_made
-                        # Use tablets_per_package_final (with fallback) if available, otherwise try tablets_per_package
-                        bag_tablets_per_package = (bag_sub_dict.get('tablets_per_package_final') or 
-                                                 bag_sub_dict.get('tablets_per_package') or 0)
-                        individual_total = (bag_sub_dict.get('tablets_pressed_into_cards') or
-                                           bag_sub_dict.get('loose_tablets') or
-                                           ((bag_sub_dict.get('packs_remaining', 0) or 0) * bag_tablets_per_package) or
-                                           0)
+                        bag_tablets_per_package = (bag_sub_dict.get('tablets_per_package_final') or
+                                                   bag_sub_dict.get('tablets_per_package') or 0)
+                        machine_role = (bag_sub_dict.get('machine_role') or 'sealing').strip().lower()
+                        if machine_role == 'blister':
+                            cuts = bag_sub_dict.get('displays_made', 0) or 0
+                            tpp = int(bag_tablets_per_package or 0)
+                            blisters_made = cuts * BLISTER_BLISTERS_PER_CUT
+                            individual_total = (
+                                blisters_made * tpp
+                                if tpp
+                                else (bag_sub_dict.get('tablets_pressed_into_cards') or 0)
+                            )
+                            machine_blister_running_total += individual_total
+                        else:
+                            packs_remaining = bag_sub_dict.get('packs_remaining', 0) or 0
+                            stored_tablets = bag_sub_dict.get('tablets_pressed_into_cards') or 0
+                            tablets_from_cards = (packs_remaining * bag_tablets_per_package) or 0
+                            loose_tablets = bag_sub_dict.get('loose_tablets') or 0
+                            individual_total = max(stored_tablets, tablets_from_cards, loose_tablets, 0)
+                            machine_sealing_running_total += individual_total
                         machine_running_total += individual_total
                         # Machine counts are NOT added to total - they're consumed in production
                     elif bag_sub_type == 'bag':
@@ -1735,6 +1751,8 @@ def get_submission_details(submission_id):
                 
                 submission_dict['bag_running_total'] = bag_running_total
                 submission_dict['machine_running_total'] = machine_running_total
+                submission_dict['machine_blister_running_total'] = machine_blister_running_total
+                submission_dict['machine_sealing_running_total'] = machine_sealing_running_total
                 submission_dict['packaged_running_total'] = packaged_running_total
                 # Total should only include packaged counts (tablets actually in the bag)
                 # Machine counts are consumed, bag counts are just inventory
@@ -1758,6 +1776,8 @@ def get_submission_details(submission_id):
             else:
                 submission_dict['bag_running_total'] = 0
                 submission_dict['machine_running_total'] = 0
+                submission_dict['machine_blister_running_total'] = 0
+                submission_dict['machine_sealing_running_total'] = 0
                 submission_dict['packaged_running_total'] = 0
                 submission_dict['running_total'] = 0
                 submission_dict['count_status'] = 'no_bag'
