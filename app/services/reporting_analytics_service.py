@@ -6,6 +6,7 @@ Uses tablet_types.tablet_type_name as the primary "flavor" dimension for rows.
 from __future__ import annotations
 
 import hashlib
+import math
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -1055,3 +1056,196 @@ def build_dimensions(
         "throughput_summary": throughput_summary,
         "throughput_series": throughput_series,
     }
+
+
+def _percentile_sorted(sorted_vals: List[float], p: float) -> Optional[float]:
+    if not sorted_vals:
+        return None
+    n = len(sorted_vals)
+    idx = int(math.ceil(p * n) - 1)
+    idx = max(0, min(idx, n - 1))
+    return round(sorted_vals[idx], 6)
+
+
+def _summary_stats(
+    rates: List[float], loss_sum: int, den_sum: int
+) -> Dict[str, Any]:
+    if not rates:
+        return {
+            "n": 0,
+            "mean": None,
+            "weighted_mean": None,
+            "median": None,
+            "p90": None,
+            "sum_loss": 0,
+            "sum_den": 0,
+        }
+    sr = sorted(rates)
+    wmean = (loss_sum / den_sum) if den_sum > 0 else None
+    return {
+        "n": len(rates),
+        "mean": round(sum(rates) / len(rates), 6),
+        "weighted_mean": round(wmean, 6) if wmean is not None else None,
+        "median": _percentile_sorted(sr, 0.5),
+        "p90": _percentile_sorted(sr, 0.9),
+        "sum_loss": int(loss_sum),
+        "sum_den": int(den_sum),
+    }
+
+
+def aggregate_stage_yield(
+    conn: sqlite3.Connection,
+    date_from: str,
+    date_to: str,
+    tablet_type_id: Optional[int] = None,
+    machine_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Summarize per-bag stage-yield over a date window (one row per bag in window).
+    Excludes anomalous negative transitions for aggregate rate stats.
+    """
+    from app.services.bag_running_totals import compute_bag_check_running_totals
+
+    if not _parse_date(date_from) or not _parse_date(date_to):
+        return {"success": False, "error": "date_from and date_to (YYYY-MM-DD) are required"}
+    d0, d1 = _parse_date(date_from), _parse_date(date_to)
+
+    rows = conn.execute(
+        """
+        SELECT DISTINCT ws.bag_id AS bag_id
+        FROM warehouse_submissions ws
+        WHERE ws.bag_id IS NOT NULL
+          AND SUBSTR(COALESCE(ws.created_at, ''), 1, 10) >= ?
+          AND SUBSTR(COALESCE(ws.created_at, ''), 1, 10) <= ?
+        """,
+        (d0, d1),
+    ).fetchall()
+    bag_ids = [r["bag_id"] for r in rows]
+
+    # Per-transition accumulators: lists of per-bag rates, and sum(loss), sum(denom) for weighted mean
+    def collect() -> Dict[str, Any]:
+        b_s_t_r: List[float] = []
+        s_p_t_r: List[float] = []
+        b_p_t_r: List[float] = []
+        b_s_t_loss = b_s_t_den = 0
+        s_p_t_loss = s_p_t_den = 0
+        b_p_t_loss = b_p_t_den = 0
+
+        b_s_c_r: List[float] = []
+        s_p_c_r: List[float] = []
+        b_p_c_r: List[float] = []
+        b_s_c_loss = b_s_c_den = 0
+        s_p_c_loss = s_p_c_den = 0
+        b_p_c_loss = b_p_c_den = 0
+
+        bags_included = 0
+        bags_all_zero = 0
+
+        for bid in bag_ids:
+            if tablet_type_id is not None:
+                bro = conn.execute(
+                    "SELECT tablet_type_id FROM bags WHERE id = ?",
+                    (bid,),
+                ).fetchone()
+                tid = dict(bro).get("tablet_type_id") if bro else None
+                if tid is None or int(tid) != int(tablet_type_id):
+                    continue
+            m = compute_bag_check_running_totals(conn, bid)
+            if not m:
+                continue
+            B = m.get("machine_blister_running_total", 0) or 0
+            S = m.get("machine_sealing_running_total", 0) or 0
+            P = m.get("packaged_running_total", 0) or 0
+            if B == 0 and S == 0 and P == 0:
+                bags_all_zero += 1
+                continue
+            if machine_id is not None:
+                pb = m.get("primary_blister_machine_id")
+                ps = m.get("primary_sealing_machine_id")
+                if pb != machine_id and ps != machine_id:
+                    continue
+            q = m.get("stage_yield_quality") or {}
+            rates_t = m.get("stage_transition_loss_rates") or {}
+            rates_c = m.get("stage_transition_loss_rates_cards") or {}
+            losses_t = m.get("stage_transition_losses_tablets") or {}
+            losses_c = m.get("stage_transition_losses_cards") or {}
+            bl = m.get("blisters_from_blister_counter", 0) or 0
+            cs = m.get("cards_from_sealing_counter", 0) or 0
+
+            bags_included += 1
+
+            if (
+                B > 0
+                and S > 0
+                and not q.get("negative_blister_to_sealing")
+            ):
+                r = rates_t.get("blister_to_sealing")
+                if r is not None and losses_t.get("blister_to_sealing") is not None:
+                    b_s_t_r.append(float(r))
+                    b_s_t_loss += int(losses_t["blister_to_sealing"] or 0)
+                    b_s_t_den += B
+                rc = rates_c.get("blister_to_sealing")
+                if (
+                    rc is not None
+                    and losses_c.get("blister_to_sealing") is not None
+                    and bl > 0
+                ):
+                    b_s_c_r.append(float(rc))
+                    b_s_c_loss += int(losses_c["blister_to_sealing"] or 0)
+                    b_s_c_den += bl
+
+            if S > 0 and P > 0 and not q.get("negative_sealing_to_packaged"):
+                r = rates_t.get("sealing_to_packaged")
+                if r is not None and losses_t.get("sealing_to_packaged") is not None:
+                    s_p_t_r.append(float(r))
+                    s_p_t_loss += int(losses_t["sealing_to_packaged"] or 0)
+                    s_p_t_den += S
+                rc = rates_c.get("sealing_to_packaged")
+                if (
+                    rc is not None
+                    and cs > 0
+                    and losses_c.get("sealing_to_packaged") is not None
+                ):
+                    s_p_c_r.append(float(rc))
+                    s_p_c_loss += int(losses_c["sealing_to_packaged"] or 0)
+                    s_p_c_den += cs
+
+            if B > 0 and P > 0 and not q.get("negative_blister_to_packaged"):
+                r = rates_t.get("blister_to_packaged")
+                if r is not None and losses_t.get("blister_to_packaged") is not None:
+                    b_p_t_r.append(float(r))
+                    b_p_t_loss += int(losses_t["blister_to_packaged"] or 0)
+                    b_p_t_den += B
+                rc = rates_c.get("blister_to_packaged")
+                if (
+                    rc is not None
+                    and bl > 0
+                    and losses_c.get("blister_to_packaged") is not None
+                ):
+                    b_p_c_r.append(float(rc))
+                    b_p_c_loss += int(losses_c["blister_to_packaged"] or 0)
+                    b_p_c_den += bl
+
+        return {
+            "date_from": d0,
+            "date_to": d1,
+            "bags_with_submissions_in_window": len(bag_ids),
+            "bags_touched": bags_included,
+            "bags_skipped_all_zero": bags_all_zero,
+            "filters": {
+                "tablet_type_id": tablet_type_id,
+                "machine_id": machine_id,
+            },
+            "tablets": {
+                "blister_to_sealing": _summary_stats(b_s_t_r, b_s_t_loss, b_s_t_den),
+                "sealing_to_packaged": _summary_stats(s_p_t_r, s_p_t_loss, s_p_t_den),
+                "blister_to_packaged": _summary_stats(b_p_t_r, b_p_t_loss, b_p_t_den),
+            },
+            "cards": {
+                "blister_to_sealing": _summary_stats(b_s_c_r, b_s_c_loss, b_s_c_den),
+                "sealing_to_packaged": _summary_stats(s_p_c_r, s_p_c_loss, s_p_c_den),
+                "blister_to_packaged": _summary_stats(b_p_c_r, b_p_c_loss, b_p_c_den),
+            },
+        }
+
+    return {"success": True, **collect()}

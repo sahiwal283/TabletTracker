@@ -302,3 +302,28 @@ def reports_updates():
         current_app.logger.error('reports_updates: %s', e, exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@bp.route('/api/reports/stage-yield', methods=['GET'])
+@role_required('reports')
+def reports_stage_yield():
+    """Per-bag stage transition loss rates (tablets + cards) over a date window."""
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    tablet_type_id = request.args.get('tablet_type_id', type=int)
+    machine_id = request.args.get('machine_id', type=int)
+    try:
+        with db_read_only() as conn:
+            data = analytics.aggregate_stage_yield(
+                conn,
+                date_from or '',
+                date_to or '',
+                tablet_type_id=tablet_type_id,
+                machine_id=machine_id,
+            )
+            if not data.get('success'):
+                return jsonify(data), 400
+            return jsonify(data)
+    except Exception as e:
+        current_app.logger.error('reports_stage_yield: %s', e, exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+

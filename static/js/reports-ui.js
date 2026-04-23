@@ -307,6 +307,76 @@
         return q.join('&');
     }
 
+    /** date range + optional flavor; stage-yield API ignores vendor/po. */
+    function stageYieldQueryParams() {
+        var df = document.getElementById('reports_date_from');
+        var dt = document.getElementById('reports_date_to');
+        var f = document.getElementById('reports_flavor');
+        var q = [];
+        if (df && df.value) q.push('date_from=' + encodeURIComponent(df.value));
+        if (dt && dt.value) q.push('date_to=' + encodeURIComponent(dt.value));
+        if (f && f.value) q.push('tablet_type_id=' + encodeURIComponent(f.value));
+        return q.join('&');
+    }
+
+    function renderStageYieldRow(tbody, label, block) {
+        if (!tbody) return;
+        var tr = document.createElement('tr');
+        var n = (block && block.n != null) ? block.n : '—';
+        var fw = (block && block.weighted_mean != null) ? (100 * Number(block.weighted_mean)).toFixed(2) + '%' : '—';
+        var med = (block && block.median != null) ? (100 * Number(block.median)).toFixed(2) + '%' : '—';
+        var p9 = (block && block.p90 != null) ? (100 * Number(block.p90)).toFixed(2) + '%' : '—';
+        tr.innerHTML =
+            '<td class="px-2 py-1.5 text-gray-800">' +
+            String(label) +
+            '</td><td class="px-2 py-1.5 text-right font-mono">' +
+            n +
+            '</td><td class="px-2 py-1.5 text-right">' +
+            fw +
+            '</td><td class="px-2 py-1.5 text-right">' +
+            med +
+            '</td><td class="px-2 py-1.5 text-right">' +
+            p9 +
+            '</td>';
+        tbody.appendChild(tr);
+    }
+
+    function renderStageYield(data) {
+        var errEl = document.getElementById('reports_stage_yield_error');
+        var foot = document.getElementById('reports_stage_yield_foot');
+        var tBody = document.getElementById('reports_stage_yield_tablets_body');
+        var cBody = document.getElementById('reports_stage_yield_cards_body');
+        if (tBody) tBody.innerHTML = '';
+        if (cBody) cBody.innerHTML = '';
+        if (errEl) {
+            errEl.classList.add('hidden');
+            errEl.textContent = '';
+        }
+        if (!data || !data.success) {
+            if (errEl && data && data.error) {
+                errEl.textContent = data.error;
+                errEl.classList.remove('hidden');
+            }
+            if (foot) foot.textContent = '';
+            return;
+        }
+        var t = data.tablets || {};
+        var c = data.cards || {};
+        renderStageYieldRow(tBody, 'Blister room → sealing (counters)', t.blister_to_sealing);
+        renderStageYieldRow(tBody, 'Sealing → packaged', t.sealing_to_packaged);
+        renderStageYieldRow(tBody, 'Blister → packaged (end-to-end)', t.blister_to_packaged);
+        renderStageYieldRow(cBody, 'Blister room → sealing', c.blister_to_sealing);
+        renderStageYieldRow(cBody, 'Sealing → packaged', c.sealing_to_packaged);
+        renderStageYieldRow(cBody, 'Blister → packaged', c.blister_to_packaged);
+        if (foot) {
+            foot.textContent =
+                'Bags with submissions in range: ' +
+                (data.bags_with_submissions_in_window != null ? data.bags_with_submissions_in_window : '—') +
+                ' · With activity (non-zero totals): ' +
+                (data.bags_touched != null ? data.bags_touched : '—');
+        }
+    }
+
     function renderTrendsChart(series) {
         destroyChart('trends');
         setHint('reports_trends_hint', '');
@@ -634,6 +704,21 @@
         try {
             var trends = await apiCall('/api/reports/trends?' + q, { requestKey: 'reports-trends' });
             var dims = await apiCall('/api/reports/dimensions?' + q, { requestKey: 'reports-dimensions' });
+            var syQ = stageYieldQueryParams();
+            if (syQ) {
+                try {
+                    var stageYield = await apiCall(
+                        '/api/reports/stage-yield?' + syQ,
+                        { requestKey: 'reports-stage-yield' }
+                    );
+                    renderStageYield(stageYield);
+                } catch (se) {
+                    if (se.name === 'AbortError') throw se;
+                    renderStageYield({ success: false, error: se.message || 'Stage yield failed' });
+                }
+            } else {
+                renderStageYield({ success: false, error: '' });
+            }
             renderKpis(trends.series || [], dims.top_flavors || []);
             renderRippedCards(dims.ripped_cards_total || 0, dims.ripped_cards_by_flavor || []);
             renderLossRate(dims.loss_rate_cards_per_display);
