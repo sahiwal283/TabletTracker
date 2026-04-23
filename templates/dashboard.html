@@ -1542,7 +1542,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                             </div>
                         </div>
                         
-                        <!-- Running Total and Bag Check (packaged/bag; not machine or repack PO credit) -->
+                        <!-- Packaged cumulative per bag + bag check (not machine or repack PO credit) -->
                         ${submissionType !== 'machine' && submissionType !== 'repack' ? `
                         <div class="mb-3 flex gap-2 items-center flex-wrap">
                             <div class="inline-block bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
@@ -1560,7 +1560,7 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                         ` : ''}
                         ${submissionType === 'repack' ? `
                         <div class="mb-3 flex gap-2 items-center flex-wrap">
-                            <span class="text-amber-800 font-semibold text-sm">PO repack / allocation (not a bag running total)</span>
+                            <span class="text-amber-800 font-semibold text-sm">PO repack / allocation (not a per-bag packaged cumulative)</span>
                         </div>
                         ` : ''}
                         
