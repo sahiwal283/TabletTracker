@@ -1336,6 +1336,8 @@ def get_submission_details(submission_id):
                                LIMIT 1
                            )) as tablets_per_package_final,
                    COALESCE(b.bag_label_count, ws.bag_label_count, 0) as bag_label_count,
+                   b.batch_number as bag_batch_number,
+                   b.batch_source as bag_batch_source,
                    b.estimated_tablets_from_weight as estimated_count_by_weight,
                    r.id as receive_id, r.received_date, r.receive_name as receive_name_from_receive,
                    m.machine_name, m.cards_per_turn as machine_cards_per_turn,
@@ -1399,7 +1401,7 @@ def get_submission_details(submission_id):
                 or submission_dict.get('estimated_count_by_weight') is None
             ):
                 bag_row = conn.execute(
-                    'SELECT bag_label_count, estimated_tablets_from_weight FROM bags WHERE id = ?',
+                    'SELECT bag_label_count, estimated_tablets_from_weight, batch_number, batch_source FROM bags WHERE id = ?',
                     (submission_dict.get('bag_id'),)
                 ).fetchone()
                 if bag_row:
@@ -1408,6 +1410,10 @@ def get_submission_details(submission_id):
                         submission_dict['bag_label_count'] = bag_dict.get('bag_label_count')
                     if bag_dict.get('estimated_tablets_from_weight') is not None:
                         submission_dict['estimated_count_by_weight'] = bag_dict.get('estimated_tablets_from_weight')
+                    if bag_dict.get('batch_number') is not None and submission_dict.get('bag_batch_number') in (None, ''):
+                        submission_dict['bag_batch_number'] = bag_dict.get('batch_number')
+                    if bag_dict.get('batch_source') is not None and submission_dict.get('bag_batch_source') in (None, ''):
+                        submission_dict['bag_batch_source'] = bag_dict.get('batch_source')
             
             # Get machine information for machine submissions
             # First try to get from the JOIN we already did
