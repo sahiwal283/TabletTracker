@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.4] - 2026-04-24
+
+### Fixed
+- **Receive form — copy bag / copy box / draft restore / edit load:** the two-level tablet dropdown now stays in sync when copying or restoring values. Category is resolved by scanning API-driven group options (not HTML `<optgroup>` labels), and `addBag` awaits `convertToTwoLevelDropdown` so programmatic values are not lost to an async race.
+
+---
+
 ## [4.2.2] - 2026-04-24
 
 ### Fixed

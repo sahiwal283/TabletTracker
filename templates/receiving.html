@@ -520,7 +520,7 @@
                 <div class="mt-6 border-t pt-4">
                     <div class="flex justify-between items-center gap-3 mb-3">
                         <div class="text-sm text-gray-600">
-                            <span class="font-medium">💡 Tip:</span> Save as Draft to continue editing later
+                            <span class="font-medium">💡 Tip:</span> Save Draft Progress keeps this editor open so you can keep working
                         </div>
                     </div>
                     <div class="flex justify-end gap-3">
@@ -530,7 +530,7 @@
                         </button>
                         <button type="button" data-save-receives-draft 
                                 class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
-                            📝 Save as Draft
+                            📝 Save Draft Progress
                         </button>
                         <button type="submit" 
                                 class="btn-primary px-6 py-2">
@@ -694,6 +694,45 @@ function resetTwoLevelDropdownForSelect(selectElement) {
     const revision = parseInt(selectElement.dataset.twoLevelRevision || '0', 10) || 0;
     selectElement.dataset.twoLevelRevision = String(revision + 1);
     return true;
+}
+
+/**
+ * After convertToTwoLevelDropdown, keep the category + item selects in sync with a tablet type id.
+ * Do not use optgroup labels from the hidden select: two-level groups come from /api/tablet_types/categories
+ * (e.g. "Other") while the HTML dropdown may use different labels (e.g. "⚠️ Uncategorized").
+ */
+function syncTwoLevelTabletSelectByValue(baseSelect, tabletTypeId) {
+    if (!baseSelect || tabletTypeId === undefined || tabletTypeId === null || tabletTypeId === '') {
+        return false;
+    }
+    const tid = String(tabletTypeId);
+    baseSelect.value = tid;
+    if (baseSelect.dataset.twoLevelConverted !== 'true') {
+        baseSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+    }
+    const groupSelect = document.getElementById(baseSelect.id + '_group');
+    const itemSelect = document.getElementById(baseSelect.id + '_item');
+    if (!groupSelect || !itemSelect) {
+        return false;
+    }
+    for (let i = 0; i < groupSelect.options.length; i++) {
+        const g = groupSelect.options[i];
+        if (!g.value) {
+            continue;
+        }
+        groupSelect.value = g.value;
+        groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        const match = Array.from(itemSelect.options).some(o => String(o.value) === tid);
+        if (match) {
+            itemSelect.value = tid;
+            baseSelect.value = tid;
+            itemSelect.style.display = '';
+            itemSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+    }
+    return false;
 }
 
 function getTabletTypeIdsInCurrentReceiveForm() {
@@ -1175,7 +1214,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    addBox();
+    void addBox().catch(err => console.error('addBox', err));
     startAutosave();
     
     // Check if we should auto-open a specific receive from URL parameter
@@ -1278,7 +1317,7 @@ async function restoreSavedDraft(savedDraft) {
     const sortedBoxes = Object.keys(boxData).map(n => parseInt(n)).sort((a, b) => a - b);
     
     for (const boxNum of sortedBoxes) {
-        const currentBoxNum = addBox();
+        const currentBoxNum = await addBox();
         const boxBatchInput = document.querySelector(`input[name="box_${currentBoxNum}_batch_number"]`);
         const savedBoxBatch = savedDraft.fields[`box_${boxNum}_batch_number`];
         if (boxBatchInput && savedBoxBatch) {
@@ -1294,21 +1333,16 @@ async function restoreSavedDraft(savedDraft) {
             
             // First bag is already added with the box
             if (i > 0) {
-                currentBagSeq = addBag(currentBoxNum);
+                currentBagSeq = await addBag(currentBoxNum);
             }
             
-            await new Promise(resolve => setTimeout(resolve, 100));
             const bagSelectId = `box_${currentBoxNum}_bag_${currentBagSeq}_tablet_type`;
             
             // Set tablet type
             if (bagData.tablet_type) {
                 const originalSelect = document.getElementById(bagSelectId);
-                const itemSelect = document.getElementById(bagSelectId + '_item');
-                
-                if (originalSelect) originalSelect.value = bagData.tablet_type;
-                if (itemSelect) {
-                    itemSelect.value = bagData.tablet_type;
-                    itemSelect.dispatchEvent(new Event('change'));
+                if (originalSelect) {
+                    syncTwoLevelTabletSelectByValue(originalSelect, bagData.tablet_type);
                 }
             }
             
@@ -1320,7 +1354,9 @@ async function restoreSavedDraft(savedDraft) {
             
             // Set flavor bag number
             if (bagData.flavor_bag_number) {
-                const flavorInput = document.getElementById(`box_${currentBoxNum}_bag_${currentBagSeq}_flavor_bag_number`);
+                const flavorInput = document.querySelector(
+                    `input[name="box_${currentBoxNum}_bag_${currentBagSeq}_flavor_bag_number"]`
+                );
                 if (flavorInput) flavorInput.value = bagData.flavor_bag_number;
             }
             if (bagData.bag_specific_batch_number) {
@@ -1357,7 +1393,7 @@ async function openAddReceivesModal() {
     shipmentBatchDefaultRowCounter = 0;
     
     // Add first box
-    addBox();
+    await addBox();
     refreshShipmentBatchDefaultTabletOptions();
     
     // Show modal
@@ -1391,7 +1427,7 @@ function closeAddReceivesModal(event) {
     }
 }
 
-function addBox() {
+async function addBox() {
     const used = new Set(
         Array.from(document.querySelectorAll('[id^="box-"]'))
             .map(el => {
@@ -1452,7 +1488,7 @@ function addBox() {
     boxesContainer.appendChild(boxDiv);
     
     // Automatically add Bag 1 to this box
-    addBag(boxNumber);
+    await addBag(boxNumber);
     queueAutosave();
     return boxNumber;
 }
@@ -1468,7 +1504,7 @@ function removeBox(boxNumber) {
     }
 }
 
-function addBag(boxNumber) {
+async function addBag(boxNumber) {
     const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
     const used = new Set(
         Array.from((bagsContainer || document).querySelectorAll(`[id^="box-${boxNumber}-bag-"]`))
@@ -1550,7 +1586,7 @@ function addBag(boxNumber) {
     // Convert to two-level dropdown
     const select = bagDiv.querySelector('select[name="box_' + boxNumber + '_bag_' + bagSequence + '_tablet_type"]');
     if (select && typeof convertToTwoLevelDropdown === 'function') {
-        convertToTwoLevelDropdown(select);
+        await convertToTwoLevelDropdown(select);
     }
     
     // Add listener to update bag number when flavor is selected
@@ -1608,115 +1644,61 @@ function removeBag(boxNumber, bagNumber) {
 }
 
 async function copyBag(boxNumber, bagNumber) {
-    // Get the source bag's values
-    const sourceTabletTypeSelect = document.querySelector(`select[name="box_${boxNumber}_bag_${bagNumber}_tablet_type"]`);
-    const sourceBagCountInput = document.querySelector(`input[name="box_${boxNumber}_bag_${bagNumber}_bag_count"]`);
-    
+    const sourceBag = document.getElementById(`box-${boxNumber}-bag-${bagNumber}`);
+    const sourceTabletTypeSelect = sourceBag
+        ? sourceBag.querySelector(`select[name="box_${boxNumber}_bag_${bagNumber}_tablet_type"]`)
+        : null;
+    const sourceBagCountInput = sourceBag
+        ? sourceBag.querySelector(`input[name="box_${boxNumber}_bag_${bagNumber}_bag_count"]`)
+        : null;
+
     if (!sourceTabletTypeSelect || !sourceBagCountInput) {
         alert('Error: Could not find source bag data');
         return;
     }
-    
+
     const tabletTypeValue = sourceTabletTypeSelect.value;
     const bagCountValue = sourceBagCountInput.value;
-    
-    // Validate that there's data to copy
+
     if (!tabletTypeValue) {
         alert('Please select a tablet type before copying');
         sourceTabletTypeSelect.focus();
         return;
     }
-    
+
     if (!bagCountValue) {
         alert('Please enter a bag count before copying');
         sourceBagCountInput.focus();
         return;
     }
-    
-    // Create a new bag
-    const newBagNumber = addBag(boxNumber);
-    
-    // Wait for the dropdown to be added to the DOM AND converted to two-level
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Find the ORIGINAL hidden select (not the item select created by two-level conversion)
-    const baseSelectId = `box_${boxNumber}_bag_${newBagNumber}_tablet_type`;
-    const newTabletTypeSelect = document.getElementById(baseSelectId);
+
+    const newBagNumber = await addBag(boxNumber);
+    const newTabletTypeSelect = document.getElementById(`box_${boxNumber}_bag_${newBagNumber}_tablet_type`);
     const newBagCountInput = document.querySelector(`input[name="box_${boxNumber}_bag_${newBagNumber}_bag_count"]`);
-    
-    if (newTabletTypeSelect && newBagCountInput) {
-        console.log('[Copy Bag] Found new bag elements');
-        console.log('[Copy Bag] Copying tablet type:', tabletTypeValue);
-        console.log('[Copy Bag] Copying bag count:', bagCountValue);
-        
-        // Set bag count immediately
-        newBagCountInput.value = bagCountValue;
-        
-        // Set tablet type on hidden select
-        newTabletTypeSelect.value = tabletTypeValue;
-        
-        // Wait a bit longer for two-level dropdown conversion to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Check if dropdown was converted to two-level
-        const isConverted = newTabletTypeSelect.style.display === 'none';
-        console.log('[Copy Bag] Dropdown converted to two-level?', isConverted);
-        console.log('[Copy Bag] Original select ID:', newTabletTypeSelect.id);
-        
-        if (isConverted) {
-            // Find the category and item dropdowns using the ORIGINAL select's ID
-            const groupSelect = document.getElementById(baseSelectId + '_group');
-            const itemSelect = document.getElementById(baseSelectId + '_item');
-            
-            console.log('[Copy Bag] Group select found?', !!groupSelect);
-            console.log('[Copy Bag] Item select found?', !!itemSelect);
-            
-            if (groupSelect && itemSelect) {
-                // Find the option in the original select to get its category
-                const selectedOption = newTabletTypeSelect.querySelector(`option[value="${tabletTypeValue}"]`);
-                console.log('[Copy Bag] Selected option found?', !!selectedOption);
-                
-                if (selectedOption) {
-                    const optgroup = selectedOption.parentElement;
-                    if (optgroup && optgroup.tagName === 'OPTGROUP') {
-                        const categoryLabel = optgroup.label;
-                        console.log('[Copy Bag] Category to select:', categoryLabel);
-                        
-                        // Set category dropdown
-                        groupSelect.value = categoryLabel;
-                        
-                        // Trigger category change to populate items
-                        groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                        
-                        // Wait for items to populate
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        
-                        // Set item value
-                        itemSelect.value = tabletTypeValue;
-                        itemSelect.style.display = '';
-                        
-                        console.log('[Copy Bag] Set item select value to:', tabletTypeValue);
-                        console.log('[Copy Bag] Item select current value:', itemSelect.value);
-                        
-                        // Trigger change on item to sync back
-                        itemSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                }
-            }
-        }
-        
-        // DON'T trigger final change event - that causes flavor counter increment
-        // The itemSelect change event above already syncs to the original select
-        console.log('[Copy Bag] Final select value:', newTabletTypeSelect.value);
-        
-        // Visual feedback
-        const newBagDiv = document.getElementById(`box-${boxNumber}-bag-${newBagNumber}`);
-        if (newBagDiv) {
-            newBagDiv.classList.add('ring-2', 'ring-green-500', 'ring-opacity-50');
-            setTimeout(() => {
-                newBagDiv.classList.remove('ring-2', 'ring-green-500', 'ring-opacity-50');
-            }, 1500);
-        }
+
+    if (!newTabletTypeSelect || !newBagCountInput) {
+        alert('Error: Could not create the new bag row');
+        return;
+    }
+
+    newBagCountInput.value = bagCountValue;
+    if (!syncTwoLevelTabletSelectByValue(newTabletTypeSelect, tabletTypeValue)) {
+        alert('Could not apply the copied tablet type to the new bag. Check that this flavor is allowed for the selected PO.');
+        newTabletTypeSelect.focus();
+        return;
+    }
+
+    recomputeFlavorBagNumbers();
+    await refreshBagWeightRowVisibility(boxNumber, newBagNumber);
+    refreshShipmentBatchDefaultTabletOptions();
+    queueAutosave();
+
+    const newBagDiv = document.getElementById(`box-${boxNumber}-bag-${newBagNumber}`);
+    if (newBagDiv) {
+        newBagDiv.classList.add('ring-2', 'ring-green-500', 'ring-opacity-50');
+        setTimeout(() => {
+            newBagDiv.classList.remove('ring-2', 'ring-green-500', 'ring-opacity-50');
+        }, 1500);
     }
 }
 
@@ -1775,7 +1757,7 @@ async function copyBox(boxNumber) {
     }
     
     // Create a new box
-    const newBoxNumber = addBox();
+    const newBoxNumber = await addBox();
     
     // Remove the automatically added first bag
     const firstBagId = `box-${newBoxNumber}-bag-1`;
@@ -1789,58 +1771,21 @@ async function copyBox(boxNumber) {
     for (let index = 0; index < bagsData.length; index++) {
         const bagData = bagsData[index];
         
-        const newBagNumber = addBag(newBoxNumber);
-        
-        // Wait for the dropdown to be added and converted to two-level
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Find the ORIGINAL hidden select by ID (not the item select created by two-level conversion)
-        const baseSelectId = `box_${newBoxNumber}_bag_${newBagNumber}_tablet_type`;
-        const newTabletTypeSelect = document.getElementById(baseSelectId);
+        const newBagNumber = await addBag(newBoxNumber);
+        const newTabletTypeSelect = document.getElementById(`box_${newBoxNumber}_bag_${newBagNumber}_tablet_type`);
         const newBagCountInput = document.querySelector(`input[name="box_${newBoxNumber}_bag_${newBagNumber}_bag_count"]`);
         
         if (newTabletTypeSelect && newBagCountInput) {
-            newTabletTypeSelect.value = bagData.tabletType;
             newBagCountInput.value = bagData.bagCount;
-            
-            // Handle two-level dropdown if present
-            if (newTabletTypeSelect.style.display === 'none') {
-                // Find the category and item dropdowns using base ID
-                const groupSelect = document.getElementById(baseSelectId + '_group');
-                const itemSelect = document.getElementById(baseSelectId + '_item');
-                
-                if (groupSelect && itemSelect) {
-                    // Find the option in the new select element
-                    const selectedOption = newTabletTypeSelect.querySelector(`option[value="${bagData.tabletType}"]`);
-                    if (selectedOption) {
-                        const optgroup = selectedOption.parentElement;
-                        if (optgroup && optgroup.tagName === 'OPTGROUP') {
-                            const categoryLabel = optgroup.label;
-                            
-                            // Set category dropdown
-                            groupSelect.value = categoryLabel;
-                            
-                            // Trigger category change to populate items
-                            const categoryEvent = new Event('change', { bubbles: true });
-                            groupSelect.dispatchEvent(categoryEvent);
-                            
-                            // Wait for items to populate, then select the item
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                            itemSelect.value = bagData.tabletType;
-                            
-                            // Trigger change event on item select to sync
-                            const itemEvent = new Event('change', { bubbles: true });
-                            itemSelect.dispatchEvent(itemEvent);
-                        }
-                    }
-                }
+            if (!syncTwoLevelTabletSelectByValue(newTabletTypeSelect, bagData.tabletType)) {
+                console.warn('[copyBox] Could not apply tablet type to new bag', newBagNumber, bagData.tabletType);
             }
-            
-            // IMPORTANT: Trigger change event to assign flavor bag number
-            const changeEvent = new Event('change', { bubbles: true });
-            newTabletTypeSelect.dispatchEvent(changeEvent);
         }
     }
+
+    recomputeFlavorBagNumbers();
+    refreshShipmentBatchDefaultTabletOptions();
+    queueAutosave();
     
     // Visual feedback
     const newBoxDiv = document.getElementById(`box-${newBoxNumber}`);
@@ -1853,8 +1798,9 @@ async function copyBox(boxNumber) {
     }
 }
 
-async function submitReceivesWithStatus(event, status = 'published') {
+async function submitReceivesWithStatus(event, status = 'published', options = {}) {
     if (event) event.preventDefault();
+    const keepOpenOnSuccess = Boolean(options.keepOpenOnSuccess);
     
     // FIRST: Refresh CSRF token to prevent expiration errors on long forms
     console.log('[Submit] Refreshing CSRF token before submission...');
@@ -2018,10 +1964,13 @@ async function submitReceivesWithStatus(event, status = 'published') {
     }
     
     try {
-        const submitButton = form.querySelector('button[type="submit"]');
-        const originalText = submitButton.textContent;
-        submitButton.disabled = true;
-        submitButton.textContent = 'Saving...';
+        const publishButton = form.querySelector('button[type="submit"]');
+        const draftButton = form.querySelector('[data-save-receives-draft]');
+        const activeButton = status === 'draft' ? draftButton : publishButton;
+        const activeOriginalText = activeButton ? activeButton.textContent : null;
+        if (publishButton) publishButton.disabled = true;
+        if (draftButton) draftButton.disabled = true;
+        if (activeButton) activeButton.textContent = 'Saving...';
         
         console.log('[Submit] Sending to server:', {
             boxes: boxesArray,
@@ -2051,31 +2000,56 @@ async function submitReceivesWithStatus(event, status = 'published') {
             const isEditing = window.editingReceiveId;
             const action = isEditing ? 'Updated' : 'Saved';
             const statusMsg = status === 'draft' ? `📝 ${action} as DRAFT` : `✅ ${action} & Published`;
-            alert(`${statusMsg}\n\n${result.message}`);
-            
-            // Clear autosave after successful save
-            clearAutosave();
-            stopAutosave();
-            console.log('[Submit] Autosave cleared after successful save');
-            
-            // Clear editing state AFTER successful save
-            window.editingReceiveId = null;
-            console.log('[Submit] CLEARED editingReceiveId after successful save');
-            
-            closeAddReceivesModal();
-            location.reload();
+
+            // "Save as draft" should persist but keep user in the workflow.
+            if (status === 'draft' && keepOpenOnSuccess) {
+                if (result.receiving_id) {
+                    window.editingReceiveId = result.receiving_id;
+                }
+                const modalTitle = document.querySelector('#add-receives-modal h3');
+                if (modalTitle) {
+                    modalTitle.textContent = `✏️ Edit Draft Receive #${window.editingReceiveId || ''}`.trim();
+                }
+                queueAutosave(0);
+                if (typeof showSuccess === 'function') {
+                    showSuccess(`${statusMsg} — progress saved. You can keep working.`);
+                } else {
+                    alert(`${statusMsg}\n\n${result.message}\n\nProgress saved — you can keep editing.`);
+                }
+            } else {
+                if (typeof showSuccess === 'function') {
+                    showSuccess(statusMsg);
+                } else {
+                    alert(`${statusMsg}\n\n${result.message}`);
+                }
+                // Clear autosave after successful final save/publish.
+                clearAutosave();
+                stopAutosave();
+                console.log('[Submit] Autosave cleared after successful save');
+                
+                // Clear editing state AFTER successful save
+                window.editingReceiveId = null;
+                console.log('[Submit] CLEARED editingReceiveId after successful save');
+                
+                closeAddReceivesModal();
+                location.reload();
+            }
         } else {
             alert('❌ Error: ' + (result.error || 'Failed to save receives'));
             // Don't clear editingReceiveId on error - user might retry
         }
         
-        submitButton.disabled = false;
-        submitButton.textContent = originalText;
+        if (publishButton) publishButton.disabled = false;
+        if (draftButton) draftButton.disabled = false;
+        if (activeButton && activeOriginalText != null) activeButton.textContent = activeOriginalText;
     } catch (error) {
         alert('Error saving receives: ' + error.message);
-        const submitButton = form.querySelector('button[type="submit"]');
-        submitButton.disabled = false;
-        submitButton.textContent = 'Save Receives';
+        const publishButton = form.querySelector('button[type="submit"]');
+        const draftButton = form.querySelector('[data-save-receives-draft]');
+        if (publishButton) publishButton.disabled = false;
+        if (draftButton) draftButton.disabled = false;
+        if (publishButton) publishButton.textContent = '✓ Save & Publish';
+        if (draftButton) draftButton.textContent = '📝 Save Draft Progress';
     }
 }
 
@@ -2085,7 +2059,7 @@ async function submitReceives(event) {
 }
 
 async function saveReceivesDraft() {
-    return submitReceivesWithStatus(null, 'draft');
+    return submitReceivesWithStatus(null, 'draft', { keepOpenOnSuccess: true });
 }
 
 function openAssignPOModal(receivingId, currentPoIdParam) {
@@ -2247,7 +2221,7 @@ async function editReceive(receivingId) {
                 modalTitle.textContent = `✏️ Loading Box ${i + 1}/${totalBoxes}...`;
             }
             
-            const currentBoxNumber = addBox();
+            const currentBoxNumber = await addBox();
             loadedBoxCount++;
 
             const boxBatchInput = document.querySelector(`input[name="box_${currentBoxNumber}_batch_number"]`);
@@ -2280,11 +2254,8 @@ async function editReceive(receivingId) {
                 const bagData = boxData.bags[j];
                 console.log(`[Edit]   Loading Bag ${j + 1}/${boxData.bags.length} - Bag #${bagData.bag_number} (tablet_type: ${bagData.tablet_type_id}, count: ${bagData.bag_label_count})`);
                 
-                const currentBagSequence = addBag(currentBoxNumber);
+                const currentBagSequence = await addBag(currentBoxNumber);
                 loadedBagCount++;
-                
-                // Wait longer for bag to be added to DOM and converted
-                await new Promise(resolve => setTimeout(resolve, 400));
                 
                 // Verify bag was added
                 const bagDiv = document.getElementById(`box-${currentBoxNumber}-bag-${currentBagSequence}`);
@@ -2309,83 +2280,23 @@ async function editReceive(receivingId) {
                     if (bagWeightInput && bagData.bag_weight_kg !== null && bagData.bag_weight_kg !== undefined) {
                         bagWeightInput.value = bagData.bag_weight_kg;
                     }
-                    
-                    // CRITICAL: Set the flavor bag number from database (required for form collection)
-                    flavorBagNumberInput.value = bagData.bag_number;
-                    console.log(`[Edit] Set flavor_bag_number for Box ${currentBoxNumber} Bag ${currentBagSequence}: ${bagData.bag_number}`);
-                    
-                    // Track this assignment to prevent re-incrementing
+
                     const bagId = `${currentBoxNumber}-${currentBagSequence}`;
+
+                    if (!syncTwoLevelTabletSelectByValue(tabletTypeSelect, bagData.tablet_type_id)) {
+                        console.error(`[Edit] Could not sync tablet dropdown for type ${bagData.tablet_type_id}`);
+                    }
+                    flavorBagNumberInput.value = bagData.bag_number;
                     bagFlavorAssignments[bagId] = bagData.tablet_type_id;
-                    
-                    // Update the flavor counter to match (so new bags continue correctly)
                     if (!flavorBagCounter[bagData.tablet_type_id] || flavorBagCounter[bagData.tablet_type_id] < bagData.bag_number) {
                         flavorBagCounter[bagData.tablet_type_id] = bagData.bag_number;
                     }
-                    
-                    // Update bag label to show correct number from database
                     updateBagLabel(currentBoxNumber, currentBagSequence, bagData.tablet_type_id, bagData.bag_number);
-                    
-                    // Wait then set dropdowns (after updating counters to prevent auto-increment)
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    
-                    // Wait for two-level conversion to complete
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    
-                    // Find and set category/item dropdowns
-                    const groupSelect = document.getElementById(tabletTypeSelect.id + '_group');
-                    const itemSelect = document.getElementById(tabletTypeSelect.id + '_item');
-                    
-                    console.log(`[Edit] Setting dropdowns for Box ${currentBoxNumber} Bag ${currentBagSequence}`);
-                    console.log(`[Edit]   Group select found:`, !!groupSelect);
-                    console.log(`[Edit]   Item select found:`, !!itemSelect);
-                    console.log(`[Edit]   Tablet type ID to set:`, bagData.tablet_type_id);
-                    
-                    if (groupSelect && itemSelect) {
-                        const selectedOption = tabletTypeSelect.querySelector(`option[value="${bagData.tablet_type_id}"]`);
-                        if (selectedOption) {
-                            const optgroup = selectedOption.parentElement;
-                            if (optgroup && optgroup.tagName === 'OPTGROUP') {
-                                const categoryLabel = optgroup.label;
-                                console.log(`[Edit]   Setting category:`, categoryLabel);
-                                
-                                groupSelect.value = categoryLabel;
-                                groupSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                
-                                // Wait for items to populate
-                                await new Promise(resolve => setTimeout(resolve, 200));
-                                
-                                console.log(`[Edit]   Setting item value:`, bagData.tablet_type_id);
-                                itemSelect.value = bagData.tablet_type_id;
-                                itemSelect.style.display = '';
-                                
-                                // CRITICAL: Ensure item select has the name attribute for FormData collection
-                                // The convertToTwoLevelDropdown transfers name to itemSelect
-                                // But verify it's there
-                                console.log(`[Edit]   Item select name attribute:`, itemSelect.name);
-                                if (!itemSelect.name || itemSelect.name === '') {
-                                    console.warn(`[Edit]   WARNING: Item select has no name! Setting it now.`);
-                                    itemSelect.name = tabletTypeSelect.name || `box_${currentBoxNumber}_bag_${currentBagSequence}_tablet_type`;
-                                }
-                                
-                                // Verify item select has value
-                                console.log(`[Edit]   Item select value after set:`, itemSelect.value);
-                                
-                                if (!itemSelect.value || itemSelect.value === '') {
-                                    console.error(`[Edit]   ERROR: Item select value is empty after setting!`);
-                                    // Force set it again
-                                    itemSelect.value = bagData.tablet_type_id;
-                                    console.log(`[Edit]   Forced item select value to:`, itemSelect.value);
-                                }
-                                tabletTypeSelect.value = itemSelect.value;
-                                await refreshBagWeightRowVisibility(currentBoxNumber, currentBagSequence);
-                            }
-                        } else {
-                            console.error(`[Edit]   ERROR: Option with value ${bagData.tablet_type_id} not found in hidden select`);
-                        }
-                    } else {
-                        console.error(`[Edit]   ERROR: Group or item select not found for bag`);
+                    const itemSelectEl = document.getElementById(tabletTypeSelect.id + '_item');
+                    if (itemSelectEl && (!itemSelectEl.name || itemSelectEl.name === '')) {
+                        itemSelectEl.name = tabletTypeSelect.name || `box_${currentBoxNumber}_bag_${currentBagSequence}_tablet_type`;
                     }
+                    await refreshBagWeightRowVisibility(currentBoxNumber, currentBagSequence);
                 }
             }
         }
@@ -3015,12 +2926,12 @@ document.addEventListener('click', function (event) {
         return;
     }
     if (event.target.closest('[data-add-box]')) {
-        addBox();
+        void addBox().catch(err => console.error('addBox', err));
         return;
     }
     const copyBoxBtn = event.target.closest('[data-copy-box-number]');
     if (copyBoxBtn) {
-        copyBox(parseInt(copyBoxBtn.dataset.copyBoxNumber, 10));
+        void copyBox(parseInt(copyBoxBtn.dataset.copyBoxNumber, 10)).catch(err => console.error('copyBox', err));
         return;
     }
     const removeBoxBtn = event.target.closest('[data-remove-box-number]');
@@ -3030,12 +2941,14 @@ document.addEventListener('click', function (event) {
     }
     const addBagBtn = event.target.closest('[data-add-bag-box-number]');
     if (addBagBtn) {
-        addBag(parseInt(addBagBtn.dataset.addBagBoxNumber, 10));
+        void addBag(parseInt(addBagBtn.dataset.addBagBoxNumber, 10)).catch(err => console.error('addBag', err));
         return;
     }
     const copyBagBtn = event.target.closest('[data-copy-bag-box-number]');
     if (copyBagBtn) {
-        copyBag(parseInt(copyBagBtn.dataset.copyBagBoxNumber, 10), parseInt(copyBagBtn.dataset.copyBagSequence, 10));
+        void copyBag(parseInt(copyBagBtn.dataset.copyBagBoxNumber, 10), parseInt(copyBagBtn.dataset.copyBagSequence, 10)).catch(
+            err => console.error('copyBag', err)
+        );
         return;
     }
     const removeBagBtn = event.target.closest('[data-remove-bag-box-number]');
