@@ -25,19 +25,41 @@ from . import bp
 @bp.route('/api/po/<int:po_id>/max_bag_numbers', methods=['GET'])
 @role_required('shipping')
 def get_po_max_bag_numbers(po_id):
-    """Get the maximum bag number for each flavor (tablet_type) in a PO across all receives"""
+    """Get the maximum bag number for each flavor (tablet_type) in a PO across all receives.
+
+    Query param ``exclude_receiving_id`` (optional): omit bags on that receiving row so
+    draft-edit / form reload does not double-count the receive being edited when building
+    flavor bag baselines.
+    """
     try:
+        exclude_raw = request.args.get('exclude_receiving_id')
+        exclude_receiving_id = None
+        if exclude_raw is not None and str(exclude_raw).strip() != '':
+            try:
+                exclude_receiving_id = int(exclude_raw)
+            except (TypeError, ValueError):
+                exclude_receiving_id = None
+
         with db_read_only() as conn:
             # Get max bag number per tablet_type_id for all bags in this PO
             # Join through receiving -> small_boxes -> bags
-            max_bag_numbers = conn.execute('''
+            params: list = [po_id]
+            where_extra = ''
+            if exclude_receiving_id is not None and exclude_receiving_id > 0:
+                where_extra = ' AND r.id != ?'
+                params.append(exclude_receiving_id)
+
+            max_bag_numbers = conn.execute(
+                f'''
                 SELECT b.tablet_type_id, MAX(b.bag_number) as max_bag_number
                 FROM bags b
                 JOIN small_boxes sb ON b.small_box_id = sb.id
                 JOIN receiving r ON sb.receiving_id = r.id
-                WHERE r.po_id = ?
+                WHERE r.po_id = ?{where_extra}
                 GROUP BY b.tablet_type_id
-            ''', (po_id,)).fetchall()
+                ''',
+                tuple(params),
+            ).fetchall()
 
             # Convert to dictionary: {tablet_type_id: max_bag_number}
             result = {}

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.6] - 2026-04-24
+
+### Fixed
+- **Draft receive edit / autosave restore:** `/api/po/<id>/max_bag_numbers` accepts optional `exclude_receiving_id`; the receive form passes it while `window.editingReceiveId` is set so PO max flavor counts **omit the draft being edited**. This stops bag labels jumping to e.g. “Bag 53” during load because the same receive’s existing bags were included in the baseline. **New receive** modal clears `editingReceiveId` so baselines stay correct.
+
+---
+
 ## [4.2.5] - 2026-04-24
 
 ### Fixed

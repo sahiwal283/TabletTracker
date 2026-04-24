@@ -919,7 +919,8 @@ async function handlePOSelectionChange() {
     recomputeFlavorBagNumbers();
 }
 
-// Load max bag numbers for selected PO (for new entries only - doesn't affect existing data)
+// Load max bag numbers for selected PO. When window.editingReceiveId is set, that receive is
+// excluded so draft-edit reload does not double-count its own bags (labels like "Bag 53").
 async function loadMaxBagNumbersForPO() {
     const poSelect = document.getElementById('po-select');
     if (!poSelect || !poSelect.value) {
@@ -937,7 +938,12 @@ async function loadMaxBagNumbersForPO() {
     }
     
     try {
-        const response = await fetch(`/api/po/${poId}/max_bag_numbers`);
+        let maxUrl = `/api/po/${poId}/max_bag_numbers`;
+        const editingId = window.editingReceiveId;
+        if (editingId != null && editingId !== '' && !Number.isNaN(parseInt(editingId, 10))) {
+            maxUrl += `?exclude_receiving_id=${encodeURIComponent(String(editingId))}`;
+        }
+        const response = await fetch(maxUrl);
         const data = await response.json();
         
         if (data.success && data.max_bag_numbers) {
@@ -1379,6 +1385,9 @@ function ensurePOSelectListener() {
 }
 
 async function openAddReceivesModal() {
+    // New receive flow — do not reuse edit-draft receive id for PO max-bag baseline.
+    window.editingReceiveId = null;
+
     // Reset form
     boxCounter = 0;
     bagCounter = {};
