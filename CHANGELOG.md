@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.2] - 2026-04-24
+
+### Fixed
+- **Draft receive flavor bag numbering** now recomputes from current form state (plus PO baseline), so deleting/reordering bags cannot leave gaps like missing bag `7` within a flavor sequence.
+- **Consistency in edit/restore/copy flows**: bag labels and hidden `flavor_bag_number` fields are recalculated in one pass to keep all flavor bag numbers contiguous and aligned.
+
+---
+
 ## [4.2.1] - 2026-04-24
 
 ### Fixed

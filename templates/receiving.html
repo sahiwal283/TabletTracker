@@ -634,6 +634,7 @@
 <script>
 let boxCounter = 0;
 let bagCounter = {}; // Still track per-box for UI structure
+let flavorBagBaseCounter = {}; // Baseline max bag numbers from existing PO history
 let flavorBagCounter = {}; // Track bag numbers globally per flavor
 let bagFlavorAssignments = {}; // Track which flavor is assigned to which bag
 let currentReceivingId = null;
@@ -876,6 +877,7 @@ async function refreshAllBagTabletTypeDropdowns() {
 async function handlePOSelectionChange() {
     await loadMaxBagNumbersForPO();
     await refreshAllBagTabletTypeDropdowns();
+    recomputeFlavorBagNumbers();
 }
 
 // Load max bag numbers for selected PO (for new entries only - doesn't affect existing data)
@@ -883,12 +885,14 @@ async function loadMaxBagNumbersForPO() {
     const poSelect = document.getElementById('po-select');
     if (!poSelect || !poSelect.value) {
         // No PO selected, reset counters
+        flavorBagBaseCounter = {};
         flavorBagCounter = {};
         return;
     }
     
     const poId = parseInt(poSelect.value);
     if (!poId) {
+        flavorBagBaseCounter = {};
         flavorBagCounter = {};
         return;
     }
@@ -900,18 +904,21 @@ async function loadMaxBagNumbersForPO() {
         if (data.success && data.max_bag_numbers) {
             // Initialize counters with max values from existing bags
             // This ensures new bags continue numbering from where existing bags left off
-            flavorBagCounter = {};
+            flavorBagBaseCounter = {};
             for (const [tabletTypeId, maxBagNumber] of Object.entries(data.max_bag_numbers)) {
-                flavorBagCounter[tabletTypeId] = parseInt(maxBagNumber) || 0;
+                flavorBagBaseCounter[tabletTypeId] = parseInt(maxBagNumber) || 0;
             }
+            flavorBagCounter = { ...flavorBagBaseCounter };
             console.log('Loaded max bag numbers for PO:', flavorBagCounter);
         } else {
             // No existing bags, start from 0
+            flavorBagBaseCounter = {};
             flavorBagCounter = {};
         }
     } catch (error) {
         console.error('Error loading max bag numbers:', error);
         // On error, start from 0
+        flavorBagBaseCounter = {};
         flavorBagCounter = {};
     }
 }
@@ -953,6 +960,43 @@ function updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber) {
             labelElement.classList.remove('text-blue-600', 'font-semibold');
         }
     }
+}
+
+function recomputeFlavorBagNumbers() {
+    const nextByFlavor = { ...flavorBagBaseCounter };
+    bagFlavorAssignments = {};
+
+    const boxEls = Array.from(document.querySelectorAll('[id^="box-"]'))
+        .filter(el => /^box-\d+$/.test(el.id))
+        .sort((a, b) => parseInt(a.id.split('-')[1], 10) - parseInt(b.id.split('-')[1], 10));
+
+    boxEls.forEach((boxEl) => {
+        const boxNumber = parseInt(boxEl.id.split('-')[1], 10);
+        const bagEls = Array.from(boxEl.querySelectorAll(`[id^="box-${boxNumber}-bag-"]`))
+            .filter(el => new RegExp(`^box-${boxNumber}-bag-\\d+$`).test(el.id))
+            .sort((a, b) => parseInt(a.id.split('-')[3], 10) - parseInt(b.id.split('-')[3], 10));
+
+        bagEls.forEach((bagEl) => {
+            const bagSequence = parseInt(bagEl.id.split('-')[3], 10);
+            const select = bagEl.querySelector(`select[name="box_${boxNumber}_bag_${bagSequence}_tablet_type"]`);
+            const hiddenField = bagEl.querySelector('.flavor-bag-number-field');
+            const tabletTypeId = select && select.value ? String(select.value) : '';
+
+            if (!tabletTypeId) {
+                if (hiddenField) hiddenField.value = '';
+                updateBagLabel(boxNumber, bagSequence, null, null);
+                return;
+            }
+
+            nextByFlavor[tabletTypeId] = (parseInt(nextByFlavor[tabletTypeId] || 0, 10) || 0) + 1;
+            const flavorBagNumber = nextByFlavor[tabletTypeId];
+            if (hiddenField) hiddenField.value = String(flavorBagNumber);
+            bagFlavorAssignments[`${boxNumber}-${bagSequence}`] = tabletTypeId;
+            updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber);
+        });
+    });
+
+    flavorBagCounter = nextByFlavor;
 }
 
 // ==================== AUTO-SAVE FUNCTIONALITY ====================
@@ -1164,6 +1208,7 @@ async function restoreSavedDraft(savedDraft) {
     // Clear existing form
     boxCounter = 0;
     bagCounter = {};
+    flavorBagBaseCounter = {};
     flavorBagCounter = {};
     bagFlavorAssignments = {};
     document.getElementById('boxes-container').innerHTML = '';
@@ -1171,8 +1216,6 @@ async function restoreSavedDraft(savedDraft) {
     // Restore counters
     if (savedDraft.boxCounter) boxCounter = savedDraft.boxCounter;
     if (savedDraft.bagCounter) bagCounter = { ...savedDraft.bagCounter };
-    if (savedDraft.flavorBagCounter) flavorBagCounter = { ...savedDraft.flavorBagCounter };
-    if (savedDraft.bagFlavorAssignments) bagFlavorAssignments = { ...savedDraft.bagFlavorAssignments };
     
     // Restore editing state
     if (savedDraft.editing_receive_id) {
@@ -1287,6 +1330,7 @@ async function restoreSavedDraft(savedDraft) {
         }
     }
     
+    recomputeFlavorBagNumbers();
     console.log('[Restore] Draft restoration complete');
     alert(`✅ Restored ${sortedBoxes.length} boxes from saved draft`);
 }
@@ -1302,6 +1346,7 @@ async function openAddReceivesModal() {
     // Reset form
     boxCounter = 0;
     bagCounter = {};
+    flavorBagBaseCounter = {};
     flavorBagCounter = {}; // Reset flavor-based counters
     bagFlavorAssignments = {}; // Reset flavor assignments
     document.getElementById('boxes-container').innerHTML = '';
@@ -1415,25 +1460,9 @@ function addBox() {
 function removeBox(boxNumber) {
     const boxDiv = document.getElementById(`box-${boxNumber}`);
     if (boxDiv) {
-        // Get all bags in this box and decrement their flavor counters
-        const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
-        if (bagsContainer) {
-            const bagDivs = bagsContainer.querySelectorAll('[id^="box-' + boxNumber + '-bag-"]');
-            bagDivs.forEach(bagDiv => {
-                const bagId = bagDiv.id.match(/box-(\d+)-bag-(\d+)/);
-                if (bagId) {
-                    const bagIdentifier = `${bagId[1]}-${bagId[2]}`;
-                    const assignedFlavor = bagFlavorAssignments[bagIdentifier];
-                    if (assignedFlavor) {
-                        decrementFlavorBagNumber(assignedFlavor);
-                        delete bagFlavorAssignments[bagIdentifier];
-                    }
-                }
-            });
-        }
-        
         boxDiv.remove();
         delete bagCounter[boxNumber];
+        recomputeFlavorBagNumbers();
         refreshShipmentBatchDefaultTabletOptions();
         queueAutosave();
     }
@@ -1526,41 +1555,10 @@ function addBag(boxNumber) {
     
     // Add listener to update bag number when flavor is selected
     select.addEventListener('change', function() {
-        const tabletTypeId = this.value;
-        const hiddenField = bagDiv.querySelector('.flavor-bag-number-field');
-        const bagId = `${boxNumber}-${bagSequence}`;
-        
-        // Get previously assigned flavor for this bag
-        const previousFlavor = bagFlavorAssignments[bagId];
-        
-        // Skip if this is a programmatic change to the same value (e.g., from copy function)
-        // Only process if flavor actually changed or is newly selected
-        if (previousFlavor === tabletTypeId) {
-            refreshBagWeightRowVisibility(boxNumber, bagSequence);
-            return; // Same flavor, no need to increment/decrement
-        }
-        
-        // If flavor changed from a previous selection, decrement old counter
-        if (previousFlavor && previousFlavor !== tabletTypeId) {
-            decrementFlavorBagNumber(previousFlavor);
-        }
-        
-        if (tabletTypeId) {
-            const flavorBagNumber = getNextFlavorBagNumber(tabletTypeId);
-            hiddenField.value = flavorBagNumber;
-            bagFlavorAssignments[bagId] = tabletTypeId; // Track this assignment
-            updateBagLabel(boxNumber, bagSequence, tabletTypeId, flavorBagNumber);
-        } else {
-            // Flavor cleared - decrement if there was a previous assignment
-            if (previousFlavor) {
-                decrementFlavorBagNumber(previousFlavor);
-                delete bagFlavorAssignments[bagId];
-            }
-            hiddenField.value = '';
-            updateBagLabel(boxNumber, bagSequence, null, null);
-        }
+        recomputeFlavorBagNumbers();
         refreshShipmentBatchDefaultTabletOptions();
         refreshBagWeightRowVisibility(boxNumber, bagSequence);
+        queueAutosave();
     });
     refreshBagWeightRowVisibility(boxNumber, bagSequence);
     queueAutosave();
@@ -1602,17 +1600,8 @@ async function refreshBagWeightRowVisibility(boxNumber, bagSequence) {
 function removeBag(boxNumber, bagNumber) {
     const bagDiv = document.getElementById(`box-${boxNumber}-bag-${bagNumber}`);
     if (bagDiv) {
-        // Get the assigned flavor for this bag
-        const bagId = `${boxNumber}-${bagNumber}`;
-        const assignedFlavor = bagFlavorAssignments[bagId];
-        
-        // Decrement the flavor counter if a flavor was assigned
-        if (assignedFlavor) {
-            decrementFlavorBagNumber(assignedFlavor);
-            delete bagFlavorAssignments[bagId];
-        }
-        
         bagDiv.remove();
+        recomputeFlavorBagNumbers();
         refreshShipmentBatchDefaultTabletOptions();
         queueAutosave();
     }
@@ -2217,6 +2206,7 @@ async function editReceive(receivingId) {
         const boxesContainer = document.getElementById('boxes-container');
         boxesContainer.innerHTML = '';
         boxCounter = 0;
+        flavorBagBaseCounter = {};
         flavorBagCounter = {};
         bagFlavorAssignments = {};
         
@@ -2428,6 +2418,7 @@ async function editReceive(receivingId) {
         
         console.log(`[Edit Receive] Successfully loaded ${loadedBoxCount} boxes with ${loadedBagCount} bags`);
         console.log(`[Edit Receive] Form is now ready for editing`);
+        recomputeFlavorBagNumbers();
         refreshShipmentBatchDefaultTabletOptions();
         
         // Show success message with verification
