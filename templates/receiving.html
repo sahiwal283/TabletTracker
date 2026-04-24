@@ -1035,6 +1035,12 @@ function clearAutosave() {
     console.log('[Autosave] Cleared saved draft');
 }
 
+let autosaveDebounceTimer = null;
+function queueAutosave(ms = 300) {
+    if (autosaveDebounceTimer) clearTimeout(autosaveDebounceTimer);
+    autosaveDebounceTimer = setTimeout(() => autosaveToLocalStorage(), ms);
+}
+
 function getSavedDraft() {
     try {
         const saved = localStorage.getItem(AUTOSAVE_KEY);
@@ -1089,6 +1095,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const receivesForm = document.getElementById('receives-form');
     if (receivesForm) {
         receivesForm.addEventListener('submit', submitReceives);
+        receivesForm.addEventListener('input', () => queueAutosave(500));
+        receivesForm.addEventListener('change', () => queueAutosave(300));
     }
 
     // Check for saved draft BEFORE adding default box
@@ -1227,8 +1235,7 @@ async function restoreSavedDraft(savedDraft) {
     const sortedBoxes = Object.keys(boxData).map(n => parseInt(n)).sort((a, b) => a - b);
     
     for (const boxNum of sortedBoxes) {
-        addBox();
-        const currentBoxNum = boxCounter;
+        const currentBoxNum = addBox();
         const boxBatchInput = document.querySelector(`input[name="box_${currentBoxNum}_batch_number"]`);
         const savedBoxBatch = savedDraft.fields[`box_${boxNum}_batch_number`];
         if (boxBatchInput && savedBoxBatch) {
@@ -1240,16 +1247,14 @@ async function restoreSavedDraft(savedDraft) {
         for (let i = 0; i < sortedBags.length; i++) {
             const bagNum = sortedBags[i];
             const bagData = boxData[boxNum][bagNum];
+            let currentBagSeq = 1;
             
             // First bag is already added with the box
             if (i > 0) {
-                addBag(currentBoxNum);
+                currentBagSeq = addBag(currentBoxNum);
             }
             
             await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Get the current bag sequence
-            const currentBagSeq = bagCounter[currentBoxNum] || 1;
             const bagSelectId = `box_${currentBoxNum}_bag_${currentBagSeq}_tablet_type`;
             
             // Set tablet type
@@ -1342,11 +1347,21 @@ function closeAddReceivesModal(event) {
 }
 
 function addBox() {
-    boxCounter++;
-    const boxNumber = boxCounter;
+    const used = new Set(
+        Array.from(document.querySelectorAll('[id^="box-"]'))
+            .map(el => {
+                const m = el.id.match(/^box-(\d+)$/);
+                return m ? parseInt(m[1], 10) : null;
+            })
+            .filter(v => Number.isInteger(v) && v > 0)
+    );
+    let boxNumber = 1;
+    while (used.has(boxNumber)) boxNumber++;
+    if (boxNumber > boxCounter) boxCounter = boxNumber;
     bagCounter[boxNumber] = 0;
     
     const boxesContainer = document.getElementById('boxes-container');
+    const hasExistingBoxes = Object.keys(bagCounter).length > 1;
     
     const boxDiv = document.createElement('div');
     boxDiv.className = 'mb-6 p-4 border-2 border-gray-300 rounded-lg bg-gray-50';
@@ -1361,7 +1376,7 @@ function addBox() {
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     Copy Box
                 </button>
-                ${boxNumber > 1 ? `
+                ${hasExistingBoxes ? `
                     <button type="button" data-remove-box-number="${boxNumber}" 
                             class="text-red-600 hover:text-red-800 text-sm">
                         Remove Box
@@ -1393,6 +1408,8 @@ function addBox() {
     
     // Automatically add Bag 1 to this box
     addBag(boxNumber);
+    queueAutosave();
+    return boxNumber;
 }
 
 function removeBox(boxNumber) {
@@ -1418,17 +1435,25 @@ function removeBox(boxNumber) {
         boxDiv.remove();
         delete bagCounter[boxNumber];
         refreshShipmentBatchDefaultTabletOptions();
+        queueAutosave();
     }
 }
 
 function addBag(boxNumber) {
-    if (!bagCounter[boxNumber]) {
-        bagCounter[boxNumber] = 0;
-    }
-    bagCounter[boxNumber]++;
-    const bagSequence = bagCounter[boxNumber]; // Sequence within box (for UI only)
-    
     const bagsContainer = document.getElementById(`box-${boxNumber}-bags`);
+    const used = new Set(
+        Array.from((bagsContainer || document).querySelectorAll(`[id^="box-${boxNumber}-bag-"]`))
+            .map(el => {
+                const m = el.id.match(new RegExp(`^box-${boxNumber}-bag-(\\d+)$`));
+                return m ? parseInt(m[1], 10) : null;
+            })
+            .filter(v => Number.isInteger(v) && v > 0)
+    );
+    let bagSequence = 1;
+    while (used.has(bagSequence)) bagSequence++;
+    bagCounter[boxNumber] = Math.max(parseInt(bagCounter[boxNumber] || 0, 10), bagSequence);
+    
+    const hasExistingBags = used.size > 0;
     
     const bagDiv = document.createElement('div');
     bagDiv.className = 'p-4 bg-white border border-gray-200 rounded-lg';
@@ -1443,7 +1468,7 @@ function addBag(boxNumber) {
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     Copy
                 </button>
-                ${bagSequence > 1 ? `
+                ${hasExistingBags ? `
                     <button type="button" data-remove-bag-box-number="${boxNumber}" data-remove-bag-sequence="${bagSequence}" 
                             class="text-red-600 hover:text-red-800 text-xs">
                         Remove Bag
@@ -1538,6 +1563,8 @@ function addBag(boxNumber) {
         refreshBagWeightRowVisibility(boxNumber, bagSequence);
     });
     refreshBagWeightRowVisibility(boxNumber, bagSequence);
+    queueAutosave();
+    return bagSequence;
 }
 
 async function refreshBagWeightRowVisibility(boxNumber, bagSequence) {
@@ -1587,6 +1614,7 @@ function removeBag(boxNumber, bagNumber) {
         
         bagDiv.remove();
         refreshShipmentBatchDefaultTabletOptions();
+        queueAutosave();
     }
 }
 
@@ -1617,10 +1645,7 @@ async function copyBag(boxNumber, bagNumber) {
     }
     
     // Create a new bag
-    addBag(boxNumber);
-    
-    // Get the newly created bag number
-    const newBagNumber = bagCounter[boxNumber];
+    const newBagNumber = addBag(boxNumber);
     
     // Wait for the dropdown to be added to the DOM AND converted to two-level
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -1761,8 +1786,7 @@ async function copyBox(boxNumber) {
     }
     
     // Create a new box
-    addBox();
-    const newBoxNumber = boxCounter;
+    const newBoxNumber = addBox();
     
     // Remove the automatically added first bag
     const firstBagId = `box-${newBoxNumber}-bag-1`;
@@ -1776,8 +1800,7 @@ async function copyBox(boxNumber) {
     for (let index = 0; index < bagsData.length; index++) {
         const bagData = bagsData[index];
         
-        addBag(newBoxNumber);
-        const newBagNumber = bagCounter[newBoxNumber];
+        const newBagNumber = addBag(newBoxNumber);
         
         // Wait for the dropdown to be added and converted to two-level
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -2234,8 +2257,7 @@ async function editReceive(receivingId) {
                 modalTitle.textContent = `✏️ Loading Box ${i + 1}/${totalBoxes}...`;
             }
             
-            addBox();
-            const currentBoxNumber = boxCounter;
+            const currentBoxNumber = addBox();
             loadedBoxCount++;
 
             const boxBatchInput = document.querySelector(`input[name="box_${currentBoxNumber}_batch_number"]`);
@@ -2268,8 +2290,7 @@ async function editReceive(receivingId) {
                 const bagData = boxData.bags[j];
                 console.log(`[Edit]   Loading Bag ${j + 1}/${boxData.bags.length} - Bag #${bagData.bag_number} (tablet_type: ${bagData.tablet_type_id}, count: ${bagData.bag_label_count})`);
                 
-                addBag(currentBoxNumber);
-                const currentBagSequence = bagCounter[currentBoxNumber];
+                const currentBagSequence = addBag(currentBoxNumber);
                 loadedBagCount++;
                 
                 // Wait longer for bag to be added to DOM and converted

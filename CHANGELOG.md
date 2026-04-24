@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.1] - 2026-04-24
+
+### Fixed
+- **Receive form bag numbering**: adding a bag now reuses the lowest available bag number within a box after deletions (no skipped bag numbers), matching box-number behavior and reducing operator error during intake.
+- **Receive form reliability polish**: bag add/copy/edit flows now use explicit returned bag IDs from `addBag()` so subsequent field population always targets the correct bag row.
+
+---
+
 ## [4.0.0] - 2026-04-23
 
 ### Breaking
