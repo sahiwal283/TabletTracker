@@ -647,6 +647,10 @@ var categories = {{ categories | tojson | safe }};
 var tabletTypes = {{ tablet_types | tojson | safe }};
 var poTabletTypeIdsByPo = {{ po_tablet_type_ids_by_po | tojson | safe }};
 let shipmentBatchDefaultRowCounter = 0;
+/** Prevents concurrent editReceive() runs (double-open corrupts DOM → duplicate boxes on save). */
+let editReceiveLoadLock = false;
+/** Prevents double-submit while a save is in flight. */
+let saveReceivesInFlight = false;
 
 function getTabletTypeById(tabletTypeId) {
     return tabletTypes.find(tt => String(tt.id) === String(tabletTypeId));
@@ -1809,6 +1813,11 @@ async function copyBox(boxNumber) {
 
 async function submitReceivesWithStatus(event, status = 'published', options = {}) {
     if (event) event.preventDefault();
+    if (saveReceivesInFlight) {
+        return;
+    }
+    saveReceivesInFlight = true;
+    try {
     const keepOpenOnSuccess = Boolean(options.keepOpenOnSuccess);
     
     // FIRST: Refresh CSRF token to prevent expiration errors on long forms
@@ -1946,12 +1955,18 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
     
     // Show warning if editing and box count seems wrong
     if (window.editingReceiveId) {
-        const boxesInDOM = document.querySelectorAll('[id^="box-"]').length;
-        console.log('[Submit] Boxes visible in DOM:', boxesInDOM);
+        // Only count top-level box divs (id "box-123"), not bag rows "box-123-bag-4".
+        const boxesInDOM = document.querySelectorAll('[id^="box-"]:not([id*="-bag-"])').length;
+        console.log('[Submit] Box rows in DOM:', boxesInDOM);
         console.log('[Submit] Boxes being sent to server:', boxesArray.length);
-        
+
         if (boxesArray.length < boxesInDOM) {
-            if (!confirm(`⚠️ WARNING: Potential data loss!\n\nBoxes visible in form: ${boxesInDOM}\nBoxes being sent to server: ${boxesArray.length}\n\nSome boxes may be missing required data (tablet type, bag count, or flavor bag number).\n\nDo you want to continue anyway?`)) {
+            if (!confirm(`⚠️ WARNING: Potential data loss!\n\nBox rows in form: ${boxesInDOM}\nBoxes being sent to server: ${boxesArray.length}\n\nSome boxes may be missing required data (tablet type, bag count, or flavor bag number).\n\nDo you want to continue anyway?`)) {
+                return;
+            }
+        }
+        if (boxesArray.length > boxesInDOM + 5) {
+            if (!confirm(`⚠️ WARNING: You are saving MORE boxes (${boxesArray.length}) than box rows visible (${boxesInDOM}).\n\nThis usually means a corrupted form. Stop unless you are sure.\n\nContinue anyway?`)) {
                 return;
             }
         }
@@ -1971,7 +1986,7 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
         }
         return;
     }
-    
+
     try {
         const publishButton = form.querySelector('button[type="submit"]');
         const draftButton = form.querySelector('[data-save-receives-draft]');
@@ -2060,6 +2075,9 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
         if (publishButton) publishButton.textContent = '✓ Save & Publish';
         if (draftButton) draftButton.textContent = '📝 Save Draft Progress';
     }
+    } finally {
+        saveReceivesInFlight = false;
+    }
 }
 
 // Wrapper functions for different submit types
@@ -2147,13 +2165,17 @@ async function unpublishReceive(receivingId) {
 }
 
 async function editReceive(receivingId) {
-    // Load receive data and populate form for editing
+    if (editReceiveLoadLock) {
+        alert('This draft is already loading. Wait for it to finish (or close the modal), then try again.\n\nOpening edit twice at once can duplicate every box in the database.');
+        return;
+    }
+    editReceiveLoadLock = true;
     try {
         // Show loading message
         if (!confirm(`📝 Edit Draft Receive\n\nLoading existing boxes and bags...\n\nThis will take a moment. Please wait for the form to fully load before making changes.\n\nClick OK to continue.`)) {
             return;
         }
-        
+
         const response = await fetch(`/api/receiving/${receivingId}/editable`);
         const data = await response.json();
         
@@ -2357,6 +2379,8 @@ async function editReceive(receivingId) {
                 btn.style.opacity = '1';
             });
         }
+    } finally {
+        editReceiveLoadLock = false;
     }
 }
 

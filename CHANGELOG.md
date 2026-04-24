@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.7] - 2026-04-24
+
+### Fixed
+- **Critical — duplicate boxes on draft edit:** concurrent or double-started `editReceive()` could clear the DOM while another load was still adding boxes, producing ~2× `small_boxes` on the next save. Added a **load mutex** (`editReceiveLoadLock`), **save mutex** for submit, correct **box-row DOM count** for validation (exclude `*-bag-*` ids), and a **server refusal** on draft save when box count jumps by an implausible margin (HTTP 409, message points to recovery script).
+- **Recovery:** added `scripts/prune_receiving_boxes.py` — dry-run by default; with `--execute`, keeps the first `--keep N` `small_boxes` rows (lowest `id`) for a `receiving_id` and deletes the rest (and their bags), if no `warehouse_submissions.bag_id` references those bags.
+
+---
+
 ## [4.2.6] - 2026-04-24
 
 ### Fixed

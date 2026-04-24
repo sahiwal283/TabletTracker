@@ -338,6 +338,22 @@ def save_receives():
                 if old_count and old_count['count'] > len(boxes_data):
                     current_app.logger.warning(f"⚠️ UPDATE WARNING: Receive {receiving_id} had {old_count['count']} boxes, new data has {len(boxes_data)}. Potential data loss!")
 
+                old_c = int(old_count['count'] or 0) if old_count else 0
+                new_c = len(boxes_data)
+                # Guard against concurrent edit / corrupted DOM saving ~2× duplicate boxes.
+                jump_threshold = max(old_c + 40, int(old_c * 1.5) + 15)
+                if old_c >= 5 and new_c > jump_threshold:
+                    return jsonify({
+                        'success': False,
+                        'code': 'suspicious_box_count_jump',
+                        'error': (
+                            f'Refusing save: box count would jump from {old_c} to {new_c}. '
+                            'This usually means the editor was opened twice at once or the form is corrupted. '
+                            'Refresh the page, edit this draft only once, then save. '
+                            f'If rows are already wrong in the DB, use scripts/prune_receiving_boxes.py for receiving_id={receiving_id}.'
+                        ),
+                    }), 409
+
                 # Delete existing bags and boxes (will be replaced with form data)
                 conn.execute('''
                     DELETE FROM bags
