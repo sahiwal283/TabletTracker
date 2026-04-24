@@ -23,8 +23,8 @@ from app.services.receiving_admin_service import (
 from app.services.receiving_service import (
     apply_contiguous_flavor_bag_numbers_on_save,
     get_packaged_counts_for_bag_ids,
+    resolve_bag_weight_columns_for_save,
 )
-from app.services.zoho_service import parse_zoho_item_weight_grams, zoho_api
 from app.utils.auth_utils import admin_required, employee_required, role_required
 from app.utils.db_utils import BagRepository, db_read_only, db_transaction
 
@@ -427,39 +427,13 @@ def save_receives():
                         effective_batch_number = shipment_batch_defaults[tablet_type_id_int]
                         batch_source = 'shipment_default'
 
-                    bag_weight_kg = None
-                    estimated_tablets_from_weight = None
                     bw_raw = bag.get('bag_weight_kg')
-                    if bw_raw is not None and str(bw_raw).strip() != '':
-                        try:
-                            bag_weight_kg = float(bw_raw)
-                        except (TypeError, ValueError):
-                            return jsonify({
-                                'success': False,
-                                'error': f'Invalid bag weight (kg) for bag {bag_number}',
-                            }), 400
-                        if bag_weight_kg < 0:
-                            return jsonify({'success': False, 'error': 'Bag weight cannot be negative'}), 400
-                        tt_row = conn.execute(
-                            'SELECT inventory_item_id FROM tablet_types WHERE id = ?',
-                            (tablet_type_id_int,),
-                        ).fetchone()
-                        if not tt_row or not tt_row['inventory_item_id']:
-                            return jsonify({
-                                'success': False,
-                                'error': 'Tablet type has no Zoho inventory item; cannot record bag weight.',
-                            }), 400
-                        zoho_item = zoho_api.get_item(tt_row['inventory_item_id'])
-                        grams = parse_zoho_item_weight_grams(zoho_item)
-                        if not grams:
-                            return jsonify({
-                                'success': False,
-                                'error': (
-                                    'No weight configured in Zoho for this item. '
-                                    'Remove the weight field or add weight in Zoho Inventory.'
-                                ),
-                            }), 400
-                        estimated_tablets_from_weight = int((bag_weight_kg * 1000.0) / grams)
+                    try:
+                        bag_weight_kg, estimated_tablets_from_weight = resolve_bag_weight_columns_for_save(
+                            conn, tablet_type_id_int, bw_raw
+                        )
+                    except ValueError as e:
+                        return jsonify({'success': False, 'error': f'{e} (bag {bag_number})'}), 400
 
                     conn.execute('''
                         INSERT INTO bags (

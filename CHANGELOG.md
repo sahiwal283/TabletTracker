@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.8] - 2026-04-24
+
+### Added
+- **`PATCH /api/bag/<id>/weight`** (shipping): set or clear `bag_weight_kg` and `estimated_tablets_from_weight` using the same Zoho unit-weight rules as receive save, including on **published** receives.
+- **Receive details / bag submissions UI:** “Weight” opens a small modal to enter kg or clear; refreshes the open receive modal and submissions view when applicable.
+
+### Fixed
+- **Receive form — draft (and publish) bag weights:** `refreshBagWeightRowVisibility` no longer clears the kg field when the row is hidden due to Zoho “no weight” or a failed weight check, so values are not wiped before **Save Draft** or publish reads the form.
+
+### Changed
+- **`resolve_bag_weight_columns_for_save`** in `receiving_service` centralizes bag-weight validation used by `/api/save_receives` and the new bag weight endpoint.
+
+---
+
 ## [4.2.7] - 2026-04-24
 
 ### Fixed

@@ -1632,8 +1632,8 @@ async function refreshBagWeightRowVisibility(boxNumber, bagSequence) {
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.has_weight) {
             row.classList.add('hidden');
-            const inp = row.querySelector('.bag-weight-kg-input');
-            if (inp) inp.value = '';
+            // Do not clear the weight input here: transient API errors or a momentary
+            // "no weight" response would wipe values before Save Draft / publish reads the form.
             if (!r.ok) {
                 console.warn('zoho-item-weight HTTP', r.status, j.error || j);
             }

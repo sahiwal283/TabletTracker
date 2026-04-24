@@ -12,6 +12,7 @@ from app.services.receiving_admin_service import (
 )
 from app.services.receiving_service import (
     get_receiving_with_details,
+    resolve_bag_weight_columns_for_save,
 )
 from app.utils.auth_utils import admin_required, role_required
 from app.utils.db_utils import db_read_only, db_transaction
@@ -234,4 +235,62 @@ def update_bag_batch(bag_id):
         current_app.logger.error(f"Error updating bag batch for bag {bag_id}: {str(e)}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Failed to update bag batch: {str(e)}'}), 500
+
+
+@bp.route('/api/bag/<int:bag_id>/weight', methods=['PATCH'])
+@role_required('shipping')
+def update_bag_weight(bag_id):
+    """Set or clear bag_weight_kg (and estimated_tablets_from_weight) on draft or published receives."""
+    try:
+        data = request.get_json() if request.is_json else {}
+        if not isinstance(data, dict) or 'bag_weight_kg' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON body must include bag_weight_kg (number, or null to clear).',
+            }), 400
+
+        bw_raw = data.get('bag_weight_kg')
+
+        with db_transaction() as conn:
+            bag_row = conn.execute(
+                '''
+                SELECT b.id, b.tablet_type_id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE b.id = ?
+                ''',
+                (bag_id,),
+            ).fetchone()
+
+            if not bag_row:
+                return jsonify({'success': False, 'error': 'Bag not found'}), 404
+
+            try:
+                bag_weight_kg, estimated_tablets_from_weight = resolve_bag_weight_columns_for_save(
+                    conn, bag_row['tablet_type_id'], bw_raw
+                )
+            except ValueError as e:
+                return jsonify({'success': False, 'error': str(e)}), 400
+
+            conn.execute(
+                '''
+                UPDATE bags
+                SET bag_weight_kg = ?, estimated_tablets_from_weight = ?
+                WHERE id = ?
+                ''',
+                (bag_weight_kg, estimated_tablets_from_weight, bag_id),
+            )
+
+            return jsonify({
+                'success': True,
+                'message': 'Bag weight updated.',
+                'bag_id': bag_id,
+                'bag_weight_kg': bag_weight_kg,
+                'estimated_tablets_from_weight': estimated_tablets_from_weight,
+            })
+    except Exception as e:
+        current_app.logger.error(f"Error updating bag weight for bag {bag_id}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to update bag weight: {str(e)}'}), 500
 

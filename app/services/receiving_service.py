@@ -5,7 +5,43 @@ Receiving service for business logic related to receiving operations.
 from collections.abc import Sequence
 from typing import Any
 
+from app.services.zoho_service import parse_zoho_item_weight_grams, zoho_api
 from app.utils.db_utils import BagRepository, ReceivingRepository, db_read_only, db_transaction
+
+
+def resolve_bag_weight_columns_for_save(conn, tablet_type_id: int | None, bw_raw: Any) -> tuple[float | None, int | None]:
+    """
+    Map optional bag_weight_kg input to DB columns using the same Zoho item weight rules as bulk receive save.
+
+    Empty / null input clears weight. Raises ValueError for invalid numbers or missing Zoho configuration
+    when a numeric weight is supplied.
+    """
+    if bw_raw is None or (isinstance(bw_raw, str) and not str(bw_raw).strip()):
+        return None, None
+    try:
+        bag_weight_kg = float(bw_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Invalid bag weight (kg).') from exc
+    if bag_weight_kg < 0:
+        raise ValueError('Bag weight cannot be negative')
+    if not tablet_type_id:
+        raise ValueError('Bag has no tablet type; cannot record bag weight.')
+    tablet_type_id_int = int(tablet_type_id)
+    tt_row = conn.execute(
+        'SELECT inventory_item_id FROM tablet_types WHERE id = ?',
+        (tablet_type_id_int,),
+    ).fetchone()
+    if not tt_row or not tt_row['inventory_item_id']:
+        raise ValueError('Tablet type has no Zoho inventory item; cannot record bag weight.')
+    zoho_item = zoho_api.get_item(tt_row['inventory_item_id'])
+    grams = parse_zoho_item_weight_grams(zoho_item)
+    if not grams:
+        raise ValueError(
+            'No weight configured in Zoho for this item. '
+            'Remove the weight field or add weight in Zoho Inventory.'
+        )
+    estimated_tablets_from_weight = int((bag_weight_kg * 1000.0) / grams)
+    return bag_weight_kg, estimated_tablets_from_weight
 
 
 def get_receiving_with_details(receiving_id: int) -> dict[str, Any] | None:

@@ -678,6 +678,10 @@ function bagSubmissionsModalFooterHtml(bagMeta, ctx) {
     }
     if (canBagOps) {
         parts.push(`<button type="button" data-open-quick-bag-batch-id="${bagId}" data-open-quick-bag-batch-name="${safeName}" data-open-quick-bag-batch-number="${bn}" data-open-quick-bag-box-number="${bx}" data-open-quick-bag-batch-number-value="${safeBatchNum}" data-open-quick-bag-batch-source="${safeBatchSrc}" data-open-quick-bag-receive-id="${effReceiveId}" data-open-quick-bag-receive-name="${safeRecv}" class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">🧾 Batch</button>`);
+        const wcur = bagMeta.bag_weight_kg != null && bagMeta.bag_weight_kg !== ''
+            ? escBagAttr(String(bagMeta.bag_weight_kg))
+            : '';
+        parts.push(`<button type="button" data-open-bag-weight-id="${bagId}" data-open-bag-weight-current="${wcur}" data-open-bag-weight-name="${safeName}" data-open-bag-weight-bag-number="${bn}" data-open-bag-weight-box-number="${bx}" data-open-bag-weight-receive-id="${effReceiveId}" data-open-bag-weight-receive-name="${safeRecv}" class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">⚖ Weight</button>`);
         if (isClosed && !zohoPushed) {
             parts.push(`<button type="button" data-open-push-zoho-bag-id="${bagId}" data-open-push-zoho-name="${safeName}" data-open-push-zoho-bag-number="${bn}" data-open-push-zoho-box-number="${bx}" data-open-push-zoho-received="${bagMeta.received_count || 0}" data-open-push-zoho-packaged="${bagMeta.packaged_count || 0}" data-open-push-zoho-receive-id="${effReceiveId}" data-open-push-zoho-receive-name="${safeRecv}" class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">📤 Push to Zoho</button>`);
         }
@@ -3982,6 +3986,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         const userRole = '{{ session.get("employee_role", "") }}' || '{{ "admin" if session.get("admin_authenticated") else "" }}';
         const isAdmin = userRole === 'admin';
         const isManager = userRole === 'manager' || isAdmin;
+        const canEditBagWeight = isAdmin || isManager || userRole === 'shipping' || userRole === 'warehouse_lead';
         
         const response = await fetch(`/api/receive/${receiveId}/details`);
         const data = await response.json();
@@ -4085,6 +4090,18 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                 <button data-open-quick-bag-batch-id="${bag.bag_id}" data-open-quick-bag-batch-name="${safeTabletTypeName}" data-open-quick-bag-batch-number="${bag.bag_number}" data-open-quick-bag-box-number="${boxNumber}" data-open-quick-bag-batch-number-value="${safeBatchNumber}" data-open-quick-bag-batch-source="${safeBatchSource}" data-open-quick-bag-receive-id="${receiveId}" data-open-quick-bag-receive-name="${safeReceiveName}"
                                         class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">
                                     🧾 Batch
+                                </button>
+                            ` : ''}
+                            ${canEditBagWeight ? `
+                                <button type="button" data-open-bag-weight-id="${bag.bag_id}"
+                                        data-open-bag-weight-current="${hasWeight && weightKg != null ? String(weightKg) : ''}"
+                                        data-open-bag-weight-name="${safeTabletTypeName}"
+                                        data-open-bag-weight-bag-number="${bag.bag_number}"
+                                        data-open-bag-weight-box-number="${boxNumber}"
+                                        data-open-bag-weight-receive-id="${receiveId}"
+                                        data-open-bag-weight-receive-name="${safeReceiveName}"
+                                        class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">
+                                    ⚖ Weight
                                 </button>
                             ` : ''}
                             ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
@@ -5143,6 +5160,127 @@ async function saveQuickBagBatch(bagId, receiveId, receiveName) {
     }
 }
 
+function closeBagWeightModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('bag-weight-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+}
+
+function openBagWeightModal(bagId, productName, bagNumber, boxNumber, receiveId, receiveName, currentKgStr) {
+    const existingModal = document.getElementById('bag-weight-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const safeProductName = escapeBatchEditorHtml(productName || 'Unknown');
+    const safeReceiveName = (receiveName || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const cur = (currentKgStr || '').trim();
+
+    const modalHtml = `
+        <div id="bag-weight-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[72]" data-close-bag-weight-overlay>
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div class="p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-900">⚖ Bag weight (kg)</h3>
+                        <button type="button" data-close-bag-weight-modal class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+                    </div>
+                    <div class="text-sm text-gray-700 mb-3">
+                        <strong>${safeProductName}</strong> — Box ${boxNumber}, Bag ${bagNumber}
+                    </div>
+                    <p class="text-xs text-gray-500 mb-3">Rough tablet estimate uses Zoho unit weight. You can set or change this after publish. Leave empty and save to clear.</p>
+                    <div class="mb-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="bag-weight-kg-input">Weight (kg)</label>
+                        <input id="bag-weight-kg-input" type="number" min="0" step="0.001"
+                               value="${escapeBatchEditorHtml(cur)}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                               autocomplete="off">
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" data-close-bag-weight-modal class="px-3 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="button" id="bag-weight-save-btn"
+                                data-save-bag-weight-id="${bagId}" data-save-bag-weight-receive-id="${receiveId}" data-save-bag-weight-receive-name="${safeReceiveName}"
+                                class="px-3 py-2 bg-amber-600 text-white rounded hover:bg-amber-700">
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+async function saveBagWeight(bagId, receiveId, receiveName) {
+    const saveBtn = document.getElementById('bag-weight-save-btn');
+    const input = document.getElementById('bag-weight-kg-input');
+    if (!saveBtn || !input) return;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    const filterInput = document.getElementById('bag-search-filter');
+    const currentFilter = filterInput ? filterInput.value : '';
+    const scrollContainer = document.getElementById('receive-modal-content');
+    const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+
+    try {
+        const raw = (input.value || '').trim();
+        let bag_weight_kg = null;
+        if (raw !== '') {
+            bag_weight_kg = parseFloat(raw);
+            if (!Number.isFinite(bag_weight_kg)) {
+                throw new Error('Enter a valid number for weight (kg), or leave blank to clear.');
+            }
+        }
+
+        const response = await csrfFetch(`/api/bag/${bagId}/weight`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bag_weight_kg }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to update bag weight');
+        }
+
+        closeBagWeightModal();
+        await viewReceiveDetails(receiveId, receiveName, null, bagId);
+        await refreshOpenSubmissionsModalAfterBagAction();
+
+        const restoreState = () => {
+            const newFilterInput = document.getElementById('bag-search-filter');
+            if (newFilterInput && currentFilter) {
+                newFilterInput.value = currentFilter;
+                filterReceiveBags(currentFilter);
+            }
+
+            const newScrollContainer = document.getElementById('receive-modal-content');
+            if (newScrollContainer && currentScroll) {
+                newScrollContainer.scrollTop = currentScroll;
+            }
+
+            const targetBag = getVisibleBagCardById(bagId);
+            if (targetBag) {
+                targetBag.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetBag.classList.add('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                setTimeout(() => {
+                    targetBag.classList.remove('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                }, 2000);
+            }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(restoreState));
+    } catch (error) {
+        console.error('Error saving bag weight:', error);
+        alert('Failed to update bag weight: ' + error.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+    }
+}
+
 // Push to Zoho Modal and Functions
 function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedCount, packagedCount, receiveId, receiveName) {
     // Remove existing modal if present
@@ -5488,6 +5626,19 @@ document.addEventListener('click', function (event) {
         );
         return;
     }
+    const bagWeightOpen = event.target.closest('[data-open-bag-weight-id]');
+    if (bagWeightOpen) {
+        openBagWeightModal(
+            parseInt(bagWeightOpen.dataset.openBagWeightId, 10),
+            bagWeightOpen.dataset.openBagWeightName || 'Product',
+            parseInt(bagWeightOpen.dataset.openBagWeightBagNumber || '0', 10),
+            parseInt(bagWeightOpen.dataset.openBagWeightBoxNumber || '0', 10),
+            parseInt(bagWeightOpen.dataset.openBagWeightReceiveId || '0', 10),
+            bagWeightOpen.dataset.openBagWeightReceiveName || '',
+            (bagWeightOpen.dataset.openBagWeightCurrent || '').trim()
+        );
+        return;
+    }
     const pushZohoOpen = event.target.closest('[data-open-push-zoho-bag-id]');
     if (pushZohoOpen) {
         openPushToZohoModal(
@@ -5580,6 +5731,24 @@ document.addEventListener('click', function (event) {
             parseInt(saveQuickBatch.dataset.saveQuickBagBatchId, 10),
             parseInt(saveQuickBatch.dataset.saveQuickBagReceiveId, 10),
             saveQuickBatch.dataset.saveQuickBagReceiveName || ''
+        );
+        return;
+    }
+    const closeBagWeightOverlay = event.target.closest('[data-close-bag-weight-overlay]');
+    if (closeBagWeightOverlay && event.target === closeBagWeightOverlay) {
+        closeBagWeightModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-bag-weight-modal]')) {
+        closeBagWeightModal();
+        return;
+    }
+    const saveBagWeightBtn = event.target.closest('[data-save-bag-weight-id]');
+    if (saveBagWeightBtn) {
+        saveBagWeight(
+            parseInt(saveBagWeightBtn.dataset.saveBagWeightId, 10),
+            parseInt(saveBagWeightBtn.dataset.saveBagWeightReceiveId || '0', 10),
+            saveBagWeightBtn.dataset.saveBagWeightReceiveName || ''
         );
         return;
     }
