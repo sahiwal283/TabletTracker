@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.5] - 2026-04-24
+
+### Fixed
+- **Receive save (`/api/save_receives`):** flavor `bag_number` is now reassigned from a single canonical pass (box order, then bag row order), continuing after the current PO max per tablet type. This removes gaps like … Bag 5, 6, 8, 9 … caused by form/JS drift while keeping PO-wide numbering consistent.
+
+---
+
 ## [4.2.4] - 2026-04-24
 
 ### Fixed

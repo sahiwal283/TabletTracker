@@ -21,6 +21,7 @@ from app.services.receiving_admin_service import (
     unpublish_receiving as unpublish_receiving_service,
 )
 from app.services.receiving_service import (
+    apply_contiguous_flavor_bag_numbers_on_save,
     get_packaged_counts_for_bag_ids,
 )
 from app.services.zoho_service import parse_zoho_item_weight_grams, zoho_api
@@ -366,6 +367,9 @@ def save_receives():
                     INSERT OR REPLACE INTO receiving_flavor_batches (receiving_id, tablet_type_id, batch_number)
                     VALUES (?, ?, ?)
                 ''', (receiving_id, tablet_type_id, batch_number))
+
+            # Dense flavor bag numbers per PO (fixes gaps from client/UI drift); ordered by box then bag row.
+            apply_contiguous_flavor_bag_numbers_on_save(conn, int(po_id) if po_id else None, boxes_data)
 
             total_bags = 0
 

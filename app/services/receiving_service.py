@@ -415,3 +415,65 @@ def build_zoho_receive_notes(
             notes += f"\n(This purchase receive is the {split_overs_qty:,} tablets on the overs PO line.)"
 
     return notes
+
+
+def fetch_max_flavor_bag_numbers_by_po(conn: Any, po_id: int) -> dict[int, int]:
+    """MAX(bag_number) per tablet_type for all bags already on this PO (any receive)."""
+    rows = conn.execute(
+        """
+        SELECT b.tablet_type_id, MAX(b.bag_number) AS mx
+        FROM bags b
+        JOIN small_boxes sb ON b.small_box_id = sb.id
+        JOIN receiving r ON sb.receiving_id = r.id
+        WHERE r.po_id = ?
+        GROUP BY b.tablet_type_id
+        """,
+        (po_id,),
+    ).fetchall()
+    out: dict[int, int] = {}
+    for row in rows:
+        tid = row["tablet_type_id"]
+        if tid is None:
+            continue
+        out[int(tid)] = int(row["mx"] or 0)
+    return out
+
+
+def assign_contiguous_flavor_bag_numbers(boxes_data: list[dict[str, Any]], max_by_flavor: dict[int, int]) -> None:
+    """
+    Mutate each bag dict's bag_number to a contiguous sequence per tablet_type_id.
+
+    Order: ascending box_number, then bag index within the box payload. Numbers continue
+    after max_by_flavor (typically MAX on PO for other receives — call after deleting this
+    receive's old bags on edit so max excludes only prior shipments).
+    """
+    flat: list[tuple[int, int, dict[str, Any]]] = []
+    for box_data in boxes_data:
+        if not isinstance(box_data, dict):
+            continue
+        box_number = box_data.get("box_number")
+        if box_number is None:
+            continue
+        bn = int(box_number)
+        bags = box_data.get("bags") or []
+        for pos, bag in enumerate(bags):
+            if isinstance(bag, dict):
+                flat.append((bn, pos, bag))
+    flat.sort(key=lambda x: (x[0], x[1]))
+
+    running: dict[int, int] = {}
+    for _bn, _pos, bag in flat:
+        tid_raw = bag.get("tablet_type_id")
+        if tid_raw is None or tid_raw == "":
+            continue
+        tid = int(tid_raw)
+        running[tid] = running.get(tid, max_by_flavor.get(tid, 0)) + 1
+        bag["bag_number"] = running[tid]
+
+
+def apply_contiguous_flavor_bag_numbers_on_save(conn: Any, po_id: int | None, boxes_data: list[dict[str, Any]]) -> None:
+    """Apply PO-continuous flavor bag numbers to boxes_data before INSERT."""
+    max_by: dict[int, int] = {}
+    if po_id:
+        max_by = fetch_max_flavor_bag_numbers_by_po(conn, int(po_id))
+    assign_contiguous_flavor_bag_numbers(boxes_data, max_by)
