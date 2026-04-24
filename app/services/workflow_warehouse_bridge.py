@@ -764,6 +764,7 @@ def upsert_machine_from_workflow_scan(
     expected_machine_role: str,
     event_id: int | None = None,
     employee_name: str | None = None,
+    handpack_rest: bool = False,
 ) -> dict[str, Any]:
     """
     Upsert machine submission for this workflow bag + lane (sealing or blister).
@@ -893,6 +894,26 @@ def upsert_machine_from_workflow_scan(
     if not result.get("success"):
         return {"ok": False, "reason": "execute_machine_failed", "detail": result}
 
+    if handpack_rest:
+        try:
+            conn.execute(
+                """
+                UPDATE warehouse_submissions
+                SET needs_review = 1
+                WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
+                """,
+                (receipt, machine_id),
+            )
+        except sqlite3.OperationalError:
+            conn.execute(
+                """
+                UPDATE warehouse_submissions
+                SET needs_review = 1
+                WHERE receipt_number = ? AND submission_type = 'machine'
+                """,
+                (receipt,),
+            )
+
     station_id = int(station_row.get("id")) if station_row.get("id") is not None else None
     end_ms = _event_occurred_at_ms(conn, event_id)
     start_ms = _station_session_start_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
@@ -916,6 +937,7 @@ def upsert_machine_from_workflow_scan(
         "receipt_number": receipt,
         "machine_id": machine_id,
         "count_total": int(count_total),
+        "handpack_rest": bool(handpack_rest),
     }
 
 
@@ -963,6 +985,8 @@ def sync_workflow_warehouse_events(
         ct = 0
 
     emp = _employee_name_from_payload(payload)
+    meta = payload.get("metadata") if isinstance(payload, dict) else None
+    handpack_rest = bool(meta.get("handpack_rest")) if isinstance(meta, dict) else False
     if event_type == WC.EVENT_SEALING_COMPLETE:
         out["machine_sealing"] = upsert_machine_from_workflow_scan(
             conn,
@@ -973,6 +997,7 @@ def sync_workflow_warehouse_events(
             expected_machine_role="sealing",
             event_id=event_id,
             employee_name=emp,
+            handpack_rest=False,
         )
     elif event_type == WC.EVENT_BLISTER_COMPLETE:
         out["machine_blister"] = upsert_machine_from_workflow_scan(
@@ -984,6 +1009,7 @@ def sync_workflow_warehouse_events(
             expected_machine_role="blister",
             event_id=event_id,
             employee_name=emp,
+            handpack_rest=handpack_rest,
         )
 
     if not out:

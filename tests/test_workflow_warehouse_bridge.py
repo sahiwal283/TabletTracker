@@ -503,6 +503,60 @@ class TestWorkflowWarehouseMachineBridge(unittest.TestCase):
         self.assertTrue(r.get("ok"), r)
         self.assertEqual("R-777", m_exec.call_args[0][1].get("receipt_number"))
 
+    @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
+    def test_blister_handpack_rest_sets_needs_review(self, m_exec):
+        wid = self._wf_bag_id
+        self.conn.execute(
+            "INSERT INTO machines (machine_name, cards_per_turn, machine_role) VALUES ('Blister', 1, 'blister')"
+        )
+        blister_machine_id = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        st = {"id": 1, "machine_id": blister_machine_id, "station_kind": "blister"}
+        def _mock_exec(conn, data, employee_name, entries):
+            conn.execute(
+                """
+                INSERT INTO warehouse_submissions (
+                    employee_name, product_name, inventory_item_id, box_number, bag_number,
+                    displays_made, packs_remaining, tablets_pressed_into_cards, submission_date,
+                    submission_type, bag_id, assigned_po_id, needs_review, machine_id,
+                    receipt_number
+                ) VALUES (?, 'P', 'inv-x', ?, ?, ?, 0, 10, '2026-01-01',
+                    'machine', 1, 1, 0, ?, ?)
+                """,
+                (
+                    employee_name,
+                    data.get("box_number"),
+                    data.get("bag_number"),
+                    int(entries[0]["machine_count"]),
+                    int(data.get("machine_id")),
+                    data.get("receipt_number"),
+                ),
+            )
+            return {"success": True}
+
+        m_exec.side_effect = _mock_exec
+        r = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=3,
+            station_row=st,
+            lane="blister",
+            expected_machine_role="blister",
+            handpack_rest=True,
+        )
+        self.assertTrue(r.get("ok"), r)
+        self.assertTrue(r.get("handpack_rest"))
+        reviewed = self.conn.execute(
+            """
+            SELECT COALESCE(needs_review, 0) AS needs_review
+            FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'machine' AND machine_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (workflow_machine_lane_receipt_number(wid, "blister"), blister_machine_id),
+        ).fetchone()
+        self.assertIsNotNone(reviewed)
+        self.assertEqual(int(reviewed["needs_review"] or 0), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

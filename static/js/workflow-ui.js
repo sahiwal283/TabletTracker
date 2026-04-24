@@ -64,6 +64,7 @@
       document.getElementById('wf-claim'),
       document.getElementById('wf-save-count'),
       document.getElementById('wf-save-blister'),
+      document.getElementById('wf-handpack-rest'),
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
       document.getElementById('wf-taken-delivery'),
@@ -78,6 +79,7 @@
       document.getElementById('wf-claim'),
       document.getElementById('wf-save-count'),
       document.getElementById('wf-save-blister'),
+      document.getElementById('wf-handpack-rest'),
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
       document.getElementById('wf-taken-delivery'),
@@ -186,6 +188,7 @@
     var now = Date.now();
     var pairs = [
       ['submit', 'wf-save-count'],
+      ['handpackRest', 'wf-handpack-rest'],
       ['pause', 'wf-pause-count'],
       ['submitBlister', 'wf-save-blister'],
       ['submitSeal', 'wf-save-seal'],
@@ -381,6 +384,7 @@
     const claimBtn = document.getElementById('wf-claim');
     const saveBtn = document.getElementById('wf-save-count');
     const saveBlisterBtn = document.getElementById('wf-save-blister');
+    const handpackBtn = document.getElementById('wf-handpack-rest');
     const saveSealBtn = document.getElementById('wf-save-seal');
     const pauseBtn = document.getElementById('wf-pause-count');
     const resumeBtn = document.getElementById('wf-resume-bag');
@@ -392,6 +396,7 @@
     if (empInput) empInput.classList.add('hidden');
     hidePackagingStationExtra();
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
+    if (handpackBtn) handpackBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
     claimBtn.classList.add('hidden');
     saveBtn.classList.add('hidden');
@@ -431,10 +436,12 @@
     if (kind === 'blister') {
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
+      if (handpackBtn) handpackBtn.classList.remove('hidden');
       if (countLabel) countLabel.textContent = 'Blister machine count total';
       if (hint) {
         hint.classList.remove('hidden');
-        hint.textContent = 'Blister lane: submit blister machine count, or pause with current count.';
+        hint.textContent =
+          'Blister lane: submit blister count, or use Hand pack the rest if machine stopped mid-bag, or pause with current count.';
       }
     } else if (kind === 'sealing') {
       saveBtn.textContent = 'Submit sealing count';
@@ -457,12 +464,14 @@
     } else if (kind === 'combined') {
       saveBtn.classList.add('hidden');
       if (saveBlisterBtn) saveBlisterBtn.classList.remove('hidden');
+      if (handpackBtn) handpackBtn.classList.remove('hidden');
       if (saveSealBtn) saveSealBtn.classList.remove('hidden');
       pauseBtn.textContent = 'Pause combined bag';
       if (countLabel) countLabel.textContent = 'Machine count total';
       if (hint) {
         hint.classList.remove('hidden');
-        hint.textContent = 'Combined lane: submit blister or sealing count, or pause with current count.';
+        hint.textContent =
+          'Combined lane: submit blister or sealing count, use Hand pack the rest when blister machine fails mid-bag, or pause with current count.';
       }
     } else {
       if (countLabel) countLabel.textContent = 'Machine count total';
@@ -702,6 +711,31 @@
     startCooldownAfterSuccess('submitSeal');
     statusLine('Sealing count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
   }
+  async function handPackRestAfterBlister() {
+    ensureLoadedBag();
+    const kind = stationKind();
+    if (kind !== 'blister' && kind !== 'combined') {
+      throw new Error('Hand pack rest is only available for blister lanes.');
+    }
+    assertActionCooldown('handpackRest');
+    const countTotal = selectedCountTotal();
+    await emitEvent('BLISTER_COMPLETE', {
+      count_total: countTotal,
+      employee_name: requiredEmployeeName(),
+      metadata: {
+        handpack_rest: true,
+        reason: 'machine_partial_handpack_rest',
+      },
+    });
+    clearCountField();
+    clearEmployeeNameField();
+    configureStationActions();
+    startCooldownAfterSuccess('handpackRest');
+    statusLine(
+      'Blister count submitted and flagged for hand-packed remainder.' + MSG_SCAN_NEXT_CARD,
+      'success'
+    );
+  }
   async function pauseWithCount() {
     ensureLoadedBag();
     assertActionCooldown('pause');
@@ -854,6 +888,8 @@
     if (save) save.addEventListener('click', () => saveCountAndContinue().catch((e) => statusLine(String(e), 'error')));
     const saveBlister = document.getElementById('wf-save-blister');
     if (saveBlister) saveBlister.addEventListener('click', () => saveBlisterCountOnly().catch((e) => statusLine(String(e), 'error')));
+    const handpack = document.getElementById('wf-handpack-rest');
+    if (handpack) handpack.addEventListener('click', () => handPackRestAfterBlister().catch((e) => statusLine(String(e), 'error')));
     const saveSeal = document.getElementById('wf-save-seal');
     if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e), 'error')));
     const pause = document.getElementById('wf-pause-count');
