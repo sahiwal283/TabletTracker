@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.9] - 2026-04-24
+
+### Added
+- **`PATCH /api/bag/{id}/label-count`** (shipping): correct `bags.bag_label_count` (and legacy `pill_count`) after publish; refuses values **below** existing packaged+bottle+variety-pack tablet totals for that bag (HTTP 409). Optional **`warning`** when the bag was already pushed to Zoho.
+- **Receive details / submissions footer:** **Label qty** opens the same style of modal as bag weight.
+
+---
+
 ## [4.2.8] - 2026-04-24
 
 ### Added

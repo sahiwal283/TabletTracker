@@ -682,6 +682,12 @@ function bagSubmissionsModalFooterHtml(bagMeta, ctx) {
             ? escBagAttr(String(bagMeta.bag_weight_kg))
             : '';
         parts.push(`<button type="button" data-open-bag-weight-id="${bagId}" data-open-bag-weight-current="${wcur}" data-open-bag-weight-name="${safeName}" data-open-bag-weight-bag-number="${bn}" data-open-bag-weight-box-number="${bx}" data-open-bag-weight-receive-id="${effReceiveId}" data-open-bag-weight-receive-name="${safeRecv}" class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">⚖ Weight</button>`);
+        const rcv = Math.round(Number(
+            bagMeta.bag_label_count != null ? bagMeta.bag_label_count : bagMeta.received_count
+        ) || 0);
+        const lblCur = escBagAttr(String(rcv));
+        const pkgTot = Math.round(Number(bagMeta.packaged_count != null ? bagMeta.packaged_count : 0) || 0);
+        parts.push(`<button type="button" data-open-bag-label-count-id="${bagId}" data-open-bag-label-count-current="${lblCur}" data-open-bag-label-count-packaged="${escBagAttr(String(pkgTot))}" data-open-bag-label-count-name="${safeName}" data-open-bag-label-count-bag-number="${bn}" data-open-bag-label-count-box-number="${bx}" data-open-bag-label-count-receive-id="${effReceiveId}" data-open-bag-label-count-receive-name="${safeRecv}" class="text-xs text-teal-700 hover:text-teal-900 underline whitespace-nowrap">Label qty</button>`);
         if (isClosed && !zohoPushed) {
             parts.push(`<button type="button" data-open-push-zoho-bag-id="${bagId}" data-open-push-zoho-name="${safeName}" data-open-push-zoho-bag-number="${bn}" data-open-push-zoho-box-number="${bx}" data-open-push-zoho-received="${bagMeta.received_count || 0}" data-open-push-zoho-packaged="${bagMeta.packaged_count || 0}" data-open-push-zoho-receive-id="${effReceiveId}" data-open-push-zoho-receive-name="${safeRecv}" class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">📤 Push to Zoho</button>`);
         }
@@ -4103,6 +4109,17 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                         class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">
                                     ⚖ Weight
                                 </button>
+                                <button type="button" data-open-bag-label-count-id="${bag.bag_id}"
+                                        data-open-bag-label-count-current="${Number.isFinite(receivedCount) ? String(Math.round(receivedCount)) : '0'}"
+                                        data-open-bag-label-count-packaged="${Number.isFinite(packagedCount) ? String(Math.round(packagedCount)) : '0'}"
+                                        data-open-bag-label-count-name="${safeTabletTypeName}"
+                                        data-open-bag-label-count-bag-number="${bag.bag_number}"
+                                        data-open-bag-label-count-box-number="${boxNumber}"
+                                        data-open-bag-label-count-receive-id="${receiveId}"
+                                        data-open-bag-label-count-receive-name="${safeReceiveName}"
+                                        class="text-xs text-teal-700 hover:text-teal-900 underline whitespace-nowrap">
+                                    Label qty
+                                </button>
                             ` : ''}
                             ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
                                 <button data-open-push-zoho-bag-id="${bag.bag_id}" data-open-push-zoho-name="${safeTabletTypeName}" data-open-push-zoho-bag-number="${bag.bag_number}" data-open-push-zoho-box-number="${boxNumber}" data-open-push-zoho-received="${bag.received_count || 0}" data-open-push-zoho-packaged="${bag.packaged_count || 0}" data-open-push-zoho-receive-id="${receiveId}" data-open-push-zoho-receive-name="${safeReceiveName}"
@@ -5281,6 +5298,132 @@ async function saveBagWeight(bagId, receiveId, receiveName) {
     }
 }
 
+function closeBagLabelCountModal(event) {
+    if (!event || event.target === event.currentTarget) {
+        const modal = document.getElementById('bag-label-count-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+}
+
+function openBagLabelCountModal(bagId, productName, bagNumber, boxNumber, receiveId, receiveName, currentCountStr, packagedStr) {
+    const existingModal = document.getElementById('bag-label-count-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const safeProductName = escapeBatchEditorHtml(productName || 'Unknown');
+    const safeReceiveName = (receiveName || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const cur = (currentCountStr || '').trim();
+    const packaged = parseInt(String(packagedStr || '0'), 10) || 0;
+
+    const modalHtml = `
+        <div id="bag-label-count-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[73]" data-close-bag-label-count-overlay>
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div class="p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-900">Bag label quantity (tablets)</h3>
+                        <button type="button" data-close-bag-label-count-modal class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+                    </div>
+                    <div class="text-sm text-gray-700 mb-3">
+                        <strong>${safeProductName}</strong> — Box ${boxNumber}, Bag ${bagNumber}
+                    </div>
+                    <p class="text-xs text-gray-500 mb-3">This is the intake count from the bag label (same as the receive form). You cannot set it below packaged activity for this bag (currently <strong>${packaged.toLocaleString()}</strong> tablets).</p>
+                    <div class="mb-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="bag-label-count-input">Label count</label>
+                        <input id="bag-label-count-input" type="number" min="0" step="1"
+                               value="${escapeBatchEditorHtml(cur)}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                               autocomplete="off">
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" data-close-bag-label-count-modal class="px-3 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="button" id="bag-label-count-save-btn"
+                                data-save-bag-label-count-id="${bagId}" data-save-bag-label-count-receive-id="${receiveId}" data-save-bag-label-count-receive-name="${safeReceiveName}"
+                                class="px-3 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+async function saveBagLabelCount(bagId, receiveId, receiveName) {
+    const saveBtn = document.getElementById('bag-label-count-save-btn');
+    const input = document.getElementById('bag-label-count-input');
+    if (!saveBtn || !input) return;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    const filterInput = document.getElementById('bag-search-filter');
+    const currentFilter = filterInput ? filterInput.value : '';
+    const scrollContainer = document.getElementById('receive-modal-content');
+    const currentScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+
+    try {
+        const raw = (input.value || '').trim();
+        if (raw === '' || !/^\d+$/.test(raw)) {
+            throw new Error('Enter a non-negative whole number (digits only, no decimals).');
+        }
+        const bag_label_count = parseInt(raw, 10);
+
+        const response = await csrfFetch(`/api/bag/${bagId}/label-count`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bag_label_count }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+            const msg = result.error || 'Failed to update bag label count';
+            if (response.status === 409 && result.packaged_count != null) {
+                throw new Error(`${msg} (packaged: ${Number(result.packaged_count).toLocaleString()} tablets)`);
+            }
+            throw new Error(msg);
+        }
+
+        closeBagLabelCountModal();
+        if (result.warning) {
+            window.alert(result.warning);
+        }
+        await viewReceiveDetails(receiveId, receiveName, null, bagId);
+        await refreshOpenSubmissionsModalAfterBagAction();
+
+        const restoreState = () => {
+            const newFilterInput = document.getElementById('bag-search-filter');
+            if (newFilterInput && currentFilter) {
+                newFilterInput.value = currentFilter;
+                filterReceiveBags(currentFilter);
+            }
+
+            const newScrollContainer = document.getElementById('receive-modal-content');
+            if (newScrollContainer && currentScroll) {
+                newScrollContainer.scrollTop = currentScroll;
+            }
+
+            const targetBag = getVisibleBagCardById(bagId);
+            if (targetBag) {
+                targetBag.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetBag.classList.add('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                setTimeout(() => {
+                    targetBag.classList.remove('ring-4', 'ring-yellow-400', 'ring-opacity-75');
+                }, 2000);
+            }
+        };
+        requestAnimationFrame(() => requestAnimationFrame(restoreState));
+    } catch (error) {
+        console.error('Error saving bag label count:', error);
+        alert('Failed to update bag label count: ' + error.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+    }
+}
+
 // Push to Zoho Modal and Functions
 function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedCount, packagedCount, receiveId, receiveName) {
     // Remove existing modal if present
@@ -5639,6 +5782,20 @@ document.addEventListener('click', function (event) {
         );
         return;
     }
+    const bagLabelOpen = event.target.closest('[data-open-bag-label-count-id]');
+    if (bagLabelOpen) {
+        openBagLabelCountModal(
+            parseInt(bagLabelOpen.dataset.openBagLabelCountId, 10),
+            bagLabelOpen.dataset.openBagLabelCountName || 'Product',
+            parseInt(bagLabelOpen.dataset.openBagLabelCountBagNumber || '0', 10),
+            parseInt(bagLabelOpen.dataset.openBagLabelCountBoxNumber || '0', 10),
+            parseInt(bagLabelOpen.dataset.openBagLabelCountReceiveId || '0', 10),
+            bagLabelOpen.dataset.openBagLabelCountReceiveName || '',
+            (bagLabelOpen.dataset.openBagLabelCountCurrent || '').trim(),
+            (bagLabelOpen.dataset.openBagLabelCountPackaged || '0').trim()
+        );
+        return;
+    }
     const pushZohoOpen = event.target.closest('[data-open-push-zoho-bag-id]');
     if (pushZohoOpen) {
         openPushToZohoModal(
@@ -5749,6 +5906,24 @@ document.addEventListener('click', function (event) {
             parseInt(saveBagWeightBtn.dataset.saveBagWeightId, 10),
             parseInt(saveBagWeightBtn.dataset.saveBagWeightReceiveId || '0', 10),
             saveBagWeightBtn.dataset.saveBagWeightReceiveName || ''
+        );
+        return;
+    }
+    const closeBagLabelCountOverlay = event.target.closest('[data-close-bag-label-count-overlay]');
+    if (closeBagLabelCountOverlay && event.target === closeBagLabelCountOverlay) {
+        closeBagLabelCountModal(event);
+        return;
+    }
+    if (event.target.closest('[data-close-bag-label-count-modal]')) {
+        closeBagLabelCountModal();
+        return;
+    }
+    const saveBagLabelCountBtn = event.target.closest('[data-save-bag-label-count-id]');
+    if (saveBagLabelCountBtn) {
+        saveBagLabelCount(
+            parseInt(saveBagLabelCountBtn.dataset.saveBagLabelCountId, 10),
+            parseInt(saveBagLabelCountBtn.dataset.saveBagLabelCountReceiveId || '0', 10),
+            saveBagLabelCountBtn.dataset.saveBagLabelCountReceiveName || ''
         );
         return;
     }

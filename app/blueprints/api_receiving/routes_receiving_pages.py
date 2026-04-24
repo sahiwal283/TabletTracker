@@ -11,6 +11,7 @@ from app.services.receiving_admin_service import (
     toggle_receiving_closed as toggle_receiving_closed_service,
 )
 from app.services.receiving_service import (
+    get_packaged_counts_for_bag_ids,
     get_receiving_with_details,
     resolve_bag_weight_columns_for_save,
 )
@@ -293,4 +294,83 @@ def update_bag_weight(bag_id):
         current_app.logger.error(f"Error updating bag weight for bag {bag_id}: {str(e)}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Failed to update bag weight: {str(e)}'}), 500
+
+
+@bp.route('/api/bag/<int:bag_id>/label-count', methods=['PATCH'])
+@role_required('shipping')
+def update_bag_label_count(bag_id):
+    """Adjust bags.bag_label_count (bag label / intake quantity) on draft or published receives."""
+    try:
+        data = request.get_json() if request.is_json else {}
+        if not isinstance(data, dict) or 'bag_label_count' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON body must include bag_label_count (non-negative integer).',
+            }), 400
+
+        raw = data.get('bag_label_count')
+        try:
+            new_count = int(raw)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'bag_label_count must be an integer.'}), 400
+
+        if new_count < 0:
+            return jsonify({'success': False, 'error': 'bag_label_count cannot be negative.'}), 400
+
+        with db_transaction() as conn:
+            bag_row = conn.execute(
+                '''
+                SELECT b.id, b.bag_label_count, b.pill_count, b.zoho_receive_pushed
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                WHERE b.id = ?
+                ''',
+                (bag_id,),
+            ).fetchone()
+
+            if not bag_row:
+                return jsonify({'success': False, 'error': 'Bag not found'}), 404
+
+            packaged_by_bag = get_packaged_counts_for_bag_ids(conn, [bag_id])
+            packaged = int(packaged_by_bag.get(bag_id, 0))
+
+            if new_count < packaged:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'Cannot set bag label count to {new_count:,}: packaged activity for this bag '
+                        f'is already {packaged:,} tablets. Increase the count or correct submissions first.'
+                    ),
+                    'code': 'below_packaged_total',
+                    'packaged_count': packaged,
+                }), 409
+
+            conn.execute(
+                '''
+                UPDATE bags
+                SET bag_label_count = ?, pill_count = ?
+                WHERE id = ?
+                ''',
+                (new_count, new_count, bag_id),
+            )
+
+            out = {
+                'success': True,
+                'message': 'Bag label count updated.',
+                'bag_id': bag_id,
+                'bag_label_count': new_count,
+                'previous_bag_label_count': int(bag_row['bag_label_count'] or 0),
+                'packaged_count': packaged,
+            }
+            if bag_row['zoho_receive_pushed']:
+                out['warning'] = (
+                    'This bag was already pushed to Zoho as a purchase receive. '
+                    'If the pushed quantity should change, update Zoho separately.'
+                )
+            return jsonify(out)
+    except Exception as e:
+        current_app.logger.error(f"Error updating bag label count for bag {bag_id}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Failed to update bag label count: {str(e)}'}), 500
 
