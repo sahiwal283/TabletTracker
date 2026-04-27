@@ -42,14 +42,15 @@
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
       {% for s in stations %}
       {% set live = station_live.get(s.id, {}) %}
-      <div class="rounded-lg border p-4 {% if live.status == 'occupied' %}border-emerald-300 bg-emerald-50{% else %}border-gray-200 bg-gray-50{% endif %}">
+      {% set live_here = live.status == 'occupied' or live.status == 'paused' %}
+      <div class="rounded-lg border p-4 {% if live_here and live.status == 'occupied' %}border-emerald-300 bg-emerald-50{% elif live_here %}border-amber-300 bg-amber-50{% else %}border-gray-200 bg-gray-50{% endif %}">
         <div class="flex items-center justify-between mb-2">
           <p class="font-semibold text-slate-900">{{ s.label }}</p>
-          <span class="text-xs font-medium {% if live.status == 'occupied' %}text-emerald-700{% else %}text-slate-500{% endif %}">
+          <span class="text-xs font-medium {% if live.status == 'occupied' %}text-emerald-700{% elif live.status == 'paused' %}text-amber-800{% else %}text-slate-500{% endif %}">
             {{ live.status or 'idle' }}
           </span>
         </div>
-        {% if live.status == 'occupied' %}
+        {% if live_here %}
         <p class="text-xs text-slate-600">Bag #{{ live.workflow_bag_id }} · Card {{ live.card_token or '—' }}</p>
         <p class="text-xs text-slate-600">{{ live.flavor or live.product_name or '—' }}</p>
         <p class="text-xs text-slate-600">Receipt {{ live.receipt_number or '—' }}</p>

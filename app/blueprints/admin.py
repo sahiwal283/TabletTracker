@@ -12,6 +12,7 @@ from datetime import datetime
 from config import Config
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
+from app.blueprints.workflow_floor import _current_station_occupancy
 from app.services import workflow_constants as WC
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
@@ -495,31 +496,13 @@ def workflow_qr_management():
                     "receipt_number": None,
                     "bag_name": None,
                 }
-            for c in cards:
-                bag_id = c.get("assigned_workflow_bag_id")
-                if not bag_id:
+            # Match floor API: latest BAG_CLAIMED/STATION_RESUMED *at this station*, not the bag's latest claim globally.
+            for st in stations:
+                sid = int(st["id"])
+                occ = _current_station_occupancy(conn, sid)
+                if not occ:
                     continue
-                ev = conn.execute(
-                    """
-                    SELECT station_id, occurred_at
-                    FROM workflow_events
-                    WHERE workflow_bag_id = ?
-                      AND station_id IS NOT NULL
-                      AND event_type IN ('BAG_CLAIMED', 'STATION_RESUMED')
-                    ORDER BY occurred_at DESC, id DESC
-                    LIMIT 1
-                    """,
-                    (int(bag_id),),
-                ).fetchone()
-                if not ev:
-                    continue
-                evd = dict(ev)
-                sid = evd.get("station_id")
-                if sid is None:
-                    continue
-                sid = int(sid)
-                if sid not in station_live:
-                    continue
+                wid = int(occ["workflow_bag_id"])
                 bag_row = conn.execute(
                     """
                     SELECT wb.id, wb.receipt_number, wb.product_id, pd.product_name, wb.inventory_bag_id
@@ -527,25 +510,44 @@ def workflow_qr_management():
                     LEFT JOIN product_details pd ON pd.id = wb.product_id
                     WHERE wb.id = ?
                     """,
-                    (int(bag_id),),
+                    (wid,),
                 ).fetchone()
                 bd = dict(bag_row) if bag_row else {}
                 station_live[sid] = {
-                    "status": "occupied",
-                    "workflow_bag_id": int(bag_id),
-                    "card_token": c.get("scan_token"),
-                    "occupancy_started_at": int(evd.get("occurred_at") or 0) or None,
+                    "status": occ["status"],
+                    "workflow_bag_id": wid,
+                    "card_token": occ.get("card_token"),
+                    "occupancy_started_at": occ.get("occupancy_started_at_ms"),
                     "product_name": bd.get("product_name"),
                     "flavor": bd.get("product_name"),
                     "receipt_number": bd.get("receipt_number"),
                     "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
                 }
+            bag_station_for_card_label = {}
+            for st in stations:
+                sid = int(st["id"])
+                live = station_live.get(sid) or {}
+                wb = live.get("workflow_bag_id")
+                if wb:
+                    bag_station_for_card_label[int(wb)] = sid
+            for c in cards:
+                bag_id = c.get("assigned_workflow_bag_id")
+                if not bag_id:
+                    continue
+                sid = bag_station_for_card_label.get(int(bag_id))
+                if sid is None:
+                    continue
+                live = station_live.get(sid) or {}
                 station_label = next(
                     (str(s.get("label")) for s in stations if int(s.get("id") or 0) == sid),
                     f"Station {sid}",
                 )
                 c["current_station_label"] = station_label
-                c["status_display"] = f"occupied at {station_label}"
+                ost = live.get("status") or "idle"
+                if ost == "paused":
+                    c["status_display"] = f"paused at {station_label}"
+                else:
+                    c["status_display"] = f"occupied at {station_label}"
         stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
@@ -575,6 +577,7 @@ def workflow_qr_management():
             all_machines=[],
             station_kind_options=_STATION_KIND_ORDER,
             cards=[],
+            station_live={},
         )
 
 
