@@ -14,6 +14,39 @@ WARN_MIN = 45.0
 CRIT_MIN = 120.0
 
 
+def _delay_trend_from_samples(samples: list[tuple[float, int]], now_ms: int) -> str:
+    """Compare mean delay in last 36h vs prior 36h: rising / falling / flat."""
+    if len(samples) < 4:
+        return "flat"
+    cutoff = now_ms - 36 * 3600 * 1000
+    recent = [d for d, t in samples if t >= cutoff]
+    older = [d for d, t in samples if t < cutoff]
+    if len(recent) < 2 or len(older) < 2:
+        return "flat"
+    mr, mo = mean(recent), mean(older)
+    if mo < 0.5:
+        return "flat"
+    if mr > mo * 1.15:
+        return "up"
+    if mr < mo * 0.85:
+        return "down"
+    return "flat"
+
+
+def _staging_insight(avg_min: float | None, max_min: float | None, trend: str, thresholds: dict) -> str | None:
+    warn = float(thresholds.get("warn_min") or WARN_MIN)
+    parts: list[str] = []
+    if max_min is not None and max_min >= warn:
+        parts.append(f"Delay peak {max_min:.0f}m")
+    if trend == "up":
+        parts.append("Trend ↑ vs prior day")
+    elif trend == "down":
+        parts.append("Trend ↓")
+    if not parts and avg_min is not None and avg_min >= warn * 0.65:
+        parts.append(f"Avg wait {avg_min:.0f}m")
+    return " · ".join(parts) if parts else None
+
+
 def _alert_for_staging(wip: int, delays: list[float]) -> str:
     if not delays and wip == 0:
         return "ok"
@@ -74,6 +107,8 @@ def compute_production_flow_intel(
     ids = list(bag_ids)[:400]
     delays_bs: list[float] = []
     delays_sp: list[float] = []
+    delays_bs_samples: list[tuple[float, int]] = []
+    delays_sp_samples: list[tuple[float, int]] = []
 
     if ids:
         qmarks = ",".join("?" * len(ids))
@@ -127,14 +162,18 @@ def compute_production_flow_intel(
             if t_blister and not t_seal_done:
                 end = first_seal_claim or now_ms
                 if end > t_blister:
-                    delays_bs.append((end - t_blister) / 60000.0)
+                    dm = (end - t_blister) / 60000.0
+                    delays_bs.append(dm)
+                    delays_bs_samples.append((dm, int(end)))
             if t_seal_done and not t_pack_final:
                 cand = [x for x in (first_pack_claim, first_pack_snap) if x is not None]
                 if cand:
                     ps = min(cand)
                     w = max(0.0, (ps - t_seal_done) / 60000.0)
+                    delays_sp_samples.append((w, int(ps)))
                 else:
                     w = (now_ms - t_seal_done) / 60000.0
+                    delays_sp_samples.append((w, int(now_ms)))
                 delays_sp.append(w)
 
     wip_staging_bs = len(delays_bs)
@@ -146,6 +185,9 @@ def compute_production_flow_intel(
 
     alert_bs = _alert_for_staging(wip_staging_bs, delays_bs)
     alert_sp = _alert_for_staging(wip_staging_sp, delays_sp)
+    trend_bs = _delay_trend_from_samples(delays_bs_samples, now_ms)
+    trend_sp = _delay_trend_from_samples(delays_sp_samples, now_ms)
+    thresh = {"warn_min": WARN_MIN, "crit_min": CRIT_MIN}
 
     pipeline = [
         {
@@ -155,6 +197,8 @@ def compute_production_flow_intel(
             "subtitle": "stations active",
             "avg_delay_min": None,
             "max_delay_min": None,
+            "delay_trend": "flat",
+            "perf_insight": None,
             "alert": "crit" if wip_blister >= 4 else ("warn" if wip_blister >= 2 else "ok"),
         },
         {
@@ -164,6 +208,8 @@ def compute_production_flow_intel(
             "subtitle": "→ sealing · batches waiting",
             "avg_delay_min": avg_bs,
             "max_delay_min": max_bs,
+            "delay_trend": trend_bs,
+            "perf_insight": _staging_insight(avg_bs, max_bs, trend_bs, thresh),
             "alert": alert_bs,
         },
         {
@@ -173,6 +219,8 @@ def compute_production_flow_intel(
             "subtitle": "stations active",
             "avg_delay_min": None,
             "max_delay_min": None,
+            "delay_trend": "flat",
+            "perf_insight": None,
             "alert": "crit" if wip_seal >= 4 else ("warn" if wip_seal >= 2 else "ok"),
         },
         {
@@ -182,6 +230,8 @@ def compute_production_flow_intel(
             "subtitle": "→ packaging · batches waiting",
             "avg_delay_min": avg_sp,
             "max_delay_min": max_sp,
+            "delay_trend": trend_sp,
+            "perf_insight": _staging_insight(avg_sp, max_sp, trend_sp, thresh),
             "alert": alert_sp,
         },
         {
@@ -191,6 +241,10 @@ def compute_production_flow_intel(
             "subtitle": "stations active",
             "avg_delay_min": None,
             "max_delay_min": None,
+            "delay_trend": "flat",
+            "perf_insight": (
+                "High bench WIP" if wip_pack >= 3 else ("WIP building" if wip_pack >= 1 else None)
+            ),
             "alert": "crit" if wip_pack >= 3 else ("warn" if wip_pack >= 1 else "ok"),
         },
     ]

@@ -111,7 +111,7 @@
     }
   }
 
-  /** Full-screen green check + message for 3–7s (default 5s), then optional callback (e.g. refresh occupancy). */
+  /** Full-screen green check for successful actions (claim, count submit, finalize) — not for bag load only. */
   function showFullscreenSuccess(message, durationMs, onDismiss) {
     var el = document.getElementById('wf-fullscreen-success');
     var msgEl = document.getElementById('wf-fullscreen-success-msg');
@@ -133,6 +133,13 @@
       hideFullscreenSuccess();
     }, ms);
   }
+
+  function fullscreenSubmitOk(message) {
+    showFullscreenSuccess(message, undefined, function () {
+      refreshStationOccupancy().catch(function () {});
+    });
+  }
+
   function formatElapsedMs(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
     var h = Math.floor(total / 3600);
@@ -1236,9 +1243,8 @@
     } else {
       setScanSuccessVisible(false);
       clearFeedback();
-      showFullscreenSuccess('Bag loaded successfully. You can enter counts below.', undefined, function () {
-        refreshStationOccupancy().catch(function () {});
-      });
+      statusLine('Bag loaded — enter counts below.', 'info');
+      refreshStationOccupancy().catch(function () {});
     }
   }
   async function refreshStationOccupancy() {
@@ -1319,6 +1325,7 @@
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Blister count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+      fullscreenSubmitOk('Blister count submitted.');
       return;
     }
     if (kind === 'sealing') {
@@ -1333,6 +1340,7 @@
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Sealing count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+      fullscreenSubmitOk('Sealing count submitted.');
       return;
     }
     if (kind === 'packaging') {
@@ -1355,6 +1363,7 @@
     configureStationActions();
     startCooldownAfterSuccess('submitBlister');
     statusLine('Blister count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+    fullscreenSubmitOk('Blister count submitted.');
   }
   async function saveSealingCountOnly() {
     ensureLoadedBag();
@@ -1371,6 +1380,7 @@
     configureStationActions();
     startCooldownAfterSuccess('submitSeal');
     statusLine('Sealing count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+    fullscreenSubmitOk('Sealing count submitted.');
   }
   async function handPackRestAfterBlister() {
     ensureLoadedBag();
@@ -1397,6 +1407,7 @@
       'Blister count submitted and flagged for hand-packed remainder.' + MSG_SCAN_NEXT_CARD,
       'success'
     );
+    fullscreenSubmitOk('Hand-pack remainder saved.');
   }
   async function pauseWithCount() {
     ensureLoadedBag();
@@ -1479,6 +1490,7 @@
     refreshStationOccupancy().catch(function () {});
     startCooldownAfterSuccess('submit');
     statusLine('Packaging counts saved and bag finalized.' + MSG_SCAN_NEXT_CARD, 'success');
+    fullscreenSubmitOk('Packaging saved — bag finalized.');
   }
   async function takenForDelivery() {
     ensureLoadedBag();
@@ -1499,6 +1511,7 @@
     setActionsEnabled(true);
     startCooldownAfterSuccess('taken');
     statusLine('Taken-for-order displays recorded.' + MSG_SCAN_NEXT_CARD, 'success');
+    fullscreenSubmitOk('Taken-for-order recorded.');
   }
   async function emitEvent(eventType, payload) {
     const stationToken = document.getElementById('wf-station-token').value;

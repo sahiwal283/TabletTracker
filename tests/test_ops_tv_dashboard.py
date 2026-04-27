@@ -60,3 +60,7 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("flow", data)
         self.assertIn("pipeline", data["flow"])
         self.assertIn("bottleneck", data["flow"])
+        for m in data.get("machines") or []:
+            self.assertIn("rate_hist_uh", m)
+            self.assertIn("perf_tier", m)
+            break

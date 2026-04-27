@@ -45,11 +45,11 @@
       <div id="wv-cardqr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
       <p class="text-xs text-gray-500 mt-1">Point camera at the bag card QR code.</p>
     </div>
-    <input id="wv_card_scan_token" name="card_scan_token" required class="form-input font-mono"
-           placeholder="e.g. bag-card-12"
-           value="{{ ba.form_card_scan_token or '' }}"
-           autocomplete="off"/>
-    <p class="text-xs text-gray-500 mt-1">You can scan or type the token manually.</p>
+    <input type="hidden" id="wv_card_scan_token" name="card_scan_token" value="{{ ba.form_card_scan_token or '' }}"/>
+    <p id="wv-token-status" class="text-sm text-gray-600 mt-1 hidden" aria-live="polite">
+      Card token: <span id="wv-token-preview" class="font-mono font-medium text-gray-900"></span>
+    </p>
+    <p class="text-xs text-gray-500 mt-1">Use <strong>Scan Card QR</strong> to capture the token (required).</p>
   </div>
   <div>
     <label class="block text-sm font-medium mb-1" for="wv_assign_product">Product (flavor)</label>

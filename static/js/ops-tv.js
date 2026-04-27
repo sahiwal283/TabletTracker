@@ -108,6 +108,24 @@
           (av != null ? av + "m" : "—") +
           "</div>";
       }
+      var tr = node.delay_trend || "flat";
+      var insightHtml = "";
+      if (node.perf_insight) {
+        insightHtml =
+          '<div class="ops-flow-insight">' +
+          String(node.perf_insight).replace(/</g, "&lt;") +
+          "</div>";
+      }
+      if (tr === "up" || tr === "down") {
+        var trClass = tr === "up" ? "ops-flow-trend--up" : "ops-flow-trend--down";
+        var trLab = tr === "up" ? "▲ Delay rising" : "▼ Delay easing";
+        insightHtml +=
+          '<div class="ops-flow-insight"><span class="ops-flow-trend ' +
+          trClass +
+          '">' +
+          trLab +
+          " (36h)</span></div>";
+      }
       parts.push(
         '<div class="ops-flow-node' +
         mod +
@@ -124,6 +142,7 @@
         String(node.subtitle || "").replace(/</g, "&lt;") +
         "</div>" +
         delayTxt +
+        insightHtml +
         "</div>"
       );
     });
@@ -150,6 +169,9 @@
     var pct = k.throughput_pct || 0;
     var cycle = k.avg_cycle_time_min;
     var cycleStr = cycle != null ? cycle + " min" : "—";
+    var tpClass = "";
+    if (pct < 85) tpClass = " ops-kpi--behind";
+    else if (pct >= 100) tpClass = " ops-kpi--ahead";
 
     headEl.innerHTML =
       '<div class="ops-kpi' +
@@ -181,7 +203,9 @@
       '<div class="ops-kpi-sub">tablets · target ' +
       target.toLocaleString() +
       "</div></div>" +
-      '<div class="ops-kpi">' +
+      '<div class="ops-kpi' +
+      tpClass +
+      '">' +
       '<div class="ops-kpi-label">Throughput vs target</div>' +
       '<div class="ops-kpi-value ops-kpi-value--accent">' +
       pct +
@@ -213,6 +237,27 @@
               fmtTime(m.occupancy_started_at_ms) +
               "</div>"
             : '<div class="ops-card-timer">—</div>';
+        var tier = m.perf_tier || "inline";
+        var rs = m.rate_session_uh;
+        var rh = m.rate_hist_uh;
+        var rt = m.rate_today_uh;
+        var rateLine =
+          rs != null && st === "running"
+            ? "Run " + rs + "/hr · 7d avg " + (rh != null ? rh : "—") + "/hr"
+            : "Today " + (rt != null ? rt : "—") + "/hr · 7d " + (rh != null ? rh : "—") + "/hr";
+        var cyc = m.cycle_session_min;
+        if (cyc != null && st === "running") {
+          rateLine += " · " + cyc + "m cycle";
+        }
+        var hint = (m.perf_hint || "").replace(/</g, "&lt;");
+        var perfBlock =
+          '<div class="ops-card-perf ops-card-perf--' +
+          tier +
+          '"><div class="ops-card-perf-rate">' +
+          rateLine +
+          "</div>" +
+          (hint ? '<div class="ops-card-perf-hint">' + hint + "</div>" : "") +
+          "</div>";
         return (
           '<article class="ops-card ops-card--' +
           st +
@@ -237,6 +282,7 @@
           '<div class="ops-card-out">Out today · ' +
           (m.output_today != null ? m.output_today.toLocaleString() : "0") +
           " tablets</div>" +
+          perfBlock +
           '<canvas class="ops-card-spark" width="200" height="36" data-spark="' +
           encodeURIComponent(JSON.stringify(m.sparkline || [])) +
           '"></canvas>' +
@@ -289,7 +335,7 @@
   function ensureCharts(labels) {
     if (typeof Chart === "undefined") return;
 
-    var tickFont = { size: 13 };
+    var tickFont = { size: 14 };
     var darkScales = {
       x: {
         ticks: {

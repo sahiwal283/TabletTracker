@@ -112,6 +112,14 @@ def new_bag():
     try:
         if request.method == "GET":
             products = _load_workflow_products(conn)
+            rt = (request.args.get("return_to") or "").strip()
+            if rt != ASSIGN_BAG_RETURN_COMMAND_CENTER:
+                rt = ""
+            restart = (
+                url_for("admin.workflow_qr_management")
+                if rt == ASSIGN_BAG_RETURN_COMMAND_CENTER
+                else url_for("workflow_staff.new_bag")
+            )
             return render_template(
                 "workflow_new_bag.html",
                 bag_assign={
@@ -123,8 +131,8 @@ def new_bag():
                     "form_card_scan_token": None,
                     "form_receipt_number": None,
                     "form_hand_packed": False,
-                    "return_to": "",
-                    "restart_url": url_for("workflow_staff.new_bag"),
+                    "return_to": rt,
+                    "restart_url": restart,
                 },
             )
 

@@ -213,6 +213,160 @@ def _ops_tv_daily_target_tablets(conn: sqlite3.Connection) -> int:
     return 800
 
 
+def _hist_station_totals_7d(conn: sqlite3.Connection, today_start_ms: int) -> dict[int, float]:
+    """Tablets + packaging displays per station for the 7 NY days before today_start_ms."""
+    hist_start = today_start_ms - 7 * 24 * 3600 * 1000
+    out: dict[int, float] = defaultdict(float)
+    try:
+        for r in conn.execute(
+            """
+            SELECT station_id,
+                   COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS tablets
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND station_id IS NOT NULL
+              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+              AND json_extract(payload, '$.count_total') IS NOT NULL
+            GROUP BY station_id
+            """,
+            (hist_start, today_start_ms),
+        ).fetchall():
+            out[int(r["station_id"])] = float(r["tablets"] or 0)
+        for r in conn.execute(
+            """
+            SELECT station_id,
+                   COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS d
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND station_id IS NOT NULL
+              AND event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(payload, '$.display_count') IS NOT NULL
+            GROUP BY station_id
+            """,
+            (hist_start, today_start_ms),
+        ).fetchall():
+            out[int(r["station_id"])] += float(r["d"] or 0)
+    except sqlite3.OperationalError:
+        pass
+    return out
+
+
+def _latest_bag_claim_ms(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> int | None:
+    try:
+        r = conn.execute(
+            """
+            SELECT MAX(occurred_at) AS t
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND station_id = ? AND event_type = 'BAG_CLAIMED'
+            """,
+            (workflow_bag_id, station_id),
+        ).fetchone()
+        if r and r["t"] is not None:
+            return int(r["t"])
+    except sqlite3.OperationalError:
+        pass
+    return None
+
+
+def _session_tablets_since_claim(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int, claim_ms: int
+) -> float:
+    try:
+        r = conn.execute(
+            """
+            SELECT COALESCE(SUM(
+              CASE
+                WHEN event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE') THEN
+                  COALESCE(CAST(json_extract(payload, '$.count_total') AS REAL), 0)
+                WHEN event_type = 'PACKAGING_SNAPSHOT' THEN
+                  COALESCE(CAST(json_extract(payload, '$.display_count') AS REAL), 0)
+                ELSE 0
+              END
+            ), 0) AS s
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND station_id = ? AND occurred_at >= ?
+            """,
+            (workflow_bag_id, station_id, claim_ms),
+        ).fetchone()
+        return float(r["s"] or 0) if r else 0.0
+    except sqlite3.OperationalError:
+        return 0.0
+
+
+def _ops_smart_alerts(
+    now_ms: int,
+    kpis: dict,
+    targets: dict,
+    machines: list[dict],
+    flow_intel: dict,
+) -> list[dict]:
+    """High-signal alerts for the TV ticker (prepended before raw activity)."""
+    out: list[dict] = []
+    pct_floor = float(kpis.get("throughput_pct") or 0)
+    tgt = int(targets.get("daily_output_tablets") or 800)
+    if pct_floor < 80.0:
+        out.append(
+            {
+                "at_ms": now_ms,
+                "message": f"Floor output {pct_floor:.0f}% of daily target ({tgt:,} tablets) — behind pace",
+                "severity": "warn",
+            }
+        )
+    elif pct_floor >= 100.0:
+        out.append(
+            {
+                "at_ms": now_ms,
+                "message": f"Floor output at {pct_floor:.0f}% of target — on or ahead of pace",
+                "severity": "info",
+            }
+        )
+
+    bn = (flow_intel or {}).get("bottleneck") or {}
+    reason = str(bn.get("reason") or "").strip()
+    if reason:
+        hint = str(bn.get("hint") or "").strip()
+        mx = bn.get("max_delay_min")
+        sev = (
+            "warn"
+            if mx is not None and float(mx) >= 45.0
+            else "info"
+        )
+        msg = reason if not hint else f"{reason} — {hint}"
+        out.append({"at_ms": now_ms, "message": msg, "severity": sev})
+
+    for m in machines:
+        if m.get("perf_tier") == "below" and m.get("status") == "running":
+            hint = str(m.get("perf_hint") or "Below 7d avg rate")
+            out.append(
+                {
+                    "at_ms": now_ms,
+                    "message": f"{m.get('display_name') or 'Station'}: {hint}",
+                    "severity": "warn",
+                }
+            )
+
+    wip_pack = 0
+    for n in (flow_intel or {}).get("pipeline") or []:
+        if n.get("id") == "packaging":
+            wip_pack = int(n.get("wip") or 0)
+            break
+    idle_pack_bench = sum(
+        1
+        for m in machines
+        if str(m.get("station_kind") or "").lower() == "packaging" and m.get("status") == "idle"
+    )
+    if wip_pack >= 2 and idle_pack_bench > 0:
+        out.append(
+            {
+                "at_ms": now_ms,
+                "message": "Packaging idle while downstream WIP exists — check handoff",
+                "severity": "warn",
+            }
+        )
+
+    return out
+
+
 def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
     """JSON payload for the TV operations dashboard (no HTML tables; data only)."""
     start_ms, end_ms, date_label = _ny_today_bounds_ms()
@@ -467,6 +621,66 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             }
         )
 
+    hist_totals = _hist_station_totals_7d(conn, start_ms)
+    hours_into_day = max(0.25, (now_ms - start_ms) / 3600000.0)
+    hours_7d = 7.0 * 24.0
+    for m in machines:
+        sid = int(m["id"])
+        ht = float(hist_totals.get(sid, 0.0))
+        hist_uh = round(ht / hours_7d, 2) if ht > 0 else 0.0
+        out_today = int(m["output_today"])
+        today_uh = round(out_today / hours_into_day, 2) if out_today else 0.0
+
+        session_uh = None
+        cycle_session_min = None
+        session_out_val = None
+        live_bid = m.get("bag_id")
+        st_vis = m.get("status")
+        if live_bid and st_vis in ("running", "paused"):
+            claim_ms = _latest_bag_claim_ms(conn, int(live_bid), sid)
+            if claim_ms is not None:
+                session_out_val = _session_tablets_since_claim(conn, int(live_bid), sid, claim_ms)
+                elapsed_h = max(1.0 / 60.0, (now_ms - claim_ms) / 3600000.0)
+                session_uh = round(float(session_out_val) / elapsed_h, 1)
+                cycle_session_min = round((now_ms - claim_ms) / 60000.0, 1)
+
+        has_running_session = session_uh is not None and st_vis == "running"
+        compare_uh = session_uh if has_running_session else today_uh
+        if hist_uh > 0.01:
+            vs_pct = round(100.0 * (compare_uh - hist_uh) / hist_uh, 1)
+        else:
+            vs_pct = 0.0
+
+        if hist_uh <= 0.01:
+            tier = "inline"
+            perf_hint = "No 7d baseline"
+        elif vs_pct >= 5.0:
+            tier = "above"
+            perf_hint = f"↑ {vs_pct:.0f}% vs 7d avg"
+        elif vs_pct <= -10.0:
+            tier = "below"
+            perf_hint = f"↓ {abs(vs_pct):.0f}% vs 7d avg"
+        else:
+            tier = "inline"
+            perf_hint = "Near 7d avg"
+
+        m["rate_hist_uh"] = hist_uh
+        m["rate_today_uh"] = today_uh
+        m["rate_session_uh"] = session_uh
+        m["session_out_tablets"] = (
+            round(float(session_out_val), 1) if session_out_val is not None else None
+        )
+        m["cycle_session_min"] = cycle_session_min
+        m["vs_hist_pct"] = vs_pct
+        m["perf_tier"] = tier
+        m["perf_hint"] = perf_hint
+
+    flow_intel: dict = {}
+    try:
+        flow_intel = compute_production_flow_intel(conn, now_ms, stations, station_live)
+    except Exception:
+        flow_intel = {}
+
     flavor_breakdown: list[dict] = []
     try:
         for r in conn.execute(
@@ -515,7 +729,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             SELECT event_type, occurred_at, workflow_bag_id, station_id, payload
             FROM workflow_events
             ORDER BY occurred_at DESC, id DESC
-            LIMIT 36
+            LIMIT 18
             """
         ).fetchall()
     except sqlite3.OperationalError:
@@ -543,20 +757,27 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
 
     _sev_rank = {"alert": 0, "warn": 1, "info": 2}
 
+    kpis_out = {
+        "active_machines": occupied,
+        "idle_machines": idle,
+        "paused_machines": paused,
+        "down_machines": 0,
+        "total_output_today": int(round(total_out)),
+        "throughput_pct": round(throughput_pct, 1),
+        "avg_cycle_time_min": avg_cycle,
+    }
+    targets_out = {"daily_output_tablets": daily_target}
+    smart_acts = _ops_smart_alerts(now_ms, kpis_out, targets_out, machines, flow_intel)
+    activity = smart_acts + activity
     activity.sort(
         key=lambda x: (
             _sev_rank.get(x.get("severity"), 2),
             -int(x.get("at_ms") or 0),
         )
     )
+    activity = activity[:48]
 
     chart_target_cumulative = [round(float(daily_target) * (h + 1) / 24.0, 0) for h in range(24)]
-
-    flow_intel: dict = {}
-    try:
-        flow_intel = compute_production_flow_intel(conn, now_ms, stations, station_live)
-    except Exception:
-        flow_intel = {}
 
     return {
         "generated_at_ms": now_ms,
@@ -564,19 +785,11 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         "hour_labels": labels_h,
         "chart_target_cumulative": chart_target_cumulative,
         "flow": flow_intel,
-        "targets": {"daily_output_tablets": daily_target},
-        "kpis": {
-            "active_machines": occupied,
-            "idle_machines": idle,
-            "paused_machines": paused,
-            "down_machines": 0,
-            "total_output_today": int(round(total_out)),
-            "throughput_pct": round(throughput_pct, 1),
-            "avg_cycle_time_min": avg_cycle,
-        },
+        "targets": targets_out,
+        "kpis": kpis_out,
         "highlights": {"best_station": best_name, "lowest_output_station": worst_name},
         "machines": machines,
-        "activity": activity[:48],
+        "activity": activity,
         "chart_hourly_output": [round(x, 1) for x in hourly],
         "chart_cumulative_output": cumulative_hourly,
         "chart_station_series": chart_station_series,
@@ -1069,9 +1282,9 @@ def workflow_qr_management():
                 c["current_station_label"] = station_label
                 ost = live.get("status") or "idle"
                 if ost == "paused":
-                    c["status_display"] = f"paused at {station_label}"
+                    c["status_display"] = f"{station_label} · paused"
                 else:
-                    c["status_display"] = f"occupied at {station_label}"
+                    c["status_display"] = station_label
         stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
