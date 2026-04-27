@@ -71,6 +71,13 @@
     const legacy = document.getElementById('wf-status');
     if (legacy) legacy.textContent = msg;
   }
+  function clearFeedback() {
+    var fb = document.getElementById('wf-feedback');
+    if (fb) {
+      fb.textContent = '';
+      fb.classList.add('hidden');
+    }
+  }
   function setScanSuccessVisible(visible) {
     var panel = document.getElementById('wf-scan-success');
     if (!panel) return;
@@ -105,6 +112,28 @@
       !!expectedOccupantCardToken &&
       !sessionMatchesStationOccupant() &&
       !occupancyVerifyOpen;
+  }
+
+  /** Info hint for idle stations; hidden when Pause/End/Verify gate is showing (no scan slot yet). */
+  function maybeRefreshBagHint() {
+    var hideMain =
+      occupancyVerifyOpen ||
+      (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
+    var showChoice =
+      stationHasOccupantApi &&
+      !!expectedOccupantCardToken &&
+      !sessionMatchesStationOccupant() &&
+      !occupancyVerifyOpen;
+    if (showChoice) {
+      clearFeedback();
+      return;
+    }
+    if (hideMain) {
+      return;
+    }
+    if (!hasLoadedBag) {
+      statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
+    }
   }
 
   function applyOccupancyGateUi() {
@@ -151,10 +180,12 @@
         }
       }
     }
+    maybeRefreshBagHint();
   }
 
   function openOccupancyVerify(mode) {
     occupancyVerifyOpen = true;
+    clearFeedback();
     var inst = document.getElementById('wf-verify-instruction');
     var vi = document.getElementById('wf-verify-input');
     if (vi) vi.value = '';
@@ -1226,7 +1257,7 @@
     loadEmployeeNameFromStorage();
     resetLoadedBagState(false);
     configureStationActions();
-    statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
+    applyOccupancyGateUi();
     refreshStationOccupancy()
       .then(function () {
         if (stationOccupancyGate && productInput()) {

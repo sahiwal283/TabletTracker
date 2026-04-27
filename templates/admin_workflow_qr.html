@@ -47,17 +47,6 @@
     <p class="text-gray-600 text-sm mt-1">Monitor live station occupancy and manage QR workflow settings in one place.</p>
   </div>
 
-  <div class="card p-5 mb-8 border border-slate-200 bg-slate-50">
-    <h2 class="text-lg font-semibold text-gray-900 mb-2">Assign shipment bag to QR card</h2>
-    <p class="text-sm text-gray-600 mb-4">
-      Link a received bag (product, box #, bag #) to a bag card scan token so the floor workflow can use it.
-      This is the same staff flow as before; it lives here so you do not have to hunt for it under Admin only.
-    </p>
-    <a href="{{ url_for('workflow_staff.new_bag') }}" class="btn-primary inline-flex items-center px-4 py-2.5 text-base font-medium">
-      Open bag assignment
-    </a>
-  </div>
-
   <div class="card p-5 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-3">Live station occupancy</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -86,6 +75,17 @@
       </div>
       {% endfor %}
     </div>
+  </div>
+
+  <div class="card p-5 mb-8 border border-slate-200 bg-slate-50">
+    <h2 class="text-lg font-semibold text-gray-900 mb-2">Assign shipment bag to QR card</h2>
+    <p class="text-sm text-gray-600 mb-4">
+      Link a received bag (product, box #, bag #) to a bag card scan token so the floor workflow can use it.
+      This is the same staff flow as before; it lives here so you do not have to hunt for it under Admin only.
+    </p>
+    <a href="{{ url_for('workflow_staff.new_bag') }}" class="btn-primary inline-flex items-center px-4 py-2.5 text-base font-medium">
+      Open bag assignment
+    </a>
   </div>
 
   <details class="card p-5 mb-8">
