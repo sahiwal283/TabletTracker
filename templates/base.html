@@ -1958,7 +1958,6 @@ async function convertToTwoLevelDropdown(selectElement) {
     }
 }
 </script>
-<body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
     <!-- SVG Sprite -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
         <symbol id="icon-chart" viewBox="0 0 24 24" fill="currentColor">
@@ -2061,121 +2060,129 @@ async function convertToTwoLevelDropdown(selectElement) {
             <path d="M12 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
         </symbol>
     </svg>
-    <!-- Enhanced navigation with earthy green gradient -->
-    <nav class="bg-gradient-to-r" style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));" class="text-white shadow-2xl">
-        <div class="container mx-auto px-4 py-4">
-            <div class="flex justify-between items-center">
-                <h1 class="text-2xl font-bold">
-                    <a href="{{ url_for('auth.index') }}" class="hover:text-primary transition-colors duration-300 flex items-center">
-                        <svg class="w-7 h-7 mr-2" aria-hidden="true"><use href="#icon-chart" /></svg>
-                        <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
-                        <span class="ml-2 text-xs text-gray-300 font-normal">v{{ version() }}</span>
-                    </a>
-            </h1>
-                <div class="hidden md:flex space-x-6">
-                    <!-- Dashboard - Manager+ -->
+    <style>
+        /* Sidebar: desktop collapsed width */
+        @media (min-width: 768px) {
+            #app-shell.sidebar-collapsed #app-sidebar {
+                width: 0 !important;
+                min-width: 0 !important;
+                opacity: 0 !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                overflow: hidden !important;
+                border-right-width: 0 !important;
+                pointer-events: none !important;
+            }
+        }
+        /* Mobile drawer open */
+        @media (max-width: 767px) {
+            #app-shell.drawer-open #app-sidebar {
+                transform: translateX(0) !important;
+            }
+            #app-shell.drawer-open #sidebar-backdrop {
+                opacity: 1 !important;
+                pointer-events: auto !important;
+            }
+        }
+    </style>
+    <div id="app-shell" class="app-shell flex flex-1 flex-col md:flex-row min-h-0 min-w-0 w-full relative">
+        <!-- Mobile drawer backdrop -->
+        <div id="sidebar-backdrop"
+             class="fixed inset-0 z-40 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
+             aria-hidden="true"></div>
+
+        <aside id="app-sidebar"
+               class="fixed md:sticky top-0 left-0 z-50 flex h-screen md:h-auto md:max-h-none md:min-h-screen w-64 max-w-[min(22rem,calc(100vw-2rem))] flex-shrink-0 flex-col overflow-y-auto border-r border-white/10 shadow-2xl transform -translate-x-full transition-transform duration-200 ease-out md:translate-x-0 md:transition-[transform,width,opacity,padding] md:duration-200"
+               style="background-image: linear-gradient(180deg, var(--wc-dark), #082025, var(--wc-primary));"
+               role="navigation"
+               aria-label="Main navigation">
+            <div class="flex flex-col gap-1 p-3 pb-6">
                     {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('dashboard.dashboard_view') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
+                    <a href="{{ url_for('dashboard.dashboard_view') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
                     </a>
-                    <a href="{{ url_for('reports.reports_view') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-chart" /></svg> Reports
+                    <a href="{{ url_for('reports.reports_view') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg> Reports
                     </a>
                     {% endif %}
-                    
-                    <!-- Shipments Received - Warehouse lead + Manager+ -->
                     {% if session.employee_role in ['warehouse_lead', 'manager', 'admin'] %}
-                    <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
+                    <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
                     </a>
                     {% endif %}
-                    
-                    <!-- Production + Workflow - both visible during migration -->
-                    <a href="{{ url_for('production.production_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Production
+                    <a href="{{ url_for('production.production_form') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-box" /></svg> Production
                     </a>
-                    <a href="{{ url_for('admin.workflow_qr_management') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center
+                    <a href="{{ url_for('admin.workflow_qr_management') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center
                     </a>
-                    
-                    <!-- Submissions - warehouse (view/edit with unlock) + Manager+ -->
                     {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
-                    <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-list" /></svg> Submissions
+                    <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-list" /></svg> Submissions
                     </a>
                     {% endif %}
-                    
-                    <!-- Purchase Orders - Manager+ -->
                     {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('purchase_orders.purchase_orders_list') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders
+                    <a href="{{ url_for('purchase_orders.purchase_orders_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders
                     </a>
                     {% endif %}
-                    
-                    <!-- Admin - Admin only -->
                     {% if session.employee_role == 'admin' %}
-                    <a href="{{ url_for('admin.admin_panel') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-gear" /></svg> Admin
+                    <a href="{{ url_for('admin.admin_panel') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-gear" /></svg> Settings
                     </a>
                     {% endif %}
-                    <!-- Logout Button -->
                     {% if session.employee_authenticated or session.admin_authenticated %}
-                    <a href="{{ url_for('auth.logout') }}" class="nav-link hover:text-red-300 transition-all duration-300 px-3 py-2 rounded-lg hover:bg-red-500 hover:bg-opacity-20 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
-                        <span class="hidden sm:inline">Logout</span>
+                    <a href="{{ url_for('auth.logout') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-red-500/25 text-red-100 text-sm font-medium transition-colors mt-2 border border-white/10">
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-logout" /></svg> Logout
                     </a>
                     {% endif %}
-                    
-                    <!-- Language Toggle -->
-                    <div class="relative ml-4">
-                        <button data-toggle-language-menu class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                            <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-language" /></svg>
-                            <span class="hidden sm:inline">{{ (current_language.language if current_language is not string else current_language) | upper }}</span>
-                        </button>
-                        <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
-                            {% for code, name in languages.items() %}
-                            <a href="?lang={{ code }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
-                                <span class="mr-2">{% if code == 'en' %}EN{% else %}ES{% endif %}</span>
-                                {{ name }}
-                                {% if current_language == code %}<span class="float-right">Selected</span>{% endif %}
-                            </a>
-                            {% endfor %}
-                        </div>
+            </div>
+        </aside>
+
+        <div id="app-main-column" class="flex flex-1 flex-col min-w-0 min-h-0">
+            <header class="sticky top-0 z-30 flex flex-wrap items-center gap-2 px-3 md:px-4 py-3 shadow-xl text-white"
+                    style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));">
+                <button type="button"
+                        id="sidebar-toggle-btn"
+                        data-sidebar-toggle
+                        class="inline-flex shrink-0 items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+                        aria-controls="app-sidebar"
+                        aria-expanded="true"
+                        aria-label="Show or hide navigation menu">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                </button>
+                <h1 class="text-lg md:text-2xl font-bold flex flex-wrap items-center gap-x-2 min-w-0">
+                    <a href="{{ url_for('auth.index') }}" class="hover:text-primary truncate transition-colors duration-300 flex items-center gap-2">
+                        <svg class="w-6 h-6 md:w-7 md:h-7 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg>
+                        <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
+                        <span class="text-xs text-gray-300 font-normal whitespace-nowrap">v{{ version() }}</span>
+                    </a>
+                </h1>
+                <span class="flex-1 min-w-[1rem]"></span>
+                {% if session.employee_authenticated or session.admin_authenticated %}
+                <a href="{{ url_for('auth.logout') }}" class="nav-link hidden sm:inline-flex hover:text-red-200 transition-colors duration-300 px-2 py-2 rounded-lg hover:bg-white/10 items-center text-sm md:text-base whitespace-nowrap">
+                    <svg class="w-5 h-5 mr-1 shrink-0" aria-hidden="true"><use href="#icon-logout" /></svg>
+                    Logout
+                </a>
+                {% endif %}
+                <div class="relative shrink-0">
+                    <button type="button" data-toggle-language-menu class="nav-link hover:text-primary transition-all duration-300 px-2 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1 shrink-0" aria-hidden="true"><use href="#icon-language" /></svg>
+                        <span>{{ (current_language.language if current_language is not string else current_language) | upper }}</span>
+                    </button>
+                    <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-[60]">
+                        {% for code, name in languages.items() %}
+                        <a href="?lang={{ code }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
+                            <span class="mr-2">{% if code == 'en' %}EN{% else %}ES{% endif %}</span>
+                            {{ name }}
+                            {% if current_language == code %}<span class="float-right">Selected</span>{% endif %}
+                        </a>
+                        {% endfor %}
                     </div>
                 </div>
-                <!-- Mobile menu button -->
-                <div class="md:hidden">
-                    <button data-toggle-mobile-menu class="text-white hover:text-primary transition-colors duration-300">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <!-- Mobile menu -->
-            <div id="mobile-menu" class="hidden md:hidden mt-4 space-y-3">
-                {% if session.employee_role in ['warehouse_lead', 'manager', 'admin'] %}
-                <a href="{{ url_for('dashboard.dashboard_view') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard</a>
-                <a href="{{ url_for('reports.reports_view') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-chart" /></svg> Reports</a>
-                <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received</a>
-                {% endif %}
-                <a href="{{ url_for('production.production_form') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
-                <a href="{{ url_for('admin.workflow_qr_management') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center</a>
-                {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
-                <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-list" /></svg> Submissions</a>
-                {% endif %}
-                {% if session.employee_role in ['manager', 'admin'] %}
-                <a href="{{ url_for('purchase_orders.purchase_orders_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders</a>
-                {% endif %}
-                {% if session.employee_role == 'admin' %}
-                <a href="{{ url_for('admin.admin_panel') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-gear" /></svg> Admin</a>
-                {% endif %}
-                {% if session.employee_authenticated or session.admin_authenticated %}
-                <a href="{{ url_for('auth.logout') }}" class="nav-link block text-base font-medium hover:text-red-300 transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-red-500 hover:bg-opacity-20 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-logout" /></svg> Logout</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+            </header>
 
     <!-- Enhanced main content area -->
     <main class="flex-1 container mx-auto px-4 py-8">
@@ -2209,6 +2216,9 @@ async function convertToTwoLevelDropdown(selectElement) {
         </div>
     </footer>
     {% endblock %}
+
+        </div><!-- #app-main-column -->
+    </div><!-- #app-shell -->
 
     <script>
         // Enhanced JavaScript utilities with better styling
@@ -2423,10 +2433,43 @@ async function convertToTwoLevelDropdown(selectElement) {
             });
         }
 
-        // Mobile menu toggle function
+        const TT_SIDEBAR_COLLAPSED_KEY = 'tt_sidebar_collapsed';
+
+        function ttApplyDesktopSidebarCollapsed(collapsed) {
+            const shell = document.getElementById('app-shell');
+            const btn = document.getElementById('sidebar-toggle-btn');
+            if (!shell || !btn) return;
+            shell.classList.toggle('sidebar-collapsed', collapsed);
+            btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            try {
+                localStorage.setItem(TT_SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+            } catch (e) { /* ignore */ }
+        }
+
+        function ttCloseMobileDrawer() {
+            const shell = document.getElementById('app-shell');
+            const btn = document.getElementById('sidebar-toggle-btn');
+            if (shell) shell.classList.remove('drawer-open');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+
+        function ttToggleSidebar() {
+            const shell = document.getElementById('app-shell');
+            const btn = document.getElementById('sidebar-toggle-btn');
+            if (!shell || !btn) return;
+            const mq = window.matchMedia('(min-width: 768px)');
+            if (mq.matches) {
+                ttApplyDesktopSidebarCollapsed(!shell.classList.contains('sidebar-collapsed'));
+            } else {
+                shell.classList.toggle('drawer-open');
+                btn.setAttribute('aria-expanded', shell.classList.contains('drawer-open') ? 'true' : 'false');
+            }
+        }
+
+        // Legacy hook (mobile horizontal menu removed — keep safe no-op)
         function toggleMobileMenu() {
             const menu = document.getElementById('mobile-menu');
-            menu.classList.toggle('hidden');
+            if (menu) menu.classList.toggle('hidden');
         }
 
         // Language menu toggle function
@@ -2460,6 +2503,10 @@ async function convertToTwoLevelDropdown(selectElement) {
                 toggleLanguageMenu();
                 return;
             }
+            if (el.closest('[data-sidebar-toggle]')) {
+                ttToggleSidebar();
+                return;
+            }
             if (el.closest('[data-toggle-mobile-menu]')) {
                 toggleMobileMenu();
                 return;
@@ -2487,6 +2534,37 @@ async function convertToTwoLevelDropdown(selectElement) {
             }
         });
 
+        document.addEventListener('DOMContentLoaded', function() {
+            const shell = document.getElementById('app-shell');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            const btn = document.getElementById('sidebar-toggle-btn');
+            if (backdrop) {
+                backdrop.addEventListener('click', ttCloseMobileDrawer);
+            }
+            if (shell && btn) {
+                try {
+                    if (window.matchMedia('(min-width: 768px)').matches &&
+                            localStorage.getItem(TT_SIDEBAR_COLLAPSED_KEY) === '1') {
+                        ttApplyDesktopSidebarCollapsed(true);
+                    } else if (!window.matchMedia('(min-width: 768px)').matches) {
+                        btn.setAttribute('aria-expanded', 'false');
+                    }
+                } catch (e) { /* ignore */ }
+                shell.querySelectorAll('#app-sidebar a.nav-link').forEach(function(link) {
+                    link.addEventListener('click', function() {
+                        if (!window.matchMedia('(min-width: 768px)').matches) {
+                            ttCloseMobileDrawer();
+                        }
+                    });
+                });
+            }
+            window.addEventListener('resize', function() {
+                if (shell && window.matchMedia('(min-width: 768px)').matches) {
+                    shell.classList.remove('drawer-open');
+                }
+            });
+        });
+
         // Add some sparkle effect on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Add subtle animation to cards and buttons
@@ -2509,7 +2587,7 @@ async function convertToTwoLevelDropdown(selectElement) {
 <div id="warehouse-edit-unlock-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-[85]">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6" onclick="event.stopPropagation();">
         <h3 class="text-lg font-bold text-gray-900 mb-2">Admin unlock required</h3>
-        <p class="text-sm text-gray-600 mb-3">Ask an admin to enter the password configured in Admin Panel. Editing stays unlocked for 15 minutes on this browser.</p>
+        <p class="text-sm text-gray-600 mb-3">Ask an admin to enter the password configured in Settings. Editing stays unlocked for 15 minutes on this browser.</p>
         <label class="block text-sm font-medium text-gray-700 mb-1" for="warehouse-edit-unlock-password-input">Password</label>
         <input type="password" id="warehouse-edit-unlock-password-input" autocomplete="off"
                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 mb-2" />

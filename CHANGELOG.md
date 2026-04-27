@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.8] - 2026-04-24
+
+### Changed
+- **Layout:** main navigation moved to a **left sidebar** with a **toggle** (hamburger) in the top bar; desktop remembers collapse in `localStorage`; mobile uses a slide-out drawer and backdrop.
+- **Nav:** the **Admin** tab is labeled **Settings**; **env admin** (`admin` + `ADMIN_PASSWORD`) lands on **Command Center** after login, not the settings page.
+- **Login / settings copy:** removed the credential hint on the login page and the **Warehouse submission edits** block from the settings (admin panel) page.
+
+---
+
 ## [4.5.7] - 2026-04-24
 
 ### Changed

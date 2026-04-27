@@ -28,7 +28,7 @@ def index():
     """Unified login system for both employees and admin"""
     # Check if already authenticated
     if session.get('admin_authenticated'):
-        return redirect(url_for('admin.admin_panel'))
+        return redirect(url_for('admin.workflow_qr_management'))
 
     if session.get('employee_authenticated'):
         # Smart redirect based on role
@@ -57,7 +57,7 @@ def index():
                 session['login_time'] = datetime.now().isoformat()
                 session.permanent = True
                 flash('Welcome back, Admin!', 'success')
-                return redirect(url_for('admin.admin_panel'))
+                return redirect(url_for('admin.workflow_qr_management'))
             flash('Invalid username or password', 'error')
             return render_template('unified_login.html')
 
