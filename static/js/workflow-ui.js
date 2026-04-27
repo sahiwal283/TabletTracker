@@ -154,6 +154,63 @@
     }
   }
 
+  var pausedUiTimer = null;
+  var lastOccStartMs = 0;
+  /** Elapsed pause timer uses pause submit time from server, not claim time. */
+  var pausedScreenStartMs = 0;
+
+  function stopPausedUiTimer() {
+    if (pausedUiTimer) {
+      clearInterval(pausedUiTimer);
+      pausedUiTimer = null;
+    }
+  }
+
+  function pausedScreenVisible() {
+    var ps = document.getElementById('wf-paused-screen');
+    return ps && !ps.classList.contains('hidden');
+  }
+
+  function hidePausedStationUi() {
+    var ps = document.getElementById('wf-paused-screen');
+    var aw = document.getElementById('wf-active-work');
+    stopPausedUiTimer();
+    if (ps) ps.classList.add('hidden');
+    if (aw) aw.classList.remove('hidden');
+    try {
+      document.body.classList.remove('overflow-hidden');
+    } catch (_e) {}
+  }
+
+  function showPausedStationUi() {
+    var ps = document.getElementById('wf-paused-screen');
+    var aw = document.getElementById('wf-active-work');
+    var inner = document.getElementById('wf-paused-bag-body');
+    var src = document.getElementById('wf-bag-verification-body');
+    var elapsed = document.getElementById('wf-paused-elapsed');
+    if (!ps || !elapsed) return;
+    stopPausedUiTimer();
+    if (inner && src) inner.innerHTML = src.innerHTML;
+    ps.classList.remove('hidden');
+    if (aw) aw.classList.add('hidden');
+    var ob = document.getElementById('wf-occupied-banner');
+    if (ob) ob.classList.add('hidden');
+    stopOccupancyTimer();
+    var startMs = Number(pausedScreenStartMs);
+    if (!Number.isFinite(startMs) || startMs <= 0) {
+      startMs = Number(lastOccStartMs);
+    }
+    if (!Number.isFinite(startMs) || startMs <= 0) {
+      elapsed.textContent = '—';
+      return;
+    }
+    function tick() {
+      elapsed.textContent = formatElapsedMs(Date.now() - startMs);
+    }
+    tick();
+    pausedUiTimer = setInterval(tick, 1000);
+  }
+
   /** True when this station has no active occupant or the loaded card matches that bag. */
   function sessionMatchesStationOccupant() {
     if (!stationHasOccupantApi || !expectedOccupantCardToken) {
@@ -195,7 +252,7 @@
 
   function syncIdleStationBanner() {
     var idleBanner = document.getElementById('wf-idle-banner');
-    if (!idleBanner) return;
+    if (!idleBanner || pausedScreenVisible()) return;
     var hideMain =
       occupancyVerifyOpen ||
       (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
@@ -273,6 +330,7 @@
   }
 
   function openOccupancyVerify(mode) {
+    hidePausedStationUi();
     lastOccupancyVerifyMode = mode || null;
     occupancyVerifyOpen = true;
     clearFeedback();
@@ -304,6 +362,9 @@
     }
     stopVerifyQrScanner().catch(function () {});
     applyOccupancyGateUi();
+    if (occupancyIsPaused && stationNeedsResume) {
+      showPausedStationUi();
+    }
   }
 
   async function confirmOccupancyVerify() {
@@ -1263,6 +1324,9 @@
       occupancyVerifyOpen = false;
       occupancyGateIntentEndRun = false;
       stopOccupancyTimer();
+      hidePausedStationUi();
+      lastOccStartMs = 0;
+      pausedScreenStartMs = 0;
       renderOccupancyBanner(null, null);
       renderBagVerification(null);
       applyOccupancyGateUi();
@@ -1271,22 +1335,39 @@
     stationHasOccupantApi = true;
     occupancyIsPaused = occ.status === 'paused';
     expectedOccupantCardToken = occ.card_token ? String(occ.card_token).trim() : null;
+    lastOccStartMs = Number(occ.occupancy_started_at_ms) || 0;
+    pausedScreenStartMs = Number(occ.paused_at_ms) || 0;
     if (occ.facts) {
       if (occ.facts.station_claimed !== undefined) {
         stationClaimed = !!occ.facts.station_claimed;
       }
       stationNeedsResume = !!occ.facts.resume_required;
       renderBagVerification(occ.facts);
-      renderOccupancyBanner(
-        Object.assign({}, occ.facts, {
-          occupancy_started_at_ms: occ.occupancy_started_at_ms,
-          occupying_card_token: occ.card_token,
-        }),
-        occ.workflow_bag_id
-      );
+      if (occ.status === 'paused') {
+        stopOccupancyTimer();
+        var ob0 = document.getElementById('wf-occupied-banner');
+        if (ob0) ob0.classList.add('hidden');
+      } else {
+        renderOccupancyBanner(
+          Object.assign({}, occ.facts, {
+            occupancy_started_at_ms: occ.occupancy_started_at_ms,
+            occupying_card_token: occ.card_token,
+          }),
+          occ.workflow_bag_id
+        );
+      }
     }
     setScanSuccessVisible(false);
     applyOccupancyGateUi();
+    if (
+      occ.status === 'paused' &&
+      stationNeedsResume &&
+      !occupancyVerifyOpen
+    ) {
+      showPausedStationUi();
+    } else if (occ.status !== 'paused') {
+      hidePausedStationUi();
+    }
   }
   async function claimBag() {
     ensureLoadedBag();
@@ -1426,6 +1507,9 @@
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
+      showFullscreenSuccess('Pause saved. Station is paused.', undefined, function () {
+        refreshStationOccupancy().catch(function () {});
+      });
       return;
     }
     if (kind === 'sealing') {
@@ -1440,6 +1524,9 @@
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
+      showFullscreenSuccess('Pause saved. Station is paused.', undefined, function () {
+        refreshStationOccupancy().catch(function () {});
+      });
       return;
     }
     if (kind === 'packaging') {
@@ -1457,6 +1544,9 @@
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
+      showFullscreenSuccess('Pause saved. Station is paused.', undefined, function () {
+        refreshStationOccupancy().catch(function () {});
+      });
       return;
     }
     throw new Error('Unsupported station kind: ' + kind);
@@ -1640,6 +1730,8 @@
     }
     const gr = document.getElementById('wf-gate-resume');
     if (gr) gr.addEventListener('click', () => openOccupancyVerify('resume'));
+    const pr = document.getElementById('wf-paused-resume');
+    if (pr) pr.addEventListener('click', () => openOccupancyVerify('resume'));
     const vScan = document.getElementById('wf-verify-scan');
     if (vScan) vScan.addEventListener('click', () => startVerifyQrScan().catch((e) => statusLine(String(e), 'error')));
     const vStop = document.getElementById('wf-verify-scan-stop');

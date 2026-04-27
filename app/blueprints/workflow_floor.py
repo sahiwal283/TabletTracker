@@ -143,6 +143,49 @@ def _occupancy_lane_finished_at_station(
     return False
 
 
+def _station_pause_at_ms(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
+) -> int | None:
+    """When resume is required, Unix ms of the pause-style submit that caused it."""
+    if not _station_needs_resume(conn, workflow_bag_id, station_id):
+        return None
+    rows = conn.execute(
+        """
+        SELECT event_type, payload, occurred_at
+        FROM workflow_events
+        WHERE workflow_bag_id = ? AND station_id = ?
+        ORDER BY occurred_at ASC, id ASC
+        """,
+        (workflow_bag_id, station_id),
+    ).fetchall()
+    last_pause: int | None = None
+    for row in rows:
+        et = row["event_type"]
+        try:
+            pl = json.loads(row["payload"]) if row["payload"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pl = {}
+        if not isinstance(pl, dict):
+            pl = {}
+        if et == WC.EVENT_BAG_CLAIMED:
+            last_pause = None
+        elif et == WC.EVENT_STATION_RESUMED:
+            last_pause = None
+        elif et in (
+            WC.EVENT_BLISTER_COMPLETE,
+            WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_PACKAGING_SNAPSHOT,
+        ):
+            if _is_pause_workflow_event(et, pl):
+                try:
+                    last_pause = int(row["occurred_at"])
+                except (TypeError, ValueError):
+                    last_pause = None
+            else:
+                last_pause = None
+    return last_pause
+
+
 def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> bool:
     """
     After a pause-style count/snapshot, operators must emit STATION_RESUMED before more counts.
@@ -283,11 +326,15 @@ def _current_station_occupancy(conn: sqlite3.Connection, station_id: int) -> dic
     started_at = int(row["occurred_at"])
     facts = _station_facts_payload(conn, bag_id, station_id)
     status = "paused" if facts.get("resume_required") else "occupied"
+    pause_at = (
+        _station_pause_at_ms(conn, bag_id, station_id) if status == "paused" else None
+    )
     return {
         "status": status,
         "workflow_bag_id": bag_id,
         "card_token": row["card_token"],
         "occupancy_started_at_ms": started_at,
+        "paused_at_ms": pause_at,
         "facts": facts,
     }
 

@@ -106,9 +106,7 @@ def compute_production_flow_intel(
 
     ids = list(bag_ids)[:400]
     delays_bs: list[float] = []
-    delays_sp: list[float] = []
     delays_bs_samples: list[tuple[float, int]] = []
-    delays_sp_samples: list[tuple[float, int]] = []
 
     if ids:
         qmarks = ",".join("?" * len(ids))
@@ -165,28 +163,14 @@ def compute_production_flow_intel(
                     dm = (end - t_blister) / 60000.0
                     delays_bs.append(dm)
                     delays_bs_samples.append((dm, int(end)))
-            if t_seal_done and not t_pack_final:
-                cand = [x for x in (first_pack_claim, first_pack_snap) if x is not None]
-                if cand:
-                    ps = min(cand)
-                    w = max(0.0, (ps - t_seal_done) / 60000.0)
-                    delays_sp_samples.append((w, int(ps)))
-                else:
-                    w = (now_ms - t_seal_done) / 60000.0
-                    delays_sp_samples.append((w, int(now_ms)))
-                delays_sp.append(w)
+            # Seal→pack “staging” queue is not modeled on the floor; omit second staging metrics.
 
     wip_staging_bs = len(delays_bs)
-    wip_staging_sp = len(delays_sp)
     avg_bs = round(mean(delays_bs), 1) if delays_bs else None
     max_bs = round(max(delays_bs), 1) if delays_bs else None
-    avg_sp = round(mean(delays_sp), 1) if delays_sp else None
-    max_sp = round(max(delays_sp), 1) if delays_sp else None
 
     alert_bs = _alert_for_staging(wip_staging_bs, delays_bs)
-    alert_sp = _alert_for_staging(wip_staging_sp, delays_sp)
     trend_bs = _delay_trend_from_samples(delays_bs_samples, now_ms)
-    trend_sp = _delay_trend_from_samples(delays_sp_samples, now_ms)
     thresh = {"warn_min": WARN_MIN, "crit_min": CRIT_MIN}
 
     pipeline = [
@@ -224,17 +208,6 @@ def compute_production_flow_intel(
             "alert": "crit" if wip_seal >= 4 else ("warn" if wip_seal >= 2 else "ok"),
         },
         {
-            "id": "staging_sp",
-            "label": "Staging",
-            "wip": wip_staging_sp,
-            "subtitle": "→ packaging · batches waiting",
-            "avg_delay_min": avg_sp,
-            "max_delay_min": max_sp,
-            "delay_trend": trend_sp,
-            "perf_insight": _staging_insight(avg_sp, max_sp, trend_sp, thresh),
-            "alert": alert_sp,
-        },
-        {
             "id": "packaging",
             "label": "Packaging",
             "wip": wip_pack,
@@ -265,9 +238,6 @@ def compute_production_flow_intel(
         if bottleneck_id == "staging_bs":
             reason = "Batches waiting after blister"
             hint = "Free sealing capacity or move work to sealing."
-        elif bottleneck_id == "staging_sp":
-            reason = "Batches waiting after sealing"
-            hint = "Open packaging or pull sealed WIP forward."
         elif bottleneck_id in ("blister", "sealing", "packaging"):
             reason = f"High WIP at {bottleneck_node['label']}"
             hint = "Balance crew or relieve upstream delay."

@@ -163,15 +163,16 @@
   function renderHeader(data) {
     if (!headEl) return;
     var k = data.kpis || {};
-    var t = data.targets || {};
-    var target = t.daily_output_tablets || 800;
     var down = k.down_machines || 0;
-    var pct = k.throughput_pct || 0;
+    var displays = k.displays_today != null ? k.displays_today : 0;
+    var avg30 = k.displays_30d_avg_per_day != null ? k.displays_30d_avg_per_day : 0;
+    var vs30 = k.displays_vs_30d_pct != null ? k.displays_vs_30d_pct : 0;
     var cycle = k.avg_cycle_time_min;
     var cycleStr = cycle != null ? cycle + " min" : "—";
+    var paused = k.paused_machines != null ? k.paused_machines : 0;
     var tpClass = "";
-    if (pct < 85) tpClass = " ops-kpi--behind";
-    else if (pct >= 100) tpClass = " ops-kpi--ahead";
+    if (avg30 > 0.5 && vs30 < 85) tpClass = " ops-kpi--behind";
+    else if (avg30 > 0.5 && vs30 >= 110) tpClass = " ops-kpi--ahead";
 
     headEl.innerHTML =
       '<div class="ops-kpi' +
@@ -180,6 +181,11 @@
       '<div class="ops-kpi-label">Active</div>' +
       '<div class="ops-kpi-value ops-kpi-value--run">' +
       (k.active_machines != null ? k.active_machines : "—") +
+      "</div></div>" +
+      '<div class="ops-kpi">' +
+      '<div class="ops-kpi-label">Paused</div>' +
+      '<div class="ops-kpi-value ops-kpi-value--idle">' +
+      paused +
       "</div></div>" +
       '<div class="ops-kpi">' +
       '<div class="ops-kpi-label">Idle</div>' +
@@ -196,27 +202,27 @@
       (down > 0 ? '<div class="ops-kpi-sub">Check stations</div>' : "") +
       "</div>" +
       '<div class="ops-kpi">' +
-      '<div class="ops-kpi-label">Output today</div>' +
+      '<div class="ops-kpi-label">Displays today</div>' +
       '<div class="ops-kpi-value ops-kpi-value--accent">' +
-      (k.total_output_today != null ? k.total_output_today.toLocaleString() : "0") +
+      displays.toLocaleString() +
       "</div>" +
-      '<div class="ops-kpi-sub">tablets · target ' +
-      target.toLocaleString() +
-      "</div></div>" +
+      '<div class="ops-kpi-sub">final packaging submits</div></div>' +
       '<div class="ops-kpi' +
       tpClass +
       '">' +
-      '<div class="ops-kpi-label">Throughput vs target</div>' +
+      '<div class="ops-kpi-label">Today vs 30d avg</div>' +
       '<div class="ops-kpi-value ops-kpi-value--accent">' +
-      pct +
-      "%</div>" +
-      '<div class="ops-kpi-sub">of daily target</div></div>' +
+      (avg30 > 0.5 ? vs30 + "%" : "—") +
+      "</div>" +
+      '<div class="ops-kpi-sub">' +
+      (avg30 > 0.5 ? "typical day " + avg30.toLocaleString() + " displays" : "building baseline") +
+      "</div></div>" +
       '<div class="ops-kpi">' +
       '<div class="ops-kpi-label">Avg cycle</div>' +
       '<div class="ops-kpi-value">' +
       cycleStr +
       "</div>" +
-      '<div class="ops-kpi-sub">claim → seal (median)</div></div>';
+      '<div class="ops-kpi-sub">claim → finalized (median)</div></div>';
   }
 
   function renderCards(machines) {
@@ -229,12 +235,16 @@
     cardsEl.innerHTML = sorted
       .map(function (m) {
         var st = m.status || "idle";
+        var timerStart =
+          st === "paused" && m.paused_at_ms
+            ? m.paused_at_ms
+            : m.occupancy_started_at_ms;
         var timer =
-          st !== "idle" && m.occupancy_started_at_ms
+          st !== "idle" && timerStart
             ? '<div class="ops-card-timer" data-start-ms="' +
-              m.occupancy_started_at_ms +
+              timerStart +
               '">' +
-              fmtTime(m.occupancy_started_at_ms) +
+              fmtTime(timerStart) +
               "</div>"
             : '<div class="ops-card-timer">—</div>';
         var tier = m.perf_tier || "inline";
@@ -279,9 +289,13 @@
           (m.product || "—") +
           "</div>" +
           timer +
-          '<div class="ops-card-out">Out today · ' +
-          (m.output_today != null ? m.output_today.toLocaleString() : "0") +
-          " tablets</div>" +
+          '<div class="ops-card-out">Displays today · ' +
+          (m.displays_today != null
+            ? m.displays_today.toLocaleString()
+            : m.output_today != null
+              ? m.output_today.toLocaleString()
+              : "0") +
+          "</div>" +
           perfBlock +
           '<canvas class="ops-card-spark" width="200" height="36" data-spark="' +
           encodeURIComponent(JSON.stringify(m.sparkline || [])) +
@@ -473,7 +487,7 @@
       charts.line.data.labels = labels;
       charts.line.data.datasets = [
         {
-          label: "Actual cumulative",
+          label: "Cumulative displays",
           data: data.chart_cumulative_output || [],
           borderColor: "#00d4ff",
           backgroundColor: "rgba(0, 212, 255, 0.06)",
@@ -482,7 +496,7 @@
           borderWidth: 3,
         },
         {
-          label: "Target pace",
+          label: "30d avg pace",
           data: data.chart_target_cumulative || [],
           borderColor: "rgba(255, 204, 0, 0.55)",
           borderDash: [6, 4],
@@ -537,7 +551,7 @@
         charts.bar.data.labels = bars.map(function (b) { return b.name; });
         charts.bar.data.datasets = [
           {
-            label: "Tablets",
+            label: "Displays",
             data: bars.map(function (b) { return b.output; }),
             backgroundColor: bars.map(function (_, j) {
               return palette[j % palette.length];
