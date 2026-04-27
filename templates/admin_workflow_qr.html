@@ -77,16 +77,19 @@
     </div>
   </div>
 
+  {% if bag_assign %}
   <div class="card p-5 mb-8 border border-slate-200 bg-slate-50">
     <h2 class="text-lg font-semibold text-gray-900 mb-2">Assign shipment bag to QR card</h2>
     <p class="text-sm text-gray-600 mb-4">
-      Link a received bag (product, box #, bag #) to a bag card scan token so the floor workflow can use it.
-      This is the same staff flow as before; it lives here so you do not have to hunt for it under Admin only.
+      Link a received bag (product, box #, bag #) to a bag card scan token. Same workflow as
+      <a href="{{ url_for('workflow_staff.new_bag') }}" class="text-blue-600 hover:underline">QR workflow (standalone)</a>;
+      submissions go to <code class="text-xs bg-gray-100 px-1 rounded">/workflow/staff/new-bag</code> with return to Command Center.
     </p>
-    <a href="{{ url_for('workflow_staff.new_bag') }}" class="btn-primary inline-flex items-center px-4 py-2.5 text-base font-medium">
-      Open bag assignment
-    </a>
+    {% include "includes/workflow_assign_bag_form.html" %}
   </div>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="{{ url_for('static', filename='js/workflow-assign-bag.js') }}"></script>
+  {% endif %}
 
   <details class="card p-5 mb-8">
     <summary class="cursor-pointer list-none flex items-center justify-between">

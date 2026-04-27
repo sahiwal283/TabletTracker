@@ -13,6 +13,7 @@ from config import Config
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.blueprints.workflow_floor import _current_station_occupancy
+from app.blueprints.workflow_staff import ASSIGN_BAG_RETURN_COMMAND_CENTER, _load_workflow_products
 from app.services import workflow_constants as WC
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
@@ -552,6 +553,23 @@ def workflow_qr_management():
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
             stations_by_kind.setdefault(k, []).append(s)
+        bag_assign = None
+        try:
+            wf_products = _load_workflow_products(conn)
+            bag_assign = {
+                "products": wf_products,
+                "ambiguous_matches": None,
+                "form_product_id": None,
+                "form_box_number": None,
+                "form_bag_number": None,
+                "form_card_scan_token": None,
+                "form_receipt_number": None,
+                "form_hand_packed": False,
+                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                "restart_url": url_for("admin.workflow_qr_management"),
+            }
+        except Exception:
+            bag_assign = None
         return render_template(
             "admin_workflow_qr.html",
             stations=stations,
@@ -562,6 +580,7 @@ def workflow_qr_management():
             station_kind_options=_STATION_KIND_ORDER,
             cards=cards,
             station_live=station_live,
+            bag_assign=bag_assign,
         )
     except Exception as e:
         current_app.logger.error("workflow_qr_management: %s", e)
@@ -578,6 +597,7 @@ def workflow_qr_management():
             station_kind_options=_STATION_KIND_ORDER,
             cards=[],
             station_live={},
+            bag_assign=None,
         )
 
 

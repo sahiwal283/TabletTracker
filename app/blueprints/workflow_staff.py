@@ -86,6 +86,24 @@ def _parse_nonneg_int(raw):
     return v
 
 
+# Hidden form field value: embed assigns bag from Command Center; redirects return there after POST.
+ASSIGN_BAG_RETURN_COMMAND_CENTER = "command_center"
+
+
+def assign_bag_redirect_after_post():
+    rt = (request.form.get("return_to") or "").strip()
+    if rt == ASSIGN_BAG_RETURN_COMMAND_CENTER:
+        return redirect(url_for("admin.workflow_qr_management"))
+    return redirect(url_for("workflow_staff.new_bag"))
+
+
+def _assign_bag_restart_url_from_form():
+    rt = (request.form.get("return_to") or "").strip()
+    if rt == ASSIGN_BAG_RETURN_COMMAND_CENTER:
+        return url_for("admin.workflow_qr_management")
+    return url_for("workflow_staff.new_bag")
+
+
 @bp.route("/staff/new-bag", methods=["GET", "POST"])
 @employee_required
 def new_bag():
@@ -96,14 +114,18 @@ def new_bag():
             products = _load_workflow_products(conn)
             return render_template(
                 "workflow_new_bag.html",
-                products=products,
-                ambiguous_matches=None,
-                form_product_id=None,
-                form_box_number=None,
-                form_bag_number=None,
-                form_card_scan_token=None,
-                form_receipt_number=None,
-                form_hand_packed=False,
+                bag_assign={
+                    "products": products,
+                    "ambiguous_matches": None,
+                    "form_product_id": None,
+                    "form_box_number": None,
+                    "form_bag_number": None,
+                    "form_card_scan_token": None,
+                    "form_receipt_number": None,
+                    "form_hand_packed": False,
+                    "return_to": "",
+                    "restart_url": url_for("workflow_staff.new_bag"),
+                },
             )
 
         product_id = request.form.get("product_id", type=int)
@@ -126,13 +148,13 @@ def new_bag():
 
         if not product_id or box_number is None or bag_number is None:
             flash("Product, box number, and bag number are required.", "error")
-            return redirect(url_for("workflow_staff.new_bag"))
+            return assign_bag_redirect_after_post()
         if not card_scan_token:
             flash("Scan or enter the bag card token before assigning.", "error")
-            return redirect(url_for("workflow_staff.new_bag"))
+            return assign_bag_redirect_after_post()
         if not receipt_number:
             flash("Receipt number is required.", "error")
-            return redirect(url_for("workflow_staff.new_bag"))
+            return assign_bag_redirect_after_post()
 
         prow = conn.execute(
             """
@@ -145,7 +167,7 @@ def new_bag():
         ).fetchone()
         if not prow or prow["tablet_type_id"] is None:
             flash("Invalid product for workflow assignment.", "error")
-            return redirect(url_for("workflow_staff.new_bag"))
+            return assign_bag_redirect_after_post()
 
         matches = find_unassigned_inventory_bags_for_product(
             conn,
@@ -158,7 +180,7 @@ def new_bag():
             valid_ids = {int(m["id"]) for m in matches}
             if inventory_bag_id not in valid_ids:
                 flash("That bag is no longer available for assignment. Try again.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
         elif not disambiguate:
             if len(matches) == 0:
                 flash(
@@ -166,24 +188,28 @@ def new_bag():
                     "(check receiving is open, or the bag may already be linked to a workflow).",
                     "error",
                 )
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if len(matches) > 1:
                 products = _load_workflow_products(conn)
                 return render_template(
                     "workflow_new_bag.html",
-                    products=products,
-                    ambiguous_matches=matches,
-                    form_product_id=product_id,
-                    form_box_number=box_number,
-                    form_bag_number=bag_number,
-                    form_card_scan_token=card_scan_token,
-                    form_receipt_number=receipt_number,
-                    form_hand_packed=hand_packed,
+                    bag_assign={
+                        "products": products,
+                        "ambiguous_matches": matches,
+                        "form_product_id": product_id,
+                        "form_box_number": box_number,
+                        "form_bag_number": bag_number,
+                        "form_card_scan_token": card_scan_token,
+                        "form_receipt_number": receipt_number,
+                        "form_hand_packed": hand_packed,
+                        "return_to": (request.form.get("return_to") or "").strip(),
+                        "restart_url": _assign_bag_restart_url_from_form(),
+                    },
                 )
             inventory_bag_id = int(matches[0]["id"])
         else:
             flash("Select which bag to use.", "error")
-            return redirect(url_for("workflow_staff.new_bag"))
+            return assign_bag_redirect_after_post()
 
         def _run():
             return assign_inventory_bag_to_card(
@@ -202,49 +228,49 @@ def new_bag():
             err = str(re)
             if "no_idle_card" in err:
                 flash("No idle QR cards available. Add cards or finalize existing bags.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "card_token_not_found" in err:
                 flash(f"Card token '{card_scan_token}' was not found. Scan the bag card QR again.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "card_not_idle" in err:
                 flash(
                     f"Card token '{card_scan_token}' is already in use. Release/finalize it first, then retry.",
                     "error",
                 )
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "card_claim_failed" in err:
                 flash("Could not claim card (concurrency). Retry.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "inventory_bag_already_assigned" in err:
                 flash(
                     f"Bag {_bag_display_name(conn, inventory_bag_id)} is already linked to a workflow.",
                     "error",
                 )
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "inventory_bag_not_found" in err:
                 flash(
                     f"Bag {_bag_display_name(conn, inventory_bag_id)} was not found.",
                     "error",
                 )
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "inventory_bag_missing_tablet_type" in err:
                 flash("That bag has no tablet type; fix receiving data first.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "invalid_product" in err:
                 flash("Invalid product selection.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             if "product_bag_tablet_type_mismatch" in err:
                 flash(
                     "This product is not configured to use that bag’s tablet type. "
                     "Add the flavor under Product Configuration → allowed tablets, or pick the correct product.",
                     "error",
                 )
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             raise
         except sqlite3.OperationalError as oe:
             if "locked" in str(oe).lower():
                 flash("Database busy; retry.", "error")
-                return redirect(url_for("workflow_staff.new_bag"))
+                return assign_bag_redirect_after_post()
             raise
 
         conn.commit()
@@ -258,7 +284,7 @@ def new_bag():
             f"Assigned bag {bag_name} to QR card {card_token}.",
             "success",
         )
-        return redirect(url_for("workflow_staff.new_bag"))
+        return assign_bag_redirect_after_post()
     finally:
         conn.close()
 

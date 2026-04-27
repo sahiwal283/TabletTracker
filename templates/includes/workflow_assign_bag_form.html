@@ -1,0 +1,99 @@
+{# Requires bag_assign dict: products, ambiguous_matches, form_*, return_to, restart_url #}
+{% set ba = bag_assign %}
+{% if ba.ambiguous_matches %}
+<div class="mb-4 border border-amber-300 bg-amber-50 rounded-lg p-4 text-slate-800">
+  <p class="font-semibold mb-2">Multiple bags found — please select the correct bag.</p>
+  <p class="text-sm text-slate-600 mb-4">Same flavor, box, and bag number exist on more than one receive. Pick the line that matches the shipment you are working.</p>
+  <form method="post" action="{{ url_for('workflow_staff.new_bag') }}" class="space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>
+    <input type="hidden" name="disambiguate" value="1"/>
+    <input type="hidden" name="product_id" value="{{ ba.form_product_id }}"/>
+    <input type="hidden" name="box_number" value="{{ ba.form_box_number }}"/>
+    <input type="hidden" name="bag_number" value="{{ ba.form_bag_number }}"/>
+    <input type="hidden" name="card_scan_token" value="{{ ba.form_card_scan_token or '' }}"/>
+    <input type="hidden" name="receipt_number" value="{{ ba.form_receipt_number or '' }}"/>
+    <input type="hidden" name="hand_packed" value="{{ '1' if ba.form_hand_packed else '' }}"/>
+    <div class="space-y-2">
+      {% for m in ba.ambiguous_matches %}
+      <label class="flex items-start gap-2 cursor-pointer text-sm">
+        <input type="radio" name="inventory_bag_id" value="{{ m.id }}" class="mt-1" required/>
+        <span>
+          <strong>{{ m.po_number or ('Receiving ' ~ m.receiving_id) }}</strong>
+          — Box {{ m.box_number }}, Bag {{ m.bag_number }}
+          — {{ m.tablet_type_name }}
+          <span class="text-slate-500">(received {{ m.received_date }})</span>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn-primary">Assign card to selected bag</button>
+  </form>
+  <p class="mt-4 text-sm"><a class="text-blue-600 underline" href="{{ ba.restart_url }}">Start over</a></p>
+</div>
+{% else %}
+<form method="post" action="{{ url_for('workflow_staff.new_bag') }}" class="space-y-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>
+  <div>
+    <label class="block text-sm font-medium mb-1" for="wv_card_scan_token">Bag card scan token</label>
+    <div class="flex flex-wrap gap-2 mb-2">
+      <button type="button" id="wv-scan-card" class="btn-secondary px-3 py-2">Scan Card QR</button>
+      <button type="button" id="wv-scan-stop" class="btn-secondary px-3 py-2 hidden">Stop scan</button>
+    </div>
+    <div id="wv-cardqr-reader-wrap" class="mb-3 hidden">
+      <div id="wv-cardqr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
+      <p class="text-xs text-gray-500 mt-1">Point camera at the bag card QR code.</p>
+    </div>
+    <input id="wv_card_scan_token" name="card_scan_token" required class="form-input font-mono"
+           placeholder="e.g. bag-card-12"
+           value="{{ ba.form_card_scan_token or '' }}"
+           autocomplete="off"/>
+    <p class="text-xs text-gray-500 mt-1">You can scan or type the token manually.</p>
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1" for="wv_assign_product">Product (flavor)</label>
+    <select id="wv_assign_product" name="product_id" required class="form-input">
+      <option value="">Select product...</option>
+      {% for p in ba.products %}
+      <option value="{{ p['id'] }}"
+              {% if ba.form_product_id and p['id'] == ba.form_product_id %}selected{% endif %}
+              data-tablet-type="{{ p['tablet_type_id'] or '' }}"
+              data-category="{{ p['category'] or p['tablet_category'] or 'Other' }}">
+        {{ p['product_name'] }}
+      </option>
+      {% endfor %}
+    </select>
+    <p class="text-xs text-gray-500 mt-1">Same category/product picker as Production. Must match the bag&rsquo;s tablet type.</p>
+  </div>
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-medium mb-1" for="wv_box_number">Box #</label>
+      <input id="wv_box_number" name="box_number" type="number" min="0" step="1" required class="form-input"
+             value="{{ ba.form_box_number if ba.form_box_number is not none else '' }}"/>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="wv_bag_number">Bag #</label>
+      <input id="wv_bag_number" name="bag_number" type="number" min="0" step="1" required class="form-input"
+             value="{{ ba.form_bag_number if ba.form_bag_number is not none else '' }}"/>
+    </div>
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1" for="wv_receipt_number">Receipt #</label>
+    <input id="wv_receipt_number" name="receipt_number" required maxlength="128" class="form-input"
+           placeholder="Warehouse receipt for this bag"
+           value="{{ ba.form_receipt_number or '' }}"
+           autocomplete="off"/>
+    <p class="text-xs text-gray-500 mt-1">Used for warehouse submissions and shown on station screens for verification.</p>
+  </div>
+  <div class="rounded-lg border border-gray-200 p-3 bg-gray-50">
+    <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-800" for="wv_hand_packed">
+      <input id="wv_hand_packed" name="hand_packed" type="checkbox" value="1"
+             {% if ba.form_hand_packed %}checked{% endif %}/>
+      Hand packed (skip blister station for finalization)
+    </label>
+    <p class="text-xs text-gray-500 mt-1">Use when this bag is packed by hand in sealing; blister is not required before packaging submit/finalize.</p>
+  </div>
+  <button type="submit" class="btn-primary">Find bag and assign QR card</button>
+</form>
+{% endif %}
