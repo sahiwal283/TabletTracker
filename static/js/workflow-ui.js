@@ -841,8 +841,14 @@
     }
     countLabel && countLabel.classList.remove('hidden');
     countTotal.classList.remove('hidden');
-    if (empLabel) empLabel.classList.remove('hidden');
-    if (empInput) empInput.classList.remove('hidden');
+    if (empLabel) {
+      empLabel.classList.remove('hidden');
+      empLabel.textContent = 'Your name';
+    }
+    if (empInput) {
+      empInput.classList.remove('hidden');
+      empInput.placeholder = 'name / nombre';
+    }
     saveBtn.classList.remove('hidden');
     pauseBtn.classList.remove('hidden');
     if (kind === 'blister') {
@@ -925,8 +931,14 @@
         countLabel.classList.add('hidden');
         countTotal.classList.add('hidden');
         showPackagingTakenFields();
-        if (empLabel) empLabel.classList.remove('hidden');
-        if (empInput) empInput.classList.remove('hidden');
+        if (empLabel) {
+          empLabel.classList.remove('hidden');
+          empLabel.textContent = 'Taken by';
+        }
+        if (empInput) {
+          empInput.classList.remove('hidden');
+          empInput.placeholder = 'Name';
+        }
         saveBtn.classList.add('hidden');
         pauseBtn.classList.add('hidden');
         if (takenBtn) {
@@ -936,14 +948,21 @@
         }
         if (hint) {
           hint.classList.remove('hidden');
-          hint.textContent = 'Enter how many displays were taken, your name, then tap Taken for delivery.';
+          hint.textContent =
+            'Enter displays taken from this batch, who took them, then tap Taken for delivery.';
         }
         return;
       }
       countLabel.classList.remove('hidden');
       countTotal.classList.remove('hidden');
-      if (empLabel) empLabel.classList.remove('hidden');
-      if (empInput) empInput.classList.remove('hidden');
+      if (empLabel) {
+        empLabel.classList.remove('hidden');
+        empLabel.textContent = 'Your name';
+      }
+      if (empInput) {
+        empInput.classList.remove('hidden');
+        empInput.placeholder = 'name / nombre';
+      }
       showPackagingStationExtra();
       if (packagingUiPhase === 'end') {
         occupancyGateIntentEndRun = true;

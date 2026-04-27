@@ -27,7 +27,7 @@
     plugins: {
       legend: {
         display: true,
-        labels: { color: "#9aa8b8", font: { size: 9 }, boxWidth: 10 },
+        labels: { color: "#9aa8b8", font: { size: 12 }, boxWidth: 14 },
       },
     },
     scales: {},
@@ -262,7 +262,14 @@
 
   function renderFeed(items) {
     if (!feedEl) return;
-    feedEl.innerHTML = (items || [])
+    var rank = { alert: 0, warn: 1, info: 2 };
+    var sorted = (items || []).slice().sort(function (a, b) {
+      var ra = rank[a.severity] != null ? rank[a.severity] : 2;
+      var rb = rank[b.severity] != null ? rank[b.severity] : 2;
+      if (ra !== rb) return ra - rb;
+      return (b.at_ms || 0) - (a.at_ms || 0);
+    });
+    feedEl.innerHTML = sorted
       .slice(0, 40)
       .map(function (it) {
         var sev = it.severity || "info";
@@ -282,13 +289,20 @@
   function ensureCharts(labels) {
     if (typeof Chart === "undefined") return;
 
+    var tickFont = { size: 13 };
     var darkScales = {
       x: {
-        ticks: { color: "#6a7a8a", maxRotation: 0, font: { size: 9 } },
+        ticks: {
+          color: "#7a8a9a",
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 8,
+          font: tickFont,
+        },
         grid: { color: "rgba(0,255,200,0.06)" },
       },
       y: {
-        ticks: { color: "#6a7a8a", font: { size: 9 } },
+        ticks: { color: "#7a8a9a", font: tickFont },
         grid: { color: "rgba(0,255,200,0.06)" },
       },
     };
@@ -301,7 +315,7 @@
           data: { labels: labels, datasets: [] },
           options: Object.assign({}, chartCommon, {
             scales: darkScales,
-            plugins: { legend: { labels: { color: "#9aa8b8", font: { size: 9 } } } },
+            plugins: { legend: { labels: { color: "#9aa8b8", font: { size: 12 }, boxWidth: 14 } } },
           }),
         });
     }
@@ -313,7 +327,13 @@
           data: { labels: labels, datasets: [] },
           options: Object.assign({}, chartCommon, {
             scales: darkScales,
-            plugins: { legend: { display: true, position: "bottom" } },
+            plugins: {
+              legend: {
+                display: true,
+                position: "bottom",
+                labels: { color: "#9aa8b8", font: { size: 11 }, boxWidth: 12 },
+              },
+            },
           }),
         });
     }
@@ -327,11 +347,11 @@
             indexAxis: "y",
             scales: {
               x: {
-                ticks: { color: "#6a7a8a", font: { size: 9 } },
+                ticks: { color: "#7a8a9a", font: tickFont },
                 grid: { color: "rgba(0,255,200,0.06)" },
               },
               y: {
-                ticks: { color: "#9aa8b8", font: { size: 9 } },
+                ticks: { color: "#9aa8b8", font: tickFont },
                 grid: { display: false },
               },
             },
@@ -351,16 +371,20 @@
               x: {
                 stacked: true,
                 max: 100,
-                ticks: { color: "#6a7a8a", font: { size: 9 }, callback: function (v) { return v + "%"; } },
+                ticks: {
+                  color: "#7a8a9a",
+                  font: tickFont,
+                  callback: function (v) { return v + "%"; },
+                },
                 grid: { color: "rgba(0,255,200,0.06)" },
               },
               y: {
                 stacked: true,
-                ticks: { color: "#9aa8b8", font: { size: 9 } },
+                ticks: { color: "#9aa8b8", font: tickFont },
                 grid: { display: false },
               },
             },
-            plugins: { legend: { labels: { color: "#9aa8b8", font: { size: 9 } } } },
+            plugins: { legend: { labels: { color: "#9aa8b8", font: { size: 11 }, boxWidth: 12 } } },
           }),
         });
     }
@@ -371,9 +395,12 @@
           type: "doughnut",
           data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
           options: Object.assign({}, chartCommon, {
-            cutout: "62%",
+            cutout: "58%",
             plugins: {
-              legend: { position: "right", labels: { color: "#9aa8b8", font: { size: 9 }, boxWidth: 10 } },
+              legend: {
+                position: "bottom",
+                labels: { color: "#9aa8b8", font: { size: 10 }, boxWidth: 12 },
+              },
             },
           }),
         });
@@ -406,7 +433,7 @@
           backgroundColor: "rgba(0, 212, 255, 0.06)",
           fill: true,
           tension: 0.25,
-          borderWidth: 2,
+          borderWidth: 3,
         },
         {
           label: "Target pace",
@@ -416,7 +443,7 @@
           fill: false,
           tension: 0,
           pointRadius: 0,
-          borderWidth: 2,
+          borderWidth: 3,
         },
       ];
       charts.line.update();
@@ -435,7 +462,7 @@
           borderColor: palette[i % palette.length],
           backgroundColor: "transparent",
           tension: 0.2,
-          borderWidth: 2,
+          borderWidth: 3,
           pointRadius: 0,
         });
         i++;
@@ -445,7 +472,7 @@
           label: "—",
           data: labels.map(function () { return 0; }),
           borderColor: "rgba(122,138,154,0.4)",
-          borderWidth: 1,
+          borderWidth: 2,
           pointRadius: 0,
         });
       }
@@ -484,19 +511,19 @@
           { label: "Idle / wait", data: [100], backgroundColor: "rgba(255, 204, 0, 0.35)" },
         ];
       } else {
-      charts.idle.data.labels = idles.map(function (r) { return r.name; });
-      charts.idle.data.datasets = [
-        {
-          label: "Engaged",
-          data: idles.map(function (r) { return r.load_pct; }),
-          backgroundColor: "rgba(0, 255, 157, 0.7)",
-        },
-        {
-          label: "Idle / wait",
-          data: idles.map(function (r) { return r.pct; }),
-          backgroundColor: "rgba(255, 204, 0, 0.45)",
-        },
-      ];
+        charts.idle.data.labels = idles.map(function (r) { return r.name; });
+        charts.idle.data.datasets = [
+          {
+            label: "Engaged",
+            data: idles.map(function (r) { return r.load_pct; }),
+            backgroundColor: "rgba(0, 255, 157, 0.7)",
+          },
+          {
+            label: "Idle / wait",
+            data: idles.map(function (r) { return r.pct; }),
+            backgroundColor: "rgba(255, 204, 0, 0.45)",
+          },
+        ];
       }
       charts.idle.update();
     }

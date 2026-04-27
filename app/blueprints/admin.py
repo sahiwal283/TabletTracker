@@ -541,7 +541,14 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         sev = "warn" if et == "CARD_FORCE_RELEASED" else "info"
         _push_act(at, msg, sev)
 
-    activity.sort(key=lambda x: (-(1 if x["severity"] == "alert" else 0), -x["at_ms"]))
+    _sev_rank = {"alert": 0, "warn": 1, "info": 2}
+
+    activity.sort(
+        key=lambda x: (
+            _sev_rank.get(x.get("severity"), 2),
+            -int(x.get("at_ms") or 0),
+        )
+    )
 
     chart_target_cumulative = [round(float(daily_target) * (h + 1) / 24.0, 0) for h in range(24)]
 

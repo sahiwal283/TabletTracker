@@ -25,39 +25,42 @@
       <div class="ops-head" id="ops-head"></div>
     </header>
 
-    <section class="ops-flow-wrap" aria-label="Production flow">
-      <div id="ops-flow" class="ops-flow"></div>
-      <div id="ops-bottleneck" class="ops-bottleneck"></div>
-    </section>
-
-    <main class="ops-main">
-      <section class="ops-cards" id="ops-cards" aria-label="Machine status"></section>
-      <aside class="ops-feed" aria-label="Activity and alerts">
-        <h2 class="ops-feed-title">Activity</h2>
+    <div class="ops-mid">
+      <div class="ops-mid-primary">
+        <section class="ops-flow-wrap" aria-label="Production flow">
+          <div id="ops-flow" class="ops-flow"></div>
+          <div id="ops-bottleneck" class="ops-bottleneck"></div>
+        </section>
+        <section class="ops-cards" id="ops-cards" aria-label="Machine status"></section>
+      </div>
+      <aside class="ops-feed" aria-label="Alerts and activity">
+        <h2 class="ops-feed-title">Alerts</h2>
         <div class="ops-feed-list" id="ops-feed-list"></div>
       </aside>
-    </main>
+    </div>
 
     <footer class="ops-charts" aria-hidden="true">
       <div class="ops-chart-panel panel-cum">
-        <h3>Output · cumulative vs target</h3>
+        <h3>Cumulative output vs target</h3>
         <canvas id="c-chart-line"></canvas>
       </div>
       <div class="ops-chart-panel panel-multi">
-        <h3>Top stations · hourly tablets</h3>
+        <h3>Hourly throughput · top stations</h3>
         <canvas id="c-chart-multi"></canvas>
       </div>
       <div class="ops-chart-panel panel-bar">
         <h3>Output by station</h3>
         <canvas id="c-chart-bar"></canvas>
       </div>
-      <div class="ops-chart-panel panel-idle">
-        <h3>Engaged vs idle snapshot</h3>
-        <canvas id="c-chart-idle"></canvas>
-      </div>
-      <div class="ops-chart-panel panel-donut">
-        <h3>By product</h3>
-        <canvas id="c-chart-donut"></canvas>
+      <div class="ops-chart-stack">
+        <div class="ops-chart-panel panel-idle">
+          <h3>Engaged vs idle</h3>
+          <canvas id="c-chart-idle"></canvas>
+        </div>
+        <div class="ops-chart-panel panel-donut">
+          <h3>Product mix</h3>
+          <canvas id="c-chart-donut"></canvas>
+        </div>
       </div>
     </footer>
   </div>
