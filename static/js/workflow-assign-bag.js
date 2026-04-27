@@ -1,19 +1,5 @@
 /* Bag card scan + two-level product dropdown for assign-bag forms (standalone + Command Center). */
 (function () {
-  function showTokenPreview(input) {
-    var statusEl = document.getElementById('wv-token-status');
-    var prevEl = document.getElementById('wv-token-preview');
-    var t = input && input.value ? String(input.value).trim() : '';
-    if (!statusEl || !prevEl) return;
-    if (t) {
-      prevEl.textContent = t;
-      statusEl.classList.remove('hidden');
-    } else {
-      prevEl.textContent = '';
-      statusEl.classList.add('hidden');
-    }
-  }
-
   document.addEventListener('DOMContentLoaded', function () {
     var el = document.getElementById('wv_assign_product');
     if (el && typeof convertToTwoLevelDropdownByDataAttr === 'function') {
@@ -24,7 +10,6 @@
     var stopBtn = document.getElementById('wv-scan-stop');
     var wrap = document.getElementById('wv-cardqr-reader-wrap');
     var input = document.getElementById('wv_card_scan_token');
-    if (input) showTokenPreview(input);
     var qr = null;
     var scanDone = false;
 
@@ -66,7 +51,6 @@
         if (!t) return;
         scanDone = true;
         if (input) input.value = t;
-        showTokenPreview(input);
         stopScan();
       }
       function onFailure() {}
@@ -97,7 +81,7 @@
       form.addEventListener('submit', function (e) {
         if (!String(input.value || '').trim()) {
           e.preventDefault();
-          window.alert('Scan the bag card QR first (token required).');
+          window.alert('Enter the bag card token or scan the QR (token required).');
         }
       });
     }
