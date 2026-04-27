@@ -21,7 +21,7 @@
   </div>
   <div id="wf-scan-success" class="hidden mb-4 p-4 rounded-xl border border-emerald-300 bg-emerald-50">
     <div class="flex items-center gap-3">
-      <span class="text-3xl font-bold text-emerald-700" aria-hidden="true">✓</span>
+      <span class="text-3xl font-bold text-emerald-700" aria-hidden="true">OK</span>
       <div>
         <p class="text-base font-semibold text-emerald-900">Bag scan confirmed</p>
         <p class="text-xs text-emerald-700">Counts are ready for this station.</p>
@@ -34,6 +34,30 @@
     <dl id="wf-bag-verification-body" class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-left"></dl>
   </div>
   <div id="wf-feedback" class="hidden mb-4 p-3 rounded-xl border text-sm" role="status" aria-live="polite"></div>
+
+  <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+    <button type="button" id="wf-gate-pause" class="btn-secondary px-6 py-4 text-lg">Pause</button>
+    <button type="button" id="wf-gate-end" class="btn-primary px-6 py-4 text-lg">End run</button>
+    <button type="button" id="wf-gate-resume" class="hidden btn-primary px-6 py-4 text-lg sm:col-span-2">Verify card to continue</button>
+  </div>
+
+  <div id="wf-verify-panel" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">
+    <p id="wf-verify-instruction" class="text-sm text-slate-800 mb-3"></p>
+    <label class="block text-sm font-medium mb-1">Bag card token</label>
+    <div class="flex gap-3 mb-2">
+      <button type="button" id="wf-verify-scan" class="btn-secondary px-5 py-3 text-base">Scan bag QR</button>
+      <button type="button" id="wf-verify-scan-stop" class="btn-secondary px-5 py-3 text-base hidden">Stop scan</button>
+    </div>
+    <div id="wf-verify-reader-wrap" class="mb-3 hidden">
+      <div id="wf-verify-qr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
+      <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
+    </div>
+    <input id="wf-verify-input" class="form-input mb-3 text-lg" placeholder="bag-card-1" autocomplete="off" />
+    <button type="button" id="wf-verify-confirm" class="btn-primary px-6 py-4 text-lg w-full sm:w-auto">Confirm verification</button>
+    <button type="button" id="wf-verify-cancel" class="btn-secondary px-6 py-3 text-base mt-2 block">Cancel</button>
+  </div>
+
+  <div id="wf-card-entry">
   <label class="block text-sm font-medium mb-1">Card token</label>
   <div class="flex gap-3 mb-2">
     <button type="button" id="wf-scan-product" class="btn-secondary px-5 py-3 text-base">Scan Product QR</button>
@@ -44,6 +68,8 @@
     <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
   </div>
   <input id="product_input" class="form-input mb-3 text-lg" placeholder="bag-dev-1" autocomplete="off" />
+  </div>
+  <div id="wf-workflow-fields">
   <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
   <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Cards remaining</label>
@@ -56,9 +82,10 @@
   <input id="wf-taken-displays" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Only for Taken button" />
   <label for="wf-employee-name" id="wf-employee-name-label" class="hidden block text-sm font-medium mb-1">Your name</label>
   <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="name / nombre" autocomplete="name" />
+  </div>
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+  <div id="wf-workflow-actions" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
     <button type="button" id="wf-claim" class="hidden btn-secondary px-6 py-4 text-lg">Claim bag</button>
     <button type="button" id="wf-save-count" class="hidden btn-secondary px-6 py-4 text-lg">Submit count</button>
     <button type="button" id="wf-save-blister" class="btn-secondary px-6 py-4 text-lg hidden">Submit blister count</button>

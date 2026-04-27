@@ -1,12 +1,24 @@
 
 (function () {
   let html5QrCode = null;
+  let html5QrCodeVerify = null;
   let productScanDone = false;
+  let verifyScanDone = false;
   let hasLoadedBag = false;
   let stationClaimed = false;
   /** When true, bag was paused at this station — submit/pause blocked until Resume (server: resume_required). */
   let stationNeedsResume = false;
   let occupancyTimerHandle = null;
+  /** Station has an active bag from /floor/api/station (last poll). */
+  let stationHasOccupantApi = false;
+  /** Block generic scan / refresh until the station occupant card is loaded (or verify flow). */
+  let stationOccupancyGate = false;
+  /** Server reports bag paused at this station (resume required). */
+  let occupancyIsPaused = false;
+  /** Expected bag card scan_token for this station occupancy. */
+  let expectedOccupantCardToken = null;
+  /** Showing scan/input to verify card after Pause / End / Resume. */
+  let occupancyVerifyOpen = false;
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
   var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
@@ -77,6 +89,221 @@
       occupancyTimerHandle = null;
     }
   }
+
+  /** True when this station has no active occupant or the loaded card matches that bag. */
+  function sessionMatchesStationOccupant() {
+    if (!stationHasOccupantApi || !expectedOccupantCardToken) {
+      return true;
+    }
+    var cur = productInput() ? String(productInput().value || '').trim() : '';
+    return hasLoadedBag && cur === expectedOccupantCardToken;
+  }
+
+  function syncOccupancyGateFlags() {
+    stationOccupancyGate =
+      stationHasOccupantApi &&
+      !!expectedOccupantCardToken &&
+      !sessionMatchesStationOccupant() &&
+      !occupancyVerifyOpen;
+  }
+
+  function applyOccupancyGateUi() {
+    syncOccupancyGateFlags();
+    var hideMain =
+      occupancyVerifyOpen ||
+      (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
+    var showChoice =
+      stationHasOccupantApi &&
+      !!expectedOccupantCardToken &&
+      !sessionMatchesStationOccupant() &&
+      !occupancyVerifyOpen;
+
+    var cardEntry = document.getElementById('wf-card-entry');
+    var fields = document.getElementById('wf-workflow-fields');
+    var actions = document.getElementById('wf-workflow-actions');
+    var choice = document.getElementById('wf-occupied-choice');
+    var verifyPan = document.getElementById('wf-verify-panel');
+    var pauseB = document.getElementById('wf-gate-pause');
+    var endB = document.getElementById('wf-gate-end');
+    var resumeB = document.getElementById('wf-gate-resume');
+
+    if (verifyPan) {
+      verifyPan.classList.toggle('hidden', !occupancyVerifyOpen);
+    }
+
+    if (cardEntry) cardEntry.classList.toggle('hidden', hideMain);
+    if (fields) fields.classList.toggle('hidden', hideMain);
+    if (actions) actions.classList.toggle('hidden', hideMain);
+
+    if (choice && pauseB && endB && resumeB) {
+      if (!showChoice) {
+        choice.classList.add('hidden');
+      } else {
+        choice.classList.remove('hidden');
+        if (occupancyIsPaused) {
+          pauseB.classList.add('hidden');
+          endB.classList.add('hidden');
+          resumeB.classList.remove('hidden');
+        } else {
+          pauseB.classList.remove('hidden');
+          endB.classList.remove('hidden');
+          resumeB.classList.add('hidden');
+        }
+      }
+    }
+  }
+
+  function openOccupancyVerify(mode) {
+    occupancyVerifyOpen = true;
+    var inst = document.getElementById('wf-verify-instruction');
+    var vi = document.getElementById('wf-verify-input');
+    if (vi) vi.value = '';
+    if (inst) {
+      if (mode === 'pause') {
+        inst.textContent = 'Scan the bag card QR to verify before pausing.';
+      } else if (mode === 'end') {
+        inst.textContent =
+          'Scan the bag card QR to verify before ending this run (submit counts).';
+      } else {
+        inst.textContent = 'Scan the bag card QR to verify before continuing.';
+      }
+    }
+    applyOccupancyGateUi();
+  }
+
+  function cancelOccupancyVerify() {
+    occupancyVerifyOpen = false;
+    stopVerifyQrScanner().catch(function () {});
+    applyOccupancyGateUi();
+  }
+
+  async function confirmOccupancyVerify() {
+    var vi = document.getElementById('wf-verify-input');
+    var tok = vi && String(vi.value || '').trim();
+    if (!tok) {
+      statusLine('Scan or enter the bag card token.', 'error');
+      return;
+    }
+    var exp = expectedOccupantCardToken && String(expectedOccupantCardToken).trim();
+    if (!exp || tok !== exp) {
+      statusLine('This QR code does not match the current bag at this station.', 'error');
+      return;
+    }
+    await stopVerifyQrScanner();
+    occupancyVerifyOpen = false;
+    var pin = productInput();
+    if (pin) pin.value = tok;
+    await refresh();
+  }
+
+  function setVerifyScanUi(scanning) {
+    var wrap = document.getElementById('wf-verify-reader-wrap');
+    var stopBtn = document.getElementById('wf-verify-scan-stop');
+    var scanBtn = document.getElementById('wf-verify-scan');
+    if (wrap) wrap.classList.toggle('hidden', !scanning);
+    if (stopBtn) stopBtn.classList.toggle('hidden', !scanning);
+    if (scanBtn) scanBtn.classList.toggle('hidden', scanning);
+  }
+
+  async function stopVerifyQrScanner() {
+    verifyScanDone = false;
+    if (html5QrCodeVerify) {
+      try {
+        await html5QrCodeVerify.stop();
+      } catch (_e) {
+        /* */
+      }
+      try {
+        await html5QrCodeVerify.clear();
+      } catch (_e2) {
+        /* */
+      }
+      html5QrCodeVerify = null;
+    }
+    setVerifyScanUi(false);
+  }
+
+  async function startVerifyQrScan() {
+    if (!stationReady()) {
+      statusLine('Error: open this page from your station QR first. Station token is missing.', 'error');
+      return;
+    }
+    if (typeof Html5Qrcode === 'undefined') {
+      statusLine('Scanner failed to load. Check your connection and refresh the page.', 'error');
+      return;
+    }
+    await stopVerifyQrScanner();
+    verifyScanDone = false;
+    var readerId = 'wf-verify-qr-reader';
+    var el = document.getElementById(readerId);
+    if (!el) return;
+    html5QrCodeVerify = new Html5Qrcode(readerId);
+    setVerifyScanUi(true);
+    statusLine('Point the camera at the bag card QR code.', 'info');
+    var config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    function onScanSuccess(decodedText) {
+      if (verifyScanDone) return;
+      var text = String(decodedText || '').trim();
+      if (!text) return;
+      verifyScanDone = true;
+      setTimeout(function () {
+        (async function () {
+          try {
+            await stopVerifyQrScanner();
+            var vi = document.getElementById('wf-verify-input');
+            if (vi) vi.value = text;
+            try {
+              if (navigator.vibrate) navigator.vibrate(15);
+            } catch (_v) {
+              /* */
+            }
+            statusLine('QR captured. Tap Confirm verification when ready.', 'info');
+          } catch (err) {
+            statusLine(String(err), 'error');
+          }
+        })();
+      }, 0);
+    }
+    function onScanFailure() {
+      /* ignore */
+    }
+    try {
+      await html5QrCodeVerify.start({ facingMode: 'environment' }, config, onScanSuccess, onScanFailure);
+    } catch (e1) {
+      try {
+        await html5QrCodeVerify.stop();
+      } catch (_s) {
+        /* */
+      }
+      try {
+        await html5QrCodeVerify.clear();
+      } catch (_c) {
+        /* */
+      }
+      html5QrCodeVerify = null;
+      try {
+        var devices = await Html5Qrcode.getCameras();
+        if (!devices || devices.length === 0) {
+          throw e1;
+        }
+        var back =
+          devices.find(function (d) {
+            return /back|rear|environment|wide/i.test(d.label || '');
+          }) || devices[0];
+        html5QrCodeVerify = new Html5Qrcode(readerId);
+        await html5QrCodeVerify.start(back.id, config, onScanSuccess, onScanFailure);
+      } catch (e2) {
+        await stopVerifyQrScanner();
+        var msg = (e1 && e1.message) || String(e1);
+        if (/Permission|NotAllowed|denied/i.test(msg)) {
+          statusLine('Camera permission denied. Allow camera access in Safari settings and try again.', 'error');
+        } else {
+          statusLine('Could not start camera: ' + msg, 'error');
+        }
+      }
+    }
+  }
+
   function renderOccupancyBanner(facts, bagId) {
     var banner = document.getElementById('wf-occupied-banner');
     var elapsed = document.getElementById('wf-occupied-elapsed');
@@ -85,7 +312,7 @@
     if (!banner || !elapsed || !bagEl || !cardEl) return;
     stopOccupancyTimer();
     var startMs = Number(facts && facts.occupancy_started_at_ms);
-    if (!Number.isFinite(startMs) || startMs <= 0 || !stationClaimed) {
+    if (!Number.isFinite(startMs) || startMs <= 0) {
       banner.classList.add('hidden');
       return;
     }
@@ -287,11 +514,11 @@
     stationClaimed = false;
     stationNeedsResume = false;
     renderBagVerification(null);
-    renderOccupancyBanner(null, null);
     setScanSuccessVisible(false);
     clearAllActionCooldowns();
     setBagLoadedUi(false);
     setActionsEnabled(false);
+    applyOccupancyGateUi();
     if (showHint) {
       statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
     }
@@ -591,6 +818,12 @@
             } catch (_v) {
               /* */
             }
+            syncOccupancyGateFlags();
+            if (stationOccupancyGate) {
+              statusLine('This station has a bag in progress. Use Pause or End run first.', 'error');
+              if (inp) inp.value = '';
+              return;
+            }
             statusLine('Product QR captured — loading bag…', 'info');
             await refresh();
           } catch (err) {
@@ -671,11 +904,31 @@
     return data;
   }
   async function refresh() {
+    syncOccupancyGateFlags();
     const stationToken = document.getElementById('wf-station-token').value;
     const inp = productInput();
     const cardToken = inp ? inp.value.trim() : '';
     if (!cardToken) {
       statusLine('Enter card token', 'error');
+      return;
+    }
+    if (
+      stationHasOccupantApi &&
+      expectedOccupantCardToken &&
+      cardToken !== expectedOccupantCardToken
+    ) {
+      statusLine('This QR code does not match the current bag at this station.', 'error');
+      return;
+    }
+    var bypassGateForOccupantLoad =
+      stationHasOccupantApi &&
+      expectedOccupantCardToken &&
+      cardToken === expectedOccupantCardToken;
+    if (stationOccupancyGate && !bypassGateForOccupantLoad) {
+      statusLine(
+        'This station has a bag in progress. Use Pause or End run and verify the card first.',
+        'error'
+      );
       return;
     }
     const data = await postJson('/workflow/floor/api/bag', {
@@ -689,6 +942,7 @@
     setBagLoadedUi(true);
     setActionsEnabled(true);
     configureStationActions();
+    applyOccupancyGateUi();
     if (!stationClaimed) {
       setScanSuccessVisible(false);
       statusLine('Bag loaded. Claim it at this station to continue.', 'info');
@@ -707,21 +961,43 @@
     });
     const occ = data && data.occupancy;
     if (!occ || occ.status === 'idle') {
+      stationHasOccupantApi = false;
+      occupancyIsPaused = false;
+      expectedOccupantCardToken = null;
+      occupancyVerifyOpen = false;
+      stopOccupancyTimer();
       renderOccupancyBanner(null, null);
+      renderBagVerification(null);
+      applyOccupancyGateUi();
       return;
     }
+    stationHasOccupantApi = true;
+    occupancyIsPaused = occ.status === 'paused';
+    expectedOccupantCardToken = occ.card_token ? String(occ.card_token).trim() : null;
     if (occ.facts) {
+      if (occ.facts.station_claimed !== undefined) {
+        stationClaimed = !!occ.facts.station_claimed;
+      }
+      stationNeedsResume = !!occ.facts.resume_required;
       renderBagVerification(occ.facts);
       renderOccupancyBanner(
-        {
+        Object.assign({}, occ.facts, {
           occupancy_started_at_ms: occ.occupancy_started_at_ms,
           occupying_card_token: occ.card_token,
-        },
+        }),
         occ.workflow_bag_id
       );
-      setScanSuccessVisible(false);
-      statusLine('Station is currently occupied. Confirm active bag details below.', 'info');
     }
+    setScanSuccessVisible(false);
+    if (!sessionMatchesStationOccupant()) {
+      statusLine(
+        occupancyIsPaused
+          ? 'This station has a paused bag. Tap Verify card to continue, then scan the bag card.'
+          : 'This station already has a bag in progress. Choose Pause or End run, then verify the bag card.',
+        'info'
+      );
+    }
+    applyOccupancyGateUi();
   }
   async function claimBag() {
     ensureLoadedBag();
@@ -903,6 +1179,7 @@
     if (pinp) pinp.value = '';
     resetLoadedBagState(false);
     configureStationActions();
+    refreshStationOccupancy().catch(function () {});
     startCooldownAfterSuccess('submit');
     statusLine('Packaging counts saved and bag finalized.' + MSG_SCAN_NEXT_CARD, 'success');
   }
@@ -938,6 +1215,7 @@
       payload: payload || {},
     });
     applyStationFacts(data);
+    refreshStationOccupancy().catch(function () {});
     return data;
   }
   async function resumeBag() {
@@ -961,13 +1239,21 @@
     resetLoadedBagState(false);
     configureStationActions();
     statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
-    refreshStationOccupancy().catch((e) => {
-      statusLine(String(e), 'error');
-    });
+    refreshStationOccupancy()
+      .then(function () {
+        if (stationOccupancyGate && productInput()) {
+          productInput().value = '';
+        }
+        applyOccupancyGateUi();
+      })
+      .catch(function (e) {
+        statusLine(String(e), 'error');
+      });
     const inp = productInput();
     if (inp) {
       inp.addEventListener('input', () => {
         resetLoadedBagState(false);
+        refreshStationOccupancy().catch(function () {});
       });
     }
     const emp = employeeNameInput();
@@ -997,8 +1283,23 @@
     if (sp) sp.addEventListener('click', () => startProductQrScan().catch((e) => statusLine(String(e), 'error')));
     const st = document.getElementById('wf-scan-stop');
     if (st) st.addEventListener('click', () => stopProductQrScanner().catch((e) => statusLine(String(e), 'error')));
+    const gp = document.getElementById('wf-gate-pause');
+    if (gp) gp.addEventListener('click', () => openOccupancyVerify('pause'));
+    const ge = document.getElementById('wf-gate-end');
+    if (ge) ge.addEventListener('click', () => openOccupancyVerify('end'));
+    const gr = document.getElementById('wf-gate-resume');
+    if (gr) gr.addEventListener('click', () => openOccupancyVerify('resume'));
+    const vScan = document.getElementById('wf-verify-scan');
+    if (vScan) vScan.addEventListener('click', () => startVerifyQrScan().catch((e) => statusLine(String(e), 'error')));
+    const vStop = document.getElementById('wf-verify-scan-stop');
+    if (vStop) vStop.addEventListener('click', () => stopVerifyQrScanner().catch((e) => statusLine(String(e), 'error')));
+    const vOk = document.getElementById('wf-verify-confirm');
+    if (vOk) vOk.addEventListener('click', () => confirmOccupancyVerify().catch((e) => statusLine(String(e), 'error')));
+    const vCx = document.getElementById('wf-verify-cancel');
+    if (vCx) vCx.addEventListener('click', () => cancelOccupancyVerify());
     window.addEventListener('beforeunload', () => {
       stopProductQrScanner().catch(() => {});
+      stopVerifyQrScanner().catch(() => {});
     });
   });
 })();
