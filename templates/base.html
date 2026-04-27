@@ -2060,6 +2060,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             <path d="M12 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
         </symbol>
     </svg>
+    {% set tt_nav_visible = session.get('employee_authenticated') or session.get('admin_authenticated') %}
     <style>
         /* Sidebar: desktop collapsed width */
         @media (min-width: 768px) {
@@ -2085,7 +2086,8 @@ async function convertToTwoLevelDropdown(selectElement) {
             }
         }
     </style>
-    <div id="app-shell" class="app-shell flex flex-1 flex-col md:flex-row min-h-0 min-w-0 w-full relative">
+    <div id="app-shell" class="app-shell flex flex-1 flex-col md:flex-row min-h-0 min-w-0 w-full relative{% if tt_nav_visible %} sidebar-collapsed{% endif %}">
+        {% if tt_nav_visible %}
         <!-- Mobile drawer backdrop -->
         <div id="sidebar-backdrop"
              class="fixed inset-0 z-40 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
@@ -2098,9 +2100,6 @@ async function convertToTwoLevelDropdown(selectElement) {
                aria-label="Main navigation">
             <div class="flex flex-col gap-1 p-3 pb-6">
                     {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('dashboard.dashboard_view') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
-                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg> Dashboard
-                    </a>
                     <a href="{{ url_for('reports.reports_view') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg> Reports
                     </a>
@@ -2138,21 +2137,24 @@ async function convertToTwoLevelDropdown(selectElement) {
                     {% endif %}
             </div>
         </aside>
+        {% endif %}
 
         <div id="app-main-column" class="flex flex-1 flex-col min-w-0 min-h-0">
             <header class="sticky top-0 z-30 flex flex-wrap items-center gap-2 px-3 md:px-4 py-3 shadow-xl text-white"
                     style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));">
+                {% if tt_nav_visible %}
                 <button type="button"
                         id="sidebar-toggle-btn"
                         data-sidebar-toggle
                         class="inline-flex shrink-0 items-center justify-center rounded-lg p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
                         aria-controls="app-sidebar"
-                        aria-expanded="true"
+                        aria-expanded="false"
                         aria-label="Show or hide navigation menu">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                     </svg>
                 </button>
+                {% endif %}
                 <h1 class="text-lg md:text-2xl font-bold flex flex-wrap items-center gap-x-2 min-w-0">
                     <a href="{{ url_for('auth.index') }}" class="hover:text-primary truncate transition-colors duration-300 flex items-center gap-2">
                         <svg class="w-6 h-6 md:w-7 md:h-7 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg>
@@ -2161,27 +2163,6 @@ async function convertToTwoLevelDropdown(selectElement) {
                     </a>
                 </h1>
                 <span class="flex-1 min-w-[1rem]"></span>
-                {% if session.employee_authenticated or session.admin_authenticated %}
-                <a href="{{ url_for('auth.logout') }}" class="nav-link hidden sm:inline-flex hover:text-red-200 transition-colors duration-300 px-2 py-2 rounded-lg hover:bg-white/10 items-center text-sm md:text-base whitespace-nowrap">
-                    <svg class="w-5 h-5 mr-1 shrink-0" aria-hidden="true"><use href="#icon-logout" /></svg>
-                    Logout
-                </a>
-                {% endif %}
-                <div class="relative shrink-0">
-                    <button type="button" data-toggle-language-menu class="nav-link hover:text-primary transition-all duration-300 px-2 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1 shrink-0" aria-hidden="true"><use href="#icon-language" /></svg>
-                        <span>{{ (current_language.language if current_language is not string else current_language) | upper }}</span>
-                    </button>
-                    <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-[60]">
-                        {% for code, name in languages.items() %}
-                        <a href="?lang={{ code }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
-                            <span class="mr-2">{% if code == 'en' %}EN{% else %}ES{% endif %}</span>
-                            {{ name }}
-                            {% if current_language == code %}<span class="float-right">Selected</span>{% endif %}
-                        </a>
-                        {% endfor %}
-                    </div>
-                </div>
             </header>
 
     <!-- Enhanced main content area -->
@@ -2472,12 +2453,6 @@ async function convertToTwoLevelDropdown(selectElement) {
             if (menu) menu.classList.toggle('hidden');
         }
 
-        // Language menu toggle function
-        function toggleLanguageMenu() {
-            const menu = document.getElementById('language-menu');
-            menu.classList.toggle('hidden');
-        }
-
         /** Text nodes (e.g. emoji) have no .closest — normalize to parent Element. */
         function clickEventTargetElement(event) {
             const t = event.target;
@@ -2485,24 +2460,9 @@ async function convertToTwoLevelDropdown(selectElement) {
             return t && t.parentElement ? t.parentElement : null;
         }
 
-        // Close language menu when clicking outside
-        document.addEventListener('click', function(event) {
-            const menu = document.getElementById('language-menu');
-            if (!menu) return;
-            const el = clickEventTargetElement(event);
-            const button = el && el.closest('[data-toggle-language-menu]');
-            if (!button && !menu.contains(event.target)) {
-                menu.classList.add('hidden');
-            }
-        });
-
         document.addEventListener('click', function(event) {
             const el = clickEventTargetElement(event);
             if (!el) return;
-            if (el.closest('[data-toggle-language-menu]')) {
-                toggleLanguageMenu();
-                return;
-            }
             if (el.closest('[data-sidebar-toggle]')) {
                 ttToggleSidebar();
                 return;
@@ -2543,20 +2503,26 @@ async function convertToTwoLevelDropdown(selectElement) {
             }
             if (shell && btn) {
                 try {
-                    if (window.matchMedia('(min-width: 768px)').matches &&
-                            localStorage.getItem(TT_SIDEBAR_COLLAPSED_KEY) === '1') {
-                        ttApplyDesktopSidebarCollapsed(true);
-                    } else if (!window.matchMedia('(min-width: 768px)').matches) {
+                    if (window.matchMedia('(min-width: 768px)').matches) {
+                        if (localStorage.getItem(TT_SIDEBAR_COLLAPSED_KEY) === '0') {
+                            ttApplyDesktopSidebarCollapsed(false);
+                        } else {
+                            ttApplyDesktopSidebarCollapsed(true);
+                        }
+                    } else {
                         btn.setAttribute('aria-expanded', 'false');
                     }
                 } catch (e) { /* ignore */ }
-                shell.querySelectorAll('#app-sidebar a.nav-link').forEach(function(link) {
+                const aside = document.getElementById('app-sidebar');
+                if (aside) {
+                    aside.querySelectorAll('a.nav-link').forEach(function(link) {
                     link.addEventListener('click', function() {
                         if (!window.matchMedia('(min-width: 768px)').matches) {
                             ttCloseMobileDrawer();
                         }
                     });
                 });
+                }
             }
             window.addEventListener('resize', function() {
                 if (shell && window.matchMedia('(min-width: 768px)').matches) {

@@ -34,7 +34,7 @@ def index():
         # Smart redirect based on role
         role = session.get('employee_role', 'warehouse_staff')
         if role in ['manager', 'admin']:
-            return redirect(url_for('dashboard.dashboard_view'))
+            return redirect(url_for('reports.reports_view'))
         else:
             return redirect(url_for('production.warehouse_form'))
 
@@ -84,7 +84,7 @@ def index():
                     role = employee['role'] if employee['role'] else 'warehouse_staff'
                     if role in ['manager', 'admin']:
                         flash(f'Welcome back, {employee["full_name"]}!', 'success')
-                        return redirect(url_for('dashboard.dashboard_view'))
+                        return redirect(url_for('reports.reports_view'))
                     flash(f'Welcome back, {employee["full_name"]}!', 'success')
                     return redirect(url_for('production.warehouse_form'))
                 current_app.logger.warning(f"Failed login attempt for username: {username}")

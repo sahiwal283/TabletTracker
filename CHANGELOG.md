@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.9] - 2026-04-24
+
+### Changed
+- **Navigation:** Sidebar and drawer controls render only **after login** (login page shows branding only).
+- **Sidebar:** Defaults **collapsed** on desktop (`localStorage` expanded key remains `tt_sidebar_collapsed === '0'`).
+- **Header:** Removed unused **language picker** and redundant **Logout** (logout stays in the sidebar).
+- **Legacy `/dashboard`:** Removed the dashboard HTML and PDF/report widgets; `/dashboard` **redirects to Reports**; manager/admin login redirects to **Reports**. Removed **`dashboard-ui.js`** / **`dashboard-reports.js`**.
+
+---
+
 ## [4.5.8] - 2026-04-24
 
 ### Changed

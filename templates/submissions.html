@@ -31,8 +31,8 @@
             </a>
             {% endif %}
             {% if session.get('employee_role') in ['manager', 'admin'] %}
-            <a href="/dashboard" class="btn-secondary px-6 py-3">
-                ← Back to Dashboard
+            <a href="{{ url_for('reports.reports_view') }}" class="btn-secondary px-6 py-3">
+                ← Back to Reports
             </a>
             {% else %}
             <a href="{{ url_for('production.production_form') }}" class="btn-secondary px-6 py-3">
