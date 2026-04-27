@@ -51,7 +51,7 @@
         </div>
         {% if live.status == 'occupied' %}
         <p class="text-xs text-slate-600">Bag #{{ live.workflow_bag_id }} · Card {{ live.card_token or '—' }}</p>
-        <p class="text-xs text-slate-600">Flavor {{ live.flavor or live.product_name or '—' }}</p>
+        <p class="text-xs text-slate-600">{{ live.flavor or live.product_name or '—' }}</p>
         <p class="text-xs text-slate-600">Receipt {{ live.receipt_number or '—' }}</p>
         <p class="text-xs text-slate-600 mb-2">{{ live.bag_name or '—' }}</p>
         <p class="text-sm font-semibold text-slate-900">
@@ -66,6 +66,12 @@
     </div>
   </div>
 
+  <details class="card p-5 mb-8">
+    <summary class="cursor-pointer list-none flex items-center justify-between">
+      <span class="text-lg font-semibold text-gray-900">Settings and QR Management</span>
+      <span class="text-xs text-gray-500">Hidden by default</span>
+    </summary>
+    <p class="text-sm text-gray-600 mt-2 mb-4">Open this only when you need to manage stations or card settings.</p>
   <div class="card p-5 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-2">Undo a test assignment</h2>
     <p class="text-sm text-gray-600 mb-3">
@@ -292,6 +298,7 @@
     </table>
     {% endif %}
   </div>
+  </details>
 </div>
 <script>
 (function () {

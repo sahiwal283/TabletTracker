@@ -292,25 +292,27 @@ def api_resolve_station():
     if not token:
         return workflow_json("WORKFLOW_VALIDATION", "station_token required")
     conn = get_db()
-    row = _resolve_station(conn, token)
-    conn.close()
-    if not row:
-        return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station token", status=404)
-    payload = {
-        "ok": True,
-        "station_id": row["id"],
-        "label": row["label"],
-    }
-    r = dict(row)
-    if r.get("machine_name"):
-        payload["machine_name"] = r["machine_name"]
-    if r.get("station_kind"):
-        payload["station_kind"] = r["station_kind"]
-    if r.get("machine_id") is not None:
-        payload["machine_id"] = int(r["machine_id"])
-    occupancy = _current_station_occupancy(conn, int(row["id"]))
-    payload["occupancy"] = occupancy or {"status": "idle"}
-    return payload
+    try:
+        row = _resolve_station(conn, token)
+        if not row:
+            return workflow_json("WORKFLOW_STATION_INVALID", "Unknown station token", status=404)
+        payload = {
+            "ok": True,
+            "station_id": row["id"],
+            "label": row["label"],
+        }
+        r = dict(row)
+        if r.get("machine_name"):
+            payload["machine_name"] = r["machine_name"]
+        if r.get("station_kind"):
+            payload["station_kind"] = r["station_kind"]
+        if r.get("machine_id") is not None:
+            payload["machine_id"] = int(r["machine_id"])
+        occupancy = _current_station_occupancy(conn, int(row["id"]))
+        payload["occupancy"] = occupancy or {"status": "idle"}
+        return payload
+    finally:
+        conn.close()
 
 
 @bp.route("/floor/api/bag", methods=["POST"])
