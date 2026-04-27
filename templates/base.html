@@ -2199,12 +2199,16 @@ async function convertToTwoLevelDropdown(selectElement) {
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer with version info -->
-    <footer class="mt-auto py-4 text-center text-gray-500 text-sm">
+    {# Full marketing text lives in __version__.py and GET /version JSON — not repeated here (kiosk/mobile). #}
+    {% block site_footer %}
+    <footer class="mt-auto py-3 text-center text-gray-500 text-xs">
         <div class="container mx-auto px-4">
-            <p>{{ app_title }} v{{ version() }} - {{ app_description }}</p>
+            {% block app_footer %}
+            <p>{{ app_title }} <span class="text-gray-400">v{{ version() }}</span></p>
+            {% endblock %}
         </div>
     </footer>
+    {% endblock %}
 
     <script>
         // Enhanced JavaScript utilities with better styling

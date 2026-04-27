@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.3.1] - 2026-04-24
+
+### Changed
+- **Site footer:** shows only app title and version (no long `__description__` paragraph). Full description remains on **`GET /version`** JSON for support and tooling.
+- **Workflow station kiosk:** footer removed entirely via template block (less clutter on floor tablets).
+- **`__description__`:** shortened to a single line so it does not grow unbounded in metadata and API responses.
+
+---
+
 ## [4.2.9] - 2026-04-24
 
 ### Added
