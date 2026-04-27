@@ -382,13 +382,15 @@ def manage_employees():
 
 
 @bp.route("/admin/workflow-qr")
+@bp.route("/command-center")
 @admin_required
 def workflow_qr_management():
-    """List workflow stations and QR cards; release card↔bag assignments."""
+    """Command Center: monitor workflow stations/cards and manage QR settings."""
     try:
         with db_read_only() as conn:
             stations = []
             cards = []
+            station_live = {}
             sealing_machines = []
             try:
                 stations = conn.execute(
@@ -480,6 +482,61 @@ def workflow_qr_management():
                     pass
             for c in cards:
                 c["bag_name"] = _workflow_inventory_bag_name(conn, c.get("inventory_bag_id"))
+            for st in stations:
+                sid = int(st["id"])
+                station_live[sid] = {
+                    "status": "idle",
+                    "workflow_bag_id": None,
+                    "card_token": None,
+                    "occupancy_started_at": None,
+                    "product_name": None,
+                    "receipt_number": None,
+                    "bag_name": None,
+                }
+            for c in cards:
+                bag_id = c.get("assigned_workflow_bag_id")
+                if not bag_id:
+                    continue
+                ev = conn.execute(
+                    """
+                    SELECT station_id, occurred_at
+                    FROM workflow_events
+                    WHERE workflow_bag_id = ?
+                      AND station_id IS NOT NULL
+                      AND event_type IN ('BAG_CLAIMED', 'STATION_RESUMED')
+                    ORDER BY occurred_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (int(bag_id),),
+                ).fetchone()
+                if not ev:
+                    continue
+                evd = dict(ev)
+                sid = evd.get("station_id")
+                if sid is None:
+                    continue
+                sid = int(sid)
+                if sid not in station_live:
+                    continue
+                bag_row = conn.execute(
+                    """
+                    SELECT wb.id, wb.receipt_number, wb.product_id, pd.product_name, wb.inventory_bag_id
+                    FROM workflow_bags wb
+                    LEFT JOIN product_details pd ON pd.id = wb.product_id
+                    WHERE wb.id = ?
+                    """,
+                    (int(bag_id),),
+                ).fetchone()
+                bd = dict(bag_row) if bag_row else {}
+                station_live[sid] = {
+                    "status": "occupied",
+                    "workflow_bag_id": int(bag_id),
+                    "card_token": c.get("scan_token"),
+                    "occupancy_started_at": int(evd.get("occurred_at") or 0) or None,
+                    "product_name": bd.get("product_name"),
+                    "receipt_number": bd.get("receipt_number"),
+                    "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
+                }
         stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
@@ -493,6 +550,7 @@ def workflow_qr_management():
             all_machines=all_machines,
             station_kind_options=_STATION_KIND_ORDER,
             cards=cards,
+            station_live=station_live,
         )
     except Exception as e:
         current_app.logger.error("workflow_qr_management: %s", e)

@@ -6,6 +6,7 @@
   let stationClaimed = false;
   /** When true, bag was paused at this station — submit/pause blocked until Resume (server: resume_required). */
   let stationNeedsResume = false;
+  let occupancyTimerHandle = null;
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
   var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
@@ -57,6 +58,45 @@
     }
     const legacy = document.getElementById('wf-status');
     if (legacy) legacy.textContent = msg;
+  }
+  function setScanSuccessVisible(visible) {
+    var panel = document.getElementById('wf-scan-success');
+    if (!panel) return;
+    panel.classList.toggle('hidden', !visible);
+  }
+  function formatElapsedMs(ms) {
+    var total = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function stopOccupancyTimer() {
+    if (occupancyTimerHandle) {
+      clearInterval(occupancyTimerHandle);
+      occupancyTimerHandle = null;
+    }
+  }
+  function renderOccupancyBanner(facts, bagId) {
+    var banner = document.getElementById('wf-occupied-banner');
+    var elapsed = document.getElementById('wf-occupied-elapsed');
+    var bagEl = document.getElementById('wf-occupied-bag');
+    var cardEl = document.getElementById('wf-occupied-card');
+    if (!banner || !elapsed || !bagEl || !cardEl) return;
+    stopOccupancyTimer();
+    var startMs = Number(facts && facts.occupancy_started_at_ms);
+    if (!Number.isFinite(startMs) || startMs <= 0 || !stationClaimed) {
+      banner.classList.add('hidden');
+      return;
+    }
+    bagEl.textContent = bagId ? String(bagId) : '—';
+    cardEl.textContent = (facts && facts.occupying_card_token) ? String(facts.occupying_card_token) : '—';
+    function tick() {
+      elapsed.textContent = formatElapsedMs(Date.now() - startMs);
+    }
+    tick();
+    banner.classList.remove('hidden');
+    occupancyTimerHandle = setInterval(tick, 1000);
   }
   function actionButtons() {
     /* Resume is not in this list so a submit/pause cooldown cannot block the next-day Resume action. */
@@ -141,6 +181,7 @@
     }
     stationNeedsResume = !!data.facts.resume_required;
     renderBagVerification(data.facts);
+    renderOccupancyBanner(data.facts, data.workflow_bag_id);
   }
   function setBagLoadedUi(loaded) {
     if (!loaded) {
@@ -246,6 +287,8 @@
     stationClaimed = false;
     stationNeedsResume = false;
     renderBagVerification(null);
+    renderOccupancyBanner(null, null);
+    setScanSuccessVisible(false);
     clearAllActionCooldowns();
     setBagLoadedUi(false);
     setActionsEnabled(false);
@@ -604,7 +647,26 @@
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       const code = data.code || 'error';
-      throw new Error(code + ': ' + (data.message || r.status));
+      const reason = (data.details && data.details.reason) || '';
+      if (code === 'WORKFLOW_VALIDATION') {
+        if (reason === 'wrong_station_type') {
+          throw new Error('This scan step is too early or not allowed for this station.');
+        }
+        if (reason === 'claim_required') {
+          throw new Error('Claim this bag at the station first, then submit counts.');
+        }
+        if (reason === 'resume_required') {
+          throw new Error('Resume this bag before submitting more counts.');
+        }
+        var msg = String(data.message || '').toLowerCase();
+        if (msg.includes('cannot finalize')) {
+          var finalReasons = (((data.details || {}).reasons) || []).map(String);
+          if (finalReasons.includes('missing_blister')) throw new Error('Bag scanned too early. Blister step is still required.');
+          if (finalReasons.includes('missing_sealing')) throw new Error('Bag scanned too early. Sealing step is still required.');
+          if (finalReasons.includes('missing_packaging')) throw new Error('Bag scanned too early. Packaging counts are still required.');
+        }
+      }
+      throw new Error((data.message || (code + ': ' + r.status)).toString());
     }
     return data;
   }
@@ -628,9 +690,11 @@
     setActionsEnabled(true);
     configureStationActions();
     if (!stationClaimed) {
+      setScanSuccessVisible(false);
       statusLine('Bag loaded. Claim it at this station to continue.', 'info');
     } else {
-      statusLine('Bag loaded.', 'success');
+      setScanSuccessVisible(true);
+      statusLine('Bag loaded successfully.', 'success');
     }
   }
   async function claimBag() {
@@ -644,6 +708,7 @@
     applyStationFacts(data);
     configureStationActions();
     setActionsEnabled(true);
+    setScanSuccessVisible(true);
     statusLine('Bag claimed at this station.', 'success');
   }
   async function saveCountAndContinue() {

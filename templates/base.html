@@ -253,7 +253,7 @@ window.canManageSubmissionPO = {{ (session.get('employee_role') in ['admin', 'ma
             var msg = String(message);
 
             // Prefer toast UI when available.
-            if (typeof showSuccess === 'function' && (msg.includes('✅') || msg.toLowerCase().includes('success'))) {
+            if (typeof showSuccess === 'function' && msg.toLowerCase().includes('success')) {
                 showSuccess(msg);
                 return;
             }
@@ -674,7 +674,7 @@ function bagSubmissionsModalFooterHtml(bagMeta, ctx) {
 
     const parts = [];
     if (canReserve) {
-        parts.push(`<button type="button" data-toggle-bag-reservation-id="${bagId}" data-toggle-bag-reservation-state="${isReserved}" data-toggle-bag-reservation-name="${safeName}" data-toggle-bag-reservation-bag-number="${bn}" data-toggle-bag-reservation-box-number="${bx}" data-toggle-bag-reservation-receive-id="${effReceiveId}" data-toggle-bag-reservation-receive-name="${safeRecv}" class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-slate-600 hover:text-slate-800'} underline whitespace-nowrap">${isReserved ? '🍾 Unreserve' : '📦 Reserve'}</button>`);
+        parts.push(`<button type="button" data-toggle-bag-reservation-id="${bagId}" data-toggle-bag-reservation-state="${isReserved}" data-toggle-bag-reservation-name="${safeName}" data-toggle-bag-reservation-bag-number="${bn}" data-toggle-bag-reservation-box-number="${bx}" data-toggle-bag-reservation-receive-id="${effReceiveId}" data-toggle-bag-reservation-receive-name="${safeRecv}" class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-slate-600 hover:text-slate-800'} underline whitespace-nowrap">${isReserved ? 'Unreserve' : 'Reserve'}</button>`);
     }
     if (canBagOps) {
         parts.push(`<button type="button" data-open-quick-bag-batch-id="${bagId}" data-open-quick-bag-batch-name="${safeName}" data-open-quick-bag-batch-number="${bn}" data-open-quick-bag-box-number="${bx}" data-open-quick-bag-batch-number-value="${safeBatchNum}" data-open-quick-bag-batch-source="${safeBatchSrc}" data-open-quick-bag-receive-id="${effReceiveId}" data-open-quick-bag-receive-name="${safeRecv}" class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">🧾 Batch</button>`);
@@ -2094,8 +2094,8 @@ async function convertToTwoLevelDropdown(selectElement) {
                     <a href="{{ url_for('production.production_form') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
                         <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-box" /></svg> Production
                     </a>
-                    <a href="{{ url_for('workflow_staff.new_bag') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
-                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-mobile" /></svg> Workflow
+                    <a href="{{ url_for('admin.workflow_qr_management') }}" class="nav-link hover:text-primary transition-all duration-300 px-3 py-2 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center">
+                        <svg class="w-5 h-5 mr-1" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center
                     </a>
                     
                     <!-- Submissions - warehouse (view/edit with unlock) + Manager+ -->
@@ -2135,9 +2135,9 @@ async function convertToTwoLevelDropdown(selectElement) {
                         <div id="language-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
                             {% for code, name in languages.items() %}
                             <a href="?lang={{ code }}" class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900 {% if current_language == code %}bg-blue-50 text-blue-600 font-medium{% endif %}">
-                                <span class="mr-2">{% if code == 'en' %}🇺🇸{% else %}🇪🇸{% endif %}</span>
+                                <span class="mr-2">{% if code == 'en' %}EN{% else %}ES{% endif %}</span>
                                 {{ name }}
-                                {% if current_language == code %}<span class="float-right">✓</span>{% endif %}
+                                {% if current_language == code %}<span class="float-right">Selected</span>{% endif %}
                             </a>
                             {% endfor %}
                         </div>
@@ -2160,7 +2160,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received</a>
                 {% endif %}
                 <a href="{{ url_for('production.production_form') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-box" /></svg> Production</a>
-                <a href="{{ url_for('workflow_staff.new_bag') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-mobile" /></svg> Workflow</a>
+                <a href="{{ url_for('admin.workflow_qr_management') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center</a>
                 {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
                 <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link block text-base font-medium hover:text-primary transition-colors duration-300 px-4 py-4 rounded-lg hover:bg-white hover:bg-opacity-10 flex items-center"><svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-list" /></svg> Submissions</a>
                 {% endif %}
@@ -2218,7 +2218,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             
             const icon = document.createElement('span');
             icon.className = 'text-2xl mr-3';
-            icon.textContent = '✅';
+            icon.textContent = 'OK';
             
             const text = document.createElement('span');
             text.className = 'font-semibold';
@@ -2249,7 +2249,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             
             const icon = document.createElement('span');
             icon.className = 'text-2xl mr-3';
-            icon.textContent = '⚠️';
+            icon.textContent = '!';
             
             const text = document.createElement('span');
             text.className = 'font-semibold';
@@ -2279,7 +2279,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             row.className = 'flex gap-3 items-start';
             const icon = document.createElement('span');
             icon.className = 'text-2xl flex-shrink-0';
-            icon.textContent = '✅';
+            icon.textContent = 'OK';
             const col = document.createElement('div');
             const h = document.createElement('div');
             h.className = 'font-bold text-base mb-1';
@@ -2319,7 +2319,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             const title = document.createElement('div');
             title.className = 'flex items-center gap-2 font-semibold text-base';
             const icon = document.createElement('span');
-            icon.textContent = '⚠️';
+            icon.textContent = '!';
             const titleText = document.createElement('span');
             titleText.textContent = 'Error';
             title.appendChild(icon);
@@ -4089,7 +4089,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                 <button data-toggle-bag-reservation-id="${bag.bag_id}" data-toggle-bag-reservation-state="${isReserved}" data-toggle-bag-reservation-name="${safeTabletTypeName}" data-toggle-bag-reservation-bag-number="${bag.bag_number}" data-toggle-bag-reservation-box-number="${boxNumber}" data-toggle-bag-reservation-receive-id="${receiveId}" data-toggle-bag-reservation-receive-name="${safeReceiveName}"
                                         id="reserve-btn-${bag.bag_id}"
                                         class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-gray-600 hover:text-gray-800'} underline whitespace-nowrap">
-                                    ${isReserved ? '🍾 Unreserve' : '📦 Reserve'}
+                                    ${isReserved ? 'Unreserve' : 'Reserve'}
                                 </button>
                             ` : ''}
                             ${isAdmin || isManager ? `

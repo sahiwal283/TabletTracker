@@ -144,12 +144,54 @@ def _station_has_claimed_bag(
     return bool(row)
 
 
+def _station_occupancy_started_at(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
+) -> int | None:
+    row = conn.execute(
+        """
+        SELECT occurred_at
+        FROM workflow_events
+        WHERE workflow_bag_id = ?
+          AND station_id = ?
+          AND event_type IN (?, ?)
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT 1
+        """,
+        (workflow_bag_id, station_id, WC.EVENT_BAG_CLAIMED, WC.EVENT_STATION_RESUMED),
+    ).fetchone()
+    if not row:
+        return None
+    try:
+        return int(row["occurred_at"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _assigned_card_token_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> str | None:
+    row = conn.execute(
+        """
+        SELECT scan_token
+        FROM qr_cards
+        WHERE assigned_workflow_bag_id = ?
+          AND status = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (workflow_bag_id, WC.QR_CARD_STATUS_ASSIGNED),
+    ).fetchone()
+    if not row:
+        return None
+    token = row["scan_token"]
+    return str(token).strip() if token else None
+
+
 def _station_facts_payload(
     conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
 ) -> dict:
     facts = mechanical_bag_facts(conn, workflow_bag_id)
     station_claimed = _station_has_claimed_bag(conn, workflow_bag_id, station_id)
     station_needs_resume = _station_needs_resume(conn, workflow_bag_id, station_id)
+    occupancy_started_at = _station_occupancy_started_at(conn, workflow_bag_id, station_id)
     return {
         "event_counts_by_type": facts["event_counts_by_type"],
         "latest_event_type": facts["latest_event_type"],
@@ -159,6 +201,8 @@ def _station_facts_payload(
         "claim_required": not station_claimed,
         "station_needs_resume": station_needs_resume,
         "resume_required": bool(station_claimed and station_needs_resume),
+        "occupancy_started_at_ms": occupancy_started_at,
+        "occupying_card_token": _assigned_card_token_for_bag(conn, workflow_bag_id),
         "bag_verification": floor_bag_verification(conn, workflow_bag_id),
     }
 
@@ -306,6 +350,11 @@ def api_append_event():
             return workflow_json(
                 "WORKFLOW_VALIDATION",
                 f"{event_type} is not allowed for station type '{station_kind}'",
+                details={
+                    "reason": "wrong_station_type",
+                    "station_kind": station_kind,
+                    "event_type": event_type,
+                },
                 status=400,
             )
         station_id = int(st["id"])
@@ -314,6 +363,7 @@ def api_append_event():
             return workflow_json(
                 "WORKFLOW_VALIDATION",
                 "Bag must be claimed at this station before submitting counts.",
+                details={"reason": "claim_required", "station_kind": station_kind},
                 status=400,
             )
         if event_type == WC.EVENT_BAG_CLAIMED and station_claimed:
@@ -340,6 +390,7 @@ def api_append_event():
             return workflow_json(
                 "WORKFLOW_VALIDATION",
                 "Resume this bag at this station before submitting counts (tap Resume).",
+                details={"reason": "resume_required", "station_kind": station_kind},
                 status=400,
             )
         if event_type == WC.EVENT_PACKAGING_TAKEN_FOR_ORDER:

@@ -1,15 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Workflow station{% endblock %}
+{% block title %}Workflow Station Kiosk{% endblock %}
 {% block content %}
-<div class="max-w-lg mx-auto p-4">
-  <h1 class="text-2xl font-bold mb-1">Station</h1>
+<div class="max-w-3xl mx-auto p-4">
+  <h1 class="text-3xl font-bold mb-1">Workflow Station</h1>
   {% if machine_name %}
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }} — {{ machine_name }}</p>
   {% else %}
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
   <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
-  <p class="text-sm text-gray-600 mb-4">Scan the bag card token, then run actions for this station lane.</p>
+  <p class="text-base text-gray-700 mb-4">Kiosk mode: scan a bag card, confirm bag details, then submit station actions.</p>
+  <div id="wf-occupied-banner" class="hidden mb-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50">
+    <p class="text-sm text-indigo-900 font-semibold">Station currently occupied</p>
+    <p class="text-xs text-indigo-800 mt-1">
+      Active bag <span id="wf-occupied-bag">—</span> on card <span id="wf-occupied-card">—</span>
+    </p>
+    <p class="text-2xl font-bold text-indigo-900 mt-2">
+      Elapsed: <span id="wf-occupied-elapsed">00:00:00</span>
+    </p>
+  </div>
+  <div id="wf-scan-success" class="hidden mb-4 p-4 rounded-xl border border-emerald-300 bg-emerald-50">
+    <div class="flex items-center gap-3">
+      <span class="text-3xl font-bold text-emerald-700" aria-hidden="true">✓</span>
+      <div>
+        <p class="text-base font-semibold text-emerald-900">Bag scan confirmed</p>
+        <p class="text-xs text-emerald-700">Counts are ready for this station.</p>
+      </div>
+    </div>
+  </div>
   <div id="wf-bag-verification" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 text-sm" aria-label="Active bag details">
     <p class="font-semibold text-slate-900 mb-2">Bag you are working on</p>
     <p class="text-xs text-slate-500 mb-2">Confirm this matches the physical bag before counting.</p>
@@ -17,15 +35,15 @@
   </div>
   <div id="wf-feedback" class="hidden mb-4 p-3 rounded-xl border text-sm" role="status" aria-live="polite"></div>
   <label class="block text-sm font-medium mb-1">Card token</label>
-  <div class="flex gap-2 mb-2">
-    <button type="button" id="wf-scan-product" class="btn-secondary px-3 py-2">Scan Product QR</button>
-    <button type="button" id="wf-scan-stop" class="btn-secondary px-3 py-2 hidden">Stop scan</button>
+  <div class="flex gap-3 mb-2">
+    <button type="button" id="wf-scan-product" class="btn-secondary px-5 py-3 text-base">Scan Product QR</button>
+    <button type="button" id="wf-scan-stop" class="btn-secondary px-5 py-3 text-base hidden">Stop scan</button>
   </div>
   <div id="wf-productqr-reader-wrap" class="mb-3 hidden">
     <div id="wf-productqr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
     <p class="text-xs text-gray-500 mt-1">Point camera at the bag/card QR code.</p>
   </div>
-  <input id="product_input" class="form-input mb-3" placeholder="bag-dev-1" autocomplete="off" />
+  <input id="product_input" class="form-input mb-3 text-lg" placeholder="bag-dev-1" autocomplete="off" />
   <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
   <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Cards remaining</label>
@@ -40,16 +58,16 @@
   <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="name / nombre" autocomplete="name" />
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
-  <div class="flex flex-wrap gap-2 mb-4">
-    <button type="button" id="wf-claim" class="hidden btn-secondary px-4 py-2">Claim bag</button>
-    <button type="button" id="wf-save-count" class="hidden btn-secondary px-4 py-2">Submit count</button>
-    <button type="button" id="wf-save-blister" class="btn-secondary px-4 py-2 hidden">Submit blister count</button>
-    <button type="button" id="wf-handpack-rest" class="btn-secondary px-4 py-2 hidden">Hand pack the rest</button>
-    <button type="button" id="wf-save-seal" class="btn-secondary px-4 py-2 hidden">Submit sealing count</button>
-    <button type="button" id="wf-pause-count" class="hidden btn-secondary px-4 py-2">Pause bag (end of day)</button>
-    <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-4 py-2">Taken for delivery / order</button>
-    <button type="button" id="wf-resume-bag" class="hidden btn-primary px-4 py-2">Resume bag</button>
-    <button type="button" id="wf-refresh" class="btn-secondary px-4 py-2">Refresh bag status</button>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+    <button type="button" id="wf-claim" class="hidden btn-secondary px-6 py-4 text-lg">Claim bag</button>
+    <button type="button" id="wf-save-count" class="hidden btn-secondary px-6 py-4 text-lg">Submit count</button>
+    <button type="button" id="wf-save-blister" class="btn-secondary px-6 py-4 text-lg hidden">Submit blister count</button>
+    <button type="button" id="wf-handpack-rest" class="btn-secondary px-6 py-4 text-lg hidden">Hand pack the rest</button>
+    <button type="button" id="wf-save-seal" class="btn-secondary px-6 py-4 text-lg hidden">Submit sealing count</button>
+    <button type="button" id="wf-pause-count" class="hidden btn-secondary px-6 py-4 text-lg">Pause bag (end of day)</button>
+    <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery / order</button>
+    <button type="button" id="wf-resume-bag" class="hidden btn-primary px-6 py-4 text-lg">Resume bag</button>
+    <button type="button" id="wf-refresh" class="btn-secondary px-6 py-4 text-lg">Refresh bag status</button>
   </div>
   <p id="wf-station-hint" class="hidden text-xs text-gray-500 mb-3"></p>
   <p class="text-xs text-gray-500">device_id is generated in localStorage for log correlation only.</p>
