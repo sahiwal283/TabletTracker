@@ -51,6 +51,7 @@
         <p class="text-slate-400 text-sm mt-0.5">
           Floor status and today&rsquo;s production signals
           {% if floor_ops_date_label %}<span class="text-slate-500">· {{ floor_ops_date_label }} ET</span>{% endif %}
+          <a href="{{ url_for('admin.ops_tv_dashboard') }}" class="block sm:inline sm:ml-2 mt-1 sm:mt-0 text-cyan-400 hover:text-cyan-300 font-medium">TV board →</a>
         </p>
       </div>
     </div>

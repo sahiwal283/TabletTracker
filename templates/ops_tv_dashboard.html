@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operations TV · TabletTracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-tv.css') }}?v={{ app_version }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+  <div
+    id="ops-root"
+    class="ops-root"
+    data-snapshot-url="{{ snapshot_api_url }}"
+    role="application"
+    aria-label="Live operations dashboard"
+  >
+    <a class="ops-exit" href="{{ command_center_url }}">Command Center</a>
+
+    <header class="ops-top">
+      <div class="ops-head-row">
+        <span class="ops-brand">Live operations</span>
+        <span id="ops-clock" class="ops-clock"></span>
+      </div>
+      <div class="ops-head" id="ops-head"></div>
+    </header>
+
+    <main class="ops-main">
+      <section class="ops-cards" id="ops-cards" aria-label="Machine status"></section>
+      <aside class="ops-feed" aria-label="Activity and alerts">
+        <h2 class="ops-feed-title">Activity</h2>
+        <div class="ops-feed-list" id="ops-feed-list"></div>
+      </aside>
+    </main>
+
+    <footer class="ops-charts" aria-hidden="true">
+      <div class="ops-chart-panel panel-cum">
+        <h3>Output · cumulative vs target</h3>
+        <canvas id="c-chart-line"></canvas>
+      </div>
+      <div class="ops-chart-panel panel-multi">
+        <h3>Top stations · hourly tablets</h3>
+        <canvas id="c-chart-multi"></canvas>
+      </div>
+      <div class="ops-chart-panel panel-bar">
+        <h3>Output by station</h3>
+        <canvas id="c-chart-bar"></canvas>
+      </div>
+      <div class="ops-chart-panel panel-idle">
+        <h3>Engaged vs idle snapshot</h3>
+        <canvas id="c-chart-idle"></canvas>
+      </div>
+      <div class="ops-chart-panel panel-donut">
+        <h3>By product</h3>
+        <canvas id="c-chart-donut"></canvas>
+      </div>
+    </footer>
+  </div>
+  <script src="{{ url_for('static', filename='js/ops-tv.js') }}?v={{ app_version }}" defer></script>
+</body>
+</html>

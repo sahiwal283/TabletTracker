@@ -5,9 +5,12 @@ import json
 import re
 import secrets
 import sqlite3
+import statistics
 import traceback
 import unicodedata
+from collections import defaultdict
 from datetime import datetime
+from time import time as epoch_time
 
 from config import Config
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
@@ -20,6 +23,7 @@ from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required
 from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
+from app.utils.version_display import read_version_constants
 
 bp = Blueprint('admin', __name__)
 
@@ -188,6 +192,384 @@ def _floor_ops_overview(
         "cards_total": n_cards,
         "cards_on_bag": on_bag,
         "cards_idle": max(0, n_cards - on_bag),
+    }
+
+
+def _ops_tv_daily_target_tablets(conn: sqlite3.Connection) -> int:
+    try:
+        row = conn.execute(
+            """
+            SELECT setting_value FROM app_settings
+            WHERE setting_key = 'ops_tv_daily_output_target'
+            """,
+        ).fetchone()
+        if row:
+            raw = dict(row).get("setting_value") if hasattr(row, "keys") else row[0]
+            if raw is not None and str(raw).strip() != "":
+                return max(1, int(float(str(raw).strip())))
+    except (sqlite3.OperationalError, TypeError, ValueError):
+        pass
+    return 800
+
+
+def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
+    """JSON payload for the TV operations dashboard (no HTML tables; data only)."""
+    start_ms, end_ms, date_label = _ny_today_bounds_ms()
+    now_ms = int(epoch_time() * 1000)
+
+    stations: list[dict] = []
+    try:
+        rows = conn.execute(
+            """
+            SELECT ws.id, ws.label, ws.station_scan_token, ws.station_code, ws.machine_id,
+                   m.machine_name AS machine_name,
+                   COALESCE(ws.station_kind, 'sealing') AS station_kind
+            FROM workflow_stations ws
+            LEFT JOIN machines m ON m.id = ws.machine_id
+            ORDER BY ws.station_kind, ws.id
+            """
+        ).fetchall()
+        stations = [dict(r) for r in rows]
+    except sqlite3.OperationalError:
+        try:
+            rows = conn.execute(
+                """
+                SELECT id, label, station_scan_token, station_code, NULL AS machine_id,
+                       NULL AS machine_name, 'sealing' AS station_kind
+                FROM workflow_stations
+                ORDER BY id
+                """
+            ).fetchall()
+            stations = [dict(r) for r in rows]
+        except sqlite3.OperationalError:
+            pass
+
+    station_live: dict[int, dict] = {}
+    for st in stations:
+        sid = int(st["id"])
+        station_live[sid] = {
+            "status": "idle",
+            "workflow_bag_id": None,
+            "card_token": None,
+            "occupancy_started_at": None,
+            "product_name": None,
+            "receipt_number": None,
+            "bag_name": None,
+        }
+    for st in stations:
+        sid = int(st["id"])
+        occ = _current_station_occupancy(conn, sid)
+        if not occ:
+            continue
+        wid = int(occ["workflow_bag_id"])
+        bag_row = conn.execute(
+            """
+            SELECT wb.id, wb.receipt_number, wb.product_id, pd.product_name, wb.inventory_bag_id
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (wid,),
+        ).fetchone()
+        bd = dict(bag_row) if bag_row else {}
+        station_live[sid] = {
+            "status": occ["status"],
+            "workflow_bag_id": wid,
+            "card_token": occ.get("card_token"),
+            "occupancy_started_at": occ.get("occupancy_started_at_ms"),
+            "product_name": bd.get("product_name"),
+            "flavor": bd.get("product_name"),
+            "receipt_number": bd.get("receipt_number"),
+            "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
+        }
+
+    daily_target = _ops_tv_daily_target_tablets(conn)
+    total_out = 0.0
+    try:
+        r = conn.execute(
+            """
+            SELECT COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS s
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+              AND json_extract(payload, '$.count_total') IS NOT NULL
+            """,
+            (start_ms, end_ms),
+        ).fetchone()
+        total_out = float(r["s"] or 0) if r else 0.0
+    except sqlite3.OperationalError:
+        pass
+
+    throughput_pct = min(199.0, (total_out / float(daily_target)) * 100.0) if daily_target else 0.0
+
+    per_out: dict[int, float] = {}
+    try:
+        for r in conn.execute(
+            """
+            SELECT station_id,
+                   COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS tablets
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND station_id IS NOT NULL
+              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+              AND json_extract(payload, '$.count_total') IS NOT NULL
+            GROUP BY station_id
+            """,
+            (start_ms, end_ms),
+        ).fetchall():
+            per_out[int(r["station_id"])] = float(r["tablets"] or 0)
+    except sqlite3.OperationalError:
+        pass
+
+    hourly = [0.0] * 24
+    station_hourly: dict[int, list[float]] = defaultdict(lambda: [0.0] * 24)
+    try:
+        q = """
+            SELECT station_id,
+                   CAST((occurred_at - ?) / 3600000 AS INTEGER) AS hr,
+                   COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS v
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND station_id IS NOT NULL
+              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+              AND json_extract(payload, '$.count_total') IS NOT NULL
+            GROUP BY station_id, hr
+            """
+        for r in conn.execute(q, (start_ms, start_ms, end_ms)).fetchall():
+            hr = int(r["hr"])
+            if 0 <= hr < 24:
+                v = float(r["v"] or 0)
+                hourly[hr] += v
+                station_hourly[int(r["station_id"])][hr] += v
+    except sqlite3.OperationalError:
+        pass
+
+    cumulative_hourly: list[float] = []
+    run = 0.0
+    for h in range(24):
+        run += hourly[h]
+        cumulative_hourly.append(round(run, 1))
+
+    cycle_mins: list[float] = []
+    try:
+        for r in conn.execute(
+            """
+            WITH claims AS (
+                SELECT workflow_bag_id, station_id, occurred_at AS t0
+                FROM workflow_events
+                WHERE event_type = 'BAG_CLAIMED'
+                  AND occurred_at >= ? AND occurred_at < ?
+            ),
+            seals AS (
+                SELECT workflow_bag_id, station_id, MIN(occurred_at) AS t1
+                FROM workflow_events
+                WHERE event_type = 'SEALING_COMPLETE'
+                  AND occurred_at >= ? AND occurred_at < ?
+                GROUP BY workflow_bag_id, station_id
+            )
+            SELECT (s.t1 - c.t0) / 60000.0 AS cm
+            FROM claims c
+            JOIN seals s
+              ON s.workflow_bag_id = c.workflow_bag_id
+             AND s.station_id = c.station_id
+            WHERE s.t1 > c.t0 AND (s.t1 - c.t0) <= 7200000
+            """,
+            (start_ms, end_ms, start_ms, end_ms),
+        ).fetchall():
+            cycle_mins.append(float(r["cm"]))
+    except sqlite3.OperationalError:
+        pass
+    avg_cycle: float | None
+    if len(cycle_mins) >= 3:
+        avg_cycle = round(float(statistics.median(cycle_mins)), 1)
+    elif cycle_mins:
+        avg_cycle = round(float(statistics.mean(cycle_mins)), 1)
+    else:
+        avg_cycle = None
+
+    cur_h = int((now_ms - start_ms) // 3600000)
+    cur_h = min(23, max(0, cur_h))
+
+    occupied = idle = paused = 0
+    machines: list[dict] = []
+    for s in stations:
+        sid = int(s["id"])
+        live = station_live.get(sid) or {}
+        st = str(live.get("status") or "idle").lower()
+        if st == "occupied":
+            occupied += 1
+            vis = "running"
+        elif st == "paused":
+            paused += 1
+            vis = "paused"
+        else:
+            idle += 1
+            vis = "idle"
+        display_name = (s.get("machine_name") or s.get("label") or f"Station {sid}").strip()
+        product = (live.get("flavor") or live.get("product_name") or "—") or "—"
+        spark: list[float] = []
+        sh = station_hourly.get(sid, [0.0] * 24)
+        for i in range(6):
+            h = cur_h - (5 - i)
+            spark.append(round(sh[h], 1) if h >= 0 else 0.0)
+        out_today = int(round(per_out.get(sid, 0.0)))
+        machines.append(
+            {
+                "id": sid,
+                "display_name": display_name,
+                "station_label": str(s.get("label") or ""),
+                "station_kind": str(s.get("station_kind") or ""),
+                "status": vis,
+                "product": str(product)[:80],
+                "bag_id": live.get("workflow_bag_id"),
+                "occupancy_started_at_ms": live.get("occupancy_started_at"),
+                "output_today": out_today,
+                "sparkline": spark,
+            }
+        )
+
+    sorted_by_out = sorted(machines, key=lambda m: m["output_today"], reverse=True)
+    best_name = sorted_by_out[0]["display_name"] if sorted_by_out and sorted_by_out[0]["output_today"] > 0 else None
+    worst_name = None
+    if len(machines) > 1:
+        m_lo = min(machines, key=lambda m: m["output_today"])
+        worst_name = m_lo["display_name"]
+
+    top_ids = [m["id"] for m in sorted_by_out[:3] if m["output_today"] > 0]
+    if not top_ids:
+        top_ids = [m["id"] for m in machines[:3]]
+
+    chart_station_series: dict[str, list[float]] = {}
+    labels_h = [f"{h:02d}" for h in range(24)]
+    for sid in top_ids:
+        chart_station_series[str(sid)] = [round(x, 1) for x in station_hourly.get(sid, [0.0] * 24)]
+
+    bar_by_station = [
+        {"id": m["id"], "name": m["display_name"][:24], "output": m["output_today"]}
+        for m in sorted(machines, key=lambda x: x["output_today"], reverse=True)
+    ]
+    max_out = max((b["output"] for b in bar_by_station), default=1) or 1
+    idle_pct_by_station = []
+    for m in machines:
+        if m["status"] == "running":
+            pct = 5.0
+        elif m["status"] == "paused":
+            pct = 35.0
+        else:
+            pct = 92.0
+        idle_pct_by_station.append(
+            {
+                "id": m["id"],
+                "name": m["display_name"][:20],
+                "pct": pct,
+                "load_pct": round(100.0 * (1.0 - pct / 100.0), 0),
+            }
+        )
+
+    flavor_breakdown: list[dict] = []
+    try:
+        for r in conn.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(pd.product_name), ''), 'Unknown') AS pname,
+                   COALESCE(SUM(CAST(json_extract(we.payload, '$.count_total') AS REAL)), 0) AS v
+            FROM workflow_events we
+            JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE we.occurred_at >= ? AND we.occurred_at < ?
+              AND we.event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+              AND json_extract(we.payload, '$.count_total') IS NOT NULL
+            GROUP BY pname
+            ORDER BY v DESC
+            LIMIT 8
+            """,
+            (start_ms, end_ms),
+        ).fetchall():
+            v = float(r["v"] or 0)
+            if v > 0:
+                flavor_breakdown.append({"label": str(r["pname"])[:32], "value": int(round(v))})
+    except sqlite3.OperationalError:
+        pass
+
+    activity: list[dict] = []
+
+    def _push_act(at_ms: int, message: str, severity: str) -> None:
+        activity.append({"at_ms": at_ms, "message": message, "severity": severity})
+
+    for st in stations:
+        sid = int(st["id"])
+        live = station_live.get(sid) or {}
+        if live.get("status") == "paused" and live.get("occupancy_started_at"):
+            el = now_ms - int(live["occupancy_started_at"])
+            if el > 30 * 60 * 1000:
+                lbl = str(st.get("label") or f"Station {sid}")
+                _push_act(
+                    now_ms,
+                    f"{lbl}: paused {int(el // 60000)} min — check floor",
+                    "alert",
+                )
+
+    try:
+        ev_rows = conn.execute(
+            """
+            SELECT event_type, occurred_at, workflow_bag_id, station_id, payload
+            FROM workflow_events
+            ORDER BY occurred_at DESC, id DESC
+            LIMIT 36
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        ev_rows = []
+
+    et_labels = {
+        "BAG_CLAIMED": "Bag claimed",
+        "STATION_RESUMED": "Station resumed",
+        "BLISTER_COMPLETE": "Blister count saved",
+        "SEALING_COMPLETE": "Sealing count saved",
+        "PACKAGING_SNAPSHOT": "Packaging snapshot",
+        "BAG_FINALIZED": "Bag finalized",
+        "CARD_ASSIGNED": "Card assigned",
+        "CARD_FORCE_RELEASED": "Card released",
+    }
+    for r in ev_rows:
+        et = str(r["event_type"])
+        sid = r["station_id"]
+        at = int(r["occurred_at"] or 0)
+        base = et_labels.get(et, et.replace("_", " ").title())
+        where = f" · st {sid}" if sid else ""
+        msg = f"{base}{where}"
+        sev = "warn" if et == "CARD_FORCE_RELEASED" else "info"
+        _push_act(at, msg, sev)
+
+    activity.sort(key=lambda x: (-(1 if x["severity"] == "alert" else 0), -x["at_ms"]))
+
+    chart_target_cumulative = [round(float(daily_target) * (h + 1) / 24.0, 0) for h in range(24)]
+
+    return {
+        "generated_at_ms": now_ms,
+        "date_label": date_label,
+        "hour_labels": labels_h,
+        "chart_target_cumulative": chart_target_cumulative,
+        "targets": {"daily_output_tablets": daily_target},
+        "kpis": {
+            "active_machines": occupied,
+            "idle_machines": idle,
+            "paused_machines": paused,
+            "down_machines": 0,
+            "total_output_today": int(round(total_out)),
+            "throughput_pct": round(throughput_pct, 1),
+            "avg_cycle_time_min": avg_cycle,
+        },
+        "highlights": {"best_station": best_name, "lowest_output_station": worst_name},
+        "machines": machines,
+        "activity": activity[:48],
+        "chart_hourly_output": [round(x, 1) for x in hourly],
+        "chart_cumulative_output": cumulative_hourly,
+        "chart_station_series": chart_station_series,
+        "chart_station_names": {str(m["id"]): m["display_name"] for m in machines},
+        "bar_by_station": bar_by_station,
+        "idle_pct_by_station": idle_pct_by_station,
+        "flavor_breakdown": flavor_breakdown,
+        "max_bar_output": max_out,
     }
 
 
@@ -742,6 +1124,31 @@ def workflow_qr_management():
             floor_ops_overview=_floor_ops_overview([], {}, {}, []),
             bag_assign=None,
         )
+
+
+@bp.route("/command-center/ops-tv")
+@admin_required
+def ops_tv_dashboard():
+    """Full-screen TV operations board (no data tables; wall display)."""
+    ver = read_version_constants().get("__version__", "1")
+    return render_template(
+        "ops_tv_dashboard.html",
+        snapshot_api_url=url_for("admin.ops_tv_snapshot_api"),
+        command_center_url=url_for("admin.workflow_qr_management"),
+        app_version=ver,
+    )
+
+
+@bp.route("/command-center/ops-tv/api/snapshot")
+@admin_required
+def ops_tv_snapshot_api():
+    try:
+        with db_read_only() as conn:
+            payload = build_ops_tv_snapshot(conn)
+        return jsonify(payload)
+    except Exception as e:
+        current_app.logger.exception("ops_tv_snapshot_api")
+        return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/admin/workflow-qr/release", methods=["POST"])
