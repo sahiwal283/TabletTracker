@@ -183,17 +183,6 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="{{ url_for('static', filename='js/workflow-assign-bag.js') }}"></script>
   {% endif %}
-  <div class="card p-5 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-2">Undo a test assignment</h2>
-    <p class="text-sm text-gray-600 mb-3">
-      If you linked a bag to the wrong card, use <strong>Release</strong> on that row below. This runs the same
-      <code class="text-xs bg-gray-100 px-1 rounded">force_release</code> flow as staff: the card returns to <strong>idle</strong>
-      and can be assigned again; the workflow bag record stays for audit.
-    </p>
-    <p class="text-xs text-gray-500">
-      You need both <strong>workflow bag id</strong> and <strong>qr card id</strong> (shown in the cards table when assigned).
-    </p>
-  </div>
 
   <div class="card p-5 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-2">About floor stations (blister, sealing, packaging)</h2>

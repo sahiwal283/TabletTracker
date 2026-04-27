@@ -22,6 +22,8 @@
   let lastOccupancyVerifyMode = null;
   /** After verifying for "End run", show only submit until counts are saved (hide pause/hand pack on blister). */
   let occupancyGateIntentEndRun = false;
+  /** Packaging: pick = choose End / Pause / Taken; then only fields for that path. */
+  let packagingUiPhase = 'pick';
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
   var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
@@ -223,6 +225,7 @@
     var pauseB = document.getElementById('wf-gate-pause');
     var endB = document.getElementById('wf-gate-end');
     var resumeB = document.getElementById('wf-gate-resume');
+    var takenG = document.getElementById('wf-gate-taken');
 
     if (verifyPan) {
       verifyPan.classList.toggle('hidden', !occupancyVerifyOpen);
@@ -235,18 +238,28 @@
     if (choice && pauseB && endB && resumeB) {
       if (!showChoice) {
         choice.classList.add('hidden');
+        if (takenG) takenG.classList.add('hidden');
       } else {
         choice.classList.remove('hidden');
         if (occupancyIsPaused) {
           pauseB.classList.add('hidden');
           endB.classList.add('hidden');
+          if (takenG) takenG.classList.add('hidden');
           resumeB.classList.remove('hidden');
         } else {
           pauseB.classList.remove('hidden');
           endB.classList.remove('hidden');
           resumeB.classList.add('hidden');
+          if (takenG) {
+            var showTakenGate = stationKind() === 'packaging';
+            takenG.classList.toggle('hidden', !showTakenGate);
+          }
         }
       }
+    }
+    var intentPanGate = document.getElementById('wf-packaging-intent');
+    if (intentPanGate && (showChoice || occupancyVerifyOpen)) {
+      intentPanGate.classList.add('hidden');
     }
     syncIdleStationBanner();
     maybeRefreshBagHint();
@@ -265,6 +278,9 @@
       } else if (mode === 'end') {
         inst.textContent =
           'Scan the bag card QR to verify before ending this run (submit counts).';
+      } else if (mode === 'taken') {
+        inst.textContent =
+          'Scan the bag card QR to verify before recording taken-for-delivery displays.';
       } else {
         inst.textContent = 'Scan the bag card QR to verify before continuing.';
       }
@@ -276,6 +292,9 @@
     occupancyVerifyOpen = false;
     lastOccupancyVerifyMode = null;
     occupancyGateIntentEndRun = false;
+    if (stationKind() === 'packaging') {
+      packagingUiPhase = 'pick';
+    }
     stopVerifyQrScanner().catch(function () {});
     applyOccupancyGateUi();
   }
@@ -294,13 +313,30 @@
     }
     await stopVerifyQrScanner();
     occupancyVerifyOpen = false;
-    var intentEndRun = lastOccupancyVerifyMode === 'end';
+    var gateMode = lastOccupancyVerifyMode;
+    var intentEndRun = gateMode === 'end';
     lastOccupancyVerifyMode = null;
     var pin = productInput();
     if (pin) pin.value = tok;
     await refresh();
-    if (intentEndRun) {
-      occupancyGateIntentEndRun = true;
+    if (stationKind() === 'packaging') {
+      if (gateMode === 'end') {
+        packagingUiPhase = 'end';
+        occupancyGateIntentEndRun = true;
+      } else if (gateMode === 'pause') {
+        packagingUiPhase = 'pause';
+        occupancyGateIntentEndRun = false;
+      } else if (gateMode === 'taken') {
+        packagingUiPhase = 'taken';
+        occupancyGateIntentEndRun = false;
+      } else {
+        packagingUiPhase = 'pick';
+        occupancyGateIntentEndRun = false;
+      }
+    } else {
+      if (intentEndRun) {
+        occupancyGateIntentEndRun = true;
+      }
     }
     configureStationActions();
     applyOccupancyGateUi();
@@ -621,6 +657,7 @@
     stationClaimed = false;
     stationNeedsResume = false;
     occupancyGateIntentEndRun = false;
+    packagingUiPhase = 'pick';
     renderBagVerification(null);
     setScanSuccessVisible(false);
     clearAllActionCooldowns();
@@ -734,19 +771,16 @@
       'wf-cards-reopened-label',
       'wf-cards-reopened-help',
       'wf-cards-reopened',
-      'wf-taken-displays-label',
-      'wf-taken-displays-help',
-      'wf-taken-displays',
     ].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.classList.remove('hidden');
     });
-    var tb = document.getElementById('wf-taken-delivery');
-    if (tb) {
-      tb.classList.remove('hidden');
-      tb.disabled = false;
-      tb.classList.remove('opacity-50', 'cursor-not-allowed');
-    }
+  }
+  function showPackagingTakenFields() {
+    ['wf-taken-displays-label', 'wf-taken-displays-help', 'wf-taken-displays'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    });
   }
   function clearPackagingSnapshotFields() {
     ['wf-packs-remaining', 'wf-cards-reopened', 'wf-taken-displays'].forEach(function (id) {
@@ -838,14 +872,114 @@
       }
       if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
     } else if (kind === 'packaging') {
-      saveBtn.textContent = 'Submit';
+      var intentPan = document.getElementById('wf-packaging-intent');
+      var takenBtn = document.getElementById('wf-taken-delivery');
+      hidePackagingStationExtra();
+      ['wf-taken-displays-label', 'wf-taken-displays-help', 'wf-taken-displays'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+      if (takenBtn) takenBtn.classList.add('hidden');
       pauseBtn.textContent = 'Pause packaging bag';
+      saveBtn.textContent = 'Submit';
       if (countLabel) countLabel.textContent = 'Packaging display count';
+      if (!hasLoadedBag) {
+        if (intentPan) intentPan.classList.add('hidden');
+        return;
+      }
+      if (!stationClaimed) {
+        if (intentPan) intentPan.classList.add('hidden');
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent = 'Claim bag at this station to unlock packaging actions.';
+        }
+        return;
+      }
+      if (stationNeedsResume) {
+        if (intentPan) intentPan.classList.add('hidden');
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent =
+            'This bag was paused — confirm the card is still loaded, then tap Resume to continue.';
+        }
+        return;
+      }
+      if (packagingUiPhase === 'pick') {
+        if (intentPan) intentPan.classList.remove('hidden');
+        countLabel.classList.add('hidden');
+        countTotal.classList.add('hidden');
+        if (empLabel) empLabel.classList.add('hidden');
+        if (empInput) empInput.classList.add('hidden');
+        saveBtn.classList.add('hidden');
+        pauseBtn.classList.add('hidden');
+        if (takenBtn) takenBtn.classList.add('hidden');
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent =
+            'Pick one step above. You will only see the fields and buttons for that step.';
+        }
+        return;
+      }
+      if (intentPan) intentPan.classList.add('hidden');
+      if (packagingUiPhase === 'taken') {
+        countLabel.classList.add('hidden');
+        countTotal.classList.add('hidden');
+        showPackagingTakenFields();
+        if (empLabel) empLabel.classList.remove('hidden');
+        if (empInput) empInput.classList.remove('hidden');
+        saveBtn.classList.add('hidden');
+        pauseBtn.classList.add('hidden');
+        if (takenBtn) {
+          takenBtn.classList.remove('hidden');
+          takenBtn.disabled = false;
+          takenBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent = 'Enter how many displays were taken, your name, then tap Taken for delivery.';
+        }
+        return;
+      }
+      countLabel.classList.remove('hidden');
+      countTotal.classList.remove('hidden');
+      if (empLabel) empLabel.classList.remove('hidden');
+      if (empInput) empInput.classList.remove('hidden');
       showPackagingStationExtra();
-      if (hint) {
-        hint.classList.remove('hidden');
-        hint.textContent =
-          'Submit saves counts and finishes the bag. Pause for handoff, or Taken when displays leave for delivery/order.';
+      if (packagingUiPhase === 'end') {
+        occupancyGateIntentEndRun = true;
+        saveBtn.classList.remove('hidden');
+        pauseBtn.classList.add('hidden');
+        if (takenBtn) takenBtn.classList.add('hidden');
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent =
+            'End run: enter packaging counts and tap Submit to finish this bag.';
+        }
+      } else if (packagingUiPhase === 'pause') {
+        occupancyGateIntentEndRun = false;
+        saveBtn.classList.add('hidden');
+        pauseBtn.classList.remove('hidden');
+        if (takenBtn) takenBtn.classList.add('hidden');
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent =
+            'Pause: enter current packaging counts, then tap Pause packaging bag.';
+        }
+      } else {
+        packagingUiPhase = 'pick';
+        if (intentPan) intentPan.classList.remove('hidden');
+        countLabel.classList.add('hidden');
+        countTotal.classList.add('hidden');
+        if (empLabel) empLabel.classList.add('hidden');
+        if (empInput) empInput.classList.add('hidden');
+        saveBtn.classList.add('hidden');
+        pauseBtn.classList.add('hidden');
+        if (takenBtn) takenBtn.classList.add('hidden');
+        if (hint) {
+          hint.classList.remove('hidden');
+          hint.textContent =
+            'Pick one step above. You will only see the fields and buttons for that step.';
+        }
       }
     } else if (kind === 'combined') {
       saveBtn.classList.add('hidden');
@@ -1067,6 +1201,9 @@
       setActionsEnabled(true);
       clearFeedback();
       await claimBag();
+      if (stationKind() === 'packaging') {
+        packagingUiPhase = 'pick';
+      }
       applyOccupancyGateUi();
       return;
     }
@@ -1139,6 +1276,10 @@
     setActionsEnabled(true);
     setScanSuccessVisible(false);
     clearFeedback();
+    if (stationKind() === 'packaging') {
+      packagingUiPhase = 'pick';
+    }
+    configureStationActions();
     showFullscreenSuccess('Bag claimed at this station.', undefined, function () {
       refreshStationOccupancy().catch(function () {});
     });
@@ -1282,6 +1423,7 @@
       clearCountField();
       clearEmployeeNameField();
       clearPackagingSnapshotFields();
+      packagingUiPhase = 'pick';
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
@@ -1333,6 +1475,7 @@
     var td = document.getElementById('wf-taken-displays');
     if (td) td.value = '';
     clearEmployeeNameField();
+    packagingUiPhase = 'pick';
     configureStationActions();
     setActionsEnabled(true);
     startCooldownAfterSuccess('taken');
@@ -1366,6 +1509,9 @@
       statusLine('Station already resumed.', 'success');
     } else {
       statusLine('Station resumed — enter counts for this run.', 'success');
+    }
+    if (stationKind() === 'packaging') {
+      packagingUiPhase = 'pick';
     }
     configureStationActions();
     setActionsEnabled(true);
@@ -1431,6 +1577,35 @@
     if (gp) gp.addEventListener('click', () => openOccupancyVerify('pause'));
     const ge = document.getElementById('wf-gate-end');
     if (ge) ge.addEventListener('click', () => openOccupancyVerify('end'));
+    const gt = document.getElementById('wf-gate-taken');
+    if (gt) gt.addEventListener('click', () => openOccupancyVerify('taken'));
+    const ie = document.getElementById('wf-intent-end');
+    if (ie) {
+      ie.addEventListener('click', function () {
+        packagingUiPhase = 'end';
+        occupancyGateIntentEndRun = true;
+        configureStationActions();
+        applyOccupancyGateUi();
+      });
+    }
+    const ip = document.getElementById('wf-intent-pause');
+    if (ip) {
+      ip.addEventListener('click', function () {
+        packagingUiPhase = 'pause';
+        occupancyGateIntentEndRun = false;
+        configureStationActions();
+        applyOccupancyGateUi();
+      });
+    }
+    const it = document.getElementById('wf-intent-taken');
+    if (it) {
+      it.addEventListener('click', function () {
+        packagingUiPhase = 'taken';
+        occupancyGateIntentEndRun = false;
+        configureStationActions();
+        applyOccupancyGateUi();
+      });
+    }
     const gr = document.getElementById('wf-gate-resume');
     if (gr) gr.addEventListener('click', () => openOccupancyVerify('resume'));
     const vScan = document.getElementById('wf-verify-scan');

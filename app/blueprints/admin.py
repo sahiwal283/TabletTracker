@@ -24,6 +24,7 @@ from app.utils.auth_utils import admin_required
 from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
+from app.services.ops_flow_intel import compute_production_flow_intel
 
 bp = Blueprint('admin', __name__)
 
@@ -544,11 +545,18 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
 
     chart_target_cumulative = [round(float(daily_target) * (h + 1) / 24.0, 0) for h in range(24)]
 
+    flow_intel: dict = {}
+    try:
+        flow_intel = compute_production_flow_intel(conn, now_ms, stations, station_live)
+    except Exception:
+        flow_intel = {}
+
     return {
         "generated_at_ms": now_ms,
         "date_label": date_label,
         "hour_labels": labels_h,
         "chart_target_cumulative": chart_target_cumulative,
+        "flow": flow_intel,
         "targets": {"daily_output_tablets": daily_target},
         "kpis": {
             "active_machines": occupied,

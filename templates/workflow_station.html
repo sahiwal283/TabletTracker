@@ -45,10 +45,20 @@
   </div>
   <div id="wf-feedback" class="hidden mb-4 p-3 rounded-xl border text-sm" role="status" aria-live="polite"></div>
 
-  <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+  <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
     <button type="button" id="wf-gate-pause" class="btn-secondary px-6 py-4 text-lg">Pause</button>
     <button type="button" id="wf-gate-end" class="btn-primary px-6 py-4 text-lg">End run</button>
-    <button type="button" id="wf-gate-resume" class="hidden btn-primary px-6 py-4 text-lg sm:col-span-2">Verify card to continue</button>
+    <button type="button" id="wf-gate-taken" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery</button>
+    <button type="button" id="wf-gate-resume" class="hidden btn-primary px-6 py-4 text-lg sm:col-span-2 lg:col-span-3">Verify card to continue</button>
+  </div>
+
+  <div id="wf-packaging-intent" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">
+    <p class="text-sm font-semibold text-slate-900 mb-3">What are you doing with this bag?</p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <button type="button" id="wf-intent-end" class="btn-primary px-5 py-4 text-base">End run · finish bag</button>
+      <button type="button" id="wf-intent-pause" class="btn-secondary px-5 py-4 text-base">Pause · handoff</button>
+      <button type="button" id="wf-intent-taken" class="btn-secondary px-5 py-4 text-base">Taken for delivery</button>
+    </div>
   </div>
 
   <div id="wf-verify-panel" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">
@@ -87,9 +97,9 @@
   <label for="wf-cards-reopened" id="wf-cards-reopened-label" class="hidden block text-sm font-medium mb-1">Cards re-opened</label>
   <p id="wf-cards-reopened-help" class="hidden text-xs text-gray-500 mb-1">Blister cards ripped or wasted (packaging loss), not tablet units.</p>
   <input id="wf-cards-reopened" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="0" />
-  <label for="wf-taken-displays" id="wf-taken-displays-label" class="hidden block text-sm font-medium mb-1">Displays taken (delivery / order)</label>
-  <p id="wf-taken-displays-help" class="hidden text-xs text-gray-500 mb-1">Separate from snapshot total; PO credit still applies.</p>
-  <input id="wf-taken-displays" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Only for Taken button" />
+  <label for="wf-taken-displays" id="wf-taken-displays-label" class="hidden block text-sm font-medium mb-1">How many displays left for this order?</label>
+  <p id="wf-taken-displays-help" class="hidden text-xs text-gray-500 mb-1">Count displays taken for delivery or order (required for Taken).</p>
+  <input id="wf-taken-displays" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="e.g. 12" />
   <label for="wf-employee-name" id="wf-employee-name-label" class="hidden block text-sm font-medium mb-1">Your name</label>
   <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="name / nombre" autocomplete="name" />
   </div>

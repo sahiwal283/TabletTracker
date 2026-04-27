@@ -36,8 +36,8 @@ body {
   width: 100vw;
   padding: 0.45rem 0.65rem 0.4rem;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(96px, 20vh);
-  gap: 0.45rem;
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(88px, 17vh);
+  gap: 0.4rem;
   position: relative;
 }
 
@@ -53,6 +53,119 @@ body {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* Production flow pipeline */
+.ops-flow-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 22vw);
+  gap: 0.4rem;
+  min-height: 0;
+}
+
+.ops-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0;
+  scrollbar-width: thin;
+}
+
+.ops-flow-node {
+  flex: 1 1 0;
+  min-width: 4.5rem;
+  max-width: 8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.35rem 0.4rem;
+  text-align: center;
+}
+
+.ops-flow-node--warn {
+  border-color: rgba(255, 204, 0, 0.45);
+  box-shadow: 0 0 16px rgba(255, 204, 0, 0.12);
+}
+
+.ops-flow-node--crit {
+  border-color: rgba(255, 71, 87, 0.55);
+  box-shadow: 0 0 18px rgba(255, 71, 87, 0.18);
+}
+
+.ops-flow-arrow {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 300;
+  opacity: 0.65;
+}
+
+.ops-flow-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.2;
+}
+
+.ops-flow-wip {
+  font-size: clamp(1rem, 1.6vw, 1.45rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  margin-top: 0.1rem;
+}
+
+.ops-flow-sub {
+  font-size: 0.5rem;
+  color: var(--muted);
+  line-height: 1.15;
+  margin-top: 0.08rem;
+}
+
+.ops-flow-delay {
+  font-size: 0.55rem;
+  color: var(--idle);
+  margin-top: 0.12rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-bottleneck {
+  background: linear-gradient(145deg, rgba(0, 212, 255, 0.08), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.4rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+.ops-bn-title {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ops-bn-reason {
+  font-size: clamp(0.72rem, 1vw, 0.85rem);
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 0.2rem;
+  line-height: 1.25;
+}
+
+.ops-bn-hint {
+  font-size: 0.55rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  line-height: 1.2;
 }
 
 .ops-exit {

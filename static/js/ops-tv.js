@@ -81,6 +81,66 @@
     return 2;
   }
 
+  function renderFlow(flow) {
+    var el = document.getElementById("ops-flow");
+    var bn = document.getElementById("ops-bottleneck");
+    if (!el) return;
+    if (!flow || !flow.pipeline || !flow.pipeline.length) {
+      el.innerHTML = "";
+      if (bn) bn.innerHTML = "";
+      return;
+    }
+    var parts = [];
+    flow.pipeline.forEach(function (node, i) {
+      if (i > 0) {
+        parts.push('<span class="ops-flow-arrow" aria-hidden="true">→</span>');
+      }
+      var al = node.alert || "ok";
+      var mod = al === "warn" || al === "crit" ? " ops-flow-node--" + al : "";
+      var dm = node.max_delay_min;
+      var av = node.avg_delay_min;
+      var delayTxt = "";
+      if (dm != null) {
+        delayTxt =
+          '<div class="ops-flow-delay">max ' +
+          dm +
+          "m · avg " +
+          (av != null ? av + "m" : "—") +
+          "</div>";
+      }
+      parts.push(
+        '<div class="ops-flow-node' +
+        mod +
+        '" data-stage="' +
+        String(node.id || "").replace(/"/g, "") +
+        '">' +
+        '<div class="ops-flow-label">' +
+        String(node.label || "").replace(/</g, "&lt;") +
+        "</div>" +
+        '<div class="ops-flow-wip">' +
+        (node.wip != null ? node.wip : "—") +
+        "</div>" +
+        '<div class="ops-flow-sub">' +
+        String(node.subtitle || "").replace(/</g, "&lt;") +
+        "</div>" +
+        delayTxt +
+        "</div>"
+      );
+    });
+    el.innerHTML = parts.join("");
+    if (bn && flow.bottleneck) {
+      var b = flow.bottleneck;
+      bn.innerHTML =
+        '<div class="ops-bn-title">Bottleneck</div>' +
+        '<div class="ops-bn-reason">' +
+        String(b.reason || "").replace(/</g, "&lt;") +
+        "</div>" +
+        '<div class="ops-bn-hint">' +
+        String(b.hint || "").replace(/</g, "&lt;") +
+        "</div>";
+    }
+  }
+
   function renderHeader(data) {
     if (!headEl) return;
     var k = data.kpis || {};
@@ -466,6 +526,7 @@
   function apply(data) {
     if (!data || data.error) return;
     renderHeader(data);
+    renderFlow(data.flow);
     renderCards(data.machines);
     renderFeed(data.activity);
     updateCharts(data);

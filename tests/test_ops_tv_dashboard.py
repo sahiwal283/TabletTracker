@@ -57,3 +57,6 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("machines", data)
         self.assertIn("activity", data)
         self.assertIn("chart_hourly_output", data)
+        self.assertIn("flow", data)
+        self.assertIn("pipeline", data["flow"])
+        self.assertIn("bottleneck", data["flow"])
