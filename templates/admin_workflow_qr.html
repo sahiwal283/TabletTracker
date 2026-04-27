@@ -32,9 +32,30 @@
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 py-6">
   <div class="mb-6">
-    <a href="{{ url_for('admin.admin_panel') }}" class="text-sm text-blue-600 hover:underline">&larr; Admin panel</a>
-    <h1 class="text-2xl font-bold text-gray-900 mt-2">Command Center</h1>
+    <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mb-3" aria-label="Section navigation">
+      <a href="{{ url_for('production.production_form') }}" class="text-blue-600 hover:underline">&larr; Production</a>
+      {% if session.get('employee_role') in ['manager', 'admin'] %}
+      <span class="text-gray-300 hidden sm:inline" aria-hidden="true">|</span>
+      <a href="{{ url_for('dashboard.dashboard_view') }}" class="text-blue-600 hover:underline">Dashboard</a>
+      {% endif %}
+      {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
+      <span class="text-gray-300 hidden sm:inline" aria-hidden="true">|</span>
+      <a href="{{ url_for('admin.admin_panel') }}" class="text-blue-600 hover:underline">Admin panel</a>
+      {% endif %}
+    </nav>
+    <h1 class="text-2xl font-bold text-gray-900">Command Center</h1>
     <p class="text-gray-600 text-sm mt-1">Monitor live station occupancy and manage QR workflow settings in one place.</p>
+  </div>
+
+  <div class="card p-5 mb-8 border border-slate-200 bg-slate-50">
+    <h2 class="text-lg font-semibold text-gray-900 mb-2">Assign shipment bag to QR card</h2>
+    <p class="text-sm text-gray-600 mb-4">
+      Link a received bag (product, box #, bag #) to a bag card scan token so the floor workflow can use it.
+      This is the same staff flow as before; it lives here so you do not have to hunt for it under Admin only.
+    </p>
+    <a href="{{ url_for('workflow_staff.new_bag') }}" class="btn-primary inline-flex items-center px-4 py-2.5 text-base font-medium">
+      Open bag assignment
+    </a>
   </div>
 
   <div class="card p-5 mb-8">
