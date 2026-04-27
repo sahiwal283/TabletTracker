@@ -482,6 +482,8 @@ def workflow_qr_management():
                     pass
             for c in cards:
                 c["bag_name"] = _workflow_inventory_bag_name(conn, c.get("inventory_bag_id"))
+                c["status_display"] = c.get("status") or "idle"
+                c["current_station_label"] = None
             for st in stations:
                 sid = int(st["id"])
                 station_live[sid] = {
@@ -534,9 +536,16 @@ def workflow_qr_management():
                     "card_token": c.get("scan_token"),
                     "occupancy_started_at": int(evd.get("occurred_at") or 0) or None,
                     "product_name": bd.get("product_name"),
+                    "flavor": bd.get("product_name"),
                     "receipt_number": bd.get("receipt_number"),
                     "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
                 }
+                station_label = next(
+                    (str(s.get("label")) for s in stations if int(s.get("id") or 0) == sid),
+                    f"Station {sid}",
+                )
+                c["current_station_label"] = station_label
+                c["status_display"] = f"occupied at {station_label}"
         stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))

@@ -185,6 +185,41 @@ def _assigned_card_token_for_bag(conn: sqlite3.Connection, workflow_bag_id: int)
     return str(token).strip() if token else None
 
 
+def _current_station_occupancy(conn: sqlite3.Connection, station_id: int) -> dict | None:
+    row = conn.execute(
+        """
+        SELECT we.workflow_bag_id, we.occurred_at, qc.scan_token AS card_token
+        FROM workflow_events we
+        JOIN qr_cards qc
+          ON qc.assigned_workflow_bag_id = we.workflow_bag_id
+         AND qc.status = ?
+        WHERE we.station_id = ?
+          AND we.event_type IN (?, ?)
+        ORDER BY we.occurred_at DESC, we.id DESC
+        LIMIT 1
+        """,
+        (
+            WC.QR_CARD_STATUS_ASSIGNED,
+            station_id,
+            WC.EVENT_BAG_CLAIMED,
+            WC.EVENT_STATION_RESUMED,
+        ),
+    ).fetchone()
+    if not row:
+        return None
+    bag_id = int(row["workflow_bag_id"])
+    started_at = int(row["occurred_at"])
+    facts = _station_facts_payload(conn, bag_id, station_id)
+    status = "paused" if facts.get("resume_required") else "occupied"
+    return {
+        "status": status,
+        "workflow_bag_id": bag_id,
+        "card_token": row["card_token"],
+        "occupancy_started_at_ms": started_at,
+        "facts": facts,
+    }
+
+
 def _station_facts_payload(
     conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
 ) -> dict:
@@ -273,6 +308,8 @@ def api_resolve_station():
         payload["station_kind"] = r["station_kind"]
     if r.get("machine_id") is not None:
         payload["machine_id"] = int(r["machine_id"])
+    occupancy = _current_station_occupancy(conn, int(row["id"]))
+    payload["occupancy"] = occupancy or {"status": "idle"}
     return payload
 
 

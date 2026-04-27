@@ -697,6 +697,32 @@
       statusLine('Bag loaded successfully.', 'success');
     }
   }
+  async function refreshStationOccupancy() {
+    const stationToken = document.getElementById('wf-station-token').value;
+    if (!stationToken) return;
+    const data = await postJson('/workflow/floor/api/station', {
+      station_token: stationToken,
+      device_id: deviceId(),
+      page_session_id: pageSessionId(),
+    });
+    const occ = data && data.occupancy;
+    if (!occ || occ.status === 'idle') {
+      renderOccupancyBanner(null, null);
+      return;
+    }
+    if (occ.facts) {
+      renderBagVerification(occ.facts);
+      renderOccupancyBanner(
+        {
+          occupancy_started_at_ms: occ.occupancy_started_at_ms,
+          occupying_card_token: occ.card_token,
+        },
+        occ.workflow_bag_id
+      );
+      setScanSuccessVisible(false);
+      statusLine('Station is currently occupied. Confirm active bag details below.', 'info');
+    }
+  }
   async function claimBag() {
     ensureLoadedBag();
     const kind = stationKind();
@@ -932,8 +958,12 @@
   }
   document.addEventListener('DOMContentLoaded', () => {
     loadEmployeeNameFromStorage();
-    resetLoadedBagState(true);
+    resetLoadedBagState(false);
     configureStationActions();
+    statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
+    refreshStationOccupancy().catch((e) => {
+      statusLine(String(e), 'error');
+    });
     const inp = productInput();
     if (inp) {
       inp.addEventListener('input', () => {

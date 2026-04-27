@@ -51,6 +51,7 @@
         </div>
         {% if live.status == 'occupied' %}
         <p class="text-xs text-slate-600">Bag #{{ live.workflow_bag_id }} · Card {{ live.card_token or '—' }}</p>
+        <p class="text-xs text-slate-600">Flavor {{ live.flavor or live.product_name or '—' }}</p>
         <p class="text-xs text-slate-600">Receipt {{ live.receipt_number or '—' }}</p>
         <p class="text-xs text-slate-600 mb-2">{{ live.bag_name or '—' }}</p>
         <p class="text-sm font-semibold text-slate-900">
@@ -243,7 +244,7 @@
         <tr class="border-b border-gray-100 align-top">
           <td class="py-2 pr-3 font-mono">{{ c.id }}</td>
           <td class="py-2 pr-3">{{ c.label or "—" }}</td>
-          <td class="py-2 pr-3">{{ c.status }}</td>
+          <td class="py-2 pr-3">{{ c.status_display or c.status }}</td>
           <td class="py-2 pr-3">
             <div class="wf-token-readonly flex flex-wrap items-center gap-2 max-w-[16rem]">
               <span class="font-mono text-xs break-all">{{ c.scan_token }}</span>
