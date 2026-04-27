@@ -8,13 +8,9 @@
   {% else %}
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
-  <p class="text-xs text-gray-500 mb-1">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
-  <p class="text-base text-gray-700 mb-4">Kiosk mode: scan a bag card, confirm bag details, then submit station actions.</p>
+  <p class="text-xs text-gray-500 mb-4">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
   <div id="wf-occupied-banner" class="hidden mb-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50">
     <p class="text-sm text-indigo-900 font-semibold">Station currently occupied</p>
-    <p class="text-xs text-indigo-800 mt-1">
-      Active bag <span id="wf-occupied-bag">—</span> on card <span id="wf-occupied-card">—</span>
-    </p>
     <p class="text-2xl font-bold text-indigo-900 mt-2">
       Elapsed: <span id="wf-occupied-elapsed">00:00:00</span>
     </p>

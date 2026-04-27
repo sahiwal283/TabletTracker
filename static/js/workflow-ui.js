@@ -304,20 +304,16 @@
     }
   }
 
-  function renderOccupancyBanner(facts, bagId) {
+  function renderOccupancyBanner(facts, _bagId) {
     var banner = document.getElementById('wf-occupied-banner');
     var elapsed = document.getElementById('wf-occupied-elapsed');
-    var bagEl = document.getElementById('wf-occupied-bag');
-    var cardEl = document.getElementById('wf-occupied-card');
-    if (!banner || !elapsed || !bagEl || !cardEl) return;
+    if (!banner || !elapsed) return;
     stopOccupancyTimer();
     var startMs = Number(facts && facts.occupancy_started_at_ms);
     if (!Number.isFinite(startMs) || startMs <= 0) {
       banner.classList.add('hidden');
       return;
     }
-    bagEl.textContent = bagId ? String(bagId) : '—';
-    cardEl.textContent = (facts && facts.occupying_card_token) ? String(facts.occupying_card_token) : '—';
     function tick() {
       elapsed.textContent = formatElapsedMs(Date.now() - startMs);
     }
@@ -989,14 +985,6 @@
       );
     }
     setScanSuccessVisible(false);
-    if (!sessionMatchesStationOccupant()) {
-      statusLine(
-        occupancyIsPaused
-          ? 'This station has a paused bag. Tap Verify card to continue, then scan the bag card.'
-          : 'This station already has a bag in progress. Choose Pause or End run, then verify the bag card.',
-        'info'
-      );
-    }
     applyOccupancyGateUi();
   }
   async function claimBag() {
