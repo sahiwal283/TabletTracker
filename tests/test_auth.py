@@ -25,7 +25,6 @@ class TestAuthentication(unittest.TestCase):
         response = self.client.post('/', data={
             'username': 'admin',
             'password': Config.ADMIN_PASSWORD,
-            'login_type': 'admin'
         }, follow_redirects=False)
         # Should redirect on successful login
         self.assertIn(response.status_code, [302, 303])
@@ -35,7 +34,6 @@ class TestAuthentication(unittest.TestCase):
         response = self.client.post('/', data={
             'username': 'admin',
             'password': 'wrong_password',
-            'login_type': 'admin'
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
         # UI can render generic auth feedback; assert user remains on login view.
@@ -48,7 +46,6 @@ class TestAuthentication(unittest.TestCase):
             client.post('/', data={
                 'username': 'admin',
                 'password': Config.ADMIN_PASSWORD,
-                'login_type': 'admin'
             })
             # Then logout
             response = client.get('/logout', follow_redirects=False)

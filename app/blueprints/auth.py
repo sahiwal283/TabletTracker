@@ -41,64 +41,59 @@ def index():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
-        login_type = request.form.get('login_type', 'employee')
 
         if not username or not password:
             flash('Username and password are required', 'error')
             return render_template('unified_login.html')
 
-        if login_type == 'admin':
-            # Admin login - use constant-time comparison to prevent timing attacks
+        # Single form: reserved username `admin` (case-insensitive) uses the deployment
+        # ADMIN_PASSWORD; everyone else authenticates against the employees table.
+        if username.lower() == 'admin':
             admin_password = Config.ADMIN_PASSWORD
-            if hmac.compare_digest(password, admin_password) and username.lower() == 'admin':
-                # Prevent session fixation by clearing old session and creating new one
+            if hmac.compare_digest(password, admin_password):
                 session.clear()
                 session['admin_authenticated'] = True
-                session['employee_role'] = 'admin'  # Set admin role for navigation
+                session['employee_role'] = 'admin'
                 session['login_time'] = datetime.now().isoformat()
                 session.permanent = True
                 flash('Welcome back, Admin!', 'success')
                 return redirect(url_for('admin.admin_panel'))
-            else:
-                flash('Invalid admin credentials', 'error')
-                return render_template('unified_login.html')
-        else:
-            # Employee login
-            try:
-                with db_read_only() as conn:
-                    employee = conn.execute('''
-                        SELECT id, username, full_name, password_hash, role, is_active
-                        FROM employees
-                        WHERE username = ? AND is_active = TRUE
-                    ''', (username,)).fetchone()
+            flash('Invalid username or password', 'error')
+            return render_template('unified_login.html')
 
-                    if employee and verify_password(password, employee['password_hash']):
-                        # Prevent session fixation by clearing old session and creating new one
-                        session.clear()
-                        session['employee_authenticated'] = True
-                        session['employee_id'] = employee['id']
-                        session['employee_name'] = employee['full_name']
-                        session['employee_username'] = employee['username']
-                        session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
-                        session.permanent = True
+        try:
+            with db_read_only() as conn:
+                employee = conn.execute(
+                    '''
+                    SELECT id, username, full_name, password_hash, role, is_active
+                    FROM employees
+                    WHERE username = ? AND is_active = TRUE
+                    ''',
+                    (username,),
+                ).fetchone()
 
-                        # Smart redirect based on role
-                        role = employee['role'] if employee['role'] else 'warehouse_staff'
-                        if role in ['manager', 'admin']:
-                            flash(f'Welcome back, {employee["full_name"]}!', 'success')
-                            return redirect(url_for('dashboard.dashboard_view'))
-                        else:
-                            flash(f'Welcome back, {employee["full_name"]}!', 'success')
-                            return redirect(url_for('production.warehouse_form'))
-                    else:
-                        # Log failed login attempt
-                        current_app.logger.warning(f"Failed login attempt for username: {username}")
-                        flash('Invalid employee credentials', 'error')
-                        return render_template('unified_login.html')
-            except Exception as e:
-                current_app.logger.error(f"Login error in index(): {str(e)}")
-                flash('An error occurred during login', 'error')
+                if employee and verify_password(password, employee['password_hash']):
+                    session.clear()
+                    session['employee_authenticated'] = True
+                    session['employee_id'] = employee['id']
+                    session['employee_name'] = employee['full_name']
+                    session['employee_username'] = employee['username']
+                    session['employee_role'] = employee['role'] if employee['role'] else 'warehouse_staff'
+                    session.permanent = True
+
+                    role = employee['role'] if employee['role'] else 'warehouse_staff'
+                    if role in ['manager', 'admin']:
+                        flash(f'Welcome back, {employee["full_name"]}!', 'success')
+                        return redirect(url_for('dashboard.dashboard_view'))
+                    flash(f'Welcome back, {employee["full_name"]}!', 'success')
+                    return redirect(url_for('production.warehouse_form'))
+                current_app.logger.warning(f"Failed login attempt for username: {username}")
+                flash('Invalid username or password', 'error')
                 return render_template('unified_login.html')
+        except Exception as e:
+            current_app.logger.error(f"Login error in index(): {str(e)}")
+            flash('An error occurred during login', 'error')
+            return render_template('unified_login.html')
 
     # Show unified login page
     return render_template('unified_login.html')

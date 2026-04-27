@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.7] - 2026-04-24
+
+### Changed
+- **Unified login:** single form only (removed Employee / Admin login type toggle). Username `admin` + deployment `ADMIN_PASSWORD` signs in as the built-in admin; all other usernames use the employees table.
+
+---
+
 ## [4.5.1] - 2026-04-24
 
 ### Fixed
