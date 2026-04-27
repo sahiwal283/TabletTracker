@@ -30,72 +30,158 @@
 {% endmacro %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto px-4 py-6">
-  <div class="mb-6">
-    <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mb-3" aria-label="Section navigation">
-      <a href="{{ url_for('production.production_form') }}" class="text-blue-600 hover:underline">&larr; Production</a>
-      {% if session.get('employee_role') in ['manager', 'admin'] %}
-      <span class="text-gray-300 hidden sm:inline" aria-hidden="true">|</span>
-      <a href="{{ url_for('dashboard.dashboard_view') }}" class="text-blue-600 hover:underline">Dashboard</a>
-      {% endif %}
-      {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
-      <span class="text-gray-300 hidden sm:inline" aria-hidden="true">|</span>
-      <a href="{{ url_for('admin.admin_panel') }}" class="text-blue-600 hover:underline">Admin panel</a>
-      {% endif %}
-    </nav>
-    <h1 class="text-2xl font-bold text-gray-900">Command Center</h1>
-    <p class="text-gray-600 text-sm mt-1">Monitor live station occupancy and manage QR workflow settings in one place.</p>
+{% set ov = floor_ops_overview %}
+<div class="max-w-[1400px] mx-auto px-3 sm:px-4 py-5">
+  <nav class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mb-4" aria-label="Section navigation">
+    <a href="{{ url_for('production.production_form') }}" class="text-blue-600 hover:underline">Production</a>
+    {% if session.get('employee_role') in ['manager', 'admin'] %}
+    <span class="text-gray-300" aria-hidden="true">·</span>
+    <a href="{{ url_for('dashboard.dashboard_view') }}" class="text-blue-600 hover:underline">Dashboard</a>
+    {% endif %}
+    {% if session.get('employee_role') == 'admin' or session.get('admin_authenticated') %}
+    <span class="text-gray-300" aria-hidden="true">·</span>
+    <a href="{{ url_for('admin.admin_panel') }}" class="text-blue-600 hover:underline">Admin</a>
+    {% endif %}
+  </nav>
+
+  <div class="rounded-2xl border border-slate-800 bg-slate-950 shadow-xl overflow-hidden mb-6">
+    <div class="px-4 sm:px-5 py-4 border-b border-slate-800 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Command Center</h1>
+        <p class="text-slate-400 text-sm mt-0.5">
+          Floor status and today&rsquo;s production signals
+          {% if floor_ops_date_label %}<span class="text-slate-500">· {{ floor_ops_date_label }} ET</span>{% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 px-3 sm:px-4 py-3 bg-slate-900/95 border-b border-slate-800">
+      <div class="rounded-lg border border-slate-700/80 bg-slate-800/50 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Stations active</p>
+        <p class="text-2xl font-semibold tabular-nums text-emerald-400">{{ ov.stations_occupied }}</p>
+      </div>
+      <div class="rounded-lg border border-slate-700/80 bg-slate-800/50 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Paused</p>
+        <p class="text-2xl font-semibold tabular-nums text-amber-300">{{ ov.stations_paused }}</p>
+      </div>
+      <div class="rounded-lg border border-slate-700/80 bg-slate-800/50 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Idle / ready</p>
+        <p class="text-2xl font-semibold tabular-nums text-slate-300">{{ ov.stations_idle }}</p>
+      </div>
+      <div class="rounded-lg border border-slate-700/80 bg-slate-800/50 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Bag cards in use</p>
+        <p class="text-2xl font-semibold tabular-nums text-slate-200">{{ ov.cards_on_bag }}<span class="text-sm font-normal text-slate-500">/{{ ov.cards_total }}</span></p>
+      </div>
+      <div class="rounded-lg border border-slate-700/80 bg-slate-800/50 px-3 py-2 col-span-2 lg:col-span-1">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Today · claims / resumes</p>
+        <p class="text-2xl font-semibold tabular-nums text-slate-200">{{ ov.today_claims }}<span class="text-slate-500 text-lg">/</span>{{ ov.today_resumes }}</p>
+      </div>
+      <div class="rounded-lg border border-slate-700/80 bg-slate-800/50 px-3 py-2 col-span-2 md:col-span-4 lg:col-span-1">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Today · blister / seal / pack</p>
+        <p class="text-xl font-semibold tabular-nums text-slate-200">
+          {{ ov.today_blister }}<span class="text-slate-500">·</span>{{ ov.today_seal }}<span class="text-slate-500">·</span>{{ ov.today_pack }}
+        </p>
+      </div>
+    </div>
+
+    {% if stations %}
+    <div class="overflow-x-auto">
+      <table class="min-w-[52rem] w-full text-sm text-left">
+        <thead>
+          <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800 bg-slate-900">
+            <th scope="colgroup" colspan="5" class="px-3 py-2 font-semibold text-slate-400">Live</th>
+            <th scope="colgroup" colspan="5" class="px-3 py-2 font-semibold text-slate-400 text-right border-l border-slate-800">Today (station)</th>
+            <th scope="colgroup" colspan="2" class="px-3 py-2 font-semibold text-slate-400 text-right border-l border-slate-800">Avg count</th>
+          </tr>
+          <tr class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-800">
+            <th scope="col" class="px-3 py-2 font-semibold">Station</th>
+            <th scope="col" class="px-3 py-2 font-semibold">Machine</th>
+            <th scope="col" class="px-3 py-2 font-semibold">Type</th>
+            <th scope="col" class="px-3 py-2 font-semibold">Status</th>
+            <th scope="col" class="px-3 py-2 font-semibold">Timer</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right border-l border-slate-800" title="Bag claims">Cl</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right" title="Resumes">Rs</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right" title="Blister complete">Bl</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right" title="Sealing complete">Se</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right" title="Packaging">Pk</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right border-l border-slate-800" title="Avg blister count">Abl</th>
+            <th scope="col" class="px-3 py-2 font-semibold text-right" title="Avg seal count">Ase</th>
+          </tr>
+        </thead>
+        <tbody class="text-slate-100">
+          {% for s in stations %}
+          {% set live = station_live.get(s.id, {}) %}
+          {% set st = floor_station_day_stats.get(s.id, {}) %}
+          {% set live_here = live.status == 'occupied' or live.status == 'paused' %}
+          <tr class="border-b border-slate-800/90 {% if loop.index0 % 2 == 0 %}bg-slate-900{% else %}bg-slate-900/75{% endif %} {% if live_here and live.status == 'occupied' %}border-l-4 border-l-emerald-500{% elif live_here %}border-l-4 border-l-amber-400{% endif %}">
+            <td class="px-3 py-2.5 font-medium text-white whitespace-nowrap">{{ s.label }}</td>
+            <td class="px-3 py-2.5 text-slate-300 max-w-[9rem] truncate" title="{{ s.machine_name or '' }}">{{ s.machine_name or '—' }}</td>
+            <td class="px-3 py-2.5 text-slate-400 whitespace-nowrap text-xs">{{ s.station_kind or '—' }}</td>
+            <td class="px-3 py-2.5 min-w-[11rem]">
+              {% if live_here %}
+              <span class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold {% if live.status == 'occupied' %}bg-emerald-500/20 text-emerald-300{% else %}bg-amber-500/20 text-amber-200{% endif %}">{{ live.status }}</span>
+              <span class="block text-[11px] text-slate-400 mt-0.5">#{{ live.workflow_bag_id }} · {{ live.card_token or '—' }}</span>
+              <span class="block text-[11px] text-slate-500 truncate max-w-[13rem]" title="{{ live.flavor or live.product_name or '' }}">{{ live.flavor or live.product_name or '—' }}</span>
+              {% else %}
+              <span class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold bg-slate-700 text-slate-300">idle</span>
+              <span class="block text-[11px] text-slate-500 mt-0.5">Ready</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2.5 font-mono text-xs text-slate-200 whitespace-nowrap">
+              {% if live_here and live.occupancy_started_at %}
+              <span class="cc-elapsed" data-start-ms="{{ live.occupancy_started_at }}">00:00:00</span>
+              {% else %}
+              <span class="text-slate-600">—</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-300 border-l border-slate-800">{{ st.get('BAG_CLAIMED', 0) }}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('STATION_RESUMED', 0) }}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('BLISTER_COMPLETE', 0) }}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('SEALING_COMPLETE', 0) }}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('PACKAGING_SNAPSHOT', 0) }}</td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400 border-l border-slate-800 text-xs">
+              {% if st.get('_avg_blister') is not none %}{{ (st.get('_avg_blister') | float) | round(1) }}{% else %}—{% endif %}
+            </td>
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400 text-xs">
+              {% if st.get('_avg_sealing') is not none %}{{ (st.get('_avg_sealing') | float) | round(1) }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="bg-slate-950 text-slate-300 text-xs border-t border-slate-700">
+            <td colspan="5" class="px-3 py-2 font-semibold text-slate-400">Totals (all stations)</td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium border-l border-slate-800">{{ ov.today_claims }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium">{{ ov.today_resumes }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium">{{ ov.today_blister }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium">{{ ov.today_seal }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium">{{ ov.today_pack }}</td>
+            <td colspan="2" class="px-3 py-2 text-right text-slate-500 border-l border-slate-800">—</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <p class="px-5 py-8 text-slate-500 text-sm text-center">No workflow stations configured.</p>
+    {% endif %}
   </div>
 
-  <div class="card p-5 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-3">Live station occupancy</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-      {% for s in stations %}
-      {% set live = station_live.get(s.id, {}) %}
-      {% set live_here = live.status == 'occupied' or live.status == 'paused' %}
-      <div class="rounded-lg border p-4 {% if live_here and live.status == 'occupied' %}border-emerald-300 bg-emerald-50{% elif live_here %}border-amber-300 bg-amber-50{% else %}border-gray-200 bg-gray-50{% endif %}">
-        <div class="flex items-center justify-between mb-2">
-          <p class="font-semibold text-slate-900">{{ s.label }}</p>
-          <span class="text-xs font-medium {% if live.status == 'occupied' %}text-emerald-700{% elif live.status == 'paused' %}text-amber-800{% else %}text-slate-500{% endif %}">
-            {{ live.status or 'idle' }}
-          </span>
-        </div>
-        {% if live_here %}
-        <p class="text-xs text-slate-600">Bag #{{ live.workflow_bag_id }} · Card {{ live.card_token or '—' }}</p>
-        <p class="text-xs text-slate-600">{{ live.flavor or live.product_name or '—' }}</p>
-        <p class="text-xs text-slate-600">Receipt {{ live.receipt_number or '—' }}</p>
-        <p class="text-xs text-slate-600 mb-2">{{ live.bag_name or '—' }}</p>
-        <p class="text-sm font-semibold text-slate-900">
-          Occupied for
-          <span class="cc-elapsed" data-start-ms="{{ live.occupancy_started_at or '' }}">--:--:--</span>
-        </p>
-        {% else %}
-        <p class="text-xs text-slate-500">No active bag at this station.</p>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-  </div>
+  <details class="rounded-xl border border-gray-200 bg-gray-50/80 mb-8">
+    <summary class="px-4 py-3 cursor-pointer list-none flex items-center justify-between gap-2 font-semibold text-gray-900 text-sm">
+      <span>Staff tools and configuration</span>
+      <span class="text-xs font-normal text-gray-500">Assign bags, station URLs, QR cards</span>
+    </summary>
+    <div class="px-4 pb-5 pt-0 border-t border-gray-200 space-y-6">
 
   {% if bag_assign %}
-  <div class="card p-5 mb-8 border border-slate-200 bg-slate-50">
-    <h2 class="text-lg font-semibold text-gray-900 mb-2">Assign shipment bag to QR card</h2>
-    <p class="text-sm text-gray-600 mb-4">
-      Link a received bag (product, box #, bag #) to a bag card scan token. Same workflow as
-      <a href="{{ url_for('workflow_staff.new_bag') }}" class="text-blue-600 hover:underline">QR workflow (standalone)</a>;
-      submissions go to <code class="text-xs bg-gray-100 px-1 rounded">/workflow/staff/new-bag</code> with return to Command Center.
-    </p>
+  <div class="card p-5 mt-4 bg-white border border-gray-200">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Assign shipment bag to QR card</h2>
+    <p class="text-sm text-gray-600 mb-3">Link received inventory to a bag card token. Also available as <a href="{{ url_for('workflow_staff.new_bag') }}" class="text-blue-600 hover:underline">standalone staff form</a>.</p>
     {% include "includes/workflow_assign_bag_form.html" %}
   </div>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="{{ url_for('static', filename='js/workflow-assign-bag.js') }}"></script>
   {% endif %}
-
-  <details class="card p-5 mb-8">
-    <summary class="cursor-pointer list-none flex items-center justify-between">
-      <span class="text-lg font-semibold text-gray-900">Settings and QR Management</span>
-    </summary>
-    <p class="text-sm text-gray-600 mt-2 mb-4">Open this only when you need to manage stations or card settings.</p>
   <div class="card p-5 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-2">Undo a test assignment</h2>
     <p class="text-sm text-gray-600 mb-3">
@@ -322,6 +408,7 @@
     </table>
     {% endif %}
   </div>
+    </div>
   </details>
 </div>
 <script>

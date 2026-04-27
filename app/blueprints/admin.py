@@ -65,6 +65,132 @@ def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: int
     return f"{po_num}-{int(row['shipment_number'])}-{row['box_number']}-{row['bag_number']}"
 
 
+def _ny_today_bounds_ms() -> tuple[int, int, str]:
+    """Factory-local day bounds in America/New_York for workflow floor stats."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("America/New_York")
+    now = datetime.now(tz)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    return (
+        int(start.timestamp() * 1000),
+        int(end.timestamp() * 1000),
+        start.date().isoformat(),
+    )
+
+
+def _floor_station_day_stats(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> dict[int, dict]:
+    """Per-station workflow event counts and average count totals for the ops board."""
+    by: dict[int, dict] = {}
+    try:
+        rows = conn.execute(
+            """
+            SELECT station_id, event_type, COUNT(*) AS cnt
+            FROM workflow_events
+            WHERE station_id IS NOT NULL
+              AND occurred_at >= ? AND occurred_at < ?
+              AND event_type IN (
+                'BAG_CLAIMED',
+                'BLISTER_COMPLETE',
+                'SEALING_COMPLETE',
+                'PACKAGING_SNAPSHOT',
+                'STATION_RESUMED'
+              )
+            GROUP BY station_id, event_type
+            """,
+            (start_ms, end_ms),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    for r in rows:
+        sid = int(r["station_id"])
+        by.setdefault(sid, {})[str(r["event_type"])] = int(r["cnt"])
+    try:
+        for r in conn.execute(
+            """
+            SELECT station_id,
+                   AVG(CAST(json_extract(payload, '$.count_total') AS REAL)) AS avg_ct,
+                   COUNT(*) AS n
+            FROM workflow_events
+            WHERE event_type = 'BLISTER_COMPLETE'
+              AND occurred_at >= ? AND occurred_at < ?
+              AND station_id IS NOT NULL
+              AND json_extract(payload, '$.count_total') IS NOT NULL
+            GROUP BY station_id
+            """,
+            (start_ms, end_ms),
+        ).fetchall():
+            sid = int(r["station_id"])
+            b = by.setdefault(sid, {})
+            b["_avg_blister"] = float(r["avg_ct"]) if r["avg_ct"] is not None else None
+            b["_n_blister_avg"] = int(r["n"])
+        for r in conn.execute(
+            """
+            SELECT station_id,
+                   AVG(CAST(json_extract(payload, '$.count_total') AS REAL)) AS avg_ct,
+                   COUNT(*) AS n
+            FROM workflow_events
+            WHERE event_type = 'SEALING_COMPLETE'
+              AND occurred_at >= ? AND occurred_at < ?
+              AND station_id IS NOT NULL
+              AND json_extract(payload, '$.count_total') IS NOT NULL
+            GROUP BY station_id
+            """,
+            (start_ms, end_ms),
+        ).fetchall():
+            sid = int(r["station_id"])
+            b = by.setdefault(sid, {})
+            b["_avg_sealing"] = float(r["avg_ct"]) if r["avg_ct"] is not None else None
+            b["_n_sealing_avg"] = int(r["n"])
+    except sqlite3.OperationalError:
+        pass
+    return by
+
+
+def _floor_ops_overview(
+    stations: list[dict],
+    station_live: dict[int, dict],
+    floor_station_day_stats: dict[int, dict],
+    cards: list[dict],
+) -> dict[str, int]:
+    """Roll-up counts for the Command Center ops header (single-pane KPI strip)."""
+    occ = pau = idl = 0
+    for s in stations:
+        sid = int(s["id"])
+        st = str((station_live.get(sid) or {}).get("status") or "idle").lower()
+        if st == "occupied":
+            occ += 1
+        elif st == "paused":
+            pau += 1
+        else:
+            idl += 1
+    t_claims = t_res = t_bl = t_se = t_pk = 0
+    for d in floor_station_day_stats.values():
+        t_claims += int(d.get("BAG_CLAIMED") or 0)
+        t_res += int(d.get("STATION_RESUMED") or 0)
+        t_bl += int(d.get("BLISTER_COMPLETE") or 0)
+        t_se += int(d.get("SEALING_COMPLETE") or 0)
+        t_pk += int(d.get("PACKAGING_SNAPSHOT") or 0)
+    on_bag = sum(1 for c in cards if c.get("assigned_workflow_bag_id"))
+    n_cards = len(cards)
+    return {
+        "stations_total": len(stations),
+        "stations_occupied": occ,
+        "stations_paused": pau,
+        "stations_idle": idl,
+        "today_claims": t_claims,
+        "today_resumes": t_res,
+        "today_blister": t_bl,
+        "today_seal": t_se,
+        "today_pack": t_pk,
+        "cards_total": n_cards,
+        "cards_on_bag": on_bag,
+        "cards_idle": max(0, n_cards - on_bag),
+    }
+
+
 def _normalize_station_kind(raw) -> str:
     k = (raw or "").strip().lower()
     if k in _VALID_STATION_KINDS:
@@ -570,6 +696,17 @@ def workflow_qr_management():
             }
         except Exception:
             bag_assign = None
+        floor_station_day_stats: dict[int, dict] = {}
+        floor_ops_date_label = ""
+        try:
+            start_ms, end_ms, floor_ops_date_label = _ny_today_bounds_ms()
+            floor_station_day_stats = _floor_station_day_stats(conn, start_ms, end_ms)
+        except Exception:
+            floor_station_day_stats = {}
+            floor_ops_date_label = ""
+        floor_ops_overview = _floor_ops_overview(
+            stations, station_live, floor_station_day_stats, cards
+        )
         return render_template(
             "admin_workflow_qr.html",
             stations=stations,
@@ -580,6 +717,9 @@ def workflow_qr_management():
             station_kind_options=_STATION_KIND_ORDER,
             cards=cards,
             station_live=station_live,
+            floor_station_day_stats=floor_station_day_stats,
+            floor_ops_date_label=floor_ops_date_label,
+            floor_ops_overview=floor_ops_overview,
             bag_assign=bag_assign,
         )
     except Exception as e:
@@ -597,6 +737,9 @@ def workflow_qr_management():
             station_kind_options=_STATION_KIND_ORDER,
             cards=[],
             station_live={},
+            floor_station_day_stats={},
+            floor_ops_date_label="",
+            floor_ops_overview=_floor_ops_overview([], {}, {}, []),
             bag_assign=None,
         )
 

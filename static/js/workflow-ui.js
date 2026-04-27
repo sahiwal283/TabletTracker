@@ -180,8 +180,28 @@
       return;
     }
     if (!hasLoadedBag) {
-      statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
+      statusLine('Scan the bag card or enter the token, then tap Load bag (or press Enter).', 'info');
     }
+  }
+
+  function syncIdleStationBanner() {
+    var idleBanner = document.getElementById('wf-idle-banner');
+    if (!idleBanner) return;
+    var hideMain =
+      occupancyVerifyOpen ||
+      (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
+    var showChoice =
+      stationHasOccupantApi &&
+      !!expectedOccupantCardToken &&
+      !sessionMatchesStationOccupant() &&
+      !occupancyVerifyOpen;
+    var show =
+      !stationHasOccupantApi &&
+      !hasLoadedBag &&
+      !occupancyVerifyOpen &&
+      !showChoice &&
+      !hideMain;
+    idleBanner.classList.toggle('hidden', !show);
   }
 
   function applyOccupancyGateUi() {
@@ -228,6 +248,7 @@
         }
       }
     }
+    syncIdleStationBanner();
     maybeRefreshBagHint();
   }
 
@@ -607,7 +628,7 @@
     setActionsEnabled(false);
     applyOccupancyGateUi();
     if (showHint) {
-      statusLine('Scan or enter bag card token, then tap Refresh bag status.', 'info');
+      statusLine('Scan the bag card or enter the token, then tap Load bag (or press Enter).', 'info');
     }
   }
   function ensureLoadedBag() {
@@ -1039,13 +1060,23 @@
     });
     hasLoadedBag = true;
     applyStationFacts(data);
+    var facts = data.facts || {};
+    var needClaim = !!facts.claim_required && !facts.resume_required;
+    if (needClaim) {
+      setBagLoadedUi(true);
+      setActionsEnabled(true);
+      clearFeedback();
+      await claimBag();
+      applyOccupancyGateUi();
+      return;
+    }
     setBagLoadedUi(true);
     setActionsEnabled(true);
     configureStationActions();
     applyOccupancyGateUi();
     if (!stationClaimed) {
       setScanSuccessVisible(false);
-      statusLine('Bag loaded. Claim it at this station to continue.', 'info');
+      statusLine('Bag loaded. Use Claim if this station still requires it, or fix resume/pause state.', 'info');
     } else {
       setScanSuccessVisible(false);
       clearFeedback();
@@ -1359,6 +1390,14 @@
       inp.addEventListener('input', () => {
         resetLoadedBagState(false);
         refreshStationOccupancy().catch(function () {});
+      });
+      inp.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          refresh().catch(function (e) {
+            statusLine(String(e), 'error');
+          });
+        }
       });
     }
     const emp = employeeNameInput();

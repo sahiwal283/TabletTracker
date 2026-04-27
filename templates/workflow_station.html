@@ -18,6 +18,10 @@
   <p class="text-base text-gray-800 font-medium mb-1">{{ station_label }}</p>
   {% endif %}
   <p class="text-xs text-gray-500 mb-4">Station type: <span class="font-medium text-gray-700">{{ station_kind or 'sealing' }}</span></p>
+  <div id="wf-idle-banner" class="hidden mb-4 p-5 rounded-xl border-2 border-slate-300 bg-slate-50">
+    <p class="text-xl font-bold text-slate-900">Station idle — ready for work</p>
+    <p class="text-base text-slate-600 mt-2 leading-snug">Scan the <strong>bag card</strong> with the button below or type the token. The bag loads and is <strong>claimed at this station automatically</strong> so the run timer can start.</p>
+  </div>
   <div id="wf-occupied-banner" class="hidden mb-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50">
     <p class="text-sm text-indigo-900 font-semibold">Station currently occupied</p>
     <p class="text-2xl font-bold text-indigo-900 mt-2">
@@ -99,7 +103,7 @@
     <button type="button" id="wf-pause-count" class="hidden btn-secondary px-6 py-4 text-lg">Pause bag (end of day)</button>
     <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery / order</button>
     <button type="button" id="wf-resume-bag" class="hidden btn-primary px-6 py-4 text-lg">Resume bag</button>
-    <button type="button" id="wf-refresh" class="btn-secondary px-6 py-4 text-lg">Refresh bag status</button>
+    <button type="button" id="wf-refresh" class="btn-secondary px-6 py-4 text-lg">Load bag</button>
   </div>
   <p id="wf-station-hint" class="hidden text-xs text-gray-500 mb-3"></p>
   <p class="text-xs text-gray-500">device_id is generated in localStorage for log correlation only.</p>
