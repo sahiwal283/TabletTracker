@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.services.submission_calculator import calculate_repack_output_good
-from app.utils.auth_utils import admin_required, hash_password
+from app.utils.auth_utils import admin_required, hash_password, session_has_admin_panel_access
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.route_helpers import ensure_app_settings_table
 
@@ -17,7 +17,7 @@ bp = Blueprint('api_admin', __name__)
 @bp.route('/admin')
 def admin_panel():
     """Admin panel with quick actions and product management"""
-    if not session.get('admin_authenticated'):
+    if not session_has_admin_panel_access():
         return render_template('admin_login.html')
 
     try:

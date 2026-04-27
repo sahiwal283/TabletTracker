@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.1] - 2026-04-24
+
+### Fixed
+- **`/admin` landing:** employee users with **`employees.role = admin`** (session `employee_authenticated`, not `ADMIN_PASSWORD`) are treated like other admin surfaces: they go straight to the admin panel instead of the extra **Admin Access** password screen. Uses shared **`session_has_admin_panel_access()`** aligned with `@admin_required`.
+
+---
+
 ## [4.3.1] - 2026-04-24
 
 ### Changed

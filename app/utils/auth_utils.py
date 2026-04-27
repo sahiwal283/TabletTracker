@@ -24,6 +24,17 @@ SESSION_KEY_WAREHOUSE_SUBMISSION_EDIT_UNLOCK_UNTIL = 'warehouse_submission_edit_
 WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS = 15 * 60  # 15 minutes
 
 
+def session_has_admin_panel_access() -> bool:
+    """
+    True if user may open /admin without the env-password gate:
+    shared ADMIN_PASSWORD session, or employee account with role admin.
+    Matches @admin_required behavior.
+    """
+    if session.get('admin_authenticated'):
+        return True
+    return bool(session.get('employee_authenticated') and session.get('employee_role') == 'admin')
+
+
 def warehouse_submission_edit_unlock_valid() -> bool:
     """True if warehouse staff session has an active timed unlock for editing submissions."""
     import time
@@ -63,11 +74,7 @@ def admin_required(f: Callable) -> Callable:
 
     @wraps(f)
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
-        # Allow if admin authenticated OR if employee authenticated with admin role
-        if not (
-            session.get('admin_authenticated')
-            or (session.get('employee_authenticated') and session.get('employee_role') == 'admin')
-        ):
+        if not session_has_admin_panel_access():
             # Check if this is an API request (starts with /api/)
             if request.path.startswith('/api/'):
                 return jsonify({'success': False, 'error': 'Access denied. Admin authentication required.'}), 403

@@ -20,7 +20,7 @@ from app.blueprints.workflow_staff import ASSIGN_BAG_RETURN_COMMAND_CENTER, _loa
 from app.services import workflow_constants as WC
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
-from app.utils.auth_utils import admin_required
+from app.utils.auth_utils import admin_required, session_has_admin_panel_access
 from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
@@ -213,25 +213,93 @@ def _ops_tv_daily_target_tablets(conn: sqlite3.Connection) -> int:
     return 800
 
 
+def _displays_finalize_sum_range(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> float:
+    try:
+        r = conn.execute(
+            """
+            SELECT COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS s
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(payload, '$.reason') = 'final_submit'
+              AND json_extract(payload, '$.display_count') IS NOT NULL
+            """,
+            (start_ms, end_ms),
+        ).fetchone()
+        return float(r["s"] or 0) if r else 0.0
+    except sqlite3.OperationalError:
+        return 0.0
+
+
+def _avg_daily_displays_finalize_prior_days(
+    conn: sqlite3.Connection, today_start_ms: int, n_days: int
+) -> float:
+    day_ms = 86400000
+    totals: list[float] = []
+    for i in range(1, n_days + 1):
+        day_end = today_start_ms - (i - 1) * day_ms
+        day_start = day_end - day_ms
+        totals.append(_displays_finalize_sum_range(conn, day_start, day_end))
+    if not totals:
+        return 0.0
+    return float(sum(totals)) / float(len(totals))
+
+
+def _bag_sealed_awaiting_packaging(conn: sqlite3.Connection, bag_id: int) -> bool:
+    """True if bag is sealed but not finalized and not yet claimed at a packaging station."""
+    try:
+        seal = conn.execute(
+            """
+            SELECT MAX(occurred_at) AS t
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND event_type = 'SEALING_COMPLETE'
+            """,
+            (bag_id,),
+        ).fetchone()
+        if not seal or seal["t"] is None:
+            return False
+        seal_t = int(seal["t"])
+        fin = conn.execute(
+            """
+            SELECT 1
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND occurred_at >= ?
+              AND (
+                event_type = 'BAG_FINALIZED'
+                OR (
+                  event_type = 'PACKAGING_SNAPSHOT'
+                  AND json_extract(payload, '$.reason') = 'final_submit'
+                )
+              )
+            LIMIT 1
+            """,
+            (bag_id, seal_t),
+        ).fetchone()
+        if fin:
+            return False
+        pack_claim = conn.execute(
+            """
+            SELECT 1
+            FROM workflow_events we
+            JOIN workflow_stations ws ON ws.id = we.station_id
+            WHERE we.workflow_bag_id = ?
+              AND we.event_type = 'BAG_CLAIMED'
+              AND we.occurred_at > ?
+              AND LOWER(COALESCE(ws.station_kind, '')) = 'packaging'
+            LIMIT 1
+            """,
+            (bag_id, seal_t),
+        ).fetchone()
+        return pack_claim is None
+    except sqlite3.OperationalError:
+        return False
+
+
 def _hist_station_totals_7d(conn: sqlite3.Connection, today_start_ms: int) -> dict[int, float]:
-    """Tablets + packaging displays per station for the 7 NY days before today_start_ms."""
+    """Packaging final-submit displays per station over the 7 NY days before today_start_ms."""
     hist_start = today_start_ms - 7 * 24 * 3600 * 1000
     out: dict[int, float] = defaultdict(float)
     try:
-        for r in conn.execute(
-            """
-            SELECT station_id,
-                   COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS tablets
-            FROM workflow_events
-            WHERE occurred_at >= ? AND occurred_at < ?
-              AND station_id IS NOT NULL
-              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
-              AND json_extract(payload, '$.count_total') IS NOT NULL
-            GROUP BY station_id
-            """,
-            (hist_start, today_start_ms),
-        ).fetchall():
-            out[int(r["station_id"])] = float(r["tablets"] or 0)
         for r in conn.execute(
             """
             SELECT station_id,
@@ -240,12 +308,13 @@ def _hist_station_totals_7d(conn: sqlite3.Connection, today_start_ms: int) -> di
             WHERE occurred_at >= ? AND occurred_at < ?
               AND station_id IS NOT NULL
               AND event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(payload, '$.reason') = 'final_submit'
               AND json_extract(payload, '$.display_count') IS NOT NULL
             GROUP BY station_id
             """,
             (hist_start, today_start_ms),
         ).fetchall():
-            out[int(r["station_id"])] += float(r["d"] or 0)
+            out[int(r["station_id"])] = float(r["d"] or 0)
     except sqlite3.OperationalError:
         pass
     return out
@@ -302,21 +371,22 @@ def _ops_smart_alerts(
 ) -> list[dict]:
     """High-signal alerts for the TV ticker (prepended before raw activity)."""
     out: list[dict] = []
-    pct_floor = float(kpis.get("throughput_pct") or 0)
-    tgt = int(targets.get("daily_output_tablets") or 800)
-    if pct_floor < 80.0:
+    vs30 = float(kpis.get("displays_vs_30d_pct") or 0)
+    avg_d = float(kpis.get("displays_30d_avg_per_day") or 0)
+    today_d = int(kpis.get("displays_today") or 0)
+    if avg_d > 0.5 and vs30 < 80.0:
         out.append(
             {
                 "at_ms": now_ms,
-                "message": f"Floor output {pct_floor:.0f}% of daily target ({tgt:,} tablets) — behind pace",
+                "message": f"Displays today ({today_d}) below 30d average pace ({vs30:.0f}% of typical day)",
                 "severity": "warn",
             }
         )
-    elif pct_floor >= 100.0:
+    elif avg_d > 0.5 and vs30 >= 110.0:
         out.append(
             {
                 "at_ms": now_ms,
-                "message": f"Floor output at {pct_floor:.0f}% of target — on or ahead of pace",
+                "message": f"Displays today ({today_d}) ahead of 30d average ({vs30:.0f}%)",
                 "severity": "info",
             }
         )
@@ -438,41 +508,31 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
         }
 
-    daily_target = _ops_tv_daily_target_tablets(conn)
-    total_out = 0.0
-    try:
-        r = conn.execute(
-            """
-            SELECT COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS s
-            FROM workflow_events
-            WHERE occurred_at >= ? AND occurred_at < ?
-              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
-              AND json_extract(payload, '$.count_total') IS NOT NULL
-            """,
-            (start_ms, end_ms),
-        ).fetchone()
-        total_out = float(r["s"] or 0) if r else 0.0
-    except sqlite3.OperationalError:
-        pass
-
-    throughput_pct = min(199.0, (total_out / float(daily_target)) * 100.0) if daily_target else 0.0
+    displays_today = _displays_finalize_sum_range(conn, start_ms, end_ms)
+    avg_daily_displays_30d = _avg_daily_displays_finalize_prior_days(conn, start_ms, 30)
+    displays_vs_30d_pct = (
+        round((displays_today / avg_daily_displays_30d) * 100.0, 1)
+        if avg_daily_displays_30d > 0.01
+        else 0.0
+    )
 
     per_out: dict[int, float] = {}
     try:
         for r in conn.execute(
             """
             SELECT station_id,
-                   COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS tablets
+                   COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS d
             FROM workflow_events
             WHERE occurred_at >= ? AND occurred_at < ?
               AND station_id IS NOT NULL
-              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
-              AND json_extract(payload, '$.count_total') IS NOT NULL
+              AND event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(payload, '$.reason') = 'final_submit'
+              AND json_extract(payload, '$.display_count') IS NOT NULL
             GROUP BY station_id
             """,
             (start_ms, end_ms),
         ).fetchall():
-            per_out[int(r["station_id"])] = float(r["tablets"] or 0)
+            per_out[int(r["station_id"])] = float(r["d"] or 0)
     except sqlite3.OperationalError:
         pass
 
@@ -482,12 +542,13 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         q = """
             SELECT station_id,
                    CAST((occurred_at - ?) / 3600000 AS INTEGER) AS hr,
-                   COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS v
+                   COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS v
             FROM workflow_events
             WHERE occurred_at >= ? AND occurred_at < ?
               AND station_id IS NOT NULL
-              AND event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
-              AND json_extract(payload, '$.count_total') IS NOT NULL
+              AND event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(payload, '$.reason') = 'final_submit'
+              AND json_extract(payload, '$.display_count') IS NOT NULL
             GROUP BY station_id, hr
             """
         for r in conn.execute(q, (start_ms, start_ms, end_ms)).fetchall():
@@ -505,31 +566,38 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         run += hourly[h]
         cumulative_hourly.append(round(run, 1))
 
+    pace_per_hour = avg_daily_displays_30d / 24.0 if avg_daily_displays_30d > 0 else 0.0
+    chart_target_cumulative = [round(pace_per_hour * (h + 1), 1) for h in range(24)]
+
     cycle_mins: list[float] = []
     try:
         for r in conn.execute(
             """
-            WITH claims AS (
-                SELECT workflow_bag_id, station_id, occurred_at AS t0
+            WITH fin AS (
+                SELECT workflow_bag_id, MIN(occurred_at) AS t1
+                FROM workflow_events
+                WHERE occurred_at >= ? AND occurred_at < ?
+                  AND (
+                    event_type = 'BAG_FINALIZED'
+                    OR (
+                      event_type = 'PACKAGING_SNAPSHOT'
+                      AND json_extract(payload, '$.reason') = 'final_submit'
+                    )
+                  )
+                GROUP BY workflow_bag_id
+            ),
+            claims AS (
+                SELECT workflow_bag_id, MIN(occurred_at) AS t0
                 FROM workflow_events
                 WHERE event_type = 'BAG_CLAIMED'
-                  AND occurred_at >= ? AND occurred_at < ?
-            ),
-            seals AS (
-                SELECT workflow_bag_id, station_id, MIN(occurred_at) AS t1
-                FROM workflow_events
-                WHERE event_type = 'SEALING_COMPLETE'
-                  AND occurred_at >= ? AND occurred_at < ?
-                GROUP BY workflow_bag_id, station_id
+                GROUP BY workflow_bag_id
             )
-            SELECT (s.t1 - c.t0) / 60000.0 AS cm
-            FROM claims c
-            JOIN seals s
-              ON s.workflow_bag_id = c.workflow_bag_id
-             AND s.station_id = c.station_id
-            WHERE s.t1 > c.t0 AND (s.t1 - c.t0) <= 7200000
+            SELECT (f.t1 - c.t0) / 60000.0 AS cm
+            FROM fin f
+            JOIN claims c ON c.workflow_bag_id = f.workflow_bag_id
+            WHERE f.t1 > c.t0 AND (f.t1 - c.t0) <= 72 * 3600000
             """,
-            (start_ms, end_ms, start_ms, end_ms),
+            (start_ms, end_ms),
         ).fetchall():
             cycle_mins.append(float(r["cm"]))
     except sqlite3.OperationalError:
@@ -579,6 +647,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
                 "bag_id": live.get("workflow_bag_id"),
                 "occupancy_started_at_ms": live.get("occupancy_started_at"),
                 "output_today": out_today,
+                "displays_today": out_today,
                 "sparkline": spark,
             }
         )
@@ -686,13 +755,14 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         for r in conn.execute(
             """
             SELECT COALESCE(NULLIF(TRIM(pd.product_name), ''), 'Unknown') AS pname,
-                   COALESCE(SUM(CAST(json_extract(we.payload, '$.count_total') AS REAL)), 0) AS v
+                   COALESCE(SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)), 0) AS v
             FROM workflow_events we
             JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
-              AND we.event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
-              AND json_extract(we.payload, '$.count_total') IS NOT NULL
+              AND we.event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(we.payload, '$.reason') = 'final_submit'
+              AND json_extract(we.payload, '$.display_count') IS NOT NULL
             GROUP BY pname
             ORDER BY v DESC
             LIMIT 8
@@ -762,11 +832,12 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         "idle_machines": idle,
         "paused_machines": paused,
         "down_machines": 0,
-        "total_output_today": int(round(total_out)),
-        "throughput_pct": round(throughput_pct, 1),
+        "displays_today": int(round(displays_today)),
+        "displays_30d_avg_per_day": round(avg_daily_displays_30d, 1),
+        "displays_vs_30d_pct": displays_vs_30d_pct,
         "avg_cycle_time_min": avg_cycle,
     }
-    targets_out = {"daily_output_tablets": daily_target}
+    targets_out = {"benchmark_displays_pace_per_hour": round(pace_per_hour, 2)}
     smart_acts = _ops_smart_alerts(now_ms, kpis_out, targets_out, machines, flow_intel)
     activity = smart_acts + activity
     activity.sort(
@@ -776,8 +847,6 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         )
     )
     activity = activity[:48]
-
-    chart_target_cumulative = [round(float(daily_target) * (h + 1) / 24.0, 0) for h in range(24)]
 
     return {
         "generated_at_ms": now_ms,
@@ -899,8 +968,7 @@ def _machine_allowed_for_station_kind(
 @bp.route('/admin')
 def admin_panel():
     """Admin panel with quick actions and product management"""
-    # Check for admin session
-    if not session.get('admin_authenticated'):
+    if not session_has_admin_panel_access():
         return render_template('admin_login.html')
 
     try:
@@ -1271,8 +1339,12 @@ def workflow_qr_management():
                 bag_id = c.get("assigned_workflow_bag_id")
                 if not bag_id:
                     continue
-                sid = bag_station_for_card_label.get(int(bag_id))
+                bid = int(bag_id)
+                sid = bag_station_for_card_label.get(bid)
                 if sid is None:
+                    if _bag_sealed_awaiting_packaging(conn, bid):
+                        c["status_display"] = "Staging · before packaging"
+                        c["current_station_label"] = None
                     continue
                 live = station_live.get(sid) or {}
                 station_label = next(
