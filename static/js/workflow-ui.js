@@ -19,6 +19,9 @@
   let expectedOccupantCardToken = null;
   /** Showing scan/input to verify card after Pause / End / Resume. */
   let occupancyVerifyOpen = false;
+  let lastOccupancyVerifyMode = null;
+  /** After verifying for "End run", show only submit until counts are saved (hide pause/hand pack on blister). */
+  let occupancyGateIntentEndRun = false;
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
   var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
@@ -184,6 +187,7 @@
   }
 
   function openOccupancyVerify(mode) {
+    lastOccupancyVerifyMode = mode || null;
     occupancyVerifyOpen = true;
     clearFeedback();
     var inst = document.getElementById('wf-verify-instruction');
@@ -204,6 +208,8 @@
 
   function cancelOccupancyVerify() {
     occupancyVerifyOpen = false;
+    lastOccupancyVerifyMode = null;
+    occupancyGateIntentEndRun = false;
     stopVerifyQrScanner().catch(function () {});
     applyOccupancyGateUi();
   }
@@ -222,9 +228,17 @@
     }
     await stopVerifyQrScanner();
     occupancyVerifyOpen = false;
+    var intentEndRun = lastOccupancyVerifyMode === 'end';
+    lastOccupancyVerifyMode = null;
     var pin = productInput();
     if (pin) pin.value = tok;
     await refresh();
+    if (intentEndRun) {
+      occupancyGateIntentEndRun = true;
+    }
+    configureStationActions();
+    applyOccupancyGateUi();
+    refreshStationOccupancy().catch(function () {});
   }
 
   function setVerifyScanUi(scanning) {
@@ -540,6 +554,7 @@
     hasLoadedBag = false;
     stationClaimed = false;
     stationNeedsResume = false;
+    occupancyGateIntentEndRun = false;
     renderBagVerification(null);
     setScanSuccessVisible(false);
     clearAllActionCooldowns();
@@ -737,8 +752,13 @@
       if (countLabel) countLabel.textContent = 'Blister machine count total';
       if (hint) {
         hint.classList.remove('hidden');
-        hint.textContent =
-          'Blister lane: submit blister count, or use Hand pack the rest if machine stopped mid-bag, or pause with current count.';
+        hint.textContent = occupancyGateIntentEndRun
+          ? 'End run: enter the final blister count and tap Submit below. Station opens for the next bag after submit.'
+          : 'Blister lane: submit blister count, or use Hand pack the rest if machine stopped mid-bag, or pause with current count.';
+      }
+      if (occupancyGateIntentEndRun) {
+        if (pauseBtn) pauseBtn.classList.add('hidden');
+        if (handpackBtn) handpackBtn.classList.add('hidden');
       }
     } else if (kind === 'sealing') {
       saveBtn.textContent = 'Submit sealing count';
@@ -746,8 +766,11 @@
       if (countLabel) countLabel.textContent = 'Sealing machine count total';
       if (hint) {
         hint.classList.remove('hidden');
-        hint.textContent = 'Sealing lane: submit sealing machine count, or pause with current count.';
+        hint.textContent = occupancyGateIntentEndRun
+          ? 'End run: enter the sealing count and tap Submit below.'
+          : 'Sealing lane: submit sealing machine count, or pause with current count.';
       }
+      if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
     } else if (kind === 'packaging') {
       saveBtn.textContent = 'Submit';
       pauseBtn.textContent = 'Pause packaging bag';
@@ -767,8 +790,13 @@
       if (countLabel) countLabel.textContent = 'Machine count total';
       if (hint) {
         hint.classList.remove('hidden');
-        hint.textContent =
-          'Combined lane: submit blister or sealing count, use Hand pack the rest when blister machine fails mid-bag, or pause with current count.';
+        hint.textContent = occupancyGateIntentEndRun
+          ? 'End run: submit the remaining count for this step (blister or sealing) with the buttons below.'
+          : 'Combined lane: submit blister or sealing count, use Hand pack the rest when blister machine fails mid-bag, or pause with current count.';
+      }
+      if (occupancyGateIntentEndRun) {
+        if (pauseBtn) pauseBtn.classList.add('hidden');
+        if (handpackBtn) handpackBtn.classList.add('hidden');
       }
     } else {
       if (countLabel) countLabel.textContent = 'Machine count total';
@@ -992,6 +1020,7 @@
       occupancyIsPaused = false;
       expectedOccupantCardToken = null;
       occupancyVerifyOpen = false;
+      occupancyGateIntentEndRun = false;
       stopOccupancyTimer();
       renderOccupancyBanner(null, null);
       renderBagVerification(null);
@@ -1042,6 +1071,7 @@
         count_total: countTotal,
         employee_name: requiredEmployeeName(),
       });
+      occupancyGateIntentEndRun = false;
       clearCountField();
       clearEmployeeNameField();
       configureStationActions();
@@ -1055,6 +1085,7 @@
         count_total: countTotal,
         employee_name: requiredEmployeeName(),
       });
+      occupancyGateIntentEndRun = false;
       clearCountField();
       clearEmployeeNameField();
       configureStationActions();
@@ -1076,6 +1107,7 @@
       count_total: countTotal,
       employee_name: requiredEmployeeName(),
     });
+    occupancyGateIntentEndRun = false;
     clearCountField();
     clearEmployeeNameField();
     configureStationActions();
@@ -1091,6 +1123,7 @@
       count_total: countTotal,
       employee_name: requiredEmployeeName(),
     });
+    occupancyGateIntentEndRun = false;
     clearCountField();
     clearEmployeeNameField();
     configureStationActions();
@@ -1113,6 +1146,7 @@
         reason: 'machine_partial_handpack_rest',
       },
     });
+    occupancyGateIntentEndRun = false;
     clearCountField();
     clearEmployeeNameField();
     configureStationActions();
@@ -1124,6 +1158,7 @@
   }
   async function pauseWithCount() {
     ensureLoadedBag();
+    occupancyGateIntentEndRun = false;
     assertActionCooldown('pause');
     const kind = stationKind();
     const countTotal = selectedCountTotal();

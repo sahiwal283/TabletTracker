@@ -88,6 +88,61 @@ def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
     return False
 
 
+def _occupancy_lane_finished_at_station(
+    conn: sqlite3.Connection,
+    *,
+    station_id: int,
+    workflow_bag_id: int,
+    station_kind: str,
+) -> bool:
+    """
+    True when the active session at this station has completed the lane step for this station type
+    (non-pause machine submit), so the physical station should show idle for the next bag.
+
+    Without this, occupancy stayed forever on the latest BAG_CLAIMED row even after BLISTER_COMPLETE,
+    blocking new scans at blister/sealing lanes.
+    """
+    kind = (station_kind or "sealing").strip().lower()
+    rows = conn.execute(
+        """
+        SELECT event_type, payload
+        FROM workflow_events
+        WHERE workflow_bag_id = ? AND station_id = ?
+        ORDER BY occurred_at ASC, id ASC
+        """,
+        (workflow_bag_id, station_id),
+    ).fetchall()
+    session_active = False
+    for row in rows:
+        et = row["event_type"]
+        try:
+            pl = json.loads(row["payload"]) if row["payload"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pl = {}
+        if not isinstance(pl, dict):
+            pl = {}
+        if et in (WC.EVENT_BAG_CLAIMED, WC.EVENT_STATION_RESUMED):
+            session_active = True
+            continue
+        if not session_active:
+            continue
+        if kind == "blister":
+            if et == WC.EVENT_BLISTER_COMPLETE and not _is_pause_workflow_event(et, pl):
+                return True
+        elif kind == "sealing":
+            if et == WC.EVENT_SEALING_COMPLETE and not _is_pause_workflow_event(et, pl):
+                return True
+        elif kind == "combined":
+            if et == WC.EVENT_SEALING_COMPLETE and not _is_pause_workflow_event(et, pl):
+                return True
+        elif kind == "packaging":
+            if et == WC.EVENT_PACKAGING_TAKEN_FOR_ORDER:
+                return True
+            if et == WC.EVENT_PACKAGING_SNAPSHOT and not _is_pause_workflow_event(et, pl):
+                return True
+    return False
+
+
 def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> bool:
     """
     After a pause-style count/snapshot, operators must emit STATION_RESUMED before more counts.
@@ -186,6 +241,16 @@ def _assigned_card_token_for_bag(conn: sqlite3.Connection, workflow_bag_id: int)
 
 
 def _current_station_occupancy(conn: sqlite3.Connection, station_id: int) -> dict | None:
+    sk_row = conn.execute(
+        """
+        SELECT COALESCE(station_kind, 'sealing') AS station_kind
+        FROM workflow_stations
+        WHERE id = ?
+        """,
+        (station_id,),
+    ).fetchone()
+    station_kind = (sk_row["station_kind"] if sk_row else None) or "sealing"
+
     row = conn.execute(
         """
         SELECT we.workflow_bag_id, we.occurred_at, qc.scan_token AS card_token
@@ -208,6 +273,13 @@ def _current_station_occupancy(conn: sqlite3.Connection, station_id: int) -> dic
     if not row:
         return None
     bag_id = int(row["workflow_bag_id"])
+    if _occupancy_lane_finished_at_station(
+        conn,
+        station_id=station_id,
+        workflow_bag_id=bag_id,
+        station_kind=station_kind,
+    ):
+        return None
     started_at = int(row["occurred_at"])
     facts = _station_facts_payload(conn, bag_id, station_id)
     status = "paused" if facts.get("resume_required") else "occupied"
