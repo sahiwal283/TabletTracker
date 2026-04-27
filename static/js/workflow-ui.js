@@ -86,6 +86,51 @@
     if (!panel) return;
     panel.classList.toggle('hidden', !visible);
   }
+
+  var fullscreenSuccessTimer = null;
+  var fullscreenSuccessDismissCallback = null;
+
+  function hideFullscreenSuccess() {
+    var el = document.getElementById('wf-fullscreen-success');
+    if (el) el.classList.add('hidden');
+    if (fullscreenSuccessTimer) {
+      clearTimeout(fullscreenSuccessTimer);
+      fullscreenSuccessTimer = null;
+    }
+    try {
+      document.body.classList.remove('overflow-hidden');
+    } catch (_e) {
+      /* */
+    }
+    var cb = fullscreenSuccessDismissCallback;
+    fullscreenSuccessDismissCallback = null;
+    if (typeof cb === 'function') {
+      cb();
+    }
+  }
+
+  /** Full-screen green check + message for 3–7s (default 5s), then optional callback (e.g. refresh occupancy). */
+  function showFullscreenSuccess(message, durationMs, onDismiss) {
+    var el = document.getElementById('wf-fullscreen-success');
+    var msgEl = document.getElementById('wf-fullscreen-success-msg');
+    if (!el || !msgEl) return;
+    hideFullscreenSuccess();
+    msgEl.textContent = message || '';
+    fullscreenSuccessDismissCallback = typeof onDismiss === 'function' ? onDismiss : null;
+    var ms =
+      typeof durationMs === 'number' && durationMs >= 1500
+        ? durationMs
+        : 3000 + Math.floor(Math.random() * 4001);
+    el.classList.remove('hidden');
+    try {
+      document.body.classList.add('overflow-hidden');
+    } catch (_e2) {
+      /* */
+    }
+    fullscreenSuccessTimer = setTimeout(function () {
+      hideFullscreenSuccess();
+    }, ms);
+  }
   function formatElapsedMs(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
     var h = Math.floor(total / 3600);
@@ -1002,8 +1047,11 @@
       setScanSuccessVisible(false);
       statusLine('Bag loaded. Claim it at this station to continue.', 'info');
     } else {
-      setScanSuccessVisible(true);
-      statusLine('Bag loaded successfully.', 'success');
+      setScanSuccessVisible(false);
+      clearFeedback();
+      showFullscreenSuccess('Bag loaded successfully. You can enter counts below.', undefined, function () {
+        refreshStationOccupancy().catch(function () {});
+      });
     }
   }
   async function refreshStationOccupancy() {
@@ -1058,8 +1106,11 @@
     applyStationFacts(data);
     configureStationActions();
     setActionsEnabled(true);
-    setScanSuccessVisible(true);
-    statusLine('Bag claimed at this station.', 'success');
+    setScanSuccessVisible(false);
+    clearFeedback();
+    showFullscreenSuccess('Bag claimed at this station.', undefined, function () {
+      refreshStationOccupancy().catch(function () {});
+    });
   }
   async function saveCountAndContinue() {
     ensureLoadedBag();
