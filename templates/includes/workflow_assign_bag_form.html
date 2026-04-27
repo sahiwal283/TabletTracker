@@ -94,6 +94,9 @@
     </label>
     <p class="text-xs text-gray-500 mt-1">Use when this bag is packed by hand in sealing; blister is not required before packaging submit/finalize.</p>
   </div>
-  <button type="submit" class="btn-primary">Find bag and assign QR card</button>
+  <button type="submit" class="btn-primary" {% if not ba.products %}disabled aria-disabled="true"{% endif %}>Find bag and assign QR card</button>
+  {% if not ba.products %}
+  <p class="text-xs text-amber-800 mt-2">Choose a product above before submitting — or open the <a href="{{ url_for('workflow_staff.new_bag', return_to=ba.return_to or '') }}" class="underline font-medium">staff assign page</a>.</p>
+  {% endif %}
 </form>
 {% endif %}

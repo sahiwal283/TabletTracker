@@ -33,6 +33,8 @@ _STATION_SCAN_TOKEN_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 
 _VALID_STATION_KINDS = frozenset({"sealing", "blister", "packaging", "combined"})
 _STATION_KIND_ORDER = ["sealing", "blister", "packaging", "combined"]
+# Add-station dropdown: omit legacy "combined" (multi-step on one device).
+_STATION_KIND_ORDER_ADD = ["sealing", "blister", "packaging"]
 
 
 def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: int | None) -> str:
@@ -1520,23 +1522,26 @@ def workflow_qr_management():
         for s in stations:
             k = _normalize_station_kind(s.get("station_kind"))
             stations_by_kind.setdefault(k, []).append(s)
-        bag_assign = None
+        bag_assign = {
+            "products": [],
+            "ambiguous_matches": None,
+            "form_product_id": None,
+            "form_box_number": None,
+            "form_bag_number": None,
+            "form_card_scan_token": None,
+            "form_receipt_number": None,
+            "form_hand_packed": False,
+            "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
+            "restart_url": url_for("admin.workflow_qr_management"),
+            "products_load_failed": False,
+        }
         try:
-            wf_products = _load_workflow_products(conn)
-            bag_assign = {
-                "products": wf_products,
-                "ambiguous_matches": None,
-                "form_product_id": None,
-                "form_box_number": None,
-                "form_bag_number": None,
-                "form_card_scan_token": None,
-                "form_receipt_number": None,
-                "form_hand_packed": False,
-                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
-                "restart_url": url_for("admin.workflow_qr_management"),
-            }
+            bag_assign["products"] = _load_workflow_products(conn)
         except Exception:
-            bag_assign = None
+            bag_assign["products_load_failed"] = True
+            current_app.logger.warning(
+                "workflow_qr_management: assign form product list unavailable", exc_info=True
+            )
         floor_station_day_stats: dict[int, dict] = {}
         floor_ops_date_label = ""
         try:
@@ -1555,7 +1560,7 @@ def workflow_qr_management():
             sealing_machines=sealing_machines,
             blister_machines=blister_machines,
             all_machines=all_machines,
-            station_kind_options=_STATION_KIND_ORDER,
+            station_kind_options=_STATION_KIND_ORDER_ADD,
             cards=cards,
             station_live=station_live,
             floor_station_day_stats=floor_station_day_stats,
@@ -1575,13 +1580,25 @@ def workflow_qr_management():
             sealing_machines=[],
             blister_machines=[],
             all_machines=[],
-            station_kind_options=_STATION_KIND_ORDER,
+            station_kind_options=_STATION_KIND_ORDER_ADD,
             cards=[],
             station_live={},
             floor_station_day_stats={},
             floor_ops_date_label="",
             floor_ops_overview=_floor_ops_overview([], {}, {}, []),
-            bag_assign=None,
+            bag_assign={
+                "products": [],
+                "ambiguous_matches": None,
+                "form_product_id": None,
+                "form_box_number": None,
+                "form_bag_number": None,
+                "form_card_scan_token": None,
+                "form_receipt_number": None,
+                "form_hand_packed": False,
+                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                "restart_url": url_for("admin.workflow_qr_management"),
+                "products_load_failed": True,
+            },
         )
 
 

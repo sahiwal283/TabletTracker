@@ -559,7 +559,7 @@
         charts.bar.data.labels = bars.map(function (b) { return b.name; });
         charts.bar.data.datasets = [
           {
-            label: "Output (packaging = displays · other = tablets)",
+            label: "Output (packaging = displays · blister/seal = tablets)",
             data: bars.map(function (b) { return b.output; }),
             backgroundColor: bars.map(function (_, j) {
               return palette[j % palette.length];
