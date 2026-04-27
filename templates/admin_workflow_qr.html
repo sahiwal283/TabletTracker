@@ -38,10 +38,9 @@
         <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Command Center</h1>
         <p class="text-slate-400 text-sm mt-0.5">
           Floor status and today&rsquo;s production signals
-          {% if floor_ops_date_label %}<span class="text-slate-500">· {{ floor_ops_date_label }} ET</span>{% endif %}
+          {% if floor_ops_date_label %}<span class="text-slate-500">· {{ floor_ops_date_label }} ET (calendar day)</span>{% endif %}
         </p>
         <div class="flex flex-wrap items-center gap-2 mt-2">
-          <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="inline-flex items-center rounded-lg bg-cyan-500/20 border border-cyan-400/50 text-cyan-200 hover:bg-cyan-500/30 text-sm font-medium px-3 py-1.5">Assign bag to QR card</a>
           <a href="{{ url_for('admin.ops_tv_dashboard') }}" class="inline-flex items-center rounded-lg border border-slate-600 text-slate-200 hover:border-cyan-400/60 hover:text-cyan-200 text-sm font-medium px-3 py-1.5">TV board</a>
         </div>
       </div>
@@ -103,7 +102,7 @@
         <tbody class="text-slate-100">
           {% for s in stations %}
           {% set live = station_live.get(s.id, {}) %}
-          {% set st = floor_station_day_stats.get(s.id, {}) %}
+          {% set st = floor_station_day_stats.get(s.id | int, {}) %}
           {% set live_here = live.status == 'occupied' or live.status == 'paused' %}
           <tr class="border-b border-slate-800/90 {% if loop.index0 % 2 == 0 %}bg-slate-900{% else %}bg-slate-900/75{% endif %} {% if live_here and live.status == 'occupied' %}border-l-4 border-l-emerald-500{% elif live_here %}border-l-4 border-l-amber-400{% endif %}">
             <td class="px-3 py-2.5 font-medium text-white whitespace-nowrap">{{ s.label }}</td>
@@ -166,8 +165,8 @@
     <div class="px-4 pb-5 pt-4 border-t border-gray-200 space-y-6">
 
   {% if bag_assign %}
-  <div class="card p-5 bg-white border border-gray-200">
-    <h2 class="text-base font-semibold text-gray-900 mb-1">Assign shipment bag to QR card</h2>
+  <div class="card p-5 bg-white border-2 border-cyan-300/80 shadow-sm">
+    <h2 class="text-base font-semibold text-gray-900 mb-1">Assign bag to QR card</h2>
     <p class="text-sm text-gray-600 mb-3">Link received inventory to a bag card token. Also available as <a href="{{ url_for('workflow_staff.new_bag') }}" class="text-blue-600 hover:underline">standalone staff form</a>.</p>
     {% include "includes/workflow_assign_bag_form.html" %}
   </div>

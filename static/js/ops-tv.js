@@ -268,6 +268,16 @@
           "</div>" +
           (hint ? '<div class="ops-card-perf-hint">' + hint + "</div>" : "") +
           "</div>";
+        var outUnit = m.output_unit || (m.station_kind === "packaging" ? "displays" : "tablets");
+        var outLabel = outUnit === "displays" ? "Displays today" : "Tablets today";
+        var outVal =
+          m.output_today != null
+            ? m.output_today
+            : outUnit === "displays" && m.displays_today != null
+              ? m.displays_today
+              : m.tablets_today != null
+                ? m.tablets_today
+                : 0;
         return (
           '<article class="ops-card ops-card--' +
           st +
@@ -289,12 +299,10 @@
           (m.product || "—") +
           "</div>" +
           timer +
-          '<div class="ops-card-out">Displays today · ' +
-          (m.displays_today != null
-            ? m.displays_today.toLocaleString()
-            : m.output_today != null
-              ? m.output_today.toLocaleString()
-              : "0") +
+          '<div class="ops-card-out">' +
+          outLabel +
+          " · " +
+          Number(outVal).toLocaleString() +
           "</div>" +
           perfBlock +
           '<canvas class="ops-card-spark" width="200" height="36" data-spark="' +
@@ -545,13 +553,13 @@
       if (!bars.length) {
         charts.bar.data.labels = ["—"];
         charts.bar.data.datasets = [
-          { label: "Tablets", data: [0], backgroundColor: ["rgba(122,138,154,0.4)"] },
+          { label: "Output", data: [0], backgroundColor: ["rgba(122,138,154,0.4)"] },
         ];
       } else {
         charts.bar.data.labels = bars.map(function (b) { return b.name; });
         charts.bar.data.datasets = [
           {
-            label: "Displays",
+            label: "Output (packaging = displays · other = tablets)",
             data: bars.map(function (b) { return b.output; }),
             backgroundColor: bars.map(function (_, j) {
               return palette[j % palette.length];

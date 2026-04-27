@@ -34,10 +34,10 @@ body {
 .ops-root {
   height: 100vh;
   width: 100vw;
-  padding: 0.14rem 0.28rem 0.18rem;
+  padding: 0.12rem 0.24rem 0.14rem;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(300px, 48vh);
-  gap: 0.1rem;
+  grid-template-rows: auto minmax(0, min(40vh, 380px)) minmax(260px, 1fr);
+  gap: 0.08rem;
   position: relative;
 }
 
@@ -320,10 +320,11 @@ body {
 .ops-cards {
   flex: 1;
   min-height: 0;
+  max-height: 100%;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
-  grid-auto-rows: minmax(128px, 1fr);
-  gap: 0.16rem;
+  grid-auto-rows: minmax(118px, 1fr);
+  gap: 0.12rem;
   overflow: hidden;
   align-content: start;
 }
@@ -562,18 +563,18 @@ body {
 }
 
 .ops-chart-row-main {
-  flex: 1.15;
-  min-height: 120px;
+  flex: 1.2;
+  min-height: 140px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.1rem;
 }
 
 .ops-chart-row-sub {
-  flex: 0.95;
-  min-height: 100px;
+  flex: 1;
+  min-height: 130px;
   display: grid;
-  grid-template-columns: 1.35fr minmax(5.5rem, 10vw);
+  grid-template-columns: 1.35fr minmax(6rem, 12vw);
   gap: 0.1rem;
 }
 
@@ -595,6 +596,15 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
+  flex-shrink: 0;
+}
+
+.ops-chart-note {
+  margin: 0 0 0.08rem;
+  font-size: 0.5rem;
+  line-height: 1.2;
+  color: var(--muted);
+  opacity: 0.92;
   flex-shrink: 0;
 }
 

@@ -86,66 +86,86 @@ def _ny_today_bounds_ms() -> tuple[int, int, str]:
     )
 
 
+def _floor_effective_station_id_expr() -> str:
+    """SQL expr: workflow_stations row id from column or payload fallback (legacy rows)."""
+    return (
+        "CAST(COALESCE("
+        "NULLIF(we.station_id, 0), "
+        "NULLIF(CAST(json_extract(we.payload, '$.station_id') AS INTEGER), 0)"
+        ") AS INTEGER)"
+    )
+
+
 def _floor_station_day_stats(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> dict[int, dict]:
     """Per-station workflow event counts and average count totals for the ops board."""
     by: dict[int, dict] = {}
+    sid_x = _floor_effective_station_id_expr()
     try:
         rows = conn.execute(
-            """
-            SELECT station_id, event_type, COUNT(*) AS cnt
-            FROM workflow_events
-            WHERE station_id IS NOT NULL
-              AND occurred_at >= ? AND occurred_at < ?
-              AND event_type IN (
-                'BAG_CLAIMED',
-                'BLISTER_COMPLETE',
-                'SEALING_COMPLETE',
-                'PACKAGING_SNAPSHOT',
-                'STATION_RESUMED'
-              )
-            GROUP BY station_id, event_type
+            f"""
+            SELECT t.sid, t.event_type, COUNT(*) AS cnt
+            FROM (
+              SELECT {sid_x} AS sid, we.event_type AS event_type
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type IN (
+                  'BAG_CLAIMED',
+                  'BLISTER_COMPLETE',
+                  'SEALING_COMPLETE',
+                  'PACKAGING_SNAPSHOT',
+                  'STATION_RESUMED'
+                )
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid, t.event_type
             """,
             (start_ms, end_ms),
         ).fetchall()
     except sqlite3.OperationalError:
         return {}
     for r in rows:
-        sid = int(r["station_id"])
+        sid = int(r["sid"])
         by.setdefault(sid, {})[str(r["event_type"])] = int(r["cnt"])
     try:
         for r in conn.execute(
-            """
-            SELECT station_id,
-                   AVG(CAST(json_extract(payload, '$.count_total') AS REAL)) AS avg_ct,
+            f"""
+            SELECT t.sid,
+                   AVG(CAST(json_extract(t.payload, '$.count_total') AS REAL)) AS avg_ct,
                    COUNT(*) AS n
-            FROM workflow_events
-            WHERE event_type = 'BLISTER_COMPLETE'
-              AND occurred_at >= ? AND occurred_at < ?
-              AND station_id IS NOT NULL
-              AND json_extract(payload, '$.count_total') IS NOT NULL
-            GROUP BY station_id
+            FROM (
+              SELECT we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.event_type = 'BLISTER_COMPLETE'
+                AND we.occurred_at >= ? AND we.occurred_at < ?
+                AND json_extract(we.payload, '$.count_total') IS NOT NULL
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid
             """,
             (start_ms, end_ms),
         ).fetchall():
-            sid = int(r["station_id"])
+            sid = int(r["sid"])
             b = by.setdefault(sid, {})
             b["_avg_blister"] = float(r["avg_ct"]) if r["avg_ct"] is not None else None
             b["_n_blister_avg"] = int(r["n"])
         for r in conn.execute(
-            """
-            SELECT station_id,
-                   AVG(CAST(json_extract(payload, '$.count_total') AS REAL)) AS avg_ct,
+            f"""
+            SELECT t.sid,
+                   AVG(CAST(json_extract(t.payload, '$.count_total') AS REAL)) AS avg_ct,
                    COUNT(*) AS n
-            FROM workflow_events
-            WHERE event_type = 'SEALING_COMPLETE'
-              AND occurred_at >= ? AND occurred_at < ?
-              AND station_id IS NOT NULL
-              AND json_extract(payload, '$.count_total') IS NOT NULL
-            GROUP BY station_id
+            FROM (
+              SELECT we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.event_type = 'SEALING_COMPLETE'
+                AND we.occurred_at >= ? AND we.occurred_at < ?
+                AND json_extract(we.payload, '$.count_total') IS NOT NULL
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid
             """,
             (start_ms, end_ms),
         ).fetchall():
-            sid = int(r["station_id"])
+            sid = int(r["sid"])
             b = by.setdefault(sid, {})
             b["_avg_sealing"] = float(r["avg_ct"]) if r["avg_ct"] is not None else None
             b["_n_sealing_avg"] = int(r["n"])
@@ -299,22 +319,61 @@ def _hist_station_totals_7d(conn: sqlite3.Connection, today_start_ms: int) -> di
     """Packaging final-submit displays per station over the 7 NY days before today_start_ms."""
     hist_start = today_start_ms - 7 * 24 * 3600 * 1000
     out: dict[int, float] = defaultdict(float)
+    sid_x = _floor_effective_station_id_expr()
     try:
         for r in conn.execute(
-            """
-            SELECT station_id,
-                   COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS d
-            FROM workflow_events
-            WHERE occurred_at >= ? AND occurred_at < ?
-              AND station_id IS NOT NULL
-              AND event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(payload, '$.reason') = 'final_submit'
-              AND json_extract(payload, '$.display_count') IS NOT NULL
-            GROUP BY station_id
+            f"""
+            SELECT t.sid,
+                   COALESCE(SUM(CAST(json_extract(t.payload, '$.display_count') AS REAL)), 0) AS d
+            FROM (
+              SELECT we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type = 'PACKAGING_SNAPSHOT'
+                AND json_extract(we.payload, '$.reason') = 'final_submit'
+                AND json_extract(we.payload, '$.display_count') IS NOT NULL
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid
             """,
             (hist_start, today_start_ms),
         ).fetchall():
-            out[int(r["station_id"])] = float(r["d"] or 0)
+            out[int(r["sid"])] = float(r["d"] or 0)
+    except sqlite3.OperationalError:
+        pass
+    return out
+
+
+def _hist_tablets_by_station_7d(conn: sqlite3.Connection, today_start_ms: int) -> dict[int, float]:
+    """Blister + sealing tablet counts per station over the 7 NY days before today_start_ms."""
+    hist_start = today_start_ms - 7 * 24 * 3600 * 1000
+    out: dict[int, float] = defaultdict(float)
+    sid_x = _floor_effective_station_id_expr()
+    try:
+        for r in conn.execute(
+            f"""
+            SELECT t.sid,
+                   COALESCE(SUM(
+                     CASE
+                       WHEN t.event_type = 'BLISTER_COMPLETE' THEN
+                         COALESCE(CAST(json_extract(t.payload, '$.count_total') AS REAL), 0)
+                       WHEN t.event_type = 'SEALING_COMPLETE' THEN
+                         COALESCE(CAST(json_extract(t.payload, '$.count_total') AS REAL), 0)
+                       ELSE 0
+                     END
+                   ), 0) AS v
+            FROM (
+              SELECT we.event_type AS event_type, we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid
+            """,
+            (hist_start, today_start_ms),
+        ).fetchall():
+            out[int(r["sid"])] = float(r["v"] or 0)
     except sqlite3.OperationalError:
         pass
     return out
@@ -517,47 +576,116 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         else 0.0
     )
 
+    sid_x = _floor_effective_station_id_expr()
     per_out: dict[int, float] = {}
     try:
         for r in conn.execute(
-            """
-            SELECT station_id,
-                   COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS d
-            FROM workflow_events
-            WHERE occurred_at >= ? AND occurred_at < ?
-              AND station_id IS NOT NULL
-              AND event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(payload, '$.reason') = 'final_submit'
-              AND json_extract(payload, '$.display_count') IS NOT NULL
-            GROUP BY station_id
+            f"""
+            SELECT t.sid,
+                   COALESCE(SUM(CAST(json_extract(t.payload, '$.display_count') AS REAL)), 0) AS d
+            FROM (
+              SELECT we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type = 'PACKAGING_SNAPSHOT'
+                AND json_extract(we.payload, '$.reason') = 'final_submit'
+                AND json_extract(we.payload, '$.display_count') IS NOT NULL
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid
             """,
             (start_ms, end_ms),
         ).fetchall():
-            per_out[int(r["station_id"])] = float(r["d"] or 0)
+            per_out[int(r["sid"])] = float(r["d"] or 0)
+    except sqlite3.OperationalError:
+        pass
+
+    per_tablets: dict[int, float] = {}
+    try:
+        for r in conn.execute(
+            f"""
+            SELECT t.sid,
+                   COALESCE(SUM(
+                     CASE
+                       WHEN t.event_type = 'BLISTER_COMPLETE' THEN
+                         COALESCE(CAST(json_extract(t.payload, '$.count_total') AS REAL), 0)
+                       WHEN t.event_type = 'SEALING_COMPLETE' THEN
+                         COALESCE(CAST(json_extract(t.payload, '$.count_total') AS REAL), 0)
+                       ELSE 0
+                     END
+                   ), 0) AS v
+            FROM (
+              SELECT we.event_type AS event_type, we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid
+            """,
+            (start_ms, end_ms),
+        ).fetchall():
+            per_tablets[int(r["sid"])] = float(r["v"] or 0)
     except sqlite3.OperationalError:
         pass
 
     hourly = [0.0] * 24
     station_hourly: dict[int, list[float]] = defaultdict(lambda: [0.0] * 24)
+    station_hourly_tablets: dict[int, list[float]] = defaultdict(lambda: [0.0] * 24)
     try:
-        q = """
-            SELECT station_id,
-                   CAST((occurred_at - ?) / 3600000 AS INTEGER) AS hr,
-                   COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS v
-            FROM workflow_events
-            WHERE occurred_at >= ? AND occurred_at < ?
-              AND station_id IS NOT NULL
-              AND event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(payload, '$.reason') = 'final_submit'
-              AND json_extract(payload, '$.display_count') IS NOT NULL
-            GROUP BY station_id, hr
+        q = f"""
+            SELECT t.sid,
+                   CAST((t.occurred_at - ?) / 3600000 AS INTEGER) AS hr,
+                   COALESCE(SUM(CAST(json_extract(t.payload, '$.display_count') AS REAL)), 0) AS v
+            FROM (
+              SELECT we.occurred_at AS occurred_at, we.payload AS payload, {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type = 'PACKAGING_SNAPSHOT'
+                AND json_extract(we.payload, '$.reason') = 'final_submit'
+                AND json_extract(we.payload, '$.display_count') IS NOT NULL
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid, hr
             """
         for r in conn.execute(q, (start_ms, start_ms, end_ms)).fetchall():
             hr = int(r["hr"])
             if 0 <= hr < 24:
                 v = float(r["v"] or 0)
                 hourly[hr] += v
-                station_hourly[int(r["station_id"])][hr] += v
+                station_hourly[int(r["sid"])][hr] += v
+    except sqlite3.OperationalError:
+        pass
+    try:
+        q_tbl = f"""
+            SELECT t.sid,
+                   CAST((t.occurred_at - ?) / 3600000 AS INTEGER) AS hr,
+                   COALESCE(SUM(
+                     CASE
+                       WHEN t.event_type = 'BLISTER_COMPLETE' THEN
+                         COALESCE(CAST(json_extract(t.payload, '$.count_total') AS REAL), 0)
+                       WHEN t.event_type = 'SEALING_COMPLETE' THEN
+                         COALESCE(CAST(json_extract(t.payload, '$.count_total') AS REAL), 0)
+                       ELSE 0
+                     END
+                   ), 0) AS v
+            FROM (
+              SELECT we.occurred_at AS occurred_at,
+                     we.event_type AS event_type,
+                     we.payload AS payload,
+                     {sid_x} AS sid
+              FROM workflow_events we
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE')
+            ) AS t
+            WHERE t.sid IS NOT NULL AND t.sid > 0
+            GROUP BY t.sid, hr
+            """
+        for r in conn.execute(q_tbl, (start_ms, start_ms, end_ms)).fetchall():
+            hr = int(r["hr"])
+            if 0 <= hr < 24:
+                v = float(r["v"] or 0)
+                station_hourly_tablets[int(r["sid"])][hr] += v
     except sqlite3.OperationalError:
         pass
 
@@ -631,12 +759,23 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             vis = "idle"
         display_name = (s.get("machine_name") or s.get("label") or f"Station {sid}").strip()
         product = (live.get("flavor") or live.get("product_name") or "—") or "—"
+        sk = _normalize_station_kind(s.get("station_kind"))
         spark: list[float] = []
-        sh = station_hourly.get(sid, [0.0] * 24)
+        if sk == "packaging":
+            sh = station_hourly.get(sid, [0.0] * 24)
+        else:
+            sh = station_hourly_tablets.get(sid, [0.0] * 24)
         for i in range(6):
             h = cur_h - (5 - i)
             spark.append(round(sh[h], 1) if h >= 0 else 0.0)
-        out_today = int(round(per_out.get(sid, 0.0)))
+        disp_ct = int(round(per_out.get(sid, 0.0)))
+        tbl_ct = int(round(per_tablets.get(sid, 0.0)))
+        if sk == "packaging":
+            out_today = disp_ct
+            output_unit = "displays"
+        else:
+            out_today = tbl_ct
+            output_unit = "tablets"
         machines.append(
             {
                 "id": sid,
@@ -649,7 +788,9 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
                 "occupancy_started_at_ms": live.get("occupancy_started_at"),
                 "paused_at_ms": live.get("paused_at_ms"),
                 "output_today": out_today,
-                "displays_today": out_today,
+                "output_unit": output_unit,
+                "displays_today": disp_ct,
+                "tablets_today": tbl_ct,
                 "sparkline": spark,
             }
         )
@@ -661,9 +802,14 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         m_lo = min(machines, key=lambda m: m["output_today"])
         worst_name = m_lo["display_name"]
 
-    top_ids = [m["id"] for m in sorted_by_out[:3] if m["output_today"] > 0]
+    pack_sorted = sorted(
+        [m for m in machines if _normalize_station_kind(m.get("station_kind")) == "packaging"],
+        key=lambda m: int(m.get("displays_today") or 0),
+        reverse=True,
+    )
+    top_ids = [m["id"] for m in pack_sorted[:3] if int(m.get("displays_today") or 0) > 0]
     if not top_ids:
-        top_ids = [m["id"] for m in machines[:3]]
+        top_ids = [m["id"] for m in pack_sorted[:3]] if pack_sorted else [m["id"] for m in machines[:3]]
 
     chart_station_series: dict[str, list[float]] = {}
     labels_h = [f"{h:02d}" for h in range(24)]
@@ -671,7 +817,12 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         chart_station_series[str(sid)] = [round(x, 1) for x in station_hourly.get(sid, [0.0] * 24)]
 
     bar_by_station = [
-        {"id": m["id"], "name": m["display_name"][:24], "output": m["output_today"]}
+        {
+            "id": m["id"],
+            "name": m["display_name"][:24],
+            "output": m["output_today"],
+            "unit": m.get("output_unit") or "tablets",
+        }
         for m in sorted(machines, key=lambda x: x["output_today"], reverse=True)
     ]
     max_out = max((b["output"] for b in bar_by_station), default=1) or 1
@@ -692,12 +843,17 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             }
         )
 
-    hist_totals = _hist_station_totals_7d(conn, start_ms)
+    hist_disp = _hist_station_totals_7d(conn, start_ms)
+    hist_tbl = _hist_tablets_by_station_7d(conn, start_ms)
     hours_into_day = max(0.25, (now_ms - start_ms) / 3600000.0)
     hours_7d = 7.0 * 24.0
     for m in machines:
         sid = int(m["id"])
-        ht = float(hist_totals.get(sid, 0.0))
+        sk = _normalize_station_kind(m.get("station_kind"))
+        if sk == "packaging":
+            ht = float(hist_disp.get(sid, 0.0))
+        else:
+            ht = float(hist_tbl.get(sid, 0.0))
         hist_uh = round(ht / hours_7d, 2) if ht > 0 else 0.0
         out_today = int(m["output_today"])
         today_uh = round(out_today / hours_into_day, 2) if out_today else 0.0
