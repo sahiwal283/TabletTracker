@@ -19,29 +19,58 @@
   var useMemo = React.useMemo;
 
   var NAV_DEFAULT = [
-    { label: "Overview", href: "/command-center/ops-tv", icon: "◇" },
-    { label: "Blister Line", href: "/command-center#blister", icon: "▭" },
-    { label: "Bottle Line", href: "/command-center#bottle", icon: "▭" },
-    { label: "Card Line", href: "/command-center#card", icon: "▭" },
-    { label: "Machines", href: "/command-center", icon: "⚙" },
-    { label: "Bags / Inventory", href: "/receiving", icon: "▣" },
-    { label: "Staging", href: "/command-center#staging", icon: "▤" },
-    { label: "Alerts", href: "/command-center/ops-tv#alerts", icon: "!" },
-    { label: "Reports", href: "/reports", icon: "▦" },
-    { label: "Analytics", href: "/reports", icon: "▧" },
-    { label: "Users", href: "/admin/employees", icon: "◎" },
-    { label: "Settings", href: "/admin/config", icon: "☰" },
+    { label: "Overview", tab: "overview", icon: "◇" },
+    { label: "Blister Line", tab: "blister", icon: "▭" },
+    { label: "Bottle Line", tab: "bottle", icon: "▭" },
+    { label: "Card Line", tab: "card", icon: "▭" },
+    { label: "Machines", tab: "machines", icon: "⚙" },
+    { label: "Bags / Inventory", href: "/receiving", external: true, icon: "▣" },
+    { label: "Staging", tab: "staging", icon: "▤" },
+    { label: "Alerts", tab: "alerts", icon: "!" },
+    { label: "Reports", href: "/reports", external: true, icon: "▦" },
+    { label: "Analytics", href: "/reports", external: true, icon: "▧" },
+    { label: "Users", href: "/admin/employees", external: true, icon: "◎" },
+    { label: "Settings", href: "/admin/config", external: true, icon: "☰" },
   ];
 
+  function normalizeNavEntry(item) {
+    if (!item) return { label: "?", tab: "overview", icon: "◇" };
+    if (item.tab) return item;
+    if (item.external && item.href) return item;
+    if (item.href) {
+      var h = String(item.href);
+      if (h.indexOf("receiving") >= 0)
+        return { label: item.label, icon: item.icon, href: item.href, external: true };
+      if (h.indexOf("/reports") >= 0 || h.indexOf("reports_view") >= 0)
+        return { label: item.label, icon: item.icon, href: item.href, external: true };
+      if (h.indexOf("employees") >= 0)
+        return { label: item.label, icon: item.icon, href: item.href, external: true };
+      if (h.indexOf("config") >= 0 || h.indexOf("product_config") >= 0)
+        return { label: item.label, icon: item.icon, href: item.href, external: true };
+      if (h.indexOf("#blister") >= 0) return { label: item.label, icon: item.icon, tab: "blister" };
+      if (h.indexOf("#bottle") >= 0) return { label: item.label, icon: item.icon, tab: "bottle" };
+      if (h.indexOf("#card") >= 0) return { label: item.label, icon: item.icon, tab: "card" };
+      if (h.indexOf("#staging") >= 0) return { label: item.label, icon: item.icon, tab: "staging" };
+      if (h.indexOf("#alerts") >= 0) return { label: item.label, icon: item.icon, tab: "alerts" };
+      if (h.indexOf("ops-tv") >= 0) return { label: item.label, icon: item.icon, tab: "overview" };
+      if (h.indexOf("/command-center") >= 0) return { label: item.label, icon: item.icon, tab: "machines" };
+    }
+    return { label: item.label, icon: item.icon, tab: "overview" };
+  }
+
   function readNavBoot() {
+    var exit = null;
     try {
       var n = document.getElementById("mes-nav-boot");
       if (n && n.textContent) {
         var o = JSON.parse(n.textContent.trim());
-        if (o && o.nav && o.nav.length) return o.nav;
+        if (o && o.exit && o.exit.href) exit = o.exit;
+        if (o && o.nav && o.nav.length) {
+          return { nav: o.nav.map(normalizeNavEntry), exit: exit };
+        }
       }
     } catch (e) {}
-    return NAV_DEFAULT;
+    return { nav: NAV_DEFAULT.map(normalizeNavEntry), exit: exit };
   }
 
   function Sparkline({ vals, stroke }) {
@@ -557,9 +586,45 @@
     var tick = _tickState[0];
     var setTick = _tickState[1];
 
-    var nav = useMemo(function () {
+    var navBoot = useMemo(function () {
       return readNavBoot();
     }, []);
+    var nav = navBoot.nav;
+    var navExit = navBoot.exit;
+
+    var _navTabSt = useState("overview");
+    var mesNavTab = _navTabSt[0];
+    var setMesNavTab = _navTabSt[1];
+
+    var exitHref = navExit && navExit.href ? navExit.href : null;
+    if (!exitHref) {
+      try {
+        var rootEl = document.getElementById("mes-root");
+        if (rootEl && rootEl.dataset && rootEl.dataset.commandCenterUrl) {
+          exitHref = rootEl.dataset.commandCenterUrl;
+        }
+      } catch (e) {}
+    }
+
+    useEffect(
+      function () {
+        var id =
+          mesNavTab === "overview"
+            ? "mes-anchor-top"
+            : mesNavTab === "blister" || mesNavTab === "bottle" || mesNavTab === "card"
+              ? "mes-anchor-process"
+              : mesNavTab === "machines"
+                ? "mes-anchor-scada"
+                : mesNavTab === "staging"
+                  ? "mes-anchor-staging"
+                  : mesNavTab === "alerts"
+                    ? "mes-alerts"
+                    : "mes-anchor-top";
+        var el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+      [mesNavTab]
+    );
 
     useEffect(function () {
       var node = document.getElementById("ops-tv-initial-data");
@@ -655,19 +720,38 @@
     return html`
       <div className="mes-app" data-wall-tick=${tick}>
         <aside className="mes-aside">
+          ${exitHref
+            ? html`<a className="mes-exit-cc" href=${exitHref}
+                >${navExit && navExit.label ? navExit.label : "Exit to Command Center"}</a
+              >`
+            : null}
           ${nav.map(function (item, i) {
-            var active = item.href.indexOf("ops-tv") >= 0;
-            return html`<a
+            if (item.href && item.external) {
+              return html`<a
+                key=${item.label + String(i)}
+                href=${item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mes-nav-a mes-nav-a--ext"
+                ><span className="mes-nav-ic">${item.icon}</span>${item.label}</a
+              >`;
+            }
+            var tab = item.tab || "overview";
+            var active = mesNavTab === tab;
+            return html`<button
+              type="button"
               key=${item.label + String(i)}
-              href=${item.href}
               className=${"mes-nav-a" + (active ? " mes-active" : "")}
-              ><span className="mes-nav-ic">${item.icon}</span>${item.label}</a
+              onClick=${function () {
+                setMesNavTab(tab);
+              }}
+              ><span className="mes-nav-ic">${item.icon}</span>${item.label}</button
             >`;
           })}
         </aside>
         <div className="mes-main">
           ${err ? html`<div className="mes-banner-err">${err}</div>` : null}
-          <header className="mes-header">
+          <header className="mes-header" id="mes-anchor-top">
             <div>
               <h1 className="mes-h1">Pill Packing Command Center</h1>
               <p className="mes-sub">Real-time production monitoring — LIVE</p>
@@ -690,7 +774,7 @@
 
             <div className="mes-b2">
               <div className="mes-b2-inner">
-                <section className="mes-process-map" aria-label="Production map">
+                <section className="mes-process-map" id="mes-anchor-process" aria-label="Production map">
                   <div className="mes-pm-h">Production control map</div>
                   ${lanes.map(function (lane, i) {
                     return html`<${FlowLaneRow} key=${lane.id || i} lane=${lane} />`;
@@ -700,7 +784,7 @@
               </div>
             </div>
 
-            <div className="mes-b3">
+            <div className="mes-b3" id="mes-anchor-scada">
               <div className="mes-b3-h">Machine command grid</div>
               <section className="mes-scada-row">${scada.map(function (m, i) {
                 return html`<${ScadaTwinCard} key=${m.slot || i} m=${m} />`;
@@ -773,7 +857,7 @@
                     </table>
                   </div>
                 </div>
-                <div className="mes-panel">
+                <div className="mes-panel" id="mes-anchor-staging">
                   <div className="mes-panel-h">Staging status</div>
                   <div className="mes-scroll">
                     <table className="mes-table">

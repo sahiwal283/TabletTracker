@@ -30,6 +30,27 @@ body.mes-body {
   padding: 0.4rem 0;
 }
 
+.mes-exit-cc {
+  display: block;
+  margin: 0 0.45rem 0.4rem;
+  padding: 0.28rem 0.4rem;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  color: #22d3ee;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 4px;
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.mes-exit-cc:hover {
+  color: #a5f3fc;
+  background: rgba(34, 211, 238, 0.14);
+}
+
 .mes-nav-a {
   display: flex;
   align-items: center;
@@ -41,6 +62,20 @@ body.mes-body {
   color: #94a3b8;
   text-decoration: none;
   border-left: 2px solid transparent;
+}
+
+button.mes-nav-a {
+  width: 100%;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.mes-nav-a.mes-nav-a--ext {
+  opacity: 0.95;
 }
 
 .mes-nav-a:hover {
@@ -68,6 +103,8 @@ body.mes-body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .mes-banner-err {

@@ -56,6 +56,14 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn(b'"kpis"', r.data)
         self.assertIn(b'"pill_board"', r.data)
         self.assertIn(b'"mes"', r.data)
+        self.assertIn(b'"tab": "overview"', r.data)
+        self.assertIn(b"Exit to Command Center", r.data)
+
+    def test_pill_packing_alias_loads(self):
+        r = self.client.get("/command-center/pill-packing")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"id=\"mes-root\"", r.data)
+        self.assertIn(b"command-center-app.js", r.data)
 
     def test_ops_tv_snapshot_json(self):
         r = self.client.get("/command-center/ops-tv/api/snapshot")

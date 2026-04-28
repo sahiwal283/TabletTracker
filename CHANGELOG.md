@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.1] - 2026-04-27
+
+### Fixed
+- **Command Center (`/command-center`):** assign-bag product list and per-station day stats now load inside the same read-only DB connection as the rest of the page (avoids empty dropdown and zero counters).
+- **Pill packing fullscreen:** sidebar tabs no longer navigate away to the table Command Center; in-app sections scroll within the MES wallboard. **Exit to Command Center** link at top of sidebar. Reports/Settings/Users open in a new tab.
+
+### Added
+- **`GET /command-center/pill-packing`** — same wallboard as `/command-center/ops-tv` (bookmark alias).
+
+---
+
 ## [4.10.0] - 2026-04-28
 
 ### Added
