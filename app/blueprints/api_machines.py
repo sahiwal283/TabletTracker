@@ -101,7 +101,15 @@ def _blister_press_count_for_station(conn, station_id):
     try:
         row = conn.execute(
             '''
-            SELECT COALESCE(SUM(CAST(json_extract(payload, '$.count_total') AS REAL)), 0) AS presses
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN json_extract(payload, '$.counter_end') IS NOT NULL
+                     AND json_extract(payload, '$.counter_start') IS NOT NULL
+                     AND CAST(json_extract(payload, '$.counter_end') AS REAL) >= CAST(json_extract(payload, '$.counter_start') AS REAL)
+                    THEN CAST(json_extract(payload, '$.counter_end') AS REAL) - CAST(json_extract(payload, '$.counter_start') AS REAL)
+                    ELSE COALESCE(CAST(json_extract(payload, '$.count_total') AS REAL), 0)
+                END
+            ), 0) AS presses
             FROM workflow_events
             WHERE event_type = 'BLISTER_COMPLETE'
               AND (

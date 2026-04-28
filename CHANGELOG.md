@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.7] - 2026-04-28
+
+### Changed
+- **Ops TV machine grouping:** removed the duplicate card-line machine band; heat press machines stay in the blister/card flow, and stickering only appears with the bottle flow.
+- **Live refresh:** ops-tv snapshot and blister material roll usage now refresh every 5 seconds.
+- **Counter math:** units today and machine output use real employee-entered counter deltas/count totals, including blister output-per-press conversion where configured.
+- **Threshold alerts:** live stations flash when their current elapsed timer exceeds the real historical average for that station.
+- **Blister material tracking:** PVC/Foil roll usage now uses the same real counter-delta logic as the dashboard.
+
+---
+
 ## [4.16.6] - 2026-04-28
 
 ### Changed

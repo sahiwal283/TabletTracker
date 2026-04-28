@@ -69,8 +69,9 @@
 
   function elapsedSince(ms) {
     var n = asNum(ms);
+    var ref = asNum(arguments.length > 2 ? arguments[2] : null) || Date.now();
     if (n == null) return "N/A";
-    var total = Math.max(0, Math.floor((Date.now() - n) / 1000));
+    var total = Math.max(0, Math.floor((ref - n) / 1000));
     var h = Math.floor(total / 3600);
     var m = Math.floor((total % 3600) / 60);
     return h > 0 ? h + "h " + String(m).padStart(2, "0") + "m" : m + "m";
@@ -113,6 +114,27 @@
     if (status === "NO_ACTIVITY_TODAY") return "idle";
     if (status === "NOT_INTEGRATED") return "off";
     return "idle";
+  }
+
+  function liveElapsedMinutes(ms, nowMs) {
+    var n = asNum(ms);
+    var ref = asNum(nowMs) || Date.now();
+    return n == null ? null : Math.max(0, (ref - n) / 60000);
+  }
+
+  function stationAverageFor(machine, shiftConfig) {
+    var avgs = (shiftConfig && shiftConfig.stationCycleAvgMinutes) || {};
+    var row = machine && machine.stationId != null ? avgs[String(machine.stationId)] : null;
+    var avg = asNum(row && row.avgMinutes);
+    var samples = asNum(row && row.sampleCount);
+    return avg != null && samples != null && samples >= 2 ? { avgMinutes: avg, sampleCount: samples } : null;
+  }
+
+  function overAverage(machine, shiftConfig, nowMs) {
+    if (!machine || machine.integrationStatus !== "LIVE_QR" || machine.workflowBagId == null) return false;
+    var avg = stationAverageFor(machine, shiftConfig);
+    var elapsed = liveElapsedMinutes(machine.occupancyStartedAtMs || machine.lastScanMs, nowMs);
+    return !!(avg && elapsed != null && elapsed > avg.avgMinutes);
   }
 
   function latestByMachine(events, stationId) {
@@ -208,11 +230,11 @@
   }
 
   function StepCard(props) {
-    return html`<div className="step-card">
+    return html`<div className=${"step-card" + (props.attention ? " attention" : "")}>
       <b>${props.index}</b>
       <div><strong>${props.title}</strong><small>${props.sub || "Insufficient data"}</small></div>
       ${machineIcon(props.icon || "bag", props.status || "NO_ACTIVITY_TODAY")}
-      <p>${props.detail || "Insufficient data"}</p>
+      <p>${props.attention ? "Over historical avg" : (props.detail || "Insufficient data")}</p>
     </div>`;
   }
 
@@ -220,7 +242,7 @@
     return html`<section className=${"life-lane " + props.tone + (props.dimmed ? " dimmed" : "")}>
       <header><h2>${props.title} <span>(FULL LIFECYCLE)</span></h2><p>SKU: <b>${props.sku || "N/A"}</b></p></header>
       <div className="step-row">${props.steps.map(function (s, i) {
-        return html`<${StepCard} key=${i} index=${i + 1} title=${s.title} sub=${s.sub} detail=${s.detail} icon=${s.icon} status=${s.status} />`;
+        return html`<${StepCard} key=${i} index=${i + 1} title=${s.title} sub=${s.sub} detail=${s.detail} icon=${s.icon} status=${s.status} attention=${s.attention} />`;
       })}</div>
       <footer><span></span><strong>FULL PRODUCTION CYCLE COMPLETE</strong><i>✓</i></footer>
     </section>`;
@@ -234,15 +256,15 @@
     var start = done.counterStart != null ? done.counterStart : latest.counterStart;
     var end = done.counterEnd != null ? done.counterEnd : latest.counterEnd;
     var counter = notIntegrated ? "N/A" : (start != null || end != null ? String(start != null ? start : "N/A") + " / " + String(end != null ? end : "N/A") : "Insufficient data");
-    return html`<article className=${"occ-machine " + statusTone(m.integrationStatus)}>
+    return html`<article className=${"occ-machine " + statusTone(m.integrationStatus) + (props.attention ? " attention" : "")}>
       <header><div><h3>${m.shortLabel}</h3><p>${m.label}</p></div><${Badge} tone=${statusTone(m.integrationStatus)}>${statusText(m.integrationStatus)}</${Badge}></header>
       <div className="machine-mid">${machineIcon(m.kind, m.integrationStatus)}<dl>
-        <div><dt>Current Bag</dt><dd>${notIntegrated ? "N/A" : (m.currentBagId != null ? (m.currentBagLabel || ("BAG-" + m.currentBagId)) : "No activity today")}</dd></div>
+        <div><dt>Current Bag</dt><dd>${notIntegrated ? "N/A" : ((m.workflowBagId != null || m.currentBagId != null) ? (m.currentBagLabel || ("BAG-" + (m.workflowBagId != null ? m.workflowBagId : m.currentBagId))) : "No activity today")}</dd></div>
         <div><dt>SKU</dt><dd>${m.sku || "N/A"}</dd></div>
       </dl></div>
       <div className="machine-grid-data">
-        <div><span>Start Time</span><b>${notIntegrated ? "N/A" : fmtTime(m.lastScanMs)}</b></div>
-        <div><span>Elapsed Time</span><b>${notIntegrated ? "N/A" : (m.lastScanMs ? durationClock(m.lastScanMs) : "N/A")}</b></div>
+        <div><span>Start Time</span><b>${notIntegrated ? "N/A" : fmtTime(m.occupancyStartedAtMs || m.lastScanMs)}</b></div>
+        <div><span>Elapsed Time</span><b>${notIntegrated ? "N/A" : (m.occupancyStartedAtMs || m.lastScanMs ? durationClock(m.occupancyStartedAtMs || m.lastScanMs) : "N/A")}</b></div>
         <div><span>Counter</span><b>${counter}</b></div>
         <div><span>Last Scan</span><b>${notIntegrated ? "N/A" : fmtTime(m.lastScanMs)}</b></div>
         <div><span>Throughput</span><b>${notIntegrated ? "N/A" : (m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data")}</b></div>
@@ -254,7 +276,7 @@
   function MachineBand(props) {
     return html`<section className=${"machine-band " + props.tone}>
       <h2>${props.title}</h2>
-      <div className="machine-band-row">${props.machines.map(function (m) { return html`<${MachineCard} key=${m.shortLabel} machine=${m} />`; })}</div>
+      <div className="machine-band-row">${props.machines.map(function (m) { return html`<${MachineCard} key=${m.shortLabel} machine=${m} shiftConfig=${props.shiftConfig} attention=${overAverage(m, props.shiftConfig, props.nowMs)} />`; })}</div>
     </section>`;
   }
 
@@ -393,7 +415,7 @@
         fetch(props.snapshotUrl, { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(setSnap).catch(function () {});
       }
       load();
-      var id = setInterval(load, 15000);
+      var id = setInterval(load, 5000);
       return function () { clearInterval(id); };
     }, [props.snapshotUrl]);
 
@@ -452,8 +474,8 @@
         integrationStatus: status,
         latestEvent: latestByMachine(events, d.stationId),
         counterEvent: completedCounterEvent(events, d.stationId),
-        sku: skuForBag(metrics.currentBagId),
-        currentBagLabel: bagDisplayLabel(metrics.currentBagId),
+        sku: skuForBag(metrics.workflowBagId != null ? metrics.workflowBagId : metrics.currentBagId),
+        currentBagLabel: bagDisplayLabel(metrics.workflowBagId != null ? metrics.workflowBagId : metrics.currentBagId),
       });
     });
 
@@ -497,7 +519,8 @@
       return [fmtTime(a.at_ms || a.atMs), String(a.severity || "info").toUpperCase(), a.message || "Alert"];
     });
     var allMachineRows = machines.map(function (m) {
-      return [m.shortLabel, m.label, m.stationId != null ? String(m.stationId) : "N/A", statusText(m.integrationStatus), m.currentBagId != null ? bagDisplayLabel(m.currentBagId) : "No activity", m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data"];
+      var bid = m.workflowBagId != null ? m.workflowBagId : m.currentBagId;
+      return [m.shortLabel, m.label, m.stationId != null ? String(m.stationId) : "N/A", statusText(m.integrationStatus), bid != null ? bagDisplayLabel(bid) : "No activity", m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data"];
     });
     var stagingBagRows = staging.map(function (r) {
       return [bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs), r.lastStationLabel || "N/A", r.lastEventType || "N/A"];
@@ -513,6 +536,8 @@
       return Object.assign({}, m, {
         integrationStatus: "NOT_INTEGRATED",
         currentBagId: null,
+        workflowBagId: null,
+        occupancyStartedAtMs: null,
         lastScanMs: null,
         throughputPerHour: null,
         completedUnits: null,
@@ -561,6 +586,12 @@
     }, [blisterStationId]);
 
     useEffect(function () {
+      if (!blisterStationId) return undefined;
+      var id = setInterval(function () { loadMaterialSummary(blisterStationId); }, 5000);
+      return function () { clearInterval(id); };
+    }, [blisterStationId]);
+
+    useEffect(function () {
       function onHashChange() {
         setActiveTab(readInitialTab(navItems));
       }
@@ -578,11 +609,11 @@
 
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
-      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} /><${MachineBand} title="CARD LINE MACHINES" tone="purple" machines=${[machines[1], machines[3]]} /></section></div>`;
+      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2]]} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section></div>`;
       if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags") return html`<section className="occ-wall"><section className="wall-panel"><h3>BAGS / INVENTORY</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
-      if (activeTab === "blister") return html`<section className="occ-machine-grid"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} /></section>`;
-      if (activeTab === "bottle") return html`<section className="occ-machine-grid"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} /></section>`;
+      if (activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2]]} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
+      if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
       if (activeTab === "users") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
       if (activeTab === "settings") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} pvcCode=${pvcCode} foilCode=${foilCode} setPvcCode=${setPvcCode} setFoilCode=${setFoilCode} onChangeRoll=${changeRoll} /></section>`;
@@ -610,9 +641,9 @@
         <section className="occ-life-grid">
           <${LifecycleLane} tone="blue" title="BLISTER / CARD FLOW" sku=${blisterSku} steps=${[
             { title: "BAG", sub: "Bag QR scanned", detail: "Received qty N/A", icon: "bag" },
-            { title: "BLISTER", sub: "M1 DPP115", detail: machines[0].currentBagId ? bagDisplayLabel(machines[0].currentBagId) : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
+            { title: "BLISTER", sub: "M1 DPP115", detail: (machines[0].workflowBagId != null || machines[0].currentBagId != null) ? bagDisplayLabel(machines[0].workflowBagId != null ? machines[0].workflowBagId : machines[0].currentBagId) : "Insufficient data", icon: "blister", status: machines[0].integrationStatus, attention: overAverage(machines[0], inp.shiftConfig || {}, now.getTime()) },
             { title: "STAGE", sub: "Auto gap queue", detail: "After blister, before heat seal", icon: "bag" },
-            { title: "CARD / HEAT SEAL", sub: "M2 / M3", detail: "Scan station + bag", icon: "heat", status: machines[1].integrationStatus },
+            { title: "CARD / HEAT SEAL", sub: "M2 / M3", detail: "Scan station + bag", icon: "heat", status: machines[1].integrationStatus, attention: overAverage(machines[1], inp.shiftConfig || {}, now.getTime()) || overAverage(machines[2], inp.shiftConfig || {}, now.getTime()) },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
             { title: "PACKAGING", sub: "Hand pack displays", detail: "Counter required", icon: "bag" },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
@@ -631,9 +662,8 @@
           <${AlertsRail} alerts=${alerts} />
         </section>
         <section className="occ-machine-grid">
-          <${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} />
-          <${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} />
-          <${MachineBand} title="CARD LINE MACHINES" tone="purple" machines=${[machines[1], machines[3]]} />
+          <${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2]]} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
+          <${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
         </section>
         <section className="occ-wall wall-row-a">
           <section className="wall-panel"><h3>BAG INVENTORY (IN STOCK)</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section>

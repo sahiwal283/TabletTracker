@@ -515,6 +515,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             SELECT ws.id, ws.label, ws.station_scan_token, ws.station_code, ws.machine_id,
                    m.machine_name AS machine_name,
                    COALESCE(m.machine_role, '') AS machine_role,
+                   COALESCE(m.cards_per_turn, 1) AS cards_per_turn,
                    COALESCE(ws.station_kind, 'sealing') AS station_kind
             FROM workflow_stations ws
             LEFT JOIN machines m ON m.id = ws.machine_id

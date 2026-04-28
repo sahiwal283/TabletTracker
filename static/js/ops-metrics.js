@@ -91,8 +91,9 @@
     var rejects = 0;
     var startByBag = {};
 
-    var role = String(machineConfig && machineConfig.machine_role || "").toLowerCase();
-    var blistersPerPress = asNum(machineConfig && machineConfig.cards_per_turn) || 1;
+    var role = String(machineConfig && (machineConfig.machine_role || machineConfig.machineRole) || "").toLowerCase();
+    var stationKind = String(machineConfig && (machineConfig.station_kind || machineConfig.stationKind) || "").toLowerCase();
+    var blistersPerPress = asNum(machineConfig && (machineConfig.cards_per_turn != null ? machineConfig.cards_per_turn : machineConfig.cardsPerTurn)) || 1;
 
     ms.forEach(function (e) {
       var et = String(e.eventType || "").toUpperCase();
@@ -109,7 +110,7 @@
         // For blister machines, counters represent press counts.
         // Convert to blister units using configured blisters-per-press.
         var eventUnits = counterDelta(e);
-        if (role === "blister") {
+        if (role === "blister" || stationKind === "blister") {
           eventUnits = eventUnits * blistersPerPress;
         }
         completedUnits += eventUnits;
@@ -293,6 +294,20 @@
     }
     var win = todayWindow(shiftConfig);
     var todays = (events || []).filter(function (e) { return asNum(e.atMs) != null && asNum(e.atMs) >= win.dayStart; });
+    var machineById = {};
+    (machines || []).forEach(function (m) {
+      if (m && m.id != null) machineById[String(m.id)] = m;
+    });
+    function completedUnitsForEvent(e) {
+      var units = counterDelta(e);
+      var m = machineById[String(eventMachineId(e))] || {};
+      var role = String(m.machine_role || m.machineRole || "").toLowerCase();
+      var stationKind = String(m.station_kind || m.stationKind || "").toLowerCase();
+      if (role === "blister" || stationKind === "blister") {
+        units = units * (asNum(m.cards_per_turn != null ? m.cards_per_turn : m.cardsPerTurn) || 1);
+      }
+      return units;
+    }
     var bagSet = {};
     var units = 0;
     var cycles = [];
@@ -304,7 +319,7 @@
       var bid = eventBagId(e);
       if (bid != null) bagSet[String(bid)] = true;
       if (isCompletedEvent(e)) {
-        units += counterDelta(e);
+        units += completedUnitsForEvent(e);
         completeTotal += 1;
         if (shiftConfig && shiftConfig.productionDueMs && asNum(e.atMs) != null && asNum(e.atMs) <= asNum(shiftConfig.productionDueMs)) {
           onTimeTotal += 1;

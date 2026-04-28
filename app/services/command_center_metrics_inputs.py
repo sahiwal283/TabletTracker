@@ -17,6 +17,9 @@ _PAYLOAD_NUM = (
     "counter_end",
 )
 
+_START_EVENTS = {"BAG_CLAIMED", "STATION_RESUMED", "PACKAGING_START"}
+_COMPLETE_EVENTS = {"BLISTER_COMPLETE", "SEALING_COMPLETE", "PACKAGING_SNAPSHOT", "BAG_FINALIZED"}
+
 
 def _float_from_payload(raw: str | None) -> dict[str, float | None]:
     out: dict[str, float | None] = {k: None for k in _PAYLOAD_NUM}
@@ -164,6 +167,59 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
     return out
 
 
+def gather_station_cycle_averages(
+    conn: sqlite3.Connection,
+    history_start_ms: int,
+    history_end_ms: int,
+) -> dict[str, dict[str, float | int]]:
+    """Historical station cycle averages from real station check-in and completion events."""
+    try:
+        rows = conn.execute(
+            """
+            SELECT occurred_at AS at_ms, workflow_bag_id AS bag_id, station_id, event_type
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND workflow_bag_id IS NOT NULL
+              AND station_id IS NOT NULL
+            ORDER BY station_id, workflow_bag_id, occurred_at
+            """,
+            (history_start_ms, history_end_ms),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+
+    start_by_pair: dict[tuple[int, int], int] = {}
+    durations: dict[int, list[float]] = {}
+    for r in rows:
+        try:
+            sid = int(r["station_id"])
+            bid = int(r["bag_id"])
+            at = int(r["at_ms"])
+        except (TypeError, ValueError):
+            continue
+        et = str(r["event_type"] or "").upper()
+        key = (sid, bid)
+        if et in _START_EVENTS:
+            start_by_pair[key] = at
+        elif et in _COMPLETE_EVENTS:
+            started = start_by_pair.pop(key, None)
+            if started is None or at <= started:
+                continue
+            minutes = (at - started) / 60000.0
+            if 0.25 <= minutes <= 24 * 60:
+                durations.setdefault(sid, []).append(minutes)
+
+    out: dict[str, dict[str, float | int]] = {}
+    for sid, vals in durations.items():
+        if not vals:
+            continue
+        out[str(sid)] = {
+            "avgMinutes": sum(vals) / len(vals),
+            "sampleCount": len(vals),
+        }
+    return out
+
+
 def pick_default_bag_id(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> int | None:
     """Most recently active workflow bag having events in window."""
     try:
@@ -255,6 +311,7 @@ def build_metrics_inputs_bundle(
             "stationLabel": str(m.get("station_label") or ""),
             "stationKind": str(m.get("station_kind") or ""),
             "machineRole": str(m.get("machine_role") or ""),
+            "cardsPerTurn": float(m.get("cards_per_turn") or 1),
             "status": str(m.get("status") or "idle"),
             "occupancyStartedAtMs": int(live_occ) if live_occ is not None else None,
             "pausedAtMs": int(paused) if paused is not None else None,
@@ -297,6 +354,7 @@ def build_metrics_inputs_bundle(
         "targetThroughputPerHour": bm,
         "targetThroughputSource": target_source,
         "productionDueMs": _due_time_ms(conn, day_start_ms),
+        "stationCycleAvgMinutes": gather_station_cycle_averages(conn, day_start_ms - (30 * 24 * 60 * 60_000), day_start_ms),
     }
 
     return {

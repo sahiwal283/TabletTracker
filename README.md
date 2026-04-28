@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.16.4** (Ops TV two-flow lifecycle, offline bottle line, and compact layout)
+Current: **v4.16.7** (Ops TV machine grouping, live refresh, historical threshold alerts, and counter-based units)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
