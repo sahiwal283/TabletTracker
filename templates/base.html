@@ -2149,6 +2149,12 @@ async function convertToTwoLevelDropdown(selectElement) {
                     <a href="{{ url_for('admin.workflow_qr_management') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center
                     </a>
+                    {% if session.employee_role in ['manager', 'admin'] %}
+                    {% set is_active = nav_endpoint in ['admin.ops_tv_dashboard', 'admin.pill_packing_command_center'] or nav_path.startswith('/command-center/') %}
+                    <a href="{{ url_for('admin.ops_tv_dashboard') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
+                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg> TV View
+                    </a>
+                    {% endif %}
                     {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
                     {% set is_active = nav_endpoint.startswith('submissions.') %}
                     <a href="{{ url_for('submissions.submissions_list') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>

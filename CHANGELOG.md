@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.17] - 2026-04-28
+
+### Changed
+- **TV View access:** managers now have access to the fullscreen TV Command Center page and its live snapshot API (not admin-only).
+- **App nav:** added a dedicated **TV View** tab in the sidebar for manager/admin users.
+- **Fullscreen UX:** added a persistent top-left **Back** button on the fullscreen TV page to return to Command Center.
+
+---
+
 ## [4.16.16] - 2026-04-28
 
 ### Changed

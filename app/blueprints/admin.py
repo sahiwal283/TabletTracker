@@ -39,7 +39,7 @@ from app.services.workflow_assign_form import (
 )
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
-from app.utils.auth_utils import admin_required, session_has_admin_panel_access
+from app.utils.auth_utils import admin_required, role_required, session_has_admin_panel_access
 from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
@@ -1711,21 +1711,21 @@ def _render_ops_tv_dashboard_page():
 
 
 @bp.route("/command-center/ops-tv")
-@admin_required
+@role_required("dashboard")
 def ops_tv_dashboard():
     """Full-screen Pill Packing command center (MES wallboard + live snapshot)."""
     return _render_ops_tv_dashboard_page()
 
 
 @bp.route("/command-center/pill-packing")
-@admin_required
+@role_required("dashboard")
 def pill_packing_command_center():
     """Bookmark alias for the same fullscreen board as /command-center/ops-tv."""
     return _render_ops_tv_dashboard_page()
 
 
 @bp.route("/command-center/ops-tv/api/snapshot")
-@admin_required
+@role_required("dashboard")
 def ops_tv_snapshot_api():
     try:
         with db_read_only() as conn:

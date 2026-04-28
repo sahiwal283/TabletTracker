@@ -10,8 +10,34 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/mes-command-center.css') }}?v={{ app_version }}">
+  <style>
+    .mes-back-link {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 2000;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.82);
+      color: #e2e8f0;
+      text-decoration: none;
+      font: 600 12px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(4px);
+    }
+    .mes-back-link:hover {
+      background: rgba(30, 41, 59, 0.92);
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #f8fafc;
+    }
+  </style>
 </head>
 <body class="mes-body">
+  <a class="mes-back-link" href="{{ command_center_url }}" aria-label="Back to command center">← Back</a>
   <script type="application/json" id="mes-nav-boot">{{ mes_nav_boot | tojson }}</script>
   <div id="mes-root" data-snapshot-url="{{ snapshot_api_url }}" data-command-center-url="{{ command_center_url }}" role="application" aria-label="Pill packing command center"></div>
   <script type="application/json" id="ops-tv-initial-data">{{ initial_snapshot | tojson }}</script>
