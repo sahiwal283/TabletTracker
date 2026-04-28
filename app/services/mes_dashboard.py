@@ -1,13 +1,12 @@
 """
-MES Command Center payload: sparklines, parallel lanes, SCADA machine slots.
-Composed from workflow snapshot + pill_board; safe fallbacks when columns missing.
+MES Command Center payload: KPI strip, horizontal flow maps, SCADA grid, analytics passthrough.
 """
 
 from __future__ import annotations
 
-import logging
 import sqlite3
 from typing import Any
+
 
 def _spark_from_series(base: list[float], mult: float, floor: float = 0.0) -> list[float]:
     if not base:
@@ -41,6 +40,32 @@ def _pick_station(machines: list[dict], kind: str, index: int = 0) -> dict | Non
     return xs[0] if xs else None
 
 
+def _stage_enrich(st: dict) -> dict:
+    d = dict(st)
+    qb = int(d.get("bags") or 0)
+    qw = int(d.get("wip") or 0)
+    d["queue_depth"] = max(qb, qw)
+    al = str(d.get("alert") or "").lower()
+    if al == "crit":
+        d["status_level"] = "crit"
+    elif al == "warn":
+        d["status_level"] = "warn"
+    else:
+        d["status_level"] = "ok"
+    return d
+
+
+KPI_SLOTS: tuple[tuple[str, str], ...] = (
+    ("bags", "Bags Today"),
+    ("units", "Units Today"),
+    ("cycles", "Production Cycles"),
+    ("avg_cycle", "Avg Cycle Time"),
+    ("oee", "OEE"),
+    ("on_time", "On Time Completion"),
+    ("rework", "Reject Rate"),
+)
+
+
 def build_mes_dashboard(
     conn: sqlite3.Connection,
     machines: list[dict],
@@ -55,21 +80,24 @@ def build_mes_dashboard(
     pb = pill_board or {}
     kpis_strip: list[dict] = list(pb.get("kpis") or [])
     hp = [float(x or 0) for x in hourly_pkg]
-    cum = [float(x or 0) for x in cumulative_hourly]
 
-    # --- sparklines (normalized 0–100-ish for chart readability) ---
     sp_units = _normalize_spark(_spark_from_series(hp, 1.0))
     sp_bags = _normalize_spark(_spark_from_series(hp, 0.85))
-    sp_cyc = _normalize_spark([float(i) for i in range(24)])  # staircase proxy
+    sp_cyc = _normalize_spark([float(i) for i in range(24)])
     sp_oee = _normalize_spark([float(kpis.get("displays_vs_30d_pct") or 70) + i * 0.2 for i in range(24)])
 
+    by_rid = {str(r.get("id") or ""): dict(r) for r in kpis_strip}
+
     enriched_kpis: list[dict] = []
-    for row in kpis_strip:
-        rid = str(row.get("id") or "")
+    for rid, disp in KPI_SLOTS:
+        row = dict(by_rid.get(rid, {}))
+        row["id"] = rid
+        row["display_label"] = disp
+        row["label"] = disp
         sp = sp_units
         if rid == "bags":
             sp = sp_bags
-        elif rid in ("cycles",):
+        elif rid == "cycles":
             sp = sp_cyc
         elif rid == "avg_cycle":
             sp = list(reversed(sp_units))
@@ -79,12 +107,9 @@ def build_mes_dashboard(
             sp = _normalize_spark(_spark_from_series(hp, 0.65))
         elif rid == "rework":
             sp = _normalize_spark([max(0.0, 5.0 - (i % 4)) for i in range(24)])
+        row["sparkline"] = sp
+        enriched_kpis.append(row)
 
-        er = dict(row)
-        er["sparkline"] = sp
-        enriched_kpis.append(er)
-
-    # --- pipeline refs ---
     pipe = list((flow_intel or {}).get("pipeline") or [])
     by_id = {str(n.get("id")): n for n in pipe}
 
@@ -109,16 +134,15 @@ def build_mes_dashboard(
     seals = _find_by_kind(machines, "sealing")
     s1 = seals[0] if len(seals) > 0 else None
     s2 = seals[1] if len(seals) > 1 else None
-    pk = _pick_station(machines, "packaging")
 
     blister_lane = {
         "id": "lane_blister",
-        "title": "Lane A · BLISTER SKU FLOW",
+        "title": "BLISTER SKU",
         "sku": (pb.get("lifelines") or [{}])[0].get("sku") if pb.get("lifelines") else "—",
         "stages": [
             {
                 "key": "raw",
-                "title": "Raw Material Receipt",
+                "title": "Raw Material",
                 "wip": 0,
                 "bags": _wip("blister"),
                 "dwell": None,
@@ -126,16 +150,16 @@ def build_mes_dashboard(
             },
             {
                 "key": "m1",
-                "title": "Machine 1 · DPP115 Blister",
+                "title": "DPP115",
                 "wip": _wip("blister"),
                 "bags": _wip("blister"),
                 "dwell": None,
                 "alert": "warn" if bl and str(bl.get("status")) != "running" else None,
-                "alert_note": ("Bench idle · no run session" if bl and str(bl.get("status")) != "running" else None),
+                "alert_note": ("Idle" if bl and str(bl.get("status")) != "running" else None),
             },
             {
                 "key": "stg1",
-                "title": "Staging Queue",
+                "title": "Staging Q",
                 "wip": _wip("staging_bs"),
                 "bags": _wip("staging_bs"),
                 "dwell": _dwell("staging_bs"),
@@ -145,32 +169,36 @@ def build_mes_dashboard(
                     else None
                 ),
                 "alert_note": (
-                    "Staging backlog"
+                    "Backlog"
                     if str((flow_intel or {}).get("bottleneck", {}).get("stage_id") or "") == "staging_bs"
                     else None
                 ),
             },
             {
                 "key": "m2",
-                "title": "Machine 2 · Heat Seal",
+                "title": "Heat Seal · M2",
                 "wip": _wip("sealing"),
                 "bags": _wip("sealing"),
                 "dwell": None,
-                "alert": "warn" if s1 and str(s1.get("status")) == "idle" and _wip("staging_bs") > 0 else None,
-                "alert_note": ("Heat seal idle · upstream queue > 0" if s1 and str(s1.get("status")) == "idle" and _wip("staging_bs") > 0 else None),
+                "alert": "warn"
+                if s1 and str(s1.get("status")) == "idle" and _wip("staging_bs") > 0
+                else None,
+                "alert_note": ("Idle · Q>0" if s1 and str(s1.get("status")) == "idle" and _wip("staging_bs") > 0 else None),
             },
             {
                 "key": "m3",
-                "title": "Machine 3 · Heat Seal",
+                "title": "Heat Seal · M3",
                 "wip": _wip("sealing"),
                 "bags": _wip("sealing"),
                 "dwell": None,
-                "alert": "warn" if s2 and str(s2.get("status")) == "idle" and _wip("staging_bs") > 1 else None,
-                "alert_note": ("Second seal idle · queue depth elevated" if s2 and str(s2.get("status")) == "idle" and _wip("staging_bs") > 1 else None),
+                "alert": "warn"
+                if s2 and str(s2.get("status")) == "idle" and _wip("staging_bs") > 1
+                else None,
+                "alert_note": ("Alt path idle" if s2 and str(s2.get("status")) == "idle" and _wip("staging_bs") > 1 else None),
             },
             {
                 "key": "stg2",
-                "title": "Staging Queue",
+                "title": "Staging Q",
                 "wip": _wip("staging_bs"),
                 "bags": _wip("staging_bs"),
                 "dwell": _dwell("staging_bs"),
@@ -178,7 +206,7 @@ def build_mes_dashboard(
             },
             {
                 "key": "pkg",
-                "title": "Packaging Station",
+                "title": "Packaging",
                 "wip": _wip("packaging"),
                 "bags": _wip("packaging"),
                 "dwell": None,
@@ -186,7 +214,7 @@ def build_mes_dashboard(
             },
             {
                 "key": "done",
-                "title": "Cycle Complete",
+                "title": "Finished",
                 "wip": 0,
                 "bags": int(kpis.get("active_machines") or 0),
                 "dwell": None,
@@ -197,31 +225,47 @@ def build_mes_dashboard(
 
     bottle_lane = {
         "id": "lane_bottle",
-        "title": "Lane B · BOTTLE SKU FLOW",
+        "title": "BOTTLE SKU",
         "sku": (pb.get("lifelines") or [{}, {}])[1].get("sku") if len(pb.get("lifelines") or []) > 1 else "—",
         "stages": [
             {"key": "br", "title": "Raw Material", "wip": 0, "bags": 0, "dwell": None, "alert": None},
-            {"key": "m5", "title": "Machine 5 · Bottle Sealing", "wip": _wip("sealing"), "bags": _wip("sealing"), "dwell": None, "alert": None},
-            {"key": "qa", "title": "Bottle QA Hold", "wip": 0, "bags": 0, "dwell": None, "alert": None},
+            {
+                "key": "m5",
+                "title": "Bottle Sealer · M5",
+                "wip": _wip("sealing"),
+                "bags": _wip("sealing"),
+                "dwell": None,
+                "alert": None,
+            },
+            {"key": "qa", "title": "QA Hold", "wip": 0, "bags": 0, "dwell": None, "alert": None},
             {"key": "fg", "title": "Finished Goods", "wip": 0, "bags": 0, "dwell": None, "alert": None},
         ],
     }
 
     card_lane = {
         "id": "lane_card",
-        "title": "Lane C · CARD / STICKERING SKU FLOW",
+        "title": "CARD SKU",
         "sku": (pb.get("lifelines") or [{}, {}, {}])[2].get("sku") if len(pb.get("lifelines") or []) > 2 else "—",
         "stages": [
             {"key": "cr", "title": "Raw Material", "wip": 0, "bags": 0, "dwell": None, "alert": None},
-            {"key": "m4", "title": "Card / Sticker Machine 4", "wip": _wip("packaging"), "bags": _wip("packaging"), "dwell": None, "alert": None},
+            {
+                "key": "m4",
+                "title": "Sticker · M4",
+                "wip": _wip("packaging"),
+                "bags": _wip("packaging"),
+                "dwell": None,
+                "alert": None,
+            },
             {"key": "cpk", "title": "Packaging", "wip": _wip("packaging"), "bags": _wip("packaging"), "dwell": None, "alert": None},
             {"key": "cfg", "title": "Finished Goods", "wip": 0, "bags": 0, "dwell": None, "alert": None},
         ],
     }
 
+    for lane in (blister_lane, bottle_lane, card_lane):
+        lane["stages"] = [_stage_enrich(s) for s in lane["stages"]]
+
     lanes = [blister_lane, bottle_lane, card_lane]
 
-    # --- SCADA slots (five canonical machines) mapped to ordered live stations ---
     blisters = _find_by_kind(machines, "blister")
     seal_list = _find_by_kind(machines, "sealing")
     packs = _find_by_kind(machines, "packaging")
@@ -233,11 +277,11 @@ def build_mes_dashboard(
         seal_list[2] if len(seal_list) > 2 else None,
     ]
     slots = [
-        {"slot": 1, "canonical": "Machine 1 · DPP115"},
-        {"slot": 2, "canonical": "Machine 2 · Heat Press"},
-        {"slot": 3, "canonical": "Machine 3 · Heat Press"},
-        {"slot": 4, "canonical": "Machine 4 · Stickering"},
-        {"slot": 5, "canonical": "Machine 5 · Bottle Sealing"},
+        {"slot": 1, "canonical": "M1 DPP115", "short": "M1 DPP115"},
+        {"slot": 2, "canonical": "M2 Heat Seal", "short": "M2 Heat Seal"},
+        {"slot": 3, "canonical": "M3 Heat Seal", "short": "M3 Heat Seal"},
+        {"slot": 4, "canonical": "M4 Stickering", "short": "M4 Stickering"},
+        {"slot": 5, "canonical": "M5 Bottle Sealer", "short": "M5 Bottle Sealer"},
     ]
     scada: list[dict] = []
     for s, m in zip(slots, slot_pick):
@@ -251,6 +295,7 @@ def build_mes_dashboard(
         util = max(5.0, min(99.0, util))
         oee_m = round(float(pb.get("oee_donut", {}).get("total") or 70) * (util / 85.0), 1)
         last_scan = None
+        tph = float((m or {}).get("rate_today_uh") or 0) if m else 0.0
         try:
             if m and conn:
                 r = conn.execute(
@@ -265,12 +310,15 @@ def build_mes_dashboard(
         except Exception:
             pass
 
+        lt = {"running": "run", "paused": "wait", "idle": "idle", "fault": "idle"}.get(st_vis, "idle")
         scada.append(
             {
                 "slot": s["slot"],
                 "label": mach_name,
                 "canonical": s["canonical"],
+                "short_label": s["short"],
                 "status": status_ui,
+                "status_light": lt,
                 "raw_status": st_vis,
                 "bag_id": (m or {}).get("bag_id"),
                 "sku": str((m or {}).get("product") or "—")[:64],
@@ -281,6 +329,7 @@ def build_mes_dashboard(
                 "counter_end": None,
                 "units_produced": (m or {}).get("output_today"),
                 "cycle_elapsed_min": (m or {}).get("cycle_session_min"),
+                "throughput_uh": round(tph, 1),
                 "utilization_pct": round(util, 1),
                 "oee_pct": oee_m,
                 "last_scan_ms": last_scan,
@@ -293,7 +342,7 @@ def build_mes_dashboard(
             "message": a.get("message"),
             "severity": a.get("severity") or "info",
         }
-        for a in (activity or [])[:14]
+        for a in (activity or [])[:24]
     ]
 
     return {
