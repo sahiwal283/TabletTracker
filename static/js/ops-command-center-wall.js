@@ -17,6 +17,24 @@
     }
   }
 
+  /** KPI header monochrome icons (compact SVG — matches instrument-tile aesthetic) */
+  var IK = {
+    play:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>',
+    pause:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
+    idle:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>',
+    down:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+    chart:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>',
+    trend:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>',
+    clock:
+      '<svg class="ops-kpi-ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>',
+  };
+
   /** Matches ops-command-center-wall.css electric cyan */
   var ACCENT = "#00f2ff";
   var ACCENT_SOFT = "rgba(0, 242, 255, 0.14)";
@@ -196,35 +214,38 @@
     if (avg30 > 0.5 && vs30 < 85) tpClass = " ops-kpi--behind";
     else if (avg30 > 0.5 && vs30 >= 110) tpClass = " ops-kpi--ahead";
 
+    function lbl(ic, words) {
+      return '<div class="ops-kpi-label-row">' + ic + '<span class="ops-kpi-label">' + words + "</span></div>";
+    }
     headEl.innerHTML =
       '<div class="ops-kpi' +
       (down > 0 ? " ops-kpi--alert" : "") +
       '">' +
-      '<div class="ops-kpi-label">Active</div>' +
+      lbl(IK.play, "Active") +
       '<div class="ops-kpi-value ops-kpi-value--run">' +
       (k.active_machines != null ? k.active_machines : "—") +
       "</div></div>" +
       '<div class="ops-kpi">' +
-      '<div class="ops-kpi-label">Paused</div>' +
+      lbl(IK.pause, "Paused") +
       '<div class="ops-kpi-value ops-kpi-value--idle">' +
       paused +
       "</div></div>" +
       '<div class="ops-kpi">' +
-      '<div class="ops-kpi-label">Idle</div>' +
+      lbl(IK.idle, "Idle") +
       '<div class="ops-kpi-value ops-kpi-value--idle">' +
       (k.idle_machines != null ? k.idle_machines : "—") +
       "</div></div>" +
       '<div class="ops-kpi' +
       (down > 0 ? " ops-kpi--alert" : "") +
       '">' +
-      '<div class="ops-kpi-label">Down</div>' +
+      lbl(IK.down, "Down") +
       '<div class="ops-kpi-value ops-kpi-value--down">' +
       down +
       "</div>" +
       (down > 0 ? '<div class="ops-kpi-sub">Check stations</div>' : "") +
       "</div>" +
       '<div class="ops-kpi">' +
-      '<div class="ops-kpi-label">Displays today</div>' +
+      lbl(IK.chart, "Displays today") +
       '<div class="ops-kpi-value ops-kpi-value--accent">' +
       displays.toLocaleString() +
       "</div>" +
@@ -232,7 +253,7 @@
       '<div class="ops-kpi' +
       tpClass +
       '">' +
-      '<div class="ops-kpi-label">Today vs 30d avg</div>' +
+      lbl(IK.trend, "Today vs 30d avg") +
       '<div class="ops-kpi-value ops-kpi-value--accent">' +
       (avg30 > 0.5 ? vs30 + "%" : "—") +
       "</div>" +
@@ -240,7 +261,7 @@
       (avg30 > 0.5 ? "typical day " + avg30.toLocaleString() + " displays" : "building baseline") +
       "</div></div>" +
       '<div class="ops-kpi">' +
-      '<div class="ops-kpi-label">Avg cycle</div>' +
+      lbl(IK.clock, "Avg cycle") +
       '<div class="ops-kpi-value">' +
       cycleStr +
       "</div>" +
@@ -531,18 +552,29 @@
           borderColor: ACCENT,
           backgroundColor: ACCENT_FILL,
           fill: true,
-          tension: 0.25,
-          borderWidth: 3,
+          tension: 0.22,
+          borderWidth: 2.75,
+          pointRadius: function (ctx) {
+            var pts = ctx.dataset.data || [];
+            var n = pts.length;
+            if (n <= 2) return 4;
+            return ctx.dataIndex % Math.max(1, Math.ceil(n / 16)) === 0 ? 4 : 0;
+          },
+          pointStyle: "rect",
+          pointBackgroundColor: ACCENT,
+          pointBorderColor: "#020508",
+          pointBorderWidth: 1,
+          pointHoverRadius: 7,
         },
         {
           label: "30d avg pace",
           data: data.chart_target_cumulative || [],
-          borderColor: "rgba(251, 191, 36, 0.65)",
+          borderColor: "rgba(251, 191, 36, 0.75)",
           borderDash: [6, 4],
           fill: false,
           tension: 0,
           pointRadius: 0,
-          borderWidth: 3,
+          borderWidth: 2.5,
         },
       ];
       charts.line.update();

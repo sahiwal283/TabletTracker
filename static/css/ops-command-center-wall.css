@@ -97,10 +97,23 @@ body {
 
 .ops-brand-hero {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.4rem 0.55rem;
-  row-gap: 0.2rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.06rem;
+  scrollbar-width: none;
+}
+
+.ops-brand-hero::-webkit-scrollbar {
+  height: 0;
+}
+
+@media (max-width: 720px) {
+  .ops-brand-hero {
+    flex-wrap: wrap;
+  }
 }
 
 .ops-hero-line1 {
@@ -259,12 +272,32 @@ body {
   }
 }
 
+.ops-kpi-label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.14rem;
+  min-height: 1rem;
+}
+
+.ops-kpi-ic {
+  width: 0.92rem;
+  height: 0.92rem;
+  flex-shrink: 0;
+  opacity: 0.88;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.ops-kpi--alert .ops-kpi-ic {
+  color: rgba(248, 113, 113, 0.95);
+}
+
 .ops-kpi-label {
   font-size: 0.56rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--muted);
-  margin-bottom: 0.12rem;
+  margin-bottom: 0;
   font-weight: 700;
 }
 
@@ -782,13 +815,6 @@ body {
 
 .ops-status-bar-left {
   font-weight: 500;
-}
-
-.ops-url-hint {
-  font-family: var(--font-num);
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: rgba(0, 242, 255, 0.95);
 }
 
 .ops-chart-panel canvas {
