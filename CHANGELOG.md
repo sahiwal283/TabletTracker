@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.24] - 2026-04-28
+
+### Changed
+- **Product configuration → Tablet Types tab:** clarified wording—**tablet type** is the grouped heading (e.g. FIX Energy, Hyroxi MIT A); a **tablet** is one flavor/SKU. Renamed the form to **Add new tablet** / **Add tablet**, updated placeholders and the catalog section/table headers so adding a row no longer reads like adding a whole category.
+
+---
+
 ## [4.16.23] - 2026-04-28
 
 ### Removed

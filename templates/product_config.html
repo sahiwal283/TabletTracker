@@ -18,7 +18,7 @@
             <svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-chart" /></svg>
             Product & Tablet Configuration
         </h1>
-        <p class="text-gray-600 mt-2">Manage tablet types, products, categories, and Zoho inventory mappings</p>
+        <p class="text-gray-600 mt-2">Manage tablets, products, categories, and Zoho inventory mappings</p>
     </div>
 
     <!-- Tab Navigation -->
@@ -41,34 +41,34 @@
     <div id="content-tablet-types" class="tab-content">
         <!-- Info Box -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 class="font-semibold text-blue-900 mb-1 inline-flex items-center gap-2 flex-wrap"><svg class="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true"><use href="#icon-lab"/></svg> What are Tablet Types?</h3>
-            <p class="text-sm text-blue-800">Tablet types are the individual tablet flavors/formulations you receive from suppliers (e.g., "MIT Pineapple", "MIT Spearmint"). Each bag you receive contains one tablet type.</p>
+            <h3 class="font-semibold text-blue-900 mb-1 inline-flex items-center gap-2 flex-wrap"><svg class="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true"><use href="#icon-lab"/></svg> Tablet types and tablets</h3>
+            <p class="text-sm text-blue-800"><span class="font-medium text-blue-900">Tablet type</span> is the group in the list below (e.g. FIX Energy, Hyroxi MIT A)—this is the type you assign when you add a tablet. A <span class="font-medium text-blue-900">tablet</span> is one specific flavor or formulation (e.g. MIT Pineapple, MIT Spearmint). Each received bag contains one tablet.</p>
         </div>
         
-        <!-- Add New Tablet Type -->
+        <!-- Add new tablet -->
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">
                 <svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg>
-                Add New Tablet Type
+                Add new tablet
             </h3>
             <form id="add-tablet-type-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input type="text" id="new-tablet-name" placeholder="Tablet Type Name (e.g., MIT Pineapple)" class="form-input" required>
+                <input type="text" id="new-tablet-name" placeholder="Tablet name (e.g. MIT Pineapple)" class="form-input" required>
                 <input type="text" id="new-inventory-id" placeholder="Zoho Inventory Item ID (optional)" class="form-input">
-                <select id="new-tablet-category" class="form-input">
-                    <option value="">Select category...</option>
+                <select id="new-tablet-category" class="form-input" aria-label="Tablet type">
+                    <option value="">Select tablet type…</option>
                     {% for category in categories %}
                     <option value="{{ category }}">{{ category }}</option>
                     {% endfor %}
                 </select>
-                <button type="submit" class="btn-primary">Add Tablet Type</button>
+                <button type="submit" class="btn-primary">Add tablet</button>
             </form>
         </div>
 
-        <!-- Tablet Types List -->
+        <!-- Tablet types (grouped list) -->
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-medium text-gray-900">Tablet Types</h3>
-                <p class="text-sm text-gray-500 mt-1">Click category headers to expand/collapse</p>
+                <h3 class="text-lg font-medium text-gray-900">Tablet types</h3>
+                <p class="text-sm text-gray-500 mt-1">Each heading is a tablet type. Expand it to see the tablets in that type.</p>
             </div>
             
             {% for category in categories %}
@@ -88,7 +88,7 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zoho Inventory ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
@@ -141,7 +141,7 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tablet</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zoho Inventory ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
