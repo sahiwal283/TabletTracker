@@ -1,8 +1,8 @@
 """
 Admin routes
 """
-import logging
 import json
+import logging
 import re
 import secrets
 import sqlite3
@@ -14,20 +14,31 @@ from datetime import datetime
 from time import time as epoch_time
 
 from config import Config
-from flask import Blueprint, current_app, flash, jsonify, make_response, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.blueprints.workflow_floor import _current_station_occupancy
 from app.blueprints.workflow_staff import ASSIGN_BAG_RETURN_COMMAND_CENTER, _load_workflow_products
 from app.services import workflow_constants as WC
+from app.services.mes_dashboard import build_mes_dashboard
+from app.services.ops_flow_intel import compute_production_flow_intel
+from app.services.pill_command_center_board import build_pill_command_center_board_payload
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required, session_has_admin_panel_access
 from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
-from app.services.ops_flow_intel import compute_production_flow_intel
-from app.services.pill_command_center_board import build_pill_command_center_board_payload
-from app.services.mes_dashboard import build_mes_dashboard
 
 _LOGGER_ADMIN = logging.getLogger(__name__)
 
@@ -1675,14 +1686,15 @@ def _render_ops_tv_dashboard_page():
         "nav": [
             {"label": "Overview", "tab": "overview", "icon": "◇"},
             {"label": "Blister Line", "tab": "blister", "icon": "▭"},
+            {"label": "Card Line", "tab": "card", "icon": "▭"},
             {"label": "Bottle Line", "tab": "bottle", "icon": "▭"},
             {"label": "Machines", "tab": "machines", "icon": "⚙"},
             {"label": "Bags / Inventory", "tab": "bags", "icon": "▣"},
             {"label": "Staging", "tab": "staging", "icon": "▤"},
             {"label": "Alerts", "tab": "alerts", "icon": "!"},
             {"label": "Analytics", "tab": "analytics", "icon": "▧"},
-            {"label": "Users", "tab": "users", "icon": "◎"},
-            {"label": "Settings", "tab": "settings", "icon": "☰"},
+            {"label": "Team", "tab": "team", "icon": "◎"},
+            {"label": "Materials", "tab": "materials", "icon": "☰"},
         ],
         "exit": {"label": "Exit Command Center", "href": cc},
         "urls": {

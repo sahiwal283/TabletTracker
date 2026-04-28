@@ -2,7 +2,7 @@
 
 import traceback
 
-from flask import current_app, jsonify, render_template, request, session
+from flask import current_app, jsonify, request
 
 from app.services.receiving_service import (
     get_receiving_with_details,
@@ -309,106 +309,6 @@ def get_receiving_details(receive_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/shipping')
-@role_required('shipping')
-def receiving_list():
-    """Shipments Received page - record shipments that arrive"""
-    try:
-        with db_read_only() as conn:
-            # Get all tablet types for the form dropdown
-            tablet_types = conn.execute('''
-                SELECT id, tablet_type_name
-                FROM tablet_types
-                ORDER BY tablet_type_name
-            ''').fetchall()
-
-            # Get all POs for warehouse leads/managers/admins to assign
-            purchase_orders = []
-            if session.get('employee_role') in ['warehouse_lead', 'manager', 'admin']:
-                purchase_orders = conn.execute('''
-                    SELECT id, po_number, closed, internal_status, zoho_status
-                    FROM purchase_orders
-                    ORDER BY po_number DESC
-                ''').fetchall()
-
-            # Get all receiving records with their boxes and bags
-            receiving_records = conn.execute('''
-                SELECT r.*,
-                       COUNT(DISTINCT sb.id) as box_count,
-                       COUNT(DISTINCT b.id) as total_bags,
-                       po.po_number
-                FROM receiving r
-                LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
-                LEFT JOIN bags b ON sb.id = b.small_box_id
-                LEFT JOIN purchase_orders po ON r.po_id = po.id
-                GROUP BY r.id
-                ORDER BY r.received_date DESC
-            ''').fetchall()
-
-            # Calculate shipment numbers for each PO
-            po_shipment_counts = {}
-            for rec in receiving_records:
-                po_id = rec['po_id']
-                if po_id and po_id not in po_shipment_counts:
-                    po_shipments = conn.execute('''
-                        SELECT id, received_date
-                        FROM receiving
-                        WHERE po_id = ?
-                        ORDER BY received_date ASC, id ASC
-                    ''', (po_id,)).fetchall()
-                    po_shipment_counts[po_id] = {
-                        shipment['id']: idx + 1
-                        for idx, shipment in enumerate(po_shipments)
-                    }
-
-            # For each receiving record, get its boxes and bags
-            shipments = []
-            for rec in receiving_records:
-                rec_dict = dict(rec)
-                if rec['po_id'] and rec['po_id'] in po_shipment_counts:
-                    rec_dict['shipment_number'] = po_shipment_counts[rec['po_id']].get(rec['id'], 1)
-                else:
-                    rec_dict['shipment_number'] = None
-                boxes = conn.execute('''
-                    SELECT sb.*, COUNT(b.id) as bag_count
-                    FROM small_boxes sb
-                    LEFT JOIN bags b ON sb.id = b.small_box_id
-                    WHERE sb.receiving_id = ?
-                    GROUP BY sb.id
-                    ORDER BY sb.box_number
-                ''', (rec['id'],)).fetchall()
-
-                boxes_with_bags = []
-                for box in boxes:
-                    bags = conn.execute('''
-                        SELECT b.*, tt.tablet_type_name
-                        FROM bags b
-                        LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                        WHERE b.small_box_id = ?
-                        ORDER BY b.bag_number
-                    ''', (box['id'],)).fetchall()
-                    boxes_with_bags.append({
-                        'box': dict(box),
-                        'bags': [dict(bag) for bag in bags]
-                    })
-
-                shipments.append({
-                    'receiving': rec_dict,
-                    'boxes': boxes_with_bags
-                })
-
-            return render_template('shipping_unified.html',
-                                 tablet_types=tablet_types,
-                                 purchase_orders=purchase_orders,
-                                 shipments=shipments,
-                                 user_role=session.get('employee_role'))
-    except Exception as e:
-        error_details = traceback.format_exc()
-        current_app.logger.error(f"Error in receiving_list: {str(e)}\n{error_details}")
-        return render_template('error.html',
-                             error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
-
-
 @bp.route('/api/shipments/<int:shipment_id>/refresh', methods=['POST'])
 @role_required('dashboard')
 def refresh_shipment_tracking(shipment_id: int):
@@ -530,4 +430,3 @@ def save_shipment():
     except Exception as e:
         current_app.logger.error(f"Error saving shipment: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
-

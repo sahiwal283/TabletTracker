@@ -3,9 +3,9 @@ Receiving routes - shipment receiving and tracking
 """
 import traceback
 
-from flask import Blueprint, current_app, flash, redirect, render_template, session, url_for
+from flask import Blueprint, current_app, flash, render_template, session
 
-from app.utils.auth_utils import admin_required, employee_required, role_required
+from app.utils.auth_utils import employee_required, role_required
 from app.utils.db_utils import db_read_only
 
 bp = Blueprint('receiving', __name__)
@@ -184,61 +184,6 @@ def receiving_list():
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
 
 
-@bp.route('/receiving')
-@admin_required
-def receiving_management_v2():
-    """Receiving management page - REBUILT VERSION"""
-    try:
-        with db_read_only() as conn:
-
-        # Simple query first - just check if we can access receiving table
-            try:
-                test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
-                test_query['count'] if test_query else 0
-            except Exception as e:
-                return f"""
-                <h2>Database Error (v1.7.6 REBUILT)</h2>
-                <p>Cannot access receiving table: {str(e)}</p>
-                <p><a href="/debug/server-info">Check Database</a></p>
-                """
-
-            # Get pending shipments (delivered but not yet received)
-            pending_shipments = conn.execute('''
-                SELECT s.*, po.po_number
-                FROM shipments s
-                JOIN purchase_orders po ON s.po_id = po.id
-                LEFT JOIN receiving r ON s.id = r.shipment_id
-                WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
-                ORDER BY s.delivered_at DESC, s.created_at DESC
-            ''').fetchall()
-
-            # Get recent receiving history
-            recent_receiving = conn.execute('''
-            SELECT r.*, po.po_number,
-                   COUNT(sb.id) as total_boxes,
-                   SUM(sb.total_bags) as total_bags
-            FROM receiving r
-            JOIN purchase_orders po ON r.po_id = po.id
-            LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
-            GROUP BY r.id
-            ORDER BY r.received_date DESC
-            LIMIT 20
-            ''').fetchall()
-
-            return render_template('receiving_management.html',
-                                 pending_shipments=pending_shipments,
-                                 recent_receiving=recent_receiving)
-    except Exception as e:
-        # If template fails, return simple HTML with version
-            return f"""
-            <h2>Receiving Page Error (v1.7.6 REBUILT)</h2>
-            <p>Template error: {str(e)}</p>
-            <p><a href="/receiving/debug">View debug info</a></p>
-            <p><a href="/debug/server-info">Check Server Info</a></p>
-            <p><a href="/admin">Back to admin</a></p>
-            """
-
-
 @bp.route('/shipments')
 @employee_required
 def public_shipments():
@@ -261,134 +206,6 @@ def public_shipments():
         current_app.logger.error(f"Traceback: {error_trace}")
         flash('Failed to load shipments. Please try again later.', 'error')
         return render_template('shipments_public.html', shipments=[])
-
-
-
-@bp.route('/receiving/debug')
-@admin_required
-def receiving_debug():
-    """Debug route to test receiving functionality"""
-    try:
-        with db_read_only() as conn:
-
-        # Test database connections
-            po_count = conn.execute('SELECT COUNT(*) as count FROM purchase_orders').fetchone()
-            shipment_count = conn.execute('SELECT COUNT(*) as count FROM shipments').fetchone()
-            receiving_count = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
-
-        # Test the actual query
-            pending_shipments = conn.execute('''
-            SELECT s.*, po.po_number
-            FROM shipments s
-            JOIN purchase_orders po ON s.po_id = po.id
-            LEFT JOIN receiving r ON s.id = r.shipment_id
-            WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
-            ORDER BY s.delivered_at DESC, s.created_at DESC
-            ''').fetchall()
-
-            debug_info = {
-            'status': 'success',
-            'database_counts': {
-                'purchase_orders': po_count['count'] if po_count else 0,
-                'shipments': shipment_count['count'] if shipment_count else 0,
-                'receiving': receiving_count['count'] if receiving_count else 0
-            },
-            'pending_shipments': len(pending_shipments),
-            'template_exists': 'receiving_management.html exists',
-            'version': '1.7.1'
-            }
-
-            return f"""
-            <h2>Receiving Debug Info (v1.7.1)</h2>
-            <pre>{debug_info}</pre>
-            <p><a href="/receiving">Go to actual receiving page</a></p>
-            """
-    except Exception as e:
-        return f"""
-        <h2>Receiving Debug Error</h2>
-        <p>Error: {str(e)}</p>
-        <p><a href="/receiving">Try receiving page anyway</a></p>
-        """
-
-
-
-@bp.route('/receiving/<int:receiving_id>')
-@admin_required
-def receiving_details(receiving_id):
-    """View detailed information about a specific receiving record"""
-    try:
-        with db_read_only() as conn:
-
-            # Get receiving record with PO and shipment info
-            receiving = conn.execute('''
-                SELECT r.*, po.po_number, s.tracking_number, s.carrier
-                FROM receiving r
-                JOIN purchase_orders po ON r.po_id = po.id
-                LEFT JOIN shipments s ON r.shipment_id = s.id
-                WHERE r.id = ?
-            ''', (receiving_id,)).fetchone()
-
-            if not receiving:
-                flash('Receiving record not found', 'error')
-                return redirect(url_for('shipping.receiving_management_v2'))
-
-            # Get box summary
-            boxes_summary = conn.execute('''
-                SELECT sb.*,
-                       GROUP_CONCAT(b.bag_number) as bag_numbers,
-                       COUNT(b.id) as bag_count,
-                       GROUP_CONCAT('Bag ' || b.bag_number || ': ' || COALESCE(b.pill_count, 'N/A') || ' pills') as pill_counts
-                FROM small_boxes sb
-                LEFT JOIN bags b ON sb.id = b.small_box_id
-                WHERE sb.receiving_id = ?
-                GROUP BY sb.id
-                ORDER BY sb.box_number
-            ''', (receiving_id,)).fetchall()
-
-            # Get individual bags with details for reservation UI
-            bags = conn.execute('''
-                SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count,
-                       COALESCE(b.reserved_for_bottles, 0) as reserved_for_bottles,
-                       COALESCE(b.status, 'Available') as status,
-                       sb.box_number,
-                       tt.tablet_type_name, tt.id as tablet_type_id
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE sb.receiving_id = ?
-                ORDER BY sb.box_number, b.bag_number
-            ''', (receiving_id,)).fetchall()
-
-            # Calculate remaining counts for each bag (original - packaged)
-            bags_with_counts = []
-            for bag_row in bags:
-                bag = dict(bag_row)
-                original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
-
-                packaged_total = conn.execute('''
-                    SELECT COALESCE(SUM(
-                        (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                        (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                    ), 0) as total
-                    FROM warehouse_submissions ws
-                    LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                    WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
-                ''', (bag['id'],)).fetchone()
-
-                packaged_count = packaged_total['total'] if packaged_total else 0
-                bag['original_count'] = original_count
-                bag['packaged_count'] = packaged_count
-                bag['remaining_count'] = max(0, original_count - packaged_count)
-                bags_with_counts.append(bag)
-
-            return render_template('receiving_details.html',
-                                 receiving=dict(receiving),
-                                 boxes=[dict(box) for box in boxes_summary],
-                                 bags=bags_with_counts)
-    except Exception as e:
-        flash(f'Error loading receiving details: {str(e)}', 'error')
-        return redirect(url_for('receiving.receiving_management_v2'))
-
 
 # Backwards-compatible route alias (deprecated)
 @bp.route('/shipping')

@@ -11,14 +11,15 @@
   var FALLBACK_NAV_ITEMS = [
     { label: "Overview", tab: "overview" },
     { label: "Blister Line", tab: "blister" },
+    { label: "Card Line", tab: "card" },
     { label: "Bottle Line", tab: "bottle" },
     { label: "Machines", tab: "machines" },
     { label: "Bags / Inventory", tab: "bags" },
     { label: "Staging", tab: "staging" },
     { label: "Alerts", tab: "alerts" },
     { label: "Analytics", tab: "analytics" },
-    { label: "Users", tab: "users" },
-    { label: "Settings", tab: "settings" },
+    { label: "Team", tab: "team" },
+    { label: "Materials", tab: "materials" },
   ];
 
   function readBoot() {
@@ -202,14 +203,15 @@
     var iconByTab = {
       overview: "grid",
       blister: "blister",
+      card: "machine",
       bottle: "bottle",
       machines: "machine",
       bags: "bag",
       staging: "grid",
       alerts: "warn",
       analytics: "bars",
-      users: "users",
-      settings: "settings",
+      team: "users",
+      materials: "settings",
     };
     var items = props.items || [];
     return html`<aside className="occ-side">
@@ -287,7 +289,7 @@
   function AlertsRail(props) {
     var alerts = (props.alerts || []).slice(0, 5);
     return html`<aside className="alerts-rail">
-      <header><h2>ACTIVE ALERTS</h2><a href="#">View all</a></header>
+      <header><h2>ACTIVE ALERTS</h2></header>
       ${alerts.length ? alerts.map(function (a, i) {
         var sev = String(a.severity || "info").toLowerCase();
         return html`<div key=${i} className=${"alert-item " + sev}>
@@ -641,14 +643,15 @@
 
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
-      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section></div>`;
+      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid three-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section></div>`;
       if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags") return html`<section className="occ-wall"><section className="wall-panel"><h3>BAGS / INVENTORY</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
-      if (activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
-      if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
+      if (activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
+      if (activeTab === "card") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
+      if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
-      if (activeTab === "users") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
-      if (activeTab === "settings") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} pvcCode=${pvcCode} foilCode=${foilCode} setPvcCode=${setPvcCode} setFoilCode=${setFoilCode} onChangeRoll=${changeRoll} /></section>`;
+      if (activeTab === "team") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
+      if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} pvcCode=${pvcCode} foilCode=${foilCode} setPvcCode=${setPvcCode} setFoilCode=${setFoilCode} onChangeRoll=${changeRoll} /></section>`;
       return null;
     }
     var generated = snap && snap.generated_at_ms;
@@ -657,7 +660,7 @@
       <main className="occ-main">
         <header className="occ-header">
           <div><h1>PILL PACKING COMMAND CENTER</h1><p>Real-time Production Monitoring <span></span> LIVE</p></div>
-          <div className="occ-head-controls"><b>${fmtDate(generated)}</b><b>${fmtTime(now.getTime())}</b><button>All Lines</button><button>All SKUs</button><i>⛶</i></div>
+          <div className="occ-head-controls"><b>${fmtDate(generated)}</b><b>${fmtTime(now.getTime())}</b></div>
         </header>
         ${activeTab !== "overview" ? renderFocusedTab() : null}
         ${activeTab === "overview" ? html`
@@ -694,8 +697,9 @@
           <${AlertsRail} alerts=${alerts} />
         </section>
         <section className="occ-machine-grid">
-          <${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
-          <${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
+          <${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
+          <${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
+          <${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
         </section>
         <section className="occ-wall wall-row-a">
           <section className="wall-panel"><h3>BAG INVENTORY (IN STOCK)</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section>

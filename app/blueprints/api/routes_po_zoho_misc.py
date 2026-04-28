@@ -164,8 +164,6 @@ def clear_po_data():
 
 
 
-# Temporarily removed force-reload route due to import issues
-
 @bp.route('/debug/server-info')
 @admin_required
 def server_debug_info():
@@ -187,11 +185,6 @@ def server_debug_info():
 
         # Check current working directory
         cwd = os.getcwd()
-
-        # Check if template exists (using absolute path)
-        template_path = os.path.join(current_app.root_path, '..', 'templates', 'receiving_management.html')
-        template_path = os.path.abspath(template_path)
-        template_exists = os.path.exists(template_path)
 
         # Find database path and check what tables exist (use Config.DATABASE_PATH)
         db_path = Config.DATABASE_PATH
@@ -217,7 +210,6 @@ def server_debug_info():
         <p><strong>Working Directory:</strong> {cwd}</p>
         <p><strong>App.py Modified:</strong> {time.ctime(app_py_time)}</p>
         <p><strong>Version.py Modified:</strong> {time.ctime(version_time)}</p>
-        <p><strong>Receiving Template Exists:</strong> {template_exists}</p>
         <p><strong>Python Path:</strong> {os.sys.path[0]}</p>
         <hr>
         <p><strong>Database Path:</strong> {db_full_path}</p>
@@ -225,7 +217,6 @@ def server_debug_info():
         <p><strong>{tables_info}</strong></p>
         <hr>
         <p><a href="/receiving">Test Receiving Route</a></p>
-        <p><a href="/receiving/debug">Test Debug Route</a></p>
         """
 
     except Exception as e:

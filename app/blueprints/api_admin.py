@@ -2,83 +2,15 @@
 Admin API routes for admin panel, employee management, and diagnostic tools.
 """
 import traceback
-from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, jsonify, request
 
 from app.services.submission_calculator import calculate_repack_output_good
-from app.utils.auth_utils import admin_required, hash_password, session_has_admin_panel_access
+from app.utils.auth_utils import admin_required, hash_password
 from app.utils.db_utils import db_read_only, db_transaction
 from app.utils.route_helpers import ensure_app_settings_table
 
 bp = Blueprint('api_admin', __name__)
-
-
-@bp.route('/admin')
-def admin_panel():
-    """Admin panel with quick actions and product management"""
-    if not session_has_admin_panel_access():
-        return render_template('admin_login.html')
-
-    try:
-        ensure_app_settings_table()
-        with db_read_only() as conn:
-            cards_per_turn = conn.execute(
-                'SELECT setting_value FROM app_settings WHERE setting_key = ?',
-                ('cards_per_turn',)
-            ).fetchone()
-            cards_per_turn_value = int(cards_per_turn['setting_value']) if cards_per_turn else 1
-            return render_template('admin_panel.html', cards_per_turn=cards_per_turn_value)
-    except Exception as e:
-        current_app.logger.error(f"Error in admin_panel: {str(e)}")
-        traceback.print_exc()
-        return render_template('admin_panel.html', cards_per_turn=1)
-
-
-@bp.route('/admin/login', methods=['POST'])
-def admin_login():
-    """Handle admin login with enhanced security"""
-    from config import Config
-
-    password = request.form.get('password') or request.json.get('password')
-    admin_password = Config.ADMIN_PASSWORD
-
-    if password == admin_password:
-        session['admin_authenticated'] = True
-        session['employee_role'] = 'admin'
-        session['login_time'] = datetime.now().isoformat()
-        session.permanent = True
-        current_app.permanent_session_lifetime = timedelta(hours=8)
-
-        return redirect('/admin') if request.form else jsonify({'success': True})
-    else:
-        current_app.logger.warning(f"Failed admin login attempt from {request.remote_addr} at {datetime.now()}")
-
-        if request.form:
-            flash('Invalid password', 'error')
-            return render_template('admin_login.html')
-        else:
-            return jsonify({'success': False, 'error': 'Invalid password'})
-
-
-@bp.route('/admin/logout')
-def admin_logout():
-    """Logout admin - redirect to unified logout"""
-    return redirect(url_for('auth.logout'))
-
-
-@bp.route('/admin/products')
-@admin_required
-def product_mapping():
-    """Redirect to unified product configuration page"""
-    return redirect(url_for('admin.product_config'))
-
-
-@bp.route('/admin/tablet_types')
-@admin_required
-def tablet_types_config():
-    """Redirect to unified product configuration page"""
-    return redirect(url_for('admin.product_config'))
 
 
 @bp.route('/api/settings/cards_per_turn', methods=['GET', 'POST'])

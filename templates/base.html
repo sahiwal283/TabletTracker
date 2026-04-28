@@ -2124,30 +2124,40 @@ async function convertToTwoLevelDropdown(selectElement) {
                class="tt-sidebar fixed md:sticky top-0 left-0 z-50 flex h-screen md:h-auto md:max-h-none md:min-h-screen w-64 max-w-[min(22rem,calc(100vw-2rem))] flex-shrink-0 flex-col overflow-y-auto shadow-2xl transform -translate-x-full transition-transform duration-200 ease-out md:translate-x-0 md:transition-[transform,width,opacity,padding] md:duration-200"
                role="navigation"
                aria-label="Main navigation">
+            {% set nav_endpoint = request.endpoint or '' %}
+            {% set nav_path = request.path or '' %}
+            {% set nav_link_base = 'nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors' %}
+            {% set nav_link_active = ' is-active bg-white/12 border-white/20' %}
             <div class="flex flex-col gap-1 p-3 pb-6">
                     {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('reports.reports_view') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                    {% set is_active = nav_endpoint.startswith('reports.') %}
+                    <a href="{{ url_for('reports.reports_view') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg> Reports
                     </a>
                     {% endif %}
                     {% if session.employee_role in ['warehouse_lead', 'manager', 'admin'] %}
-                    <a href="{{ url_for('receiving.receiving_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                    {% set is_active = nav_endpoint.startswith('receiving.') %}
+                    <a href="{{ url_for('receiving.receiving_list') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-box" /></svg> Shipments Received
                     </a>
                     {% endif %}
-                    <a href="{{ url_for('production.production_form') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                    {% set is_active = nav_endpoint.startswith('production.') %}
+                    <a href="{{ url_for('production.production_form') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-box" /></svg> Production
                     </a>
-                    <a href="{{ url_for('admin.workflow_qr_management') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                    {% set is_active = nav_endpoint == 'admin.workflow_qr_management' or nav_path.startswith('/workflow/') %}
+                    <a href="{{ url_for('admin.workflow_qr_management') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-mobile" /></svg> Command Center
                     </a>
                     {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
-                    <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                    {% set is_active = nav_endpoint.startswith('submissions.') %}
+                    <a href="{{ url_for('submissions.submissions_list') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-list" /></svg> Submissions
                     </a>
                     {% endif %}
                     {% if session.employee_role == 'admin' %}
-                    <a href="{{ url_for('admin.admin_panel') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
+                    {% set is_active = nav_endpoint in ['admin.admin_panel', 'admin.product_config', 'admin.manage_employees', 'admin.machine_settings_page'] %}
+                    <a href="{{ url_for('admin.admin_panel') }}" class="{{ nav_link_base }}{% if is_active %}{{ nav_link_active }}{% endif %}"{% if is_active %} aria-current="page"{% endif %}>
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-gear" /></svg> Settings
                     </a>
                     {% endif %}
@@ -4356,14 +4366,10 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         </div>
                         
                         <!-- Box Dropdown -->
-                        <select id="box-jump-dropdown" data-handle-box-jump data-handle-box-jump-click
+                        <select id="box-jump-dropdown" data-handle-box-jump
                                 class="px-2 py-1.5 text-sm border rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                             ${boxDropdownOptions}
                         </select>
-                        <button type="button" data-jump-to-box
-                                class="px-2 py-1.5 text-xs border rounded-lg bg-white shadow-sm hover:bg-gray-50 text-gray-700">
-                            Go
-                        </button>
                         
                         <!-- Search Filter -->
                         <div class="flex-1 min-w-[150px] max-w-[300px]">
@@ -4591,16 +4597,7 @@ function jumpToBox(boxNumber, skipStateSave = false) {
 function handleBoxJump(selectElement) {
     if (!selectElement) return;
     const selected = selectElement.value || '';
-    selectElement.dataset.lastValue = selected;
     jumpToBox(selected);
-}
-
-function handleBoxJumpClick(selectElement) {
-    if (!selectElement || !selectElement.value) return;
-    // Re-run jump when user re-selects/clicks the currently selected box.
-    if (selectElement.dataset.lastValue === selectElement.value) {
-        jumpToBox(selectElement.value, true);
-    }
 }
 
 // Filter bags by search term
@@ -5901,10 +5898,6 @@ document.addEventListener('click', function (event) {
         switchReceiveView(switchViewBtn.dataset.switchReceiveView || 'box');
         return;
     }
-    if (event.target.closest('[data-jump-to-box]')) {
-        jumpToBox(document.getElementById('box-jump-dropdown')?.value || '');
-        return;
-    }
     if (event.target.closest('[data-clear-receive-filter]')) {
         clearReceiveFilter();
         return;
@@ -6016,11 +6009,6 @@ document.addEventListener('change', function (event) {
     }
 });
 
-document.addEventListener('mousedown', function (event) {
-    if (event.target.closest('[data-handle-box-jump-click]')) {
-        handleBoxJumpClick(event.target);
-    }
-});
 </script>
 {% block page_scripts %}{% endblock %}
 </body>

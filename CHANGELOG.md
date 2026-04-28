@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.11] - 2026-04-28
+
+### Changed
+- **Navigation cleanup:** removed legacy/dead navigation routes and templates for retired pages, tightened duplicate UI actions, and added active-state metadata to the main sidebar.
+- **Command Center sidebar:** split the combined blister/card machine view into distinct **Blister Line** and **Card Line** tabs, and renamed ambiguous **Users** / **Settings** tabs to **Team** / **Materials**.
+
+---
+
 ## [4.16.10] - 2026-04-28
 
 ### Changed
