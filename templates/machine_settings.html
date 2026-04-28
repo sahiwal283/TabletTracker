@@ -1,71 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Machine Settings · TabletTracker</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version if app_version else '1' }}" />
-  <style>
-    body{margin:0;background:#eef2f5;font-family:Inter,system-ui,sans-serif;color:#1f2937}
-    .top{background:linear-gradient(90deg,#0f766e,#475569);color:#fff;padding:14px 20px;font-weight:700}
-    .wrap{max-width:1200px;margin:22px auto;padding:0 16px}
-    .bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-    .btn{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .card{background:#fff;border:1px solid #dbe2ea;border-radius:10px;padding:14px;margin-bottom:12px}
-    .row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px}
-    .muted{color:#64748b;font-size:13px}
-    .actions button{margin-left:8px;background:none;border:none;color:#0ea5e9;cursor:pointer;font-weight:700}
-    .actions .del{color:#ef4444}
-    .form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-    .form textarea,.form input,.form select{border:1px solid #cbd5e1;border-radius:6px;padding:8px;background:#fff}
-    .span2{grid-column:span 2}
-  </style>
-</head>
-<body>
-  <div class="top">TabletTracker · Machine Settings</div>
-  <div class="wrap">
-    <div class="bar">
-      <a href="{{ url_for('admin.product_config') }}">← Back to Settings</a>
-      <button class="btn" id="newBtn">+ Add Machine</button>
-    </div>
+{% extends "base.html" %}
 
-    <div class="card" id="editor" style="display:none">
-      <div class="form">
-        <input id="name" placeholder="Machine name" />
-        <select id="role"><option value="sealing">Sealing</option><option value="blister">Blister</option><option value="packaging">Packaging</option><option value="stickering">Stickering</option><option value="bottle">Bottle</option></select>
-        <input id="cards" type="number" min="1" value="1" placeholder="Cards/turn" />
-        <input id="area" placeholder="Area (e.g. Post-Blister)" />
-        <input id="category" placeholder="Category (Primary/Secondary)" />
-        <textarea id="raw" class="span2" placeholder='Raw materials (comma separated)'></textarea>
-        <textarea id="components" class="span2" placeholder='Components used (comma separated, include compressors)'></textarea>
-      </div>
-      <div style="margin-top:10px"><button class="btn" id="saveBtn">Save Machine</button> <button id="cancelBtn">Cancel</button></div>
-    </div>
+{% block title %}Machine Settings{% endblock %}
 
-    <div id="list"></div>
+{% block content %}
+<div class="max-w-6xl mx-auto">
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <a href="{{ url_for('admin.admin_panel') }}" class="text-sm text-primary hover:underline inline-flex items-center">
+      <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-list" /></svg>
+      Back to Settings
+    </a>
+    <button class="btn-success py-2.5 px-4 text-sm font-semibold inline-flex items-center" id="newBtn">
+      <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plus" /></svg>
+      Add Machine
+    </button>
   </div>
 
-  <script>
-    let editingId = null;
-    function csvToList(v){return String(v||'').split(',').map(x=>x.trim()).filter(Boolean)}
-    function listToCsv(v){return Array.isArray(v)?v.join(', '):''}
-    async function load(){
-      const res=await fetch('/api/machines'); const data=await res.json();
-      const list=document.getElementById('list');
-      list.innerHTML=(data.machines||[]).map(m=>`<div class="card"><div class="row"><div><strong>${m.machine_name}</strong><div class="muted">Role: ${m.machine_role||'sealing'} · ${m.cards_per_turn} cards/turn</div><div class="muted">Area: ${m.area_name||'—'} · Category: ${m.machine_category||'—'}</div><div class="muted">Raw materials: ${listToCsv(m.raw_materials)||'—'}</div><div class="muted">Components: ${listToCsv(m.components)||'—'}</div><div class="muted">Compressors: ${listToCsv(m.compressor)||'—'}</div></div><div></div><div></div><div class="actions"><button onclick="editMachine(${m.id})">Edit</button><button class="del" onclick="deleteMachine(${m.id})">Delete</button></div></div></div>`).join('') || '<div class="card muted">No machines configured.</div>';
+  <div class="card p-6 mb-6 hidden" id="editor">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Machine Settings</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <input id="name" class="form-input" placeholder="Machine name" />
+      <select id="role" class="form-input">
+        <option value="sealing">Sealing</option>
+        <option value="blister">Blister</option>
+        <option value="packaging">Packaging</option>
+        <option value="stickering">Stickering</option>
+        <option value="bottle">Bottle</option>
+      </select>
+      <input id="cards" class="form-input" type="number" min="1" value="1" placeholder="Cards/turn" />
+      <input id="area" class="form-input" placeholder="Area (e.g. Post-Blister)" />
+      <input id="category" class="form-input" placeholder="Category (Primary/Secondary)" />
+      <textarea id="raw" class="form-input md:col-span-2" placeholder="Raw materials (comma separated)"></textarea>
+      <textarea id="components" class="form-input md:col-span-2" placeholder="Components used (comma separated, include compressors)"></textarea>
+    </div>
+    <div class="mt-4 flex items-center gap-2">
+      <button class="btn-primary py-2.5 px-4 text-sm font-semibold" id="saveBtn">Save Machine</button>
+      <button id="cancelBtn" class="btn-warning py-2.5 px-4 text-sm font-semibold">Cancel</button>
+    </div>
+  </div>
+
+  <div id="list" class="space-y-4"></div>
+</div>
+
+<script>
+  let editingId = null;
+
+  function csvToList(v) {
+    return String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+  }
+
+  function listToCsv(v) {
+    return Array.isArray(v) ? v.join(', ') : '';
+  }
+
+  function machineCardHtml(m) {
+    return `
+      <div class="card p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">${m.machine_name}</h3>
+            <p class="text-sm text-gray-600 mt-1">Role: ${m.machine_role || 'sealing'} · ${m.cards_per_turn} cards/turn</p>
+            <p class="text-sm text-gray-600">Area: ${m.area_name || '—'} · Category: ${m.machine_category || '—'}</p>
+            <p class="text-sm text-gray-600">Raw materials: ${listToCsv(m.raw_materials) || '—'}</p>
+            <p class="text-sm text-gray-600">Components: ${listToCsv(m.components) || '—'}</p>
+            <p class="text-sm text-gray-600">Compressors: ${listToCsv(m.compressor) || '—'}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button data-edit-id="${m.id}" class="text-sm text-cyan-700 font-semibold hover:underline">Edit</button>
+            <button data-delete-id="${m.id}" class="text-sm text-red-600 font-semibold hover:underline">Delete</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function load() {
+    const res = await fetch('/api/machines');
+    const data = await res.json();
+    const list = document.getElementById('list');
+    const machines = data.machines || [];
+    if (!machines.length) {
+      list.innerHTML = '<div class="card p-4 text-sm text-gray-600">No machines configured.</div>';
+      return;
     }
-    function openEditor(){document.getElementById('editor').style.display='block'}
-    function clearEditor(){editingId=null;['name','cards','area','category','raw','components'].forEach(id=>document.getElementById(id).value='');document.getElementById('cards').value='1';document.getElementById('role').value='sealing'}
-    async function editMachine(id){const r=await fetch('/api/machines');const d=await r.json();const m=(d.machines||[]).find(x=>x.id===id);if(!m)return;editingId=id;openEditor();document.getElementById('name').value=m.machine_name||'';document.getElementById('cards').value=m.cards_per_turn||1;document.getElementById('role').value=m.machine_role||'sealing';document.getElementById('area').value=m.area_name||'';document.getElementById('category').value=m.machine_category||'';document.getElementById('raw').value=listToCsv(m.raw_materials);document.getElementById('components').value=listToCsv((m.components||[]).concat(m.compressor||[]));}
-    async function deleteMachine(id){if(!confirm('Delete machine?'))return;await fetch('/api/machines/'+id,{method:'DELETE',headers:{'Content-Type':'application/json'}});load();}
-    async function save(){
-      const payload={machine_name:name.value.trim(),machine_role:role.value,cards_per_turn:parseInt(cards.value||'1',10),area_name:area.value.trim(),machine_category:category.value.trim(),raw_materials:csvToList(raw.value),components:csvToList(components.value).filter(x=>!x.toLowerCase().includes('compressor')),compressor:csvToList(components.value).filter(x=>x.toLowerCase().includes('compressor'))};
-      const url=editingId?'/api/machines/'+editingId:'/api/machines';
-      const method=editingId?'PUT':'POST';
-      const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await res.json(); if(!d.success){alert(d.error||'Save failed');return}
-      document.getElementById('editor').style.display='none'; clearEditor(); load();
+    list.innerHTML = machines.map(machineCardHtml).join('');
+  }
+
+  function openEditor() {
+    document.getElementById('editor').classList.remove('hidden');
+  }
+
+  function closeEditor() {
+    document.getElementById('editor').classList.add('hidden');
+  }
+
+  function clearEditor() {
+    editingId = null;
+    ['name', 'cards', 'area', 'category', 'raw', 'components'].forEach((id) => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('cards').value = '1';
+    document.getElementById('role').value = 'sealing';
+  }
+
+  async function editMachine(id) {
+    const r = await fetch('/api/machines');
+    const d = await r.json();
+    const m = (d.machines || []).find((x) => x.id === id);
+    if (!m) return;
+    editingId = id;
+    openEditor();
+    document.getElementById('name').value = m.machine_name || '';
+    document.getElementById('cards').value = m.cards_per_turn || 1;
+    document.getElementById('role').value = m.machine_role || 'sealing';
+    document.getElementById('area').value = m.area_name || '';
+    document.getElementById('category').value = m.machine_category || '';
+    document.getElementById('raw').value = listToCsv(m.raw_materials);
+    document.getElementById('components').value = listToCsv((m.components || []).concat(m.compressor || []));
+  }
+
+  async function deleteMachine(id) {
+    if (!confirm('Delete machine?')) return;
+    await csrfFetch('/api/machines/' + id, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    load();
+  }
+
+  async function save() {
+    const payload = {
+      machine_name: name.value.trim(),
+      machine_role: role.value,
+      cards_per_turn: parseInt(cards.value || '1', 10),
+      area_name: area.value.trim(),
+      machine_category: category.value.trim(),
+      raw_materials: csvToList(raw.value),
+      components: csvToList(components.value).filter((x) => !x.toLowerCase().includes('compressor')),
+      compressor: csvToList(components.value).filter((x) => x.toLowerCase().includes('compressor')),
+    };
+    const url = editingId ? '/api/machines/' + editingId : '/api/machines';
+    const method = editingId ? 'PUT' : 'POST';
+    const res = await csrfFetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json();
+    if (!d.success) {
+      if (typeof showError === 'function') showError(d.error || 'Save failed');
+      return;
     }
-    newBtn.onclick=()=>{clearEditor();openEditor()}; cancelBtn.onclick=()=>{document.getElementById('editor').style.display='none'}; saveBtn.onclick=save; load();
-  </script>
-</body>
-</html>
+    closeEditor();
+    clearEditor();
+    load();
+  }
+
+  document.getElementById('newBtn').addEventListener('click', function () {
+    clearEditor();
+    openEditor();
+  });
+  document.getElementById('cancelBtn').addEventListener('click', closeEditor);
+  document.getElementById('saveBtn').addEventListener('click', save);
+
+  document.getElementById('list').addEventListener('click', function (event) {
+    const editBtn = event.target.closest('[data-edit-id]');
+    if (editBtn) {
+      editMachine(parseInt(editBtn.dataset.editId, 10));
+      return;
+    }
+    const deleteBtn = event.target.closest('[data-delete-id]');
+    if (deleteBtn) {
+      deleteMachine(parseInt(deleteBtn.dataset.deleteId, 10));
+    }
+  });
+
+  load();
+</script>
+{% endblock %}
