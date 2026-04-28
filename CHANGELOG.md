@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.31] - 2026-04-28
+
+### Fixed
+- **Submission details modal (JS):** Submission type is one readable pill (**Blister machine** / **Sealing machine** + machine name) instead of overlapping “Machine”, blue machine name, and “(blister)”. Station timing uses a three-column row for start, end, and duration. Count cards use consistent slate numerals on tinted cards; blister rows drop the duplicate machine summary bar. Modal-only CSS adds sky/violet/slate stat surfaces so Tailwind classes render as light cards inside `#submission-details-modal-container`.
+
+---
+
 ## [4.16.28] - 2026-04-28
 
 ### Fixed

@@ -774,6 +774,54 @@ body.tt-app-body #submission-details-modal-container .text-red-700 {
   color: #b91c1c !important;
 }
 
+body.tt-app-body #submission-details-modal-container .bg-sky-50 {
+  background: #f0f9ff !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-sky-200 {
+  border-color: #bae6fd !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-violet-50 {
+  background: #f5f3ff !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-violet-200 {
+  border-color: #ddd6fe !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-teal-200 {
+  border-color: #99f6e4 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-slate-200 {
+  border-color: #e2e8f0 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-slate-50 {
+  background: #f8fafc !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-slate-900 {
+  color: #0f172a !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-slate-800 {
+  color: #1e293b !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-slate-700 {
+  color: #334155 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-slate-600 {
+  color: #475569 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-red-200 {
+  border-color: #fecaca !important;
+}
+
 /* Shipments Received — accordion rows + nested cards keep readable hierarchy */
 main.tt-app-main .tt-receiving-shell .border-l-4.border-blue-500 {
   border-left-color: rgba(56, 189, 248, 0.55) !important;
