@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.9.0] - 2026-04-28
+
+### Changed
+- **Command Center global theme** — The main app shell, forms, cards, buttons, flashes, auth (`tt-login-surface`), sidebar, top bar, production segment control, and prose in `main.tt-app-main` now use the same dark navy, cyan accent, panel chrome, and subtle grid mesh as the **Ops TV** dashboard. Shared tokens live in [`static/css/tokens.css`](static/css/tokens.css) (including `--cmd-*` and Ops TV aliases `--bg` / `--panel` / `--accent`, etc.).
+- **[`templates/base.html`](templates/base.html)** — Tailwind/CSS bridge: dark inputs, cyan primary actions, panel cards, status badges, gradient accent strips aligned with the TV wall.
+- **[`static/css/app-ui.css`](static/css/app-ui.css)** — Body mesh + grid overlay; dark sidebar/top bar; flash + footer; utility overrides for common `bg-gray-50` / `from-gray-50` / `hover:bg-gray-50` patterns so existing pages inherit without per-template edits.
+- **[`static/css/ops-tv.css`](static/css/ops-tv.css)** — `:root` duplicated variables removed; Ops TV loads [`css/tokens.css`](static/css/tokens.css) first via [`templates/ops_tv_dashboard.html`](templates/ops_tv_dashboard.html) so the wall and web app stay visually in sync.
+
+---
+
 ## [4.8.0] - 2026-04-28
 
 ### Added

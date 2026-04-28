@@ -1,18 +1,37 @@
 /**
- * TabletTracker — unified “next level” app chrome (v4.8)
- * Shell, surfaces, flashes, auth, production segments, main prose.
+ * TabletTracker — Command Center app chrome (matches Ops TV wall)
  */
 
 /* -------------------------------------------------------------------------- */
-/* App body — ambient mesh (replaces inline body gradient)                    */
+/* App body — cyan radial + deep navy (Ops TV parity)                           */
 /* -------------------------------------------------------------------------- */
 
 body.tt-app-body {
   background:
-    radial-gradient(ellipse 100% 80% at 100% 0%, rgba(79, 124, 130, 0.09), transparent 50%),
-    radial-gradient(ellipse 80% 60% at 0% 100%, rgba(184, 227, 233, 0.35), transparent 45%),
-    linear-gradient(175deg, #fbfdfe 0%, #f0f7f8 42%, #e8f2f4 100%) !important;
+    radial-gradient(ellipse 120% 80% at 50% -15%, rgba(34, 211, 238, 0.09), transparent 52%),
+    radial-gradient(ellipse 90% 55% at 100% 80%, rgba(56, 189, 248, 0.06), transparent 48%),
+    radial-gradient(ellipse 70% 45% at 0% 50%, rgba(148, 163, 184, 0.05), transparent 42%),
+    linear-gradient(180deg, var(--cmd-bg, #0b111b) 0%, var(--cmd-bg-deep, #060a12) 100%) !important;
   background-attachment: fixed;
+  color: var(--cmd-text, #f1f5f9);
+}
+
+body.tt-app-body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(var(--cmd-line-soft, rgba(148, 163, 184, 0.12)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cmd-line-soft, rgba(148, 163, 184, 0.12)) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+body.tt-app-body > * {
+  position: relative;
+  z-index: 1;
 }
 
 #app-shell {
@@ -25,11 +44,11 @@ body.tt-app-body {
 /* -------------------------------------------------------------------------- */
 
 #app-sidebar.tt-sidebar {
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: var(--tt-shadow-sidebar);
+  border-right: 1px solid var(--cmd-line, rgba(56, 189, 248, 0.22));
+  box-shadow: var(--tt-shadow-sidebar), var(--glow, 0 0 28px rgba(34, 211, 238, 0.08));
   background-image:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%),
-    linear-gradient(180deg, var(--wc-dark, #0b2e33), #061a1d 45%, var(--wc-primary, #4f7c82)) !important;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 42%),
+    linear-gradient(165deg, var(--cmd-panel-elevated, #151d2e) 0%, var(--cmd-panel, #111826) 52%, var(--cmd-bg-deep, #060a12)) !important;
 }
 
 #app-sidebar .nav-link {
@@ -55,11 +74,11 @@ body.tt-app-body {
 /* -------------------------------------------------------------------------- */
 
 .tt-topbar {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid var(--cmd-line-soft, rgba(148, 163, 184, 0.12));
+  box-shadow: var(--glow), 0 12px 40px rgba(0, 0, 0, 0.45);
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
-    linear-gradient(90deg, var(--wc-dark, #0b2e33), #06262b, var(--wc-primary, #4f7c82)) !important;
+    linear-gradient(92deg, var(--cmd-bg-deep, #060a12), var(--cmd-panel, #111826) 42%, #0c4a6e 100%) !important;
 }
 
 @supports (backdrop-filter: blur(12px)) {
@@ -102,6 +121,69 @@ main.tt-app-main .text-2xl.font-bold {
 main.tt-app-main p.text-sm,
 main.tt-app-main .text-gray-600 {
   line-height: 1.65;
+  color: #94a3b8;
+}
+
+main.tt-app-main .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+main.tt-app-main .text-gray-400 {
+  color: #64748b !important;
+}
+
+main.tt-app-main .text-gray-700,
+main.tt-app-main .text-gray-800,
+main.tt-app-main .text-slate-700,
+main.tt-app-main .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+
+main.tt-app-main .text-slate-500,
+main.tt-app-main .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+main.tt-app-main .text-gray-900,
+main.tt-app-main .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+main.tt-app-main .bg-white {
+  background: linear-gradient(165deg, var(--cmd-panel-elevated, #151d2e), var(--cmd-panel, #111826)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+main.tt-app-main .border-gray-100,
+main.tt-app-main .border-gray-200,
+main.tt-app-main .border-slate-100,
+main.tt-app-main .border-slate-200 {
+  border-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+main.tt-app-main .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+main.tt-app-main .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(148, 163, 184, 0.12) !important;
+}
+
+/* Inline flash boxes in auth templates (bg-red-100 / bg-green-100) */
+main.tt-app-main .bg-red-100 {
+  background: rgba(127, 29, 29, 0.35) !important;
+}
+main.tt-app-main .border-red-300 {
+  border-color: rgba(248, 113, 113, 0.45) !important;
+}
+main.tt-app-main .text-red-700 {
+  color: #fecaca !important;
+}
+main.tt-app-main .bg-green-100 {
+  background: rgba(6, 78, 59, 0.35) !important;
+}
+main.tt-app-main .border-green-300 {
+  border-color: rgba(52, 211, 153, 0.4) !important;
+}
+main.tt-app-main .text-green-700 {
+  color: #a7f3d0 !important;
 }
 
 /* Inline links inside content (not buttons) */
@@ -140,15 +222,15 @@ main.tt-app-main a.underline:hover {
 }
 
 .tt-flash--success {
-  background: linear-gradient(135deg, rgba(79, 124, 130, 0.12), rgba(184, 227, 233, 0.35));
-  border-color: rgba(79, 124, 130, 0.25);
-  color: #0b2e33;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(52, 211, 153, 0.12));
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #ecfdf5;
 }
 
 .tt-flash--error {
-  background: linear-gradient(135deg, rgba(11, 46, 51, 0.95), rgba(79, 124, 130, 0.88));
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #f8fafc;
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.65), rgba(15, 23, 42, 0.92));
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fef2f2;
 }
 
 .tt-flash svg {
@@ -161,11 +243,11 @@ main.tt-app-main a.underline:hover {
 /* -------------------------------------------------------------------------- */
 
 .tt-site-footer {
-  border-top: 1px solid var(--tt-border);
-  background: linear-gradient(180deg, transparent, rgba(79, 124, 130, 0.04));
+  border-top: 1px solid var(--cmd-line-soft, rgba(148, 163, 184, 0.12));
+  background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.5));
   padding-top: 1rem;
   padding-bottom: 1.25rem;
-  color: var(--tt-text-soft);
+  color: #64748b;
   font-size: 0.75rem;
   letter-spacing: 0.02em;
 }
@@ -175,8 +257,8 @@ main.tt-app-main a.underline:hover {
 /* -------------------------------------------------------------------------- */
 
 .tt-card-elevated {
-  box-shadow: var(--tt-shadow-sm), var(--tt-shadow-lg);
-  border: 1px solid rgba(79, 124, 130, 0.1);
+  box-shadow: var(--glow), var(--tt-shadow-lg);
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
 .card:not(.tt-flash) {
@@ -187,7 +269,7 @@ main.tt-app-main a.underline:hover {
 
 .card.tt-card-hover:hover,
 .card.hover-lift:hover {
-  box-shadow: var(--tt-shadow-md), 0 20px 50px rgba(11, 46, 51, 0.08);
+  box-shadow: var(--glow), 0 24px 56px rgba(0, 0, 0, 0.45);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -203,7 +285,7 @@ main.tt-app-main a.underline:hover {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--tt-text-soft);
+  color: #64748b;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -214,9 +296,10 @@ main.tt-app-main a.underline:hover {
   min-height: 100vh;
   min-height: 100dvh;
   background:
-    radial-gradient(ellipse 90% 70% at 50% -10%, rgba(79, 124, 130, 0.14), transparent 55%),
-    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(184, 227, 233, 0.4), transparent 50%),
-    linear-gradient(165deg, #f8fbfc 0%, #eef6f7 50%, #e2edf0 100%);
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(34, 211, 238, 0.1), transparent 52%),
+    radial-gradient(ellipse 80% 50% at 100% 100%, rgba(56, 189, 248, 0.07), transparent 48%),
+    linear-gradient(180deg, var(--cmd-bg, #0b111b) 0%, var(--cmd-bg-deep, #060a12) 100%);
+  color: var(--cmd-text);
 }
 
 .tt-auth-page {
@@ -235,8 +318,8 @@ main.tt-app-main a.underline:hover {
 .tt-production-seg {
   padding: 0.35rem;
   border-radius: var(--tt-radius-xl);
-  background: rgba(79, 124, 130, 0.06);
-  border: 1px solid rgba(79, 124, 130, 0.1);
+  background: rgba(17, 24, 38, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.18);
   gap: 0.35rem !important;
 }
 
@@ -249,20 +332,74 @@ main.tt-app-main a.underline:hover {
 }
 
 .tt-production-seg button[data-production-form].bg-gray-200 {
-  background: linear-gradient(180deg, #ffffff, #f1f5f9) !important;
-  border: 1px solid rgba(79, 124, 130, 0.12) !important;
-  color: #334155 !important;
+  background: linear-gradient(165deg, var(--cmd-panel-elevated), var(--cmd-panel)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.2) !important;
+  color: #cbd5e1 !important;
   box-shadow: var(--tt-shadow-sm) !important;
 }
 
 .tt-production-seg button[data-production-form].bg-gray-200:hover {
-  border-color: rgba(79, 124, 130, 0.28) !important;
+  border-color: rgba(34, 211, 238, 0.4) !important;
   transform: translateY(-1px);
 }
 
 .tt-production-seg button[data-production-form].bg-gradient-to-r {
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 6px 20px rgba(11, 46, 51, 0.2) !important;
+  border: 1px solid rgba(103, 232, 249, 0.35) !important;
+  box-shadow: var(--glow), 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Light Tailwind utilities → Command Center surfaces (dense templates)      */
+/* -------------------------------------------------------------------------- */
+
+body.tt-app-body .bg-gray-50,
+body.tt-app-body .bg-gray-100,
+body.tt-app-body .bg-slate-50,
+body.tt-app-body .bg-slate-100 {
+  background: linear-gradient(165deg, rgba(21, 29, 46, 0.95), rgba(17, 24, 38, 0.88)) !important;
+}
+
+body.tt-app-body .bg-gray-50\/80,
+body.tt-app-body .bg-gray-50\/90,
+body.tt-app-body .bg-slate-50\/80 {
+  background: rgba(17, 24, 38, 0.9) !important;
+}
+
+body.tt-app-body .hover\:bg-gray-50:hover,
+body.tt-app-body .hover\:bg-slate-50:hover,
+body.tt-app-body .hover\:bg-gray-100:hover {
+  background: rgba(34, 211, 238, 0.08) !important;
+}
+
+body.tt-app-body .hover\:bg-blue-50:hover {
+  background: rgba(34, 211, 238, 0.1) !important;
+}
+
+body.tt-app-body .from-gray-50,
+body.tt-app-body .from-slate-50 {
+  --tw-gradient-from: rgba(21, 29, 46, 0.95) !important;
+}
+
+body.tt-app-body .to-white,
+body.tt-app-body .to-gray-100 {
+  --tw-gradient-to: rgba(15, 23, 42, 0.95) !important;
+}
+
+body.tt-app-body .from-gray-100 {
+  --tw-gradient-from: rgba(30, 41, 59, 0.92) !important;
+}
+
+body.tt-app-body .to-slate-100,
+body.tt-app-body .to-gray-100 {
+  --tw-gradient-to: rgba(15, 23, 42, 0.92) !important;
+}
+
+body.tt-app-body .hover\:from-gray-100:hover {
+  --tw-gradient-from: rgba(30, 41, 59, 0.95) !important;
+}
+
+body.tt-app-body .hover\:to-slate-100:hover {
+  --tw-gradient-to: rgba(15, 23, 42, 0.95) !important;
 }
 
 /* -------------------------------------------------------------------------- */

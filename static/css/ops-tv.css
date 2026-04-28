@@ -1,24 +1,7 @@
-/* TV operations board — dense 16:9 wall, command-center aesthetic (v4.6) */
-
-:root {
-  --bg: #0b111b;
-  --bg-deep: #060a12;
-  --panel: #111826;
-  --panel-elevated: #151d2e;
-  --line: rgba(56, 189, 248, 0.22);
-  --line-soft: rgba(148, 163, 184, 0.12);
-  --text: #f1f5f9;
-  --muted: #8b9cb0;
-  --run: #34d399;
-  --idle: #fbbf24;
-  --pause: #fb923c;
-  --alert: #f87171;
-  --accent: #22d3ee;
-  --accent-dim: rgba(34, 211, 238, 0.85);
-  --glow: 0 0 28px rgba(34, 211, 238, 0.12);
-  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-num: "IBM Plex Mono", ui-monospace, monospace;
-}
+/*
+ * TV operations board — dense 16:9 wall (Command Center aesthetic).
+ * Load static/css/tokens.css before this sheet for --bg/--panel/--accent, etc.
+ */
 
 *,
 *::before,

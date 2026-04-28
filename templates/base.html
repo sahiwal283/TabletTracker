@@ -13,43 +13,30 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style type="text/tailwindcss">
-        :root {
-            /* Winter Chill Palette */
-            --wc-light: #B8E3E9;  /* Light ice */
-            --wc-mid:   #93B1B5;  /* Mist */
-            --wc-primary:#4F7C82;  /* Deep teal */
-            --wc-dark:  #0B2E33;  /* Midnight teal */
-            --surface-1: #ffffff;
-            --surface-2: #f4fafb;
-            --text-strong: #0f172a;
-            --text-muted: #475569;
-            --focus-ring: rgba(79, 124, 130, 0.35);
+        /* Tokens: static/css/tokens.css — Command Center palette (--cmd-*, --wc-* legacy bridge) */
 
-            /* Derived neutrals */
-            --bg-start: #f8fbfc;
-            --bg-end:   #eef7f8;
-            --neutral-border: #e2edf0;
-            --neutral-shadow: 11, 46, 51; /* wc-dark RGB */
-        }
-
-        /* Inputs */
+        /* Inputs — dark panel fields (Ops TV parity) */
         .form-input {
-            @apply w-full px-5 py-4 border-2 bg-white transition-all duration-300;
+            @apply w-full px-5 py-4 border-2 transition-all duration-300;
             font-size: 16px !important; /* Prevents zoom on iOS */
             border-radius: 20px !important;
             border-color: var(--neutral-border) !important;
-            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
-            box-shadow: 0 4px 12px rgba(var(--neutral-shadow), 0.06), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+            background: linear-gradient(165deg, var(--surface-1) 0%, var(--surface-2) 100%);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
             min-height: 56px !important;
             padding: 16px 20px !important;
             color: var(--text-strong);
         }
         .form-input:focus {
             border-color: var(--wc-primary) !important;
-            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
-            box-shadow: 0 0 0 4px rgba(79, 124, 130, 0.2), 0 12px 20px rgba(79, 124, 130, 0.15) !important;
-            transform: translateY(-2px);
+            background: linear-gradient(165deg, var(--surface-1) 0%, var(--surface-2) 100%);
+            box-shadow: 0 0 0 3px var(--focus-ring), 0 12px 28px rgba(34, 211, 238, 0.12) !important;
+            transform: translateY(-1px);
             outline: none;
+        }
+        .form-input::placeholder {
+            color: var(--text-muted);
+            opacity: 0.85;
         }
         
         /* Remove spinner arrows from number inputs */
@@ -65,130 +52,165 @@
         /* Select dropdowns */
         select.form-input {
             border-color: var(--neutral-border) !important;
-            background: linear-gradient(135deg, #ffffff 0%, var(--bg-end) 100%);
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234F7C82' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 1rem center;
-            background-repeat: no-repeat;
-            background-size: 1.25em 1.25em;
+            background: linear-gradient(165deg, var(--surface-1) 0%, var(--surface-2) 100%);
+            background-image:
+                url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2322d3ee' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e"),
+                linear-gradient(165deg, var(--surface-1) 0%, var(--surface-2) 100%);
+            background-position: right 1rem center, 0 0;
+            background-repeat: no-repeat, no-repeat;
+            background-size: 1.25em 1.25em, auto;
             padding-right: 3.5rem;
             border-radius: 20px !important;
+            color-scheme: dark;
         }
         
-        /* Button system */
+        /* Button system — cyan primary, panel secondary */
         .btn-primary {
             @apply px-8 py-4 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 disabled:opacity-50 transition-all duration-300;
-            color: #ffffff !important;
+            color: #0b111b !important;
             border-radius: 24px !important;
-            background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
-            border: 2px solid rgba(255,255,255,0.2);
-            box-shadow: 0 6px 20px rgba(var(--neutral-shadow), 0.18);
+            background: linear-gradient(135deg, #67e8f9 0%, var(--wc-primary) 45%, #0e7490 100%);
+            border: 2px solid rgba(34, 211, 238, 0.55);
+            box-shadow: var(--glow), 0 8px 24px rgba(0, 0, 0, 0.35);
             transform: translateY(0) scale(1);
             min-height: 56px;
         }
         .btn-primary:hover {
-            background: linear-gradient(135deg, var(--wc-dark) 0%, var(--wc-primary) 50%, var(--wc-mid) 100%);
+            background: linear-gradient(135deg, var(--wc-primary) 0%, #06b6d4 55%, var(--wc-dark) 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(var(--neutral-shadow), 0.25);
-            border-color: rgba(255,255,255,0.3);
+            box-shadow: 0 0 32px rgba(34, 211, 238, 0.22), 0 12px 28px rgba(0, 0, 0, 0.4);
+            border-color: rgba(103, 232, 249, 0.7);
         }
         .btn-primary:active {
             transform: translateY(-1px) scale(1.0);
-            box-shadow: 0 6px 15px rgba(var(--neutral-shadow), 0.2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
         }
         
         .btn-secondary {
-            @apply bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
-            color: var(--wc-dark) !important;
+            @apply px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
+            color: var(--text-strong) !important;
             border-radius: 20px !important;
             border: 2px solid var(--neutral-border);
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(var(--neutral-shadow), 0.06);
+            background: linear-gradient(165deg, var(--surface-1), var(--surface-2));
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
         }
         .btn-secondary:hover {
-            @apply bg-slate-50 text-slate-900;
+            color: var(--text-strong) !important;
+            border-color: rgba(34, 211, 238, 0.45);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(var(--neutral-shadow), 0.1);
-            border-color: #cbd5e1; /* slate-300 */
+            box-shadow: var(--glow), 0 8px 20px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(165deg, #1a2740, var(--surface-2));
         }
         
-        /* Success button */
         .btn-success {
             @apply px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
-            color: #ffffff !important;
+            color: #04120c !important;
             border-radius: 20px !important;
-            background: linear-gradient(135deg, var(--wc-primary) 0%, #5e8f95 50%, var(--wc-mid) 100%);
-            border: 2px solid rgba(255,255,255,0.2);
-            box-shadow: 0 6px 20px rgba(var(--neutral-shadow), 0.18);
+            background: linear-gradient(135deg, #6ee7b7 0%, var(--cmd-success, #34d399) 50%, #059669 100%);
+            border: 2px solid rgba(52, 211, 153, 0.5);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.2);
             transform: translateY(0);
         }
         .btn-success:hover {
-            background: linear-gradient(135deg, var(--wc-dark) 0%, var(--wc-primary) 50%, var(--wc-mid) 100%);
+            background: linear-gradient(135deg, #34d399 0%, #10b981 55%, #064e3b 100%);
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 10px 25px rgba(var(--neutral-shadow), 0.24);
-            border-color: rgba(255,255,255,0.3);
+            box-shadow: 0 10px 28px rgba(16, 185, 129, 0.25);
+            border-color: rgba(167, 243, 208, 0.65);
+            color: #f8fafc !important;
         }
         
         .btn-warning {
-            @apply bg-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-200 focus:ring-opacity-30 transition-all duration-300;
-            color: var(--wc-dark) !important;
+            @apply px-6 py-3 font-semibold shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-opacity-30 transition-all duration-300;
+            color: #1f1303 !important;
             border-radius: 20px !important;
-            border: 2px solid var(--neutral-border);
+            border: 2px solid rgba(251, 191, 36, 0.45);
             transform: translateY(0);
-            box-shadow: 0 4px 15px rgba(var(--neutral-shadow), 0.08);
+            background: linear-gradient(165deg, #fde68a, #f59e0b);
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
         }
         .btn-warning:hover {
-            @apply bg-slate-50 text-slate-900;
+            color: #422006 !important;
             transform: translateY(-2px) scale(1.01);
-            box-shadow: 0 8px 20px rgba(var(--neutral-shadow), 0.12);
-            border-color: #cbd5e1; /* slate-300 */
+            box-shadow: 0 8px 22px rgba(251, 191, 36, 0.25);
+            border-color: rgba(251, 191, 36, 0.85);
+            background: linear-gradient(165deg, #fcd34d, #d97706);
         }
 
-        /* Cards */
+        /* Cards — Ops TV panel elevation */
         .card {
-            @apply bg-white shadow-xl border border-gray-100;
+            @apply shadow-xl border;
             border-radius: var(--tt-radius-xl, 28px) !important;
-            background: linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%);
-            border-color: rgba(var(--neutral-shadow), 0.08) !important;
-            box-shadow: 0 1px 2px rgba(var(--neutral-shadow), 0.04), 0 12px 32px rgba(var(--neutral-shadow), 0.06) !important;
+            background: linear-gradient(165deg, var(--surface-1) 0%, var(--surface-2) 100%);
+            border-color: rgba(56, 189, 248, 0.18) !important;
+            box-shadow: var(--glow), 0 12px 40px rgba(0, 0, 0, 0.35) !important;
+            color: var(--text-strong);
         }
 
-        /* Improve contrast for descriptive text inside light cards */
-        .card .text-gray-600 { color: #334155 !important; } /* slate-700 */
-        .card .text-gray-500 { color: #1f2937 !important; } /* gray-800 */
+        .card .text-gray-600 { color: #94a3b8 !important; }
+        .card .text-gray-500 { color: #cbd5e1 !important; }
+        .card .text-gray-700 { color: #e2e8f0 !important; }
 
         /* Nav link default contrast */
         .nav-link { color: #ffffff !important; }
         .nav-link svg { color: inherit; }
 
-        /* Semantic helpers mapped to Winter Chill */
+        /* Semantic helpers — Command Center */
         .text-primary { color: var(--wc-primary) !important; }
-        .text-secondary { color: var(--wc-mid) !important; }
-        .bg-accent { background-color: var(--wc-light) !important; }
-        .border-accent { border-color: var(--wc-mid) !important; }
+        .text-secondary { color: var(--cmd-muted) !important; }
+        .bg-accent { background-color: rgba(34, 211, 238, 0.12) !important; }
+        .border-accent { border-color: rgba(34, 211, 238, 0.35) !important; }
 
-        /* Override common Tailwind color utilities used across templates */
-        .text-blue-600, .text-indigo-600, .text-green-600, .text-emerald-600, .text-teal-600 { color: var(--wc-primary) !important; }
-        .text-yellow-600, .text-orange-600 { color: var(--wc-mid) !important; }
-        .text-red-600 { color: var(--wc-dark) !important; }
+        /* Tailwind color utility bridges (dense templates) */
+        .text-blue-600, .text-indigo-600, .text-green-600, .text-emerald-600, .text-teal-600 {
+            color: var(--wc-primary) !important;
+        }
+        .text-yellow-600, .text-orange-600 { color: #fbbf24 !important; }
+        .text-red-600 { color: #f87171 !important; }
 
-        .bg-blue-600, .bg-indigo-600, .bg-emerald-500, .bg-teal-600, .bg-green-500 { background-color: var(--wc-primary) !important; }
-        .bg-green-50, .bg-blue-50, .bg-indigo-50 { background-color: rgba(184, 227, 233, 0.25) !important; }
+        .bg-blue-600, .bg-indigo-600, .bg-emerald-500, .bg-teal-600, .bg-green-500 {
+            background: linear-gradient(135deg, #22d3ee, #0891b2) !important;
+            color: #0b111b !important;
+        }
+        .bg-green-50, .bg-blue-50, .bg-indigo-50 {
+            background-color: rgba(34, 211, 238, 0.1) !important;
+        }
 
-        .from-indigo-600, .from-purple-600, .from-blue-600, .from-green-600, .from-emerald-400, .from-teal-400, .from-amber-400, .from-orange-400 { --tw-gradient-from: var(--wc-primary) !important; }
-        .to-purple-600, .to-indigo-600, .to-blue-600, .to-emerald-600, .to-green-500, .to-cyan-500, .to-yellow-500, .to-orange-600 { --tw-gradient-to: var(--wc-mid) !important; }
-        .from-green-100, .to-emerald-100, .via-purple-50, .to-pink-50, .from-indigo-50 { --tw-gradient-from: rgba(184, 227, 233, 0.35) !important; --tw-gradient-to: rgba(147, 177, 181, 0.35) !important; }
-        
-        /* Status badge enhancements - Winter Chill */
-        .status-complete { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-primary), var(--wc-mid)); }
-        .status-processing { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-mid), var(--wc-primary)); }
-        .status-shipped { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-dark), var(--wc-primary)); }
-        .status-draft { @apply bg-gradient-to-r text-white; background-image: linear-gradient(90deg, var(--wc-light), var(--wc-mid)); }
-        
-        /* Animated gradient background */
+        .from-indigo-600, .from-purple-600, .from-blue-600, .from-green-600, .from-emerald-400, .from-teal-400, .from-amber-400, .from-orange-400 {
+            --tw-gradient-from: var(--wc-primary) !important;
+        }
+        .to-purple-600, .to-indigo-600, .to-blue-600, .to-emerald-600, .to-green-500, .to-cyan-500, .to-yellow-500, .to-orange-600 {
+            --tw-gradient-to: var(--wc-dark) !important;
+        }
+        .from-green-100, .to-emerald-100, .via-purple-50, .to-pink-50, .from-indigo-50 {
+            --tw-gradient-from: rgba(34, 211, 238, 0.12) !important;
+            --tw-gradient-to: rgba(15, 23, 42, 0.9) !important;
+        }
+
+        /* Status badges */
+        .status-complete {
+            @apply bg-gradient-to-r text-white;
+            background-image: linear-gradient(90deg, #22d3ee, #0891b2);
+        }
+        .status-processing {
+            @apply bg-gradient-to-r text-white;
+            background-image: linear-gradient(90deg, #fbbf24, #ea580c);
+        }
+        .status-shipped {
+            @apply bg-gradient-to-r text-white;
+            background-image: linear-gradient(90deg, #0b111b, #22d3ee);
+        }
+        .status-draft {
+            @apply bg-gradient-to-r;
+            background-image: linear-gradient(90deg, rgba(34, 211, 238, 0.22), rgba(148, 163, 184, 0.45));
+            color: #f1f5f9 !important;
+        }
+
+        /* Subtle ambient panel animation (splash / loaders) */
         .gradient-bg {
-            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background: linear-gradient(-45deg, var(--wc-dark), #155e75, var(--wc-primary), #0891b2);
             background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
+            animation: gradientShift 18s ease infinite;
         }
         
         @keyframes gradientShift {

@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.8.0** (full-app visual system: shell, flashes, auth, production segments)
+Current: **v4.9.0** (Command Center dark theme + Ops TV token parity)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
