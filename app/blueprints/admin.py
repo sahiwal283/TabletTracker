@@ -1574,56 +1574,56 @@ def workflow_qr_management():
                     c["status_display"] = f"{station_label} · paused"
                 else:
                     c["status_display"] = station_label
-        stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
-        for s in stations:
-            k = _normalize_station_kind(s.get("station_kind"))
-            stations_by_kind.setdefault(k, []).append(s)
-        bag_assign = {
-            "products": [],
-            "ambiguous_matches": None,
-            "form_product_id": None,
-            "form_box_number": None,
-            "form_bag_number": None,
-            "form_card_scan_token": None,
-            "form_receipt_number": None,
-            "form_hand_packed": False,
-            "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
-            "restart_url": url_for("admin.workflow_qr_management"),
-            "products_load_failed": False,
-        }
-        try:
-            bag_assign["products"] = _load_workflow_products(conn)
-        except Exception:
-            bag_assign["products_load_failed"] = True
-            current_app.logger.warning(
-                "workflow_qr_management: assign form product list unavailable", exc_info=True
-            )
-        floor_station_day_stats: dict[int, dict] = {}
-        floor_ops_date_label = ""
-        try:
-            start_ms, end_ms, floor_ops_date_label = _ny_today_bounds_ms()
-            floor_station_day_stats = _floor_station_day_stats(conn, start_ms, end_ms)
-        except Exception:
-            floor_station_day_stats = {}
+            stations_by_kind = {k: [] for k in _STATION_KIND_ORDER}
+            for s in stations:
+                k = _normalize_station_kind(s.get("station_kind"))
+                stations_by_kind.setdefault(k, []).append(s)
+            bag_assign = {
+                "products": [],
+                "ambiguous_matches": None,
+                "form_product_id": None,
+                "form_box_number": None,
+                "form_bag_number": None,
+                "form_card_scan_token": None,
+                "form_receipt_number": None,
+                "form_hand_packed": False,
+                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                "restart_url": url_for("admin.workflow_qr_management"),
+                "products_load_failed": False,
+            }
+            try:
+                bag_assign["products"] = _load_workflow_products(conn)
+            except Exception:
+                bag_assign["products_load_failed"] = True
+                current_app.logger.warning(
+                    "workflow_qr_management: assign form product list unavailable", exc_info=True
+                )
+            floor_station_day_stats: dict[int, dict] = {}
             floor_ops_date_label = ""
-        floor_ops_overview = _floor_ops_overview(
-            stations, station_live, floor_station_day_stats, cards
-        )
-        return render_template(
-            "admin_workflow_qr.html",
-            stations=stations,
-            stations_by_kind=stations_by_kind,
-            sealing_machines=sealing_machines,
-            blister_machines=blister_machines,
-            all_machines=all_machines,
-            station_kind_options=_STATION_KIND_ORDER_ADD,
-            cards=cards,
-            station_live=station_live,
-            floor_station_day_stats=floor_station_day_stats,
-            floor_ops_date_label=floor_ops_date_label,
-            floor_ops_overview=floor_ops_overview,
-            bag_assign=bag_assign,
-        )
+            try:
+                start_ms, end_ms, floor_ops_date_label = _ny_today_bounds_ms()
+                floor_station_day_stats = _floor_station_day_stats(conn, start_ms, end_ms)
+            except Exception:
+                floor_station_day_stats = {}
+                floor_ops_date_label = ""
+            floor_ops_overview = _floor_ops_overview(
+                stations, station_live, floor_station_day_stats, cards
+            )
+            return render_template(
+                "admin_workflow_qr.html",
+                stations=stations,
+                stations_by_kind=stations_by_kind,
+                sealing_machines=sealing_machines,
+                blister_machines=blister_machines,
+                all_machines=all_machines,
+                station_kind_options=_STATION_KIND_ORDER_ADD,
+                cards=cards,
+                station_live=station_live,
+                floor_station_day_stats=floor_station_day_stats,
+                floor_ops_date_label=floor_ops_date_label,
+                floor_ops_overview=floor_ops_overview,
+                bag_assign=bag_assign,
+            )
     except Exception as e:
         current_app.logger.error("workflow_qr_management: %s", e)
         traceback.print_exc()
@@ -1658,10 +1658,8 @@ def workflow_qr_management():
         )
 
 
-@bp.route("/command-center/ops-tv")
-@admin_required
-def ops_tv_dashboard():
-    """Full-screen TV operations board — renders live snapshot + polls JSON."""
+def _render_ops_tv_dashboard_page():
+    """Fullscreen Pill Packing / MES wallboard HTML (shared by /ops-tv and /pill-packing)."""
     ver = read_version_constants().get("__version__", "1")
     initial_snapshot: dict = {}
     try:
@@ -1670,38 +1668,57 @@ def ops_tv_dashboard():
     except Exception:
         current_app.logger.exception("ops_tv_dashboard bootstrap snapshot")
 
-    wf = url_for("admin.workflow_qr_management")
+    cc = url_for("admin.workflow_qr_management")
     mes_nav_boot = {
         "nav": [
-            {"label": "Overview", "href": url_for("admin.ops_tv_dashboard"), "icon": "◇"},
-            {"label": "Blister Line", "href": wf + "#blister", "icon": "▭"},
-            {"label": "Bottle Line", "href": wf + "#bottle", "icon": "▭"},
-            {"label": "Card Line", "href": wf + "#card", "icon": "▭"},
-            {"label": "Machines", "href": wf, "icon": "⚙"},
-            {"label": "Bags / Inventory", "href": url_for("receiving.receiving_list"), "icon": "▣"},
-            {"label": "Staging", "href": wf + "#staging", "icon": "▤"},
-            {"label": "Alerts", "href": url_for("admin.ops_tv_dashboard") + "#alerts", "icon": "!"},
-            {"label": "Reports", "href": url_for("reports.reports_view"), "icon": "▦"},
-            {"label": "Analytics", "href": url_for("reports.reports_view"), "icon": "▧"},
-            {"label": "Users", "href": url_for("admin.manage_employees"), "icon": "◎"},
-            {"label": "Settings", "href": url_for("admin.product_config"), "icon": "☰"},
-        ]
+            {"label": "Overview", "tab": "overview", "icon": "◇"},
+            {"label": "Blister Line", "tab": "blister", "icon": "▭"},
+            {"label": "Bottle Line", "tab": "bottle", "icon": "▭"},
+            {"label": "Machines", "tab": "machines", "icon": "⚙"},
+            {"label": "Bags / Inventory", "tab": "bags", "icon": "▣"},
+            {"label": "Staging", "tab": "staging", "icon": "▤"},
+            {"label": "Alerts", "tab": "alerts", "icon": "!"},
+            {"label": "Analytics", "tab": "analytics", "icon": "▧"},
+            {"label": "Users", "tab": "users", "icon": "◎"},
+            {"label": "Settings", "tab": "settings", "icon": "☰"},
+        ],
+        "exit": {"label": "Exit Command Center", "href": cc},
+        "urls": {
+            "reports": url_for("reports.reports_view"),
+            "receiving": url_for("receiving.receiving_list"),
+            "employees": url_for("admin.manage_employees"),
+            "product_config": url_for("admin.product_config"),
+            "command_center": cc,
+        },
     }
 
     html = render_template(
         "ops_tv_dashboard.html",
         snapshot_api_url=url_for("admin.ops_tv_snapshot_api"),
-        command_center_url=url_for("admin.workflow_qr_management"),
+        command_center_url=cc,
         app_version=ver,
         initial_snapshot=initial_snapshot,
         mes_nav_boot=mes_nav_boot,
     )
     resp = make_response(html)
-    # Wall uses renamed static assets — avoid HTML cached while CSS/JS 404 at old paths behind proxies stripping ?v=
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Surrogate-Control"] = "no-store"
     return resp
+
+
+@bp.route("/command-center/ops-tv")
+@admin_required
+def ops_tv_dashboard():
+    """Full-screen Pill Packing command center (MES wallboard + live snapshot)."""
+    return _render_ops_tv_dashboard_page()
+
+
+@bp.route("/command-center/pill-packing")
+@admin_required
+def pill_packing_command_center():
+    """Bookmark alias for the same fullscreen board as /command-center/ops-tv."""
+    return _render_ops_tv_dashboard_page()
 
 
 @bp.route("/command-center/ops-tv/api/snapshot")

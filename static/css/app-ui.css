@@ -16,19 +16,6 @@ body.tt-app-body {
   color: var(--cmd-text, #f1f5f9);
 }
 
-body.tt-app-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.35;
-  background-image:
-    linear-gradient(var(--cmd-line-soft, rgba(148, 163, 184, 0.12)) 1px, transparent 1px),
-    linear-gradient(90deg, var(--cmd-line-soft, rgba(148, 163, 184, 0.12)) 1px, transparent 1px);
-  background-size: 48px 48px;
-}
-
 body.tt-app-body > * {
   position: relative;
   z-index: 1;
