@@ -8,7 +8,7 @@ body {
 }
 
 body.mes-body {
-  overflow: hidden;
+  overflow: auto;
 }
 
 button,
@@ -20,6 +20,7 @@ input {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 82px 1fr;
+  align-items: start;
   background:
     radial-gradient(circle at 60% -20%, rgba(22, 72, 110, 0.26), transparent 42%),
     linear-gradient(180deg, #071a2d 0%, #061524 44%, #04111d 100%);
@@ -27,6 +28,8 @@ input {
 
 .occ-side {
   height: 100vh;
+  position: sticky;
+  top: 0;
   box-sizing: border-box;
   padding: 16px 8px;
   border-right: 1px solid rgba(42, 119, 165, 0.38);
@@ -102,19 +105,21 @@ input {
 }
 
 .occ-main {
-  height: 100vh;
+  min-height: 100vh;
   box-sizing: border-box;
   padding: 14px 16px 10px;
   display: grid;
-  grid-template-rows: 48px 94px 198px 230px 204px 196px 0 minmax(18px, auto);
+  grid-template-rows: auto minmax(94px, auto) minmax(214px, auto) minmax(230px, auto) minmax(204px, auto) minmax(196px, auto) minmax(176px, auto) minmax(18px, auto);
   gap: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .occ-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  min-width: 0;
+  gap: 16px;
 }
 
 .occ-header h1 {
@@ -124,6 +129,7 @@ input {
   line-height: 1;
   font-weight: 900;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .occ-header p {
@@ -146,6 +152,8 @@ input {
   align-items: center;
   gap: 12px;
   color: #f5f9ff;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .occ-head-controls b {
@@ -172,6 +180,7 @@ input {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  min-width: 0;
 }
 
 .occ-kpi,
@@ -191,9 +200,10 @@ input {
 
 .occ-kpi {
   display: grid;
-  grid-template-columns: 1fr 54px;
-  padding: 14px 16px;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  padding: 12px 14px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .occ-kpi span {
@@ -208,10 +218,11 @@ input {
   display: block;
   margin-top: 10px;
   color: #b6c6e1;
-  font-size: 26px;
+  font-size: clamp(18px, 1.45vw, 26px);
   line-height: 1;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .occ-kpi strong.kpi-green {
@@ -233,11 +244,12 @@ input {
   font-size: 11px;
   font-style: normal;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .occ-kpi-icon svg {
-  width: 47px;
-  height: 47px;
+  width: 42px;
+  height: 42px;
   fill: none;
   stroke: #b6c6e1;
   stroke-width: 1.8;
@@ -247,9 +259,10 @@ input {
 
 .occ-life-grid {
   display: grid;
-  grid-template-columns: 1.18fr 0.98fr 1.1fr 168px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.45fr) minmax(0, 1.05fr) minmax(176px, 0.38fr);
   gap: 8px;
   min-width: 0;
+  align-items: stretch;
 }
 
 .life-lane {
@@ -267,6 +280,8 @@ input {
   justify-content: space-between;
   align-items: baseline;
   margin-bottom: 10px;
+  min-width: 0;
+  gap: 10px;
 }
 
 .life-lane h2 {
@@ -274,6 +289,10 @@ input {
   font-size: 13px;
   color: #22a8ff;
   font-weight: 900;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .life-lane.green h2 {
@@ -293,6 +312,12 @@ input {
 
 .life-lane p {
   margin: 0;
+  min-width: 0;
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .life-lane p b {
@@ -300,17 +325,29 @@ input {
 }
 
 .step-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--step-count, 4), minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
 }
 
+.life-lane.blue .step-row {
+  --step-count: 6;
+}
+
+.life-lane.green .step-row {
+  --step-count: 7;
+}
+
+.life-lane.purple .step-row {
+  --step-count: 4;
+}
+
 .step-card {
   position: relative;
-  flex: 1 1 0;
   min-width: 0;
   min-height: 102px;
-  padding: 10px 8px 8px;
+  padding: 9px 7px 8px;
   border: 1px solid rgba(65, 121, 157, 0.7);
   border-radius: 3px;
   background: rgba(8, 27, 43, 0.74);
@@ -330,8 +367,8 @@ input {
   position: absolute;
   top: 9px;
   left: 9px;
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -349,7 +386,8 @@ input {
 }
 
 .step-card div {
-  margin-left: 27px;
+  margin-left: 25px;
+  min-width: 0;
 }
 
 .step-card strong {
@@ -358,6 +396,7 @@ input {
   font-size: 9px;
   line-height: 1.2;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .step-card small {
@@ -366,23 +405,29 @@ input {
   color: #dae6f5;
   font-size: 8px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .step-card .line-icon {
-  width: 36px;
-  height: 42px;
-  margin: 9px 0 0 4px;
+  width: 31px;
+  height: 37px;
+  margin: 8px 0 0 2px;
 }
 
 .step-card p {
   position: absolute;
   right: 7px;
   bottom: 8px;
-  left: 48px;
+  left: 42px;
   margin: 0;
   color: #c8d8eb;
   font-size: 9px;
   text-align: center;
+  line-height: 1.15;
+  max-height: 22px;
+  overflow: hidden;
 }
 
 .life-lane footer {
@@ -415,7 +460,8 @@ input {
 
 .alerts-rail {
   padding: 12px;
-  overflow: hidden;
+  overflow: auto;
+  min-width: 0;
 }
 
 .alerts-rail header {
@@ -487,7 +533,7 @@ input {
 
 .occ-machine-grid {
   display: grid;
-  grid-template-columns: 1.28fr 0.56fr 0.56fr;
+  grid-template-columns: minmax(0, 1.28fr) minmax(0, 0.56fr) minmax(0, 0.56fr);
   gap: 8px;
   min-width: 0;
 }
@@ -495,7 +541,7 @@ input {
 .machine-band {
   padding: 10px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .machine-band.blue h2 {
@@ -526,6 +572,8 @@ input {
   padding: 9px;
   min-width: 0;
   min-height: 173px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .occ-machine header {
@@ -669,7 +717,7 @@ input {
   min-width: 0;
   min-height: 0;
   padding: 12px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .wall-panel h3,
@@ -773,8 +821,8 @@ input {
 }
 
 .trace-panel {
-  position: absolute;
-  left: -9999px;
+  position: static;
+  grid-column: 1 / -1;
 }
 
 .trace-meta {

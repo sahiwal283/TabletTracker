@@ -385,13 +385,19 @@
           <${LifecycleLane} tone="blue" title="BLISTER PACKING LINE" sku=${(inp.bags && inp.bags[0] && inp.bags[0].sku) || "N/A"} steps=${[
             { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: "Received qty N/A", icon: "bag" },
             { title: "BLISTER (DPP115)", sub: "Machine 1 Blistering", detail: machines[0].currentBagId ? "Bag " + machines[0].currentBagId : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
-            { title: "HEAT SEALING", sub: "Machine 2 / 3", detail: "Post-blister staging " + staging.length, icon: "heat", status: machines[1].integrationStatus },
+            { title: "POST-BLISTER STAGING", sub: "Buffer queue", detail: "Staged bags " + staging.length, icon: "bag" },
+            { title: "HEAT SEALING", sub: "Machine 2 / 3", detail: "Counter required", icon: "heat", status: machines[1].integrationStatus },
+            { title: "POST-SEAL STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
             { title: "PACKAGING", sub: "Hand pack / master", detail: "Insufficient data", icon: "bag" }
           ]} />
           <${LifecycleLane} tone="green" title="BOTTLE SEALING LINE" sku="N/A" dimmed=${!bottleIntegrated} steps=${[
             { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: machines[4].integrationStatus },
-            { title: "BOTTLE SEALING", sub: "Machine 5", detail: bottleIntegrated ? "Real sealing events" : "Not integrated", icon: "bottle", status: machines[4].integrationStatus },
-            { title: "STICKERING", sub: "Machine 4", detail: "Insufficient data", icon: "sticker", status: machines[3].integrationStatus }
+            { title: "HAND COUNTING", sub: "Scan start / complete", detail: "Insufficient data", icon: "bottle", status: machines[4].integrationStatus },
+            { title: "COUNTING STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
+            { title: "STICKERING", sub: "Machine 4", detail: "Insufficient data", icon: "sticker", status: machines[3].integrationStatus },
+            { title: "STICKER STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
+            { title: "SEALING", sub: "Machine 5", detail: bottleIntegrated ? "Real sealing events" : "Not integrated", icon: "heat", status: machines[4].integrationStatus },
+            { title: "PACKING", sub: "Handmade displays", detail: "Insufficient data", icon: "bag" }
           ]} />
           <${LifecycleLane} tone="purple" title="CARD / BLISTER CARD LINE" sku="N/A" steps=${[
             { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: "Received qty N/A", icon: "bag" },
