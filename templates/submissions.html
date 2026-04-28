@@ -117,7 +117,7 @@
             <input type="hidden" name="view" value="workflow"/>
             <div>
                 <label for="wf_status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select name="wf_status" id="wf_status" class="w-full min-w-[12rem] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                <select name="wf_status" id="wf_status" class="form-input w-full min-w-[12rem] min-h-[52px] py-3 text-base">
                     <option value="" {% if not wf_status %}selected{% endif %}>All bags</option>
                     <option value="active" {% if wf_status == 'active' %}selected{% endif %}>In progress (not finalized)</option>
                     <option value="finalized" {% if wf_status == 'finalized' %}selected{% endif %}>Finalized</option>
@@ -351,7 +351,7 @@
                        id="date_from" 
                        name="date_from" 
                        value="{{ filter_date_from or '' }}"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                       class="form-input w-full min-h-[52px] py-3 text-base">
             </div>
             
             <!-- Date To -->
@@ -361,7 +361,7 @@
                        id="date_to" 
                        name="date_to" 
                        value="{{ filter_date_to or '' }}"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                       class="form-input w-full min-h-[52px] py-3 text-base">
             </div>
             
             <!-- Tablet Type -->
@@ -369,7 +369,7 @@
                 <label for="tablet_type_id" class="block text-sm font-medium text-gray-700 mb-1">Tablet Type</label>
                 <select id="tablet_type_id" 
                         name="tablet_type_id" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        class="form-input w-full min-h-[52px] py-3 text-base">
                     <option value="">All Types</option>
                     {% for tablet_type in tablet_types %}
                     <option value="{{ tablet_type.id }}" {% if filter_tablet_type_id == tablet_type.id %}selected{% endif %}>
@@ -384,7 +384,7 @@
                 <label for="submission_type" class="block text-sm font-medium text-gray-700 mb-1">Submission Type</label>
                 <select id="submission_type" 
                         name="submission_type" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        class="form-input w-full min-h-[52px] py-3 text-base">
                     <option value="">All Types</option>
                     <option value="machine" {% if filter_submission_type == 'machine' %}selected{% endif %}>Machine Count</option>
                     <option value="packaged" {% if filter_submission_type == 'packaged' %}selected{% endif %}>Packaged</option>
@@ -402,7 +402,7 @@
                        name="receipt_number" 
                        value="{{ filter_receipt_number or '' }}"
                        placeholder="e.g., 2786-13"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                       class="form-input w-full min-h-[52px] py-3 text-base">
             </div>
             
             <!-- Filter Buttons -->

@@ -435,6 +435,11 @@ body.tt-app-body textarea::placeholder {
   opacity: 1;
 }
 
+/* Date fields — match dark panel fields (Safari / Chromium picker chrome) */
+body.tt-app-body input[type="date"].form-input {
+  color-scheme: dark;
+}
+
 /* Tailwind pastel gradient stops (blue-50 / indigo-50 / sky-50) — must match cmd panels
    or headings become light-on-light with main.tt-app-main text-gray-900 overrides. */
 body.tt-app-body .from-blue-50,

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.34] - 2026-04-28
+
+### Fixed
+- **Submissions → Filter Submissions:** Replaced light gray/white browser-default fields with shared `form-input` styling (dark panel, readable text/placeholders) and `color-scheme: dark` for date pickers. Workflow filter select uses the same.
+
+---
+
 ## [4.16.33] - 2026-04-28
 
 ### Changed
