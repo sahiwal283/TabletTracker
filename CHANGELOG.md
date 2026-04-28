@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.11] - 2026-04-28
+
+### Changed
+- **Ops TV packaging station:** restored packaging as a shared QR/timer station band, visible separately from production machines and reflected in both card/blister and bottle lifecycles.
+- **7-day station averages:** machine/station cards now show the real historical average cycle time used for threshold flashing.
+- **Lifecycle readability:** lifecycle step cards now wrap stage labels and values instead of clipping them with ellipses.
+
+---
+
 ## [4.16.10] - 2026-04-28
 
 ### Changed

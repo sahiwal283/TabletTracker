@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.16.9** (Ops TV machine alignment and readable control-room cards)
+Current: **v4.16.11** (Ops TV shared packaging station and 7-day station averages)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

@@ -253,6 +253,7 @@
   function MachineCard(props) {
     var m = props.machine;
     var notIntegrated = m.integrationStatus === "NOT_INTEGRATED";
+    var avg = stationAverageFor(m, props.shiftConfig);
     var latest = m.latestEvent || {};
     var done = m.counterEvent || {};
     var start = done.counterStart != null ? done.counterStart : latest.counterStart;
@@ -272,6 +273,7 @@
         <div><span>Last Scan</span><b>${notIntegrated ? "N/A" : fmtTime(m.lastScanMs)}</b></div>
         <div><span>Throughput</span><b>${notIntegrated ? "N/A" : (m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data")}</b></div>
         <div><span>Units Today</span><b>${notIntegrated ? "N/A" : fmtNumber(m.completedUnits)}</b></div>
+        <div><span>7D Avg Cycle</span><b>${notIntegrated ? "N/A" : (avg ? avg.avgMinutes.toFixed(1) + " min" : "Insufficient data")}</b></div>
       </div>
     </article>`;
   }
@@ -641,7 +643,7 @@
 
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
-      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section></div>`;
+      if (activeTab === "machines") return html`<div className="focused-machines"><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="occ-machine-grid station-grid"><${MachineBand} title="PACKAGING QR STATION" tone="purple" machines=${packagingMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section></div>`;
       if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags") return html`<section className="occ-wall"><section className="wall-panel"><h3>BAGS / INVENTORY</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
       if (activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
@@ -677,7 +679,7 @@
             { title: "STAGE", sub: "Auto gap queue", detail: "After blister, before heat seal", icon: "bag" },
             { title: "CARD / HEAT SEAL", sub: heatSealMachines.map(function (m) { return m.shortLabel.replace("MACHINE ", "M"); }).join(" / ") || "Heat seal", detail: "Scan station + bag", icon: "heat", status: heatSealMachines.some(function (m) { return m.integrationStatus === "LIVE_QR"; }) ? "LIVE_QR" : "NO_ACTIVITY_TODAY", attention: heatSealMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
-            { title: "PACKAGING", sub: "QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagDisplayLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Counter required", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
+            { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagDisplayLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} />
           <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
@@ -688,7 +690,7 @@
             { title: "STAGE", sub: "Auto gap queue", detail: "After sticker, before seal", icon: "bag" },
             { title: "HEAT SEAL", sub: "Bottle seal", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
-            { title: "PACKAGING", sub: "Handmade displays", detail: "Counter required", icon: "bag" },
+            { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagDisplayLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} />
           <${AlertsRail} alerts=${alerts} />
@@ -696,6 +698,9 @@
         <section className="occ-machine-grid">
           <${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
           <${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
+        </section>
+        <section className="occ-machine-grid station-grid">
+          <${MachineBand} title="PACKAGING QR STATION" tone="purple" machines=${packagingMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />
         </section>
         <section className="occ-wall wall-row-a">
           <section className="wall-panel"><h3>BAG INVENTORY (IN STOCK)</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section>

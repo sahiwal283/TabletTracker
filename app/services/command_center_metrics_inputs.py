@@ -411,7 +411,8 @@ def build_metrics_inputs_bundle(
         "targetThroughputPerHour": bm,
         "targetThroughputSource": target_source,
         "productionDueMs": _due_time_ms(conn, day_start_ms),
-        "stationCycleAvgMinutes": gather_station_cycle_averages(conn, day_start_ms - (30 * 24 * 60 * 60_000), day_start_ms),
+        "stationCycleAvgWindowDays": 7,
+        "stationCycleAvgMinutes": gather_station_cycle_averages(conn, day_start_ms - (7 * 24 * 60 * 60_000), day_start_ms),
     }
 
     return {
