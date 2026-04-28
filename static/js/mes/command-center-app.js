@@ -31,6 +31,12 @@
     }
   }
 
+  function readCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    var token = meta && meta.getAttribute("content");
+    return token ? String(token).trim() : "";
+  }
+
   function readInitialTab(navItems) {
     var allowed = {};
     (navItems || []).forEach(function (item) {
@@ -750,7 +756,10 @@
       fetch("/api/blister-material-rolls/change", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": readCsrfToken(),
+        },
         body: JSON.stringify({
           station_id: blisterStationId,
           material_type: materialType,
