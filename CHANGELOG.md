@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.20] - 2026-04-28
+
+### Changed
+- **Receiving modal readability:** restyled “Record shipment received” sections and dynamic box/bag rows to use consistent dark-surface colors with high-contrast labels, helper text, and clearer input/select controls.
+- **Global heading/input legibility:** disabled gradient-clipped transparent heading text in app content and tightened input placeholder/text contrast to avoid washed-out fields.
+
+---
+
 ## [4.16.19] - 2026-04-28
 
 ### Changed

@@ -111,6 +111,13 @@ main.tt-app-main .text-2xl.font-bold {
   letter-spacing: -0.02em;
 }
 
+/* Remove low-legibility gradient heading treatments across templates. */
+main.tt-app-main .bg-clip-text.text-transparent {
+  background-image: none !important;
+  color: #eaf2ff !important;
+  -webkit-text-fill-color: #eaf2ff !important;
+}
+
 main.tt-app-main p.text-sm,
 main.tt-app-main .text-gray-600 {
   line-height: 1.65;
@@ -415,6 +422,20 @@ body.tt-app-body .hover\:from-gray-100:hover {
 
 body.tt-app-body .hover\:to-slate-100:hover {
   --tw-gradient-to: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Inputs/selects/textarea readability normalization in dense forms/modals. */
+body.tt-app-body .form-input,
+body.tt-app-body input:not([type="checkbox"]):not([type="radio"]),
+body.tt-app-body select,
+body.tt-app-body textarea {
+  color: #e6edf8;
+}
+
+body.tt-app-body input::placeholder,
+body.tt-app-body textarea::placeholder {
+  color: #9fb1c7;
+  opacity: 1;
 }
 
 /* Tailwind pastel gradient stops (blue-50 / indigo-50 / sky-50) — must match cmd panels
