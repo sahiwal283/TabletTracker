@@ -4,8 +4,16 @@ MES Command Center payload: KPI strip, horizontal flow maps, SCADA grid, analyti
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Any
+
+from app.services.mes_pharmaceutical_intel import (
+    build_pharmaceutical_mes_intel,
+    merge_oee_into_kpis,
+)
+
+_LOGGER_MES = logging.getLogger(__name__)
 
 
 def _spark_from_series(base: list[float], mult: float, floor: float = 0.0) -> list[float]:
@@ -76,6 +84,8 @@ def build_mes_dashboard(
     activity: list[dict],
     pill_board: dict,
     now_ms: int,
+    day_start_ms: int,
+    stations: list[dict] | None = None,
 ) -> dict[str, Any]:
     pb = pill_board or {}
     kpis_strip: list[dict] = list(pb.get("kpis") or [])
@@ -109,6 +119,22 @@ def build_mes_dashboard(
             sp = _normalize_spark([max(0.0, 5.0 - (i % 4)) for i in range(24)])
         row["sparkline"] = sp
         enriched_kpis.append(row)
+
+    pharma_intel: dict[str, Any] = {}
+    try:
+        pharma_intel = build_pharmaceutical_mes_intel(
+            conn,
+            machines,
+            kpis,
+            flow_intel,
+            pb or {},
+            int(day_start_ms),
+            float(now_ms),
+            stations or [],
+        )
+        merge_oee_into_kpis(enriched_kpis, pharma_intel)
+    except Exception:
+        _LOGGER_MES.exception("build_pharmaceutical_mes_intel")
 
     pipe = list((flow_intel or {}).get("pipeline") or [])
     by_id = {str(n.get("id")): n for n in pipe}
@@ -293,7 +319,10 @@ def build_mes_dashboard(
             status_ui = "WAITING"
         util = float((m or {}).get("vs_hist_pct") or 0) + 70.0
         util = max(5.0, min(99.0, util))
-        oee_m = round(float(pb.get("oee_donut", {}).get("total") or 70) * (util / 85.0), 1)
+        if pharma_intel:
+            oee_m = round(float(pharma_intel.get("oee_pct") or 76) * (util / 89.0), 1)
+        else:
+            oee_m = round(float(pb.get("oee_donut", {}).get("total") or 70) * (util / 85.0), 1)
         last_scan = None
         tph = float((m or {}).get("rate_today_uh") or 0) if m else 0.0
         try:
@@ -310,10 +339,11 @@ def build_mes_dashboard(
         except Exception:
             pass
 
-        lt = {"running": "run", "paused": "wait", "idle": "idle", "fault": "idle"}.get(st_vis, "idle")
+        lt = {"running": "run", "paused": "wait", "idle": "idle", "fault": "fault"}.get(st_vis, "idle")
         scada.append(
             {
                 "slot": s["slot"],
+                "twin_slot": int(s["slot"]),
                 "label": mach_name,
                 "canonical": s["canonical"],
                 "short_label": s["short"],
@@ -345,20 +375,77 @@ def build_mes_dashboard(
         for a in (activity or [])[:24]
     ]
 
-    return {
+    oee_donut = dict(pb.get("oee_donut") or {})
+    if pharma_intel:
+        oee_donut = {
+            "total": round(float(pharma_intel.get("oee_pct") or oee_donut.get("total") or 0), 2),
+            "availability": round(float(pharma_intel.get("availability_pct") or oee_donut.get("availability") or 0), 2),
+
+            "performance": round(float(pharma_intel.get("performance_pct") or oee_donut.get("performance") or 0), 2),
+
+            "quality": round(float(pharma_intel.get("quality_pct") or oee_donut.get("quality") or 0), 2),
+
+        }
+
+    out: dict[str, Any] = {
         "generated_at_ms": now_ms,
+
         "kpis": enriched_kpis,
+
         "lanes": lanes,
+
         "scada_machines": scada,
+
         "alerts": alerts,
+
         "pill_board": pb,
+
         "trend": pb.get("trend") or {},
+
         "cycle_analysis": pb.get("cycle_analysis") or {},
-        "oee_donut": pb.get("oee_donut") or {},
+
+        "oee_donut": oee_donut,
+
         "inventory": pb.get("inventory") or [],
+
         "sku_table": pb.get("sku_table") or [],
+
         "staging": pb.get("staging") or [],
+
         "timeline": pb.get("timeline") or [],
+
         "team": pb.get("team") or [],
+
         "downtime": pb.get("downtime") or [],
+
+        "pharma_intel": pharma_intel,
+
     }
+
+
+    heat_st = (pharma_intel.get("bottleneck_heatmap") or {}).get("stages") or []
+
+    try:
+
+        max_h = max((float(h.get("heat") or 0) for h in heat_st), default=0.5) or 0.55
+
+        for ln in lanes:
+
+            for sd in ln.get("stages") or []:
+
+                if str(sd.get("status_level")) != "crit":
+
+
+                    qw = float(sd.get("queue_depth") or 0)
+
+                    sd["congestion_pulse"] = round(_clamp_pulse(qw, max_h), 3)
+
+    except Exception:
+        pass
+
+    return out
+
+
+def _clamp_pulse(qw: float, mx: float) -> float:
+    mx = mx if mx > 1e-6 else 1.0
+    return max(0.05, min(1.0, qw / mx * 0.74))

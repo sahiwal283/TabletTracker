@@ -1048,6 +1048,8 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             activity,
             pill_board,
             now_ms,
+            start_ms,
+            stations,
         )
     except Exception:
         _LOGGER_ADMIN.exception("build_ops_tv_snapshot mes")
