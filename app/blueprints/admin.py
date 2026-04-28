@@ -269,6 +269,7 @@ def _command_center_final_product_displays_by_po(
         "po_options": [],
         "selected_po_id": None,
         "selected_po_number": "",
+        "selected_vendor_name": "",
         "rows": [],
         "total_displays": 0,
     }
@@ -276,11 +277,12 @@ def _command_center_final_product_displays_by_po(
         po_rows = conn.execute(
             """
             SELECT po.id, po.po_number,
+                   COALESCE(NULLIF(TRIM(po.vendor_name), ''), 'Unknown vendor') AS vendor_name,
                    COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS total_displays
             FROM purchase_orders po
             JOIN warehouse_submissions ws ON ws.assigned_po_id = po.id
             WHERE COALESCE(ws.submission_type, 'packaged') = 'packaged'
-            GROUP BY po.id, po.po_number
+            GROUP BY po.id, po.po_number, po.vendor_name
             HAVING COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) > 0
             ORDER BY po.po_number DESC
             """
@@ -299,6 +301,7 @@ def _command_center_final_product_displays_by_po(
     out["selected_po_id"] = chosen_po_id
     selected_po = next((p for p in po_options if int(p["id"]) == chosen_po_id), None)
     out["selected_po_number"] = str((selected_po or {}).get("po_number") or "")
+    out["selected_vendor_name"] = str((selected_po or {}).get("vendor_name") or "")
     try:
         rows = conn.execute(
             """
@@ -1754,6 +1757,7 @@ def workflow_qr_management():
                 "po_options": [],
                 "selected_po_id": None,
                 "selected_po_number": "",
+                "selected_vendor_name": "",
                 "rows": [],
                 "total_displays": 0,
             },
@@ -1764,6 +1768,26 @@ def workflow_qr_management():
                 products_load_failed=True,
             ),
         )
+
+
+@bp.route("/command-center/final-output-summary")
+@admin_required
+def command_center_final_output_summary():
+    """JSON for packaged-only display totals by PO/product without reloading page."""
+    selected_po_id: int | None = None
+    raw_po = (request.args.get("po_id") or "").strip()
+    if raw_po:
+        try:
+            selected_po_id = int(raw_po)
+        except (TypeError, ValueError):
+            selected_po_id = None
+    try:
+        with db_read_only() as conn:
+            payload = _command_center_final_product_displays_by_po(conn, selected_po_id)
+        return jsonify({"success": True, "summary": payload})
+    except Exception as e:
+        current_app.logger.exception("command_center_final_output_summary")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def _render_ops_tv_dashboard_page():

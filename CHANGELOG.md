@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.40] - 2026-04-28
+
+### Changed
+- **Command Center final-product PO panel:** PO dropdown now shows `PO number · vendor` (without display totals), and PO changes update the panel in-place via async JSON fetch (no full page refresh).
+
+---
+
 ## [4.16.36] - 2026-04-28
 
 ### Fixed
