@@ -49,9 +49,23 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn(b'id="mes-root"', r.data)
         self.assertIn(b"mes-command-center.css", r.data)
+        self.assertIn(b"js/mes/vendor/react.production.min.js", r.data)
+        self.assertIn(b"js/mes/vendor/htm.umd.js", r.data)
         self.assertIn(b"js/ops-metrics.js", r.data)
         self.assertIn(b"command-center-app.js", r.data)
         self.assertIn(b"command-center/ops-tv/api/snapshot", r.data)
+        self.assertIn(b"ops-tv-initial-data", r.data)
+        self.assertIn(b'"kpis"', r.data)
+        self.assertIn(b'"pill_board"', r.data)
+        self.assertIn(b'"mes"', r.data)
+        self.assertIn(b'"tab": "overview"', r.data)
+        self.assertIn(b"Exit Command Center", r.data)
+
+    def test_pill_packing_alias_loads(self):
+        r = self.client.get("/command-center/pill-packing")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"id=\"mes-root\"", r.data)
+        self.assertIn(b"command-center-app.js", r.data)
 
     def test_ops_tv_snapshot_json(self):
         r = self.client.get("/command-center/ops-tv/api/snapshot")
@@ -62,6 +76,10 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("activity", data)
         self.assertIn("mes", data)
         self.assertIn("metrics_inputs", data["mes"])
+        for m in data.get("machines") or []:
+            self.assertIn("rate_hist_uh", m)
+            self.assertIn("perf_tier", m)
+            break
 
     def test_oee_clamped_to_100_in_metrics_layer(self):
         source = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
@@ -117,11 +135,11 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("alertsOnly", source)
         self.assertIn("activityFeed", source)
 
-
-    def test_command_center_dark_palette_applied(self):
+    def test_dark_theme_command_center_palette(self):
         css = Path("static/css/mes-command-center.css").read_text(encoding="utf-8")
-        self.assertIn("background:#081324", css.replace(" ", ""))
-        self.assertIn("radial-gradient", css)
+        compact = css.replace(" ", "")
+        self.assertIn("background:#081324", compact)
+        self.assertIn(".mes-header{border:", compact)
 
     def test_machine_settings_route_exists(self):
         r = self.client.get("/admin/settings/machines")

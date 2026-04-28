@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.8] - 2026-04-28
+
+### Changed
+- **Merge:** Resolved conflicts for **`codex/rebuild-ops-tv-command-center-dashboard-s0p5uh`** into `main`; bumped app version and consolidated `ops-tv` dashboard tests with the current assertions.
+
+---
+
+## [4.15.7] - 2026-04-28
+
+### Changed
+- **Merge:** Resolved conflicts integrating **`codex/rebuild-ops-tv-command-center-dashboard-wdrxkq`** with **`main`** (MES **`command-center-app.js`** and compact **`mes-command-center.css`** from the feature branch; **`tests/test_ops_tv_dashboard.py`** consolidated with **`main`** snapshot assertions; palette test updated for minified CSS; smoke test for **`/admin/settings/machines`**).
+
+---
+
+## [4.15.6] - 2026-04-27
+
+### Changed
+- Merged **`codex/rebuild-ops-tv-command-center-dashboard-wg3gx7`**: client **`OpsMetrics`** (`static/js/ops-metrics.js`) with **`deriveStagingBags`**, dashboard wiring, and tests.
+- **Fullscreen command center:** staging idle-bag panel, machine settings panel, split MES alerts vs activity feed; bottle-tab copy when M5 is not integrated; trace label **Trace bag ID**; dark-theme **mini-table** / feed styles.
+- Resolved conflicts favoring existing hash-tab navigation, exit control, and dark wallboard styling.
+
+---
+
+## [4.15.5] - 2026-04-27
+
+### Changed
+- **Table Command Center (workflow QR):** single **Open Pill Packing Command Center** action; removed duplicate pill-packing link and scroll-only assign shortcut in the header.
+- **Fullscreen pill packing command center:** sidebar tabs stay in the wallboard shell (hash routing, highlighted active tab); consolidated **Analytics** (no duplicate Reports item); **Exit Command Center** label; layout/CSS for scrollable main panel, tables, and alert lists; MesDataTable thead fix and machine card **Station ID** wiring from snapshot data.
+
+---
+
+## [4.15.4] - 2026-04-27
+
+### Removed
+- **Purchase Orders** list page and sidebar tab; **`/purchase-orders`** (and legacy path) redirect to **Reports**. Removed `templates/purchase_orders.html` and `purchase-orders-ui.js`.
+
+### Changed
+- **Command Center / app chrome:** Removed the full-page **cyan grid hatch** overlays from `body.tt-app-body::before` (**`app-ui.css`**) and **`.ops-tv-shell::before`** (**`ops-command-center-wall.css`**); backgrounds stay gradient-only.
+
+---
+
+## [4.15.3] - 2026-04-27
+
+### Changed
+- **Merge:** Resolved conflicts integrating **`codex/rebuild-ops-tv-command-center-dashboard`** with **`main`** (MES command-center JS/CSS kept from the refactor branch; tests aligned with **`main`**).
+
+---
+
+## [4.15.1] - 2026-04-27
+
+### Fixed
+- **Command Center (`/command-center`):** assign-bag product list and per-station day stats now load inside the same read-only DB connection as the rest of the page (avoids empty dropdown and zero counters).
+- **Pill packing fullscreen:** sidebar tabs no longer navigate away to the table Command Center; in-app sections scroll within the MES wallboard. **Exit to Command Center** link at top of sidebar. Reports/Settings/Users open in a new tab.
+
+### Added
+- **`GET /command-center/pill-packing`** — same wallboard as `/command-center/ops-tv` (bookmark alias).
+
+---
+
 ## [4.10.0] - 2026-04-28
 
 ### Added

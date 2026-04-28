@@ -41,8 +41,7 @@
           {% if floor_ops_date_label %}<span class="text-slate-500">· {{ floor_ops_date_label }} ET (calendar day)</span>{% endif %}
         </p>
         <div class="flex flex-wrap items-center gap-2 mt-2">
-          <a href="{{ url_for('admin.ops_tv_dashboard') }}" class="inline-flex items-center rounded-lg border border-cyan-500/50 bg-cyan-950/40 text-cyan-100 hover:border-cyan-400 hover:bg-cyan-900/50 text-sm font-semibold px-3 py-1.5" title="Opens /command-center/ops-tv — fullscreen pill-packing board (not sidebar pages)">Pill packing TV board →</a>
-          <a href="#assign-bag-qr-card" class="inline-flex items-center rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/25 text-sm font-medium px-3 py-1.5">Assign bag to QR (below)</a>
+          <a href="{{ url_for('admin.ops_tv_dashboard') }}" class="inline-flex items-center rounded-lg border border-cyan-500/50 bg-cyan-950/40 text-cyan-100 hover:border-cyan-400 hover:bg-cyan-900/50 text-sm font-semibold px-3 py-1.5">Open Pill Packing Command Center</a>
         </div>
       </div>
     </div>
@@ -131,11 +130,11 @@
             <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('BLISTER_COMPLETE', 0) }}</td>
             <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('SEALING_COMPLETE', 0) }}</td>
             <td class="px-3 py-2.5 text-right tabular-nums text-slate-300">{{ st.get('PACKAGING_SNAPSHOT', 0) }}</td>
-            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400 border-l border-slate-800 text-xs">
-              {% if st.get('_avg_blister') is not none %}{{ (st.get('_avg_blister') | float) | round(1) }}{% else %}—{% endif %}
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400 border-l border-slate-800 text-xs max-w-[7rem]">
+              {% if st.get('_avg_blister') is not none %}{{ (st.get('_avg_blister') | float) | round(1) }}{% elif (st.get('BLISTER_COMPLETE') or 0) > 0 %}<span class="text-slate-500" title="Blister events today had no numeric count in payload">Insufficient data</span>{% else %}—{% endif %}
             </td>
-            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400 text-xs">
-              {% if st.get('_avg_sealing') is not none %}{{ (st.get('_avg_sealing') | float) | round(1) }}{% else %}—{% endif %}
+            <td class="px-3 py-2.5 text-right tabular-nums text-slate-400 text-xs max-w-[7rem]">
+              {% if st.get('_avg_sealing') is not none %}{{ (st.get('_avg_sealing') | float) | round(1) }}{% elif (st.get('SEALING_COMPLETE') or 0) > 0 %}<span class="text-slate-500" title="Sealing events today had no numeric count in payload">Insufficient data</span>{% else %}—{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -158,7 +157,7 @@
     {% endif %}
   </div>
 
-  <details open class="rounded-xl border border-gray-200 bg-gray-50/80 mb-8">
+  <details class="rounded-xl border border-gray-200 bg-gray-50/80 mb-8">
     <summary class="px-4 py-3 cursor-pointer list-none flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 font-semibold text-gray-900 text-sm">
       <span>Staff tools and configuration</span>
       <span class="text-xs font-normal text-gray-500">Assign bag ↔ QR is the first block below · stations &amp; cards follow</span>
@@ -168,10 +167,14 @@
   <div class="card p-5 bg-white border-2 border-cyan-300/80 shadow-sm scroll-mt-4" id="assign-bag-qr-card">
     <h2 class="text-base font-semibold text-gray-900 mb-1">Assign bag to QR card</h2>
     <p class="text-sm text-gray-600 mb-3">Link received inventory to a physical bag card. Requires staff access on submit — use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="text-blue-600 hover:underline font-medium">full-screen assign form</a> if you prefer, or if the product list does not load here.</p>
-    {% if bag_assign.products_load_failed or not bag_assign.products %}
+    {% if bag_assign.products_load_failed %}
     <div class="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-950">
-      <strong class="font-semibold">Product list unavailable in Command Center.</strong>
+      <strong class="font-semibold">Could not load products for this form.</strong>
       Use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="underline font-medium">staff assign page</a> (same workflow), or check Product configuration / database access.
+    </div>
+    {% elif not bag_assign.products %}
+    <div class="mb-4 p-3 rounded-lg border border-amber-100 bg-amber-50/80 text-sm text-amber-950">
+      <strong class="font-semibold">No products configured.</strong> Add flavors under Product configuration, then refresh.
     </div>
     {% endif %}
     {% include "includes/workflow_assign_bag_form.html" %}

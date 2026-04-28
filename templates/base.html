@@ -1009,7 +1009,7 @@ function fillEditSubmissionReturnContext(sub) {
 }
 
 /**
- * Close details + reopen submissions modal with fresh data — avoids full page reload on receiving/dashboard.
+ * Close details + reopen submissions modal with fresh data — avoids full page reload when returning from edits.
  * Returns true if viewPOSubmissions was invoked.
  */
 function refreshSubmissionsListAfterEdit() {
@@ -1025,17 +1025,11 @@ function refreshSubmissionsListAfterEdit() {
     const bagIdRaw = document.getElementById('edit-submissions-return-bag-id')?.value?.trim();
     const boxRaw = document.getElementById('edit-submissions-return-box-number')?.value?.trim();
     const bagNumRaw = document.getElementById('edit-submissions-return-bag-number')?.value?.trim();
-    const typeFilterRaw = document.getElementById('edit-submissions-return-type-filter')?.value?.trim();
 
     const receiveId = receiveIdRaw ? parseInt(receiveIdRaw, 10) : null;
     const bagId = bagIdRaw ? parseInt(bagIdRaw, 10) : null;
     const boxNumber = boxRaw !== '' && boxRaw != null ? parseInt(boxRaw, 10) : null;
     const bagNumber = bagNumRaw !== '' && bagNumRaw != null ? parseInt(bagNumRaw, 10) : null;
-    const typeFilter = typeFilterRaw || null;
-
-    const path = typeof window !== 'undefined' && window.location.pathname ? window.location.pathname : '';
-    const isPurchaseOrdersPage = path.includes('purchase_orders');
-    const isReceivingPage = path === '/receiving' || path === '/receiving/';
 
     closeSubmissionDetailsModal();
     const oldModal = document.getElementById('submissions-modal');
@@ -1048,13 +1042,7 @@ function refreshSubmissionsListAfterEdit() {
 
     const poIdNum = parseInt(poId, 10);
 
-    if (isPurchaseOrdersPage) {
-        viewPOSubmissions(poIdNum, poName, inventoryItemId, typeFilter);
-    } else if (isReceivingPage) {
-        viewPOSubmissions(poIdNum, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
-    } else {
-        viewPOSubmissions(poIdNum, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
-    }
+    viewPOSubmissions(poIdNum, poName, inventoryItemId, receiveId, receiveName, bagId, boxNumber, bagNumber);
     return true;
 }
 
@@ -2156,11 +2144,6 @@ async function convertToTwoLevelDropdown(selectElement) {
                     {% if session.employee_role in ['manager', 'admin', 'warehouse_staff', 'warehouse_lead'] %}
                     <a href="{{ url_for('submissions.submissions_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
                         <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-list" /></svg> Submissions
-                    </a>
-                    {% endif %}
-                    {% if session.employee_role in ['manager', 'admin'] %}
-                    <a href="{{ url_for('purchase_orders.purchase_orders_list') }}" class="nav-link flex items-center gap-2 px-3 py-2.5 rounded-lg hover:bg-white/10 text-white text-sm font-medium transition-colors">
-                        <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-cart" /></svg> Purchase Orders
                     </a>
                     {% endif %}
                     {% if session.employee_role == 'admin' %}
@@ -3394,7 +3377,7 @@ function addTabletTypeSearch(selectElement) {
     // For now, keep it always visible for simplicity
 }
 
-// Machine badge suffix for list/detail modals (matches dashboard / purchase_orders helpers).
+// Machine badge suffix for list/detail modals (matches receiving / submissions helpers).
 function machineIdBadgeSuffix(sub) {
     const rawName = sub.machine_name;
     if (rawName != null && String(rawName).trim() !== '') {
