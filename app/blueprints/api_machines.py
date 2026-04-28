@@ -381,19 +381,57 @@ def update_compressor(compressor_id):
         if status not in VALID_COMPRESSOR_STATUS:
             return jsonify({'success': False, 'error': 'Invalid compressor status'}), 400
         machine_id = _coerce_positive_int(data.get('machine_id'), 0) or None
+        notes_val = (data.get('notes') or '').strip() or None
+        new_name = None
+        if 'compressor_name' in data:
+            new_name = (data.get('compressor_name') or '').strip()
+            if not new_name:
+                return jsonify({'success': False, 'error': 'Compressor name is required'}), 400
         now_ms = int(time.time() * 1000)
         with db_transaction() as conn:
             _ensure_asset_tracking_tables(conn)
+            row = conn.execute(
+                '''
+                SELECT compressor_name FROM compressors
+                WHERE id = ? AND is_active = TRUE
+                ''',
+                (compressor_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({'success': False, 'error': 'Compressor not found'}), 404
+            current_name = row['compressor_name']
+            final_name = current_name
+            if new_name is not None:
+                if new_name != current_name:
+                    dup = conn.execute(
+                        '''
+                        SELECT id FROM compressors
+                        WHERE compressor_name = ? AND id != ? AND is_active = TRUE
+                        ''',
+                        (new_name, compressor_id),
+                    ).fetchone()
+                    if dup:
+                        return (
+                            jsonify(
+                                {
+                                    'success': False,
+                                    'error': 'A compressor with that name already exists',
+                                }
+                            ),
+                            400,
+                        )
+                final_name = new_name
             conn.execute(
                 '''
                 UPDATE compressors
-                SET status = ?, machine_id = ?, notes = ?, updated_at = ?
+                SET compressor_name = ?, status = ?, machine_id = ?, notes = ?, updated_at = ?
                 WHERE id = ? AND is_active = TRUE
                 ''',
                 (
+                    final_name,
                     status,
                     machine_id,
-                    (data.get('notes') or '').strip() or None,
+                    notes_val,
                     now_ms,
                     compressor_id,
                 ),

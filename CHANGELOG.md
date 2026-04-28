@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.21] - 2026-04-28
+
+### Changed
+- **Compressor Tracking (Machine Settings):** compressor rows are read-only by default (name, status, assignment, notes); **Edit** opens inline fields for name, status, machine assignment, and notes, with **Save** / **Cancel**. PUT `/api/compressors/:id` accepts `compressor_name` updates with duplicate-name validation.
+
+---
+
 ## [4.16.20] - 2026-04-28
 
 ### Changed
