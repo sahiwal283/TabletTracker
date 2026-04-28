@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.17.2] - 2026-04-28
+
+### Fixed
+- **Product configuration → Edit Product modal:** Replaced the bright blue/teal gradient header with Command Center header styling; darkened the “Also allow these tablet types” scroller (sticky category bands now use explicit sky/amber-on-dark contrast instead of light-gray bars where global text remaps hid labels); row hover and cyan accent on checkboxes/radios; footer uses `btn-secondary` / `btn-primary` with compact sizing; overlay uses light backdrop blur.
+
+---
+
 ## [4.16.38] - 2026-04-28
 
 ### Added

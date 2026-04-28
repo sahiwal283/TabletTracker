@@ -687,6 +687,75 @@ main.tt-app-main .text-green-800 {
 }
 
 /*
+ * Product config — Edit Product modal: dark shell, readable allowed-tablet list
+ * (sticky category bars used light Tailwind + global text remaps → invisible labels).
+ */
+body.tt-app-body #edit-product-modal .tt-edit-product-panel {
+  background: linear-gradient(
+    165deg,
+    var(--cmd-panel-elevated, #151d2e) 0%,
+    var(--cmd-panel, #111826) 52%,
+    var(--cmd-bg-deep, #060a12) 100%
+  );
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55), 0 0 42px rgba(34, 211, 238, 0.06);
+  color: #e2e8f0;
+}
+
+body.tt-app-body #edit-product-modal .tt-edit-product-header {
+  background: linear-gradient(
+    92deg,
+    var(--cmd-bg-deep, #060a12) 0%,
+    var(--cmd-panel, #111826) 42%,
+    #0c4a6e 100%
+  );
+  border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+}
+
+body.tt-app-body #edit-product-modal .tt-edit-product-body label.text-gray-700 {
+  color: #cbd5e1 !important;
+}
+
+body.tt-app-body #edit-product-modal .tt-edit-product-footer {
+  border-color: rgba(56, 189, 248, 0.14) !important;
+  background: linear-gradient(180deg, transparent, rgba(6, 10, 18, 0.35));
+}
+
+body.tt-app-body #edit-product-modal .tt-edit-prod-allowed-scroll {
+  background: rgba(6, 10, 18, 0.55);
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body.tt-app-body #edit-product-modal .edit-allowed-cat-heading {
+  background: rgba(15, 23, 42, 0.96);
+  color: #7dd3fc !important;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+}
+
+body.tt-app-body #edit-product-modal .edit-allowed-cat-heading--accent {
+  color: #fcd34d !important;
+  background: rgba(35, 28, 10, 0.88);
+  border-bottom-color: rgba(251, 191, 36, 0.2);
+}
+
+body.tt-app-body #edit-product-modal label.edit-allowed-row:hover {
+  background: rgba(34, 211, 238, 0.08);
+  border-color: rgba(34, 211, 238, 0.18) !important;
+}
+
+body.tt-app-body #edit-product-modal .edit-prod-allowed-cb,
+body.tt-app-body #edit-product-modal .edit-prod-type-radio {
+  accent-color: rgb(34, 211, 238);
+}
+
+body.tt-app-body #edit-product-modal .tt-edit-product-footer .btn-primary,
+body.tt-app-body #edit-product-modal .tt-edit-product-footer .btn-secondary {
+  min-height: 0;
+  border-radius: 12px !important;
+}
+
+/*
  * Submission details modal — portaled under body; match Command Center dark panels
  * (replaces prior light “paper” modal overrides).
  */
