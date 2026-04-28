@@ -56,9 +56,6 @@
   var charts = {
     line: null,
     multi: null,
-    bar: null,
-    idle: null,
-    donut: null,
   };
 
   var chartCommon = {
@@ -147,7 +144,9 @@
           dm +
           "m · avg " +
           (av != null ? av + "m" : "—") +
-          "</div>";
+          '</div><div class="ops-flow-delay-peak">Delay peak ' +
+          Math.round(Number(dm)) +
+          "m</div>";
       }
       var tr = node.delay_trend || "flat";
       var insightHtml = "";
@@ -376,29 +375,20 @@
   function renderHighlights(data) {
     if (!highlightsEl) return;
     var h = (data && data.highlights) || {};
-    var best = h.best_station;
-    var worst = h.lowest_output_station;
-    if (!best && !worst) {
-      highlightsEl.innerHTML = "";
-      highlightsEl.classList.remove("occ-highlights-visible");
-      return;
-    }
+    var best = h.best_station ? String(h.best_station) : "";
+    var worst = h.lowest_output_station ? String(h.lowest_output_station) : "";
     highlightsEl.classList.add("occ-highlights-visible");
     var chunks = [];
-    if (best) {
-      chunks.push(
-        '<span class="occ-hl-chip occ-hl--best"><span class="occ-hl-lab">Highest throughput · shift</span> <strong>' +
-          String(best).replace(/</g, "&lt;") +
-          "</strong></span>",
-      );
-    }
-    if (worst) {
-      chunks.push(
-        '<span class="occ-hl-chip occ-hl--low"><span class="occ-hl-lab">Lowest throughput · coach</span> <strong>' +
-          String(worst).replace(/</g, "&lt;") +
-          "</strong></span>",
-      );
-    }
+    chunks.push(
+      '<span class="occ-hl-chip occ-hl--best"><span class="occ-hl-lab">Highest throughput • shift</span> <strong>' +
+        (best ? best.replace(/</g, "&lt;") : "—") +
+        "</strong></span>",
+    );
+    chunks.push(
+      '<span class="occ-hl-chip occ-hl--low"><span class="occ-hl-lab">Lowest throughput • coach</span> <strong>' +
+        (worst ? worst.replace(/</g, "&lt;") : "—") +
+        "</strong></span>",
+    );
     highlightsEl.innerHTML = '<div class="occ-highlights-inner">' + chunks.join("") + "</div>";
   }
 
@@ -499,6 +489,17 @@
       },
     };
 
+    var darkScalesBarTop = {
+      x: Object.assign({}, darkScales.x, {
+        ticks: Object.assign({}, darkScales.x.ticks, {
+          maxRotation: 55,
+          minRotation: 35,
+          autoSkip: false,
+        }),
+      }),
+      y: Object.assign({}, darkScales.y, { beginAtZero: true }),
+    };
+
     if (!charts.line) {
       var el = document.getElementById("c-chart-line");
       if (el)
@@ -519,87 +520,13 @@
       var el2 = document.getElementById("c-chart-multi");
       if (el2)
         charts.multi = new Chart(el2, {
-          type: "line",
-          data: { labels: labels, datasets: [] },
-          options: Object.assign({}, chartCommon, {
-            scales: darkScales,
-            plugins: {
-              legend: {
-                display: true,
-                position: "bottom",
-                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 12 },
-              },
-            },
-          }),
-        });
-    }
-    if (!charts.bar) {
-      var el3 = document.getElementById("c-chart-bar");
-      if (el3)
-        charts.bar = new Chart(el3, {
           type: "bar",
           data: { labels: [], datasets: [] },
           options: Object.assign({}, chartCommon, {
-            indexAxis: "y",
-            scales: {
-              x: {
-                ticks: { color: "#cbd5e1", font: tickFont },
-                grid: { color: GRID_LINE },
-              },
-              y: {
-                ticks: { color: "#cbd5e1", font: tickFont },
-                grid: { display: false },
-              },
-            },
-            plugins: { legend: { display: false } },
-          }),
-        });
-    }
-    if (!charts.idle) {
-      var el4 = document.getElementById("c-chart-idle");
-      if (el4)
-        charts.idle = new Chart(el4, {
-          type: "bar",
-          data: { labels: [], datasets: [] },
-          options: Object.assign({}, chartCommon, {
-            indexAxis: "y",
-            scales: {
-              x: {
-                stacked: true,
-                max: 100,
-                ticks: {
-                  color: "#cbd5e1",
-                  font: tickFont,
-                  callback: function (v) { return v + "%"; },
-                },
-                grid: { color: GRID_LINE },
-              },
-              y: {
-                stacked: true,
-                ticks: { color: "#cbd5e1", font: tickFont },
-                grid: { display: false },
-              },
-            },
+            scales: darkScalesBarTop,
             plugins: {
               legend: {
-                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 12 },
-              },
-            },
-          }),
-        });
-    }
-    if (!charts.donut) {
-      var el5 = document.getElementById("c-chart-donut");
-      if (el5)
-        charts.donut = new Chart(el5, {
-          type: "doughnut",
-          data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-          options: Object.assign({}, chartCommon, {
-            cutout: "58%",
-            plugins: {
-              legend: {
-                position: "bottom",
-                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 12 },
+                display: false,
               },
             },
           }),
@@ -661,103 +588,45 @@
     }
 
     if (charts.multi) {
-      charts.multi.data.labels = labels;
-      var series = data.chart_station_series || {};
-      var names = data.chart_station_names || {};
-      var ds = [];
-      var i = 0;
-      Object.keys(series).forEach(function (sid) {
-        ds.push({
-          label: names[sid] || "St " + sid,
-          data: series[sid],
-          borderColor: palette[i % palette.length],
-          backgroundColor: "transparent",
-          tension: 0.2,
-          borderWidth: 3,
-          pointRadius: 0,
-        });
-        i++;
+      var pkg = (data.machines || []).filter(function (m) {
+        return String(m.station_kind || "").toLowerCase() === "packaging";
       });
-      if (!ds.length) {
-        ds.push({
-          label: "—",
-          data: labels.map(function () { return 0; }),
-          borderColor: "rgba(148,163,184,0.45)",
-          borderWidth: 2,
-          pointRadius: 0,
+      pkg.sort(function (a, b) {
+        var da = a.displays_today != null ? a.displays_today : a.output_today || 0;
+        var db = b.displays_today != null ? b.displays_today : b.output_today || 0;
+        return db - da;
+      });
+      var top = pkg.slice(0, 10);
+      if (!top.length) {
+        charts.multi.data.labels = ["—"];
+        charts.multi.data.datasets = [
+          {
+            label: "Displays today",
+            data: [0],
+            backgroundColor: "rgba(148,163,184,0.35)",
+            borderColor: ACCENT,
+            borderWidth: 1,
+          },
+        ];
+      } else {
+        charts.multi.data.labels = top.map(function (m) {
+          return stripEmoji(m.display_name || "Station");
         });
+        charts.multi.data.datasets = [
+          {
+            label: "Displays today",
+            data: top.map(function (m) {
+              return m.displays_today != null ? m.displays_today : m.output_today || 0;
+            }),
+            backgroundColor: top.map(function (_, j) {
+              return palette[j % palette.length];
+            }),
+            borderColor: "rgba(0, 242, 255, 0.45)",
+            borderWidth: 1,
+          },
+        ];
       }
-      charts.multi.data.datasets = ds;
       charts.multi.update();
-    }
-
-    if (charts.bar) {
-      var bars = data.bar_by_station || [];
-      if (!bars.length) {
-        charts.bar.data.labels = ["—"];
-        charts.bar.data.datasets = [
-          { label: "Output", data: [0], backgroundColor: ["rgba(148,163,184,0.4)"] },
-        ];
-      } else {
-        charts.bar.data.labels = bars.map(function (b) { return stripEmoji(b.name || ""); });
-        charts.bar.data.datasets = [
-          {
-            label: "Output (packaging = displays · blister/seal = tablets)",
-            data: bars.map(function (b) { return b.output; }),
-            backgroundColor: bars.map(function (_, j) {
-              return palette[j % palette.length];
-            }),
-          },
-        ];
-      }
-      charts.bar.update();
-    }
-
-    if (charts.idle) {
-      var idles = data.idle_pct_by_station || [];
-      if (!idles.length) {
-        charts.idle.data.labels = ["—"];
-        charts.idle.data.datasets = [
-          { label: "Engaged", data: [0], backgroundColor: "rgba(52, 211, 153, 0.4)" },
-          { label: "Idle / wait", data: [100], backgroundColor: "rgba(251, 191, 36, 0.4)" },
-        ];
-      } else {
-        charts.idle.data.labels = idles.map(function (r) { return stripEmoji(r.name || ""); });
-        charts.idle.data.datasets = [
-          {
-            label: "Engaged",
-            data: idles.map(function (r) { return r.load_pct; }),
-            backgroundColor: "rgba(52, 211, 153, 0.75)",
-          },
-          {
-            label: "Idle / wait",
-            data: idles.map(function (r) { return r.pct; }),
-            backgroundColor: "rgba(251, 191, 36, 0.55)",
-          },
-        ];
-      }
-      charts.idle.update();
-    }
-
-    if (charts.donut) {
-      var fb = data.flavor_breakdown || [];
-      if (!fb.length) {
-        charts.donut.data.labels = ["No mix yet"];
-        charts.donut.data.datasets = [
-          { data: [1], backgroundColor: ["rgba(148,163,184,0.4)"] },
-        ];
-      } else {
-        charts.donut.data.labels = fb.map(function (f) { return stripEmoji(f.label || ""); });
-        charts.donut.data.datasets = [
-          {
-            data: fb.map(function (f) { return f.value; }),
-            backgroundColor: fb.map(function (_, j) {
-              return palette[j % palette.length];
-            }),
-          },
-        ];
-      }
-      charts.donut.update();
     }
   }
 
@@ -772,8 +641,8 @@
     updateCharts(data);
     if (lastRefreshEl) {
       lastRefreshEl.textContent =
-        "Snapshot · " +
-        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        "Snapshot " +
+        new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
     }
     var footerStrip = document.getElementById("ops-footer-strip");
     if (footerStrip) {

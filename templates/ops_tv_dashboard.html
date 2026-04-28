@@ -57,24 +57,13 @@
       <section class="occ-highlights-strip" id="ops-highlights" aria-label="Shift highlights"></section>
 
       <section class="occ-flow-pane" aria-label="Production flow">
-        <div class="ops-flow-wrap">
-          <div id="ops-flow" class="ops-flow"></div>
+        <div class="ops-flow-wrap occ-flow-board">
           <div id="ops-bottleneck" class="ops-bottleneck occ-bottleneck-band"></div>
+          <div id="ops-flow" class="ops-flow"></div>
         </div>
       </section>
 
-      <div class="occ-split">
-        <section class="occ-machines-pane" aria-label="Machines">
-          <h3 class="occ-pane-title">Machine status</h3>
-          <div id="ops-cards" class="ops-cards occ-cards"></div>
-        </section>
-        <aside class="occ-alerts-pane ops-feed" aria-label="Alerts">
-          <h2 class="ops-feed-title">Alerts</h2>
-          <div class="ops-feed-list" id="ops-feed-list"></div>
-        </aside>
-      </div>
-
-      <footer class="ops-charts occ-charts" aria-label="Charts">
+      <footer class="ops-charts occ-charts occ-charts--primary" aria-label="Performance charts">
         <div class="ops-chart-row-main occ-chart-major">
           <div class="ops-chart-panel panel-cum occ-chart-el">
             <h3>Displays cumulative — vs 30d pace</h3>
@@ -85,24 +74,18 @@
             <canvas id="c-chart-multi"></canvas>
           </div>
         </div>
-        <div class="ops-chart-row-sub occ-chart-minor">
-          <div class="ops-chart-panel panel-bar occ-chart-el">
-            <h3>Output by station (today)</h3>
-            <p class="ops-chart-note">Packaging = displays finalized — blister / sealing = tablets</p>
-            <canvas id="c-chart-bar"></canvas>
-          </div>
-          <div class="occ-chart-micro ops-chart-stack">
-            <div class="ops-chart-panel panel-idle occ-chart-el">
-              <h3>Engaged vs idle</h3>
-              <canvas id="c-chart-idle"></canvas>
-            </div>
-            <div class="ops-chart-panel panel-donut occ-chart-el">
-              <h3>Product mix</h3>
-              <canvas id="c-chart-donut"></canvas>
-            </div>
-          </div>
-        </div>
       </footer>
+
+      <div class="occ-split occ-split--secondary">
+        <section class="occ-machines-pane" aria-label="Machines">
+          <h3 class="occ-pane-title">Machine status</h3>
+          <div id="ops-cards" class="ops-cards occ-cards"></div>
+        </section>
+        <aside class="occ-alerts-pane ops-feed" aria-label="Alerts">
+          <h2 class="ops-feed-title">Alerts</h2>
+          <div class="ops-feed-list" id="ops-feed-list"></div>
+        </aside>
+      </div>
 
       <section class="occ-events" aria-label="Latest workflow events">
         <h3 class="occ-pane-title">Latest workflow events</h3>
