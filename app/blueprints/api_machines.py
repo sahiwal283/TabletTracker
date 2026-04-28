@@ -71,6 +71,37 @@ def _ensure_asset_tracking_tables(conn):
         )
         '''
     )
+    _ensure_compressor_metadata_columns(conn)
+
+
+def _ensure_compressor_metadata_columns(conn):
+    cols = {r[1] for r in conn.execute('PRAGMA table_info(compressors)').fetchall()}
+    if 'cost' not in cols:
+        conn.execute('ALTER TABLE compressors ADD COLUMN cost REAL')
+    if 'tank_size' not in cols:
+        conn.execute('ALTER TABLE compressors ADD COLUMN tank_size TEXT')
+
+
+def _compressor_description_from_body(data):
+    """Persist as `notes` column; accept `description` (preferred) or legacy `notes`."""
+    if not data:
+        return None
+    if 'description' in data:
+        s = (data.get('description') or '').strip()
+        return s or None
+    if 'notes' in data:
+        s = (data.get('notes') or '').strip()
+        return s or None
+    return None
+
+
+def _optional_float_from_value(v):
+    if v is None or v == '':
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def _coerce_positive_int(v, default=1):
@@ -321,7 +352,8 @@ def get_compressors():
             _ensure_asset_tracking_tables(conn)
             rows = conn.execute(
                 '''
-                SELECT c.id, c.compressor_name, c.status, c.machine_id, c.notes,
+                SELECT c.id, c.compressor_name, c.status, c.machine_id,
+                       c.notes AS description, c.cost, c.tank_size,
                        m.machine_name
                 FROM compressors c
                 LEFT JOIN machines m ON m.id = c.machine_id
@@ -349,19 +381,25 @@ def create_compressor():
         machine_id = data.get('machine_id')
         machine_id = _coerce_positive_int(machine_id, 0) or None
         now_ms = int(time.time() * 1000)
+        desc = _compressor_description_from_body(data)
+        cost_val = _optional_float_from_value(data.get('cost'))
+        tank_val = (data.get('tank_size') or '').strip() or None
         with db_transaction() as conn:
             _ensure_asset_tracking_tables(conn)
             conn.execute(
                 '''
                 INSERT INTO compressors (
-                    compressor_name, status, machine_id, notes, is_active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, TRUE, ?, ?)
+                    compressor_name, status, machine_id, notes, cost, tank_size,
+                    is_active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)
                 ''',
                 (
                     compressor_name,
                     status,
                     machine_id,
-                    (data.get('notes') or '').strip() or None,
+                    desc,
+                    cost_val,
+                    tank_val,
                     now_ms,
                     now_ms,
                 ),
@@ -381,7 +419,6 @@ def update_compressor(compressor_id):
         if status not in VALID_COMPRESSOR_STATUS:
             return jsonify({'success': False, 'error': 'Invalid compressor status'}), 400
         machine_id = _coerce_positive_int(data.get('machine_id'), 0) or None
-        notes_val = (data.get('notes') or '').strip() or None
         new_name = None
         if 'compressor_name' in data:
             new_name = (data.get('compressor_name') or '').strip()
@@ -392,7 +429,7 @@ def update_compressor(compressor_id):
             _ensure_asset_tracking_tables(conn)
             row = conn.execute(
                 '''
-                SELECT compressor_name FROM compressors
+                SELECT compressor_name, notes, cost, tank_size FROM compressors
                 WHERE id = ? AND is_active = TRUE
                 ''',
                 (compressor_id,),
@@ -421,10 +458,20 @@ def update_compressor(compressor_id):
                             400,
                         )
                 final_name = new_name
+            notes_val = row['notes']
+            if 'description' in data or 'notes' in data:
+                notes_val = _compressor_description_from_body(data)
+            cost_val = row['cost']
+            if 'cost' in data:
+                cost_val = _optional_float_from_value(data.get('cost'))
+            tank_val = row['tank_size']
+            if 'tank_size' in data:
+                tank_val = (data.get('tank_size') or '').strip() or None
             conn.execute(
                 '''
                 UPDATE compressors
-                SET compressor_name = ?, status = ?, machine_id = ?, notes = ?, updated_at = ?
+                SET compressor_name = ?, status = ?, machine_id = ?, notes = ?,
+                    cost = ?, tank_size = ?, updated_at = ?
                 WHERE id = ? AND is_active = TRUE
                 ''',
                 (
@@ -432,6 +479,8 @@ def update_compressor(compressor_id):
                     status,
                     machine_id,
                     notes_val,
+                    cost_val,
+                    tank_val,
                     now_ms,
                     compressor_id,
                 ),

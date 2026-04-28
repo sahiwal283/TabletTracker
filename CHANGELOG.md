@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.22] - 2026-04-28
+
+### Changed
+- **Compressors:** “Notes” is now **Description** in the UI and API (`description` in JSON; stored in existing `notes` column). Added optional **cost** (USD, stored as `cost`) and **tank size** (`tank_size` text). Machine Settings add/edit forms include all fields.
+
+---
+
 ## [4.16.21] - 2026-04-28
 
 ### Changed

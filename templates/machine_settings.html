@@ -69,7 +69,7 @@
 
   <div class="card p-6 mt-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">Compressor Tracking</h2>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
       <input id="compressor-name" class="form-input" placeholder="Compressor name" />
       <select id="compressor-status" class="form-input">
         <option value="working">Working</option>
@@ -79,7 +79,21 @@
       <select id="compressor-machine" class="form-input">
         <option value="">Unassigned</option>
       </select>
-      <button id="add-compressor-btn" class="btn-success py-2.5 px-4 text-sm font-semibold">Add Compressor</button>
+      <button id="add-compressor-btn" type="button" class="btn-success py-2.5 px-4 text-sm font-semibold">Add Compressor</button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+      <label class="md:col-span-2 block">
+        <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Description</span>
+        <textarea id="compressor-description-new" class="form-input mt-1" rows="2" placeholder="Optional"></textarea>
+      </label>
+      <label class="block">
+        <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Cost</span>
+        <input id="compressor-cost-new" type="number" class="form-input mt-1" min="0" step="0.01" placeholder="USD" />
+      </label>
+      <label class="block">
+        <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Tank size</span>
+        <input id="compressor-tank-new" class="form-input mt-1" placeholder="e.g. 20 gal" />
+      </label>
     </div>
     <div id="compressor-list" class="space-y-3"></div>
   </div>
@@ -96,6 +110,22 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function compressorDescriptionText(c) {
+    const d = c.description != null && String(c.description).length ? c.description : c.notes;
+    return d != null ? String(d) : '';
+  }
+
+  function formatCompressorCost(val) {
+    if (val == null || val === '') return '';
+    const n = Number(val);
+    if (!Number.isFinite(n)) return '';
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n);
+    } catch (e) {
+      return '$' + n.toFixed(2);
+    }
   }
 
   function csvToList(v) {
@@ -292,6 +322,9 @@
     const machineName = c.machine_name || 'Unassigned';
     const cid = parseInt(c.id, 10);
     const isEditing = editingId != null && parseInt(editingId, 10) === cid;
+    const descText = compressorDescriptionText(c);
+    const costDisp = formatCompressorCost(c.cost);
+    const tankDisp = c.tank_size != null && String(c.tank_size).trim() !== '' ? String(c.tank_size).trim() : '';
     if (!isEditing) {
       return `
       <div class="card p-4">
@@ -299,7 +332,9 @@
           <div>
             <p class="font-semibold text-gray-900">${escapeHtml(c.compressor_name)}</p>
             <p class="text-sm text-gray-600 mt-1">Assigned machine: ${escapeHtml(machineName)}</p>
-            ${c.notes ? `<p class="text-sm text-gray-600 mt-1">Notes: ${escapeHtml(c.notes)}</p>` : ''}
+            ${descText ? `<p class="text-sm text-gray-600 mt-1">Description: ${escapeHtml(descText)}</p>` : ''}
+            ${costDisp ? `<p class="text-sm text-gray-600 mt-1">Cost: ${escapeHtml(costDisp)}</p>` : ''}
+            ${tankDisp ? `<p class="text-sm text-gray-600 mt-1">Tank size: ${escapeHtml(tankDisp)}</p>` : ''}
             <p class="text-xs mt-2 ${tone}">Status: ${escapeHtml(c.status)}</p>
           </div>
           <button type="button" class="text-sm text-cyan-700 font-semibold hover:underline shrink-0" data-compressor-edit-id="${c.id}">Edit</button>
@@ -326,8 +361,16 @@
             <select class="form-input mt-1 compressor-machine-select" data-compressor-id="${c.id}"></select>
           </label>
           <label class="block md:col-span-2">
-            <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Notes</span>
-            <textarea class="form-input mt-1 compressor-notes-input" data-compressor-id="${c.id}" rows="2" placeholder="Optional">${escapeHtml(c.notes || '')}</textarea>
+            <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Description</span>
+            <textarea class="form-input mt-1 compressor-description-input" data-compressor-id="${c.id}" rows="2" placeholder="Optional">${escapeHtml(descText)}</textarea>
+          </label>
+          <label class="block">
+            <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Cost (USD)</span>
+            <input type="number" class="form-input mt-1 compressor-cost-input" data-compressor-id="${c.id}" min="0" step="0.01" placeholder="Optional" value="${c.cost != null && c.cost !== '' ? escapeHtml(String(c.cost)) : ''}" />
+          </label>
+          <label class="block">
+            <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Tank size</span>
+            <input type="text" class="form-input mt-1 compressor-tank-input" data-compressor-id="${c.id}" placeholder="e.g. 20 gal" value="${escapeHtml(tankDisp)}" />
           </label>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
@@ -368,11 +411,17 @@
     const nameEl = document.getElementById('compressor-name');
     const statusEl = document.getElementById('compressor-status');
     const machineEl = document.getElementById('compressor-machine');
+    const descEl = document.getElementById('compressor-description-new');
+    const costEl = document.getElementById('compressor-cost-new');
+    const tankEl = document.getElementById('compressor-tank-new');
     if (!nameEl || !statusEl || !machineEl) return;
     const payload = {
       compressor_name: nameEl.value.trim(),
       status: statusEl.value,
       machine_id: machineEl.value ? parseInt(machineEl.value, 10) : null,
+      description: descEl ? descEl.value.trim() : '',
+      cost: costEl && costEl.value !== '' ? costEl.value : null,
+      tank_size: tankEl ? tankEl.value.trim() : '',
     };
     const res = await csrfFetch('/api/compressors', {
       method: 'POST',
@@ -385,6 +434,9 @@
       return;
     }
     nameEl.value = '';
+    if (descEl) descEl.value = '';
+    if (costEl) costEl.value = '';
+    if (tankEl) tankEl.value = '';
     loadCompressors();
   }
 
@@ -392,13 +444,17 @@
     const statusEl = document.querySelector(`.compressor-status-select[data-compressor-id="${compressorId}"]`);
     const machineEl = document.querySelector(`.compressor-machine-select[data-compressor-id="${compressorId}"]`);
     const nameEl = document.querySelector(`.compressor-name-input[data-compressor-id="${compressorId}"]`);
-    const notesEl = document.querySelector(`.compressor-notes-input[data-compressor-id="${compressorId}"]`);
+    const descEl = document.querySelector(`.compressor-description-input[data-compressor-id="${compressorId}"]`);
+    const costEl = document.querySelector(`.compressor-cost-input[data-compressor-id="${compressorId}"]`);
+    const tankEl = document.querySelector(`.compressor-tank-input[data-compressor-id="${compressorId}"]`);
     if (!statusEl || !machineEl) return;
     const payload = {
       compressor_name: nameEl ? nameEl.value.trim() : undefined,
       status: statusEl.value,
       machine_id: machineEl.value ? parseInt(machineEl.value, 10) : null,
-      notes: notesEl ? notesEl.value.trim() : '',
+      description: descEl ? descEl.value.trim() : '',
+      cost: costEl && costEl.value !== '' ? costEl.value : null,
+      tank_size: tankEl ? tankEl.value.trim() : '',
     };
     const res = await csrfFetch('/api/compressors/' + compressorId, {
       method: 'PUT',
