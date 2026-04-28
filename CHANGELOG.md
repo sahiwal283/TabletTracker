@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.5] - 2026-04-27
+
+### Changed
+- **Table Command Center (workflow QR):** single **Open Pill Packing Command Center** action; removed duplicate pill-packing link and scroll-only assign shortcut in the header.
+- **Fullscreen pill packing command center:** sidebar tabs stay in the wallboard shell (hash routing, highlighted active tab); consolidated **Analytics** (no duplicate Reports item); **Exit Command Center** label; layout/CSS for scrollable main panel, tables, and alert lists; MesDataTable thead fix and machine card **Station ID** wiring from snapshot data.
+
+---
+
 ## [4.15.4] - 2026-04-27
 
 ### Removed
