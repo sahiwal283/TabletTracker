@@ -19,6 +19,5 @@
 
   {% include "includes/workflow_assign_bag_form.html" %}
 </div>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="{{ url_for('static', filename='js/workflow-assign-bag.js') }}"></script>
+{% include "includes/workflow_assign_bag_scripts.html" %}
 {% endblock %}

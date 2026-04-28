@@ -28,7 +28,11 @@ from flask import (
 )
 
 from app.blueprints.workflow_floor import _current_station_occupancy
-from app.blueprints.workflow_staff import ASSIGN_BAG_RETURN_COMMAND_CENTER, _load_workflow_products
+from app.blueprints.workflow_staff import (
+    ASSIGN_BAG_RETURN_COMMAND_CENTER,
+    _load_workflow_products,
+    build_assign_bag_context,
+)
 from app.services import workflow_constants as WC
 from app.services.mes_dashboard import build_mes_dashboard
 from app.services.ops_flow_intel import compute_production_flow_intel
@@ -1591,19 +1595,11 @@ def workflow_qr_management():
             for s in stations:
                 k = _normalize_station_kind(s.get("station_kind"))
                 stations_by_kind.setdefault(k, []).append(s)
-            bag_assign = {
-                "products": [],
-                "ambiguous_matches": None,
-                "form_product_id": None,
-                "form_box_number": None,
-                "form_bag_number": None,
-                "form_card_scan_token": None,
-                "form_receipt_number": None,
-                "form_hand_packed": False,
-                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
-                "restart_url": url_for("admin.workflow_qr_management"),
-                "products_load_failed": False,
-            }
+            bag_assign = build_assign_bag_context(
+                products=[],
+                return_to=ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                restart_url=url_for("admin.workflow_qr_management"),
+            )
             try:
                 bag_assign["products"] = _load_workflow_products(conn)
             except Exception:
@@ -1655,19 +1651,12 @@ def workflow_qr_management():
             floor_station_day_stats={},
             floor_ops_date_label="",
             floor_ops_overview=_floor_ops_overview([], {}, {}, []),
-            bag_assign={
-                "products": [],
-                "ambiguous_matches": None,
-                "form_product_id": None,
-                "form_box_number": None,
-                "form_bag_number": None,
-                "form_card_scan_token": None,
-                "form_receipt_number": None,
-                "form_hand_packed": False,
-                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
-                "restart_url": url_for("admin.workflow_qr_management"),
-                "products_load_failed": True,
-            },
+            bag_assign=build_assign_bag_context(
+                products=[],
+                return_to=ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                restart_url=url_for("admin.workflow_qr_management"),
+                products_load_failed=True,
+            ),
         )
 
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.12] - 2026-04-28
+
+### Changed
+- **QR assignment form refactor:** extracted the shared bag-assignment template context and scanner script include used by the standalone staff page and Command Center embed.
+
+---
+
 ## [4.16.11] - 2026-04-28
 
 ### Changed

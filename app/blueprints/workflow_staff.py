@@ -104,6 +104,36 @@ def _assign_bag_restart_url_from_form():
     return url_for("workflow_staff.new_bag")
 
 
+def build_assign_bag_context(
+    *,
+    products,
+    ambiguous_matches=None,
+    form_product_id=None,
+    form_box_number=None,
+    form_bag_number=None,
+    form_card_scan_token=None,
+    form_receipt_number=None,
+    form_hand_packed=False,
+    return_to="",
+    restart_url=None,
+    products_load_failed=False,
+):
+    """Template context for the shared QR-card bag assignment form."""
+    return {
+        "products": products,
+        "ambiguous_matches": ambiguous_matches,
+        "form_product_id": form_product_id,
+        "form_box_number": form_box_number,
+        "form_bag_number": form_bag_number,
+        "form_card_scan_token": form_card_scan_token,
+        "form_receipt_number": form_receipt_number,
+        "form_hand_packed": bool(form_hand_packed),
+        "return_to": return_to,
+        "restart_url": restart_url or url_for("workflow_staff.new_bag"),
+        "products_load_failed": bool(products_load_failed),
+    }
+
+
 @bp.route("/staff/new-bag", methods=["GET", "POST"])
 @employee_required
 def new_bag():
@@ -122,18 +152,11 @@ def new_bag():
             )
             return render_template(
                 "workflow_new_bag.html",
-                bag_assign={
-                    "products": products,
-                    "ambiguous_matches": None,
-                    "form_product_id": None,
-                    "form_box_number": None,
-                    "form_bag_number": None,
-                    "form_card_scan_token": None,
-                    "form_receipt_number": None,
-                    "form_hand_packed": False,
-                    "return_to": rt,
-                    "restart_url": restart,
-                },
+                bag_assign=build_assign_bag_context(
+                    products=products,
+                    return_to=rt,
+                    restart_url=restart,
+                ),
             )
 
         product_id = request.form.get("product_id", type=int)
@@ -201,18 +224,18 @@ def new_bag():
                 products = _load_workflow_products(conn)
                 return render_template(
                     "workflow_new_bag.html",
-                    bag_assign={
-                        "products": products,
-                        "ambiguous_matches": matches,
-                        "form_product_id": product_id,
-                        "form_box_number": box_number,
-                        "form_bag_number": bag_number,
-                        "form_card_scan_token": card_scan_token,
-                        "form_receipt_number": receipt_number,
-                        "form_hand_packed": hand_packed,
-                        "return_to": (request.form.get("return_to") or "").strip(),
-                        "restart_url": _assign_bag_restart_url_from_form(),
-                    },
+                    bag_assign=build_assign_bag_context(
+                        products=products,
+                        ambiguous_matches=matches,
+                        form_product_id=product_id,
+                        form_box_number=box_number,
+                        form_bag_number=bag_number,
+                        form_card_scan_token=card_scan_token,
+                        form_receipt_number=receipt_number,
+                        form_hand_packed=hand_packed,
+                        return_to=(request.form.get("return_to") or "").strip(),
+                        restart_url=_assign_bag_restart_url_from_form(),
+                    ),
                 )
             inventory_bag_id = int(matches[0]["id"])
         else:

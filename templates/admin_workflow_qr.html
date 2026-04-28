@@ -179,8 +179,7 @@
     {% endif %}
     {% include "includes/workflow_assign_bag_form.html" %}
   </div>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="{{ url_for('static', filename='js/workflow-assign-bag.js') }}"></script>
+  {% include "includes/workflow_assign_bag_scripts.html" %}
 
   <div class="card p-5 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-2">About floor stations (blister, sealing, packaging)</h2>
