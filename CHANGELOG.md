@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.23] - 2026-04-28
+
+### Removed
+- **Product configuration:** removed the Machines tab, embedded machine list/editor, and machine modal from Product & Tablet Configuration. Machine setup remains under **Settings → Machine Settings** only. Saved tab preference ignores the old `machines` tab key.
+
+---
+
 ## [4.16.22] - 2026-04-28
 
 ### Changed
