@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.6] - 2026-04-28
+
+### Changed
+- **Workflow blister station:** added a dedicated **Material change** action on occupied blister runs with **Foil/PVC** selection and count capture; the event is recorded as a blister completion metadata marker (`reason: material_change`) so operators can continue immediately without pause-resume scan flow.
+
+---
+
 ## [4.16.5] - 2026-04-28
 
 ### Changed

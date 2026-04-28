@@ -557,6 +557,9 @@
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
       document.getElementById('wf-taken-delivery'),
+      document.getElementById('wf-material-change-open'),
+      document.getElementById('wf-material-change-submit'),
+      document.getElementById('wf-material-change-cancel'),
     ].filter(Boolean);
   }
   function shownOnlyWhenBagLoaded() {
@@ -570,6 +573,8 @@
       document.getElementById('wf-save-blister'),
       document.getElementById('wf-handpack-rest'),
       document.getElementById('wf-save-seal'),
+      document.getElementById('wf-material-change-open'),
+      document.getElementById('wf-material-change-panel'),
       document.getElementById('wf-pause-count'),
       document.getElementById('wf-taken-delivery'),
       document.getElementById('wf-resume-bag'),
@@ -681,6 +686,7 @@
       ['handpackRest', 'wf-handpack-rest'],
       ['pause', 'wf-pause-count'],
       ['submitBlister', 'wf-save-blister'],
+      ['materialChange', 'wf-material-change-submit'],
       ['submitSeal', 'wf-save-seal'],
       ['taken', 'wf-taken-delivery'],
     ];
@@ -826,6 +832,35 @@
     }
     return n;
   }
+  function selectedMaterialType() {
+    var checked = document.querySelector('input[name="wf-material-type"]:checked');
+    var value = checked ? String(checked.value || '').trim().toLowerCase() : '';
+    if (value !== 'foil' && value !== 'pvc') {
+      throw new Error('Select the new material (Foil or PVC).');
+    }
+    return value;
+  }
+  function closeMaterialChangePanel() {
+    var panel = document.getElementById('wf-material-change-panel');
+    if (panel) panel.classList.add('hidden');
+  }
+  function openMaterialChangePanel() {
+    if (stationKind() !== 'blister' && stationKind() !== 'combined') {
+      return;
+    }
+    if (!hasLoadedBag || !stationClaimed || stationNeedsResume) {
+      return;
+    }
+    var panel = document.getElementById('wf-material-change-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    var selected = document.querySelector('input[name="wf-material-type"]:checked');
+    if (!selected) {
+      var foil = document.getElementById('wf-material-type-foil');
+      if (foil) foil.checked = true;
+    }
+    statusLine('Select the new material, enter current count total, then save material change.', 'info');
+  }
   function hidePackagingStationExtra() {
     [
       'wf-packs-remaining-label',
@@ -877,6 +912,8 @@
     const saveBlisterBtn = document.getElementById('wf-save-blister');
     const handpackBtn = document.getElementById('wf-handpack-rest');
     const saveSealBtn = document.getElementById('wf-save-seal');
+    const materialChangeOpenBtn = document.getElementById('wf-material-change-open');
+    const materialChangePanel = document.getElementById('wf-material-change-panel');
     const pauseBtn = document.getElementById('wf-pause-count');
     const resumeBtn = document.getElementById('wf-resume-bag');
     const empLabel = document.getElementById('wf-employee-name-label');
@@ -889,6 +926,8 @@
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (handpackBtn) handpackBtn.classList.add('hidden');
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
+    if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
+    if (materialChangePanel) materialChangePanel.classList.add('hidden');
     claimBtn.classList.add('hidden');
     saveBtn.classList.add('hidden');
     pauseBtn.classList.add('hidden');
@@ -934,16 +973,18 @@
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
       if (handpackBtn) handpackBtn.classList.remove('hidden');
+      if (materialChangeOpenBtn) materialChangeOpenBtn.classList.remove('hidden');
       if (countLabel) countLabel.textContent = 'Blister machine count total';
       if (hint) {
         hint.classList.remove('hidden');
         hint.textContent = occupancyGateIntentEndRun
           ? 'End run: enter the final blister count and tap Submit below. Station opens for the next bag after submit.'
-          : 'Blister lane: submit blister count, or use Hand pack the rest if machine stopped mid-bag, or pause with current count.';
+          : 'Blister lane: submit blister count, record material changes (Foil/PVC), use Hand pack the rest if machine stopped mid-bag, or pause with current count.';
       }
       if (occupancyGateIntentEndRun) {
         if (pauseBtn) pauseBtn.classList.add('hidden');
         if (handpackBtn) handpackBtn.classList.add('hidden');
+        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
       }
     } else if (kind === 'sealing') {
       saveBtn.textContent = 'Submit sealing count';
@@ -1562,6 +1603,40 @@
     }
     throw new Error('Unsupported station kind: ' + kind);
   }
+  async function saveMaterialChangeWithCount() {
+    ensureLoadedBag();
+    const kind = stationKind();
+    if (kind !== 'blister' && kind !== 'combined') {
+      throw new Error('Material change is only available for blister lanes.');
+    }
+    if (stationNeedsResume) {
+      throw new Error('Resume this bag before recording a material change.');
+    }
+    assertActionCooldown('materialChange');
+    const countTotal = selectedCountTotal();
+    const materialType = selectedMaterialType();
+    await emitEvent('BLISTER_COMPLETE', {
+      count_total: countTotal,
+      employee_name: requiredEmployeeName(),
+      metadata: {
+        material_change: true,
+        reason: 'material_change',
+        material_type: materialType,
+      },
+    });
+    occupancyGateIntentEndRun = false;
+    clearCountField();
+    configureStationActions();
+    closeMaterialChangePanel();
+    startCooldownAfterSuccess('materialChange');
+    statusLine(
+      'Material change saved (' + materialType.toUpperCase() + '). Continue running this bag.',
+      'success'
+    );
+    showFullscreenSuccess('Material change saved.', undefined, function () {
+      refreshStationOccupancy().catch(function () {});
+    });
+  }
   async function submitPackagingAndFinalize() {
     ensureLoadedBag();
     assertActionCooldown('submit');
@@ -1698,6 +1773,12 @@
     if (saveSeal) saveSeal.addEventListener('click', () => saveSealingCountOnly().catch((e) => statusLine(String(e), 'error')));
     const pause = document.getElementById('wf-pause-count');
     if (pause) pause.addEventListener('click', () => pauseWithCount().catch((e) => statusLine(String(e), 'error')));
+    const matOpen = document.getElementById('wf-material-change-open');
+    if (matOpen) matOpen.addEventListener('click', () => openMaterialChangePanel());
+    const matSubmit = document.getElementById('wf-material-change-submit');
+    if (matSubmit) matSubmit.addEventListener('click', () => saveMaterialChangeWithCount().catch((e) => statusLine(String(e), 'error')));
+    const matCancel = document.getElementById('wf-material-change-cancel');
+    if (matCancel) matCancel.addEventListener('click', () => closeMaterialChangePanel());
     const taken = document.getElementById('wf-taken-delivery');
     if (taken) taken.addEventListener('click', () => takenForDelivery().catch((e) => statusLine(String(e), 'error')));
     const resume = document.getElementById('wf-resume-bag');

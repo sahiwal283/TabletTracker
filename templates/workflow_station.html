@@ -123,12 +123,34 @@
     <button type="button" id="wf-claim" class="hidden btn-secondary px-6 py-4 text-lg">Claim bag</button>
     <button type="button" id="wf-save-count" class="hidden btn-secondary px-6 py-4 text-lg">Submit count</button>
     <button type="button" id="wf-handpack-rest" class="btn-secondary px-6 py-4 text-lg hidden">Hand pack the rest</button>
+    <button type="button" id="wf-material-change-open" class="btn-secondary px-6 py-4 text-lg hidden">Material change</button>
     <button type="button" id="wf-save-blister" class="btn-secondary px-6 py-4 text-lg hidden">Submit blister count</button>
     <button type="button" id="wf-save-seal" class="btn-secondary px-6 py-4 text-lg hidden">Submit sealing count</button>
     <button type="button" id="wf-pause-count" class="hidden btn-secondary px-6 py-4 text-lg">Pause bag (end of day)</button>
     <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery / order</button>
     <button type="button" id="wf-resume-bag" class="hidden btn-primary px-6 py-4 text-lg">Resume bag</button>
     <button type="button" id="wf-refresh" class="btn-secondary px-6 py-4 text-lg">Load bag</button>
+  </div>
+  <div id="wf-material-change-panel" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">
+    <p class="text-sm font-semibold text-slate-900 mb-2">Material change (blister)</p>
+    <p class="text-xs text-slate-600 mb-3">Select the new material and enter the current blister machine count total. This records the material switch and continues the same run.</p>
+    <fieldset class="mb-3">
+      <legend class="text-sm font-medium text-slate-900 mb-2">New material</legend>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
+          <input id="wf-material-type-foil" type="radio" name="wf-material-type" value="foil" />
+          <span>Foil</span>
+        </label>
+        <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
+          <input id="wf-material-type-pvc" type="radio" name="wf-material-type" value="pvc" />
+          <span>PVC</span>
+        </label>
+      </div>
+    </fieldset>
+    <div class="flex gap-3">
+      <button type="button" id="wf-material-change-submit" class="btn-primary px-5 py-3 text-base">Save material change</button>
+      <button type="button" id="wf-material-change-cancel" class="btn-secondary px-5 py-3 text-base">Cancel</button>
+    </div>
   </div>
   <p id="wf-station-hint" class="hidden text-xs text-gray-500 mb-3"></p>
   </div>

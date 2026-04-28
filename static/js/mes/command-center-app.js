@@ -466,8 +466,23 @@
     var topSkuRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.units), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
+    function stagingContext(row) {
+      var et = String((row && row.lastEventType) || "").toUpperCase();
+      var sid = asNum(row && row.lastStationId);
+      if (et.indexOf("BLISTER") >= 0 || sid === 1) {
+        return { line: "Blister / Card", area: "After Blister -> Before Heat Seal" };
+      }
+      if (et.indexOf("SEALING") >= 0 || et.indexOf("HEAT") >= 0 || sid === 2 || sid === 3) {
+        return { line: "Blister / Card", area: "After Heat Seal -> Before Packaging" };
+      }
+      if (et.indexOf("BOTTLE") >= 0 || et.indexOf("STICKER") >= 0 || sid === 4 || sid === 5) {
+        return { line: "Bottle", area: "Bottle Flow Staging Queue" };
+      }
+      return { line: "Line Pending Mapping", area: "Staging Queue" };
+    }
     var stagingRows = staging.slice(0, 6).map(function (r) {
-      return ["Line", "Post Staging", bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs)];
+      var ctx = stagingContext(r);
+      return [ctx.line, ctx.area, bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs)];
     });
     var timelineRows = timeline.map(function (r) {
       return [fmtTime(r.at_ms || r.atMs), r.line || "N/A", r.machine || r.station || "N/A", r.event || r.message || "Activity", bagDisplayLabel(r.bag_id)];
@@ -564,7 +579,7 @@
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
       if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} /><${MachineBand} title="CARD LINE MACHINES" tone="purple" machines=${[machines[1], machines[3]]} /></section></div>`;
-      if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "STAGING AREA", "BAG", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
+      if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags") return html`<section className="occ-wall"><section className="wall-panel"><h3>BAGS / INVENTORY</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
       if (activeTab === "blister") return html`<section className="occ-machine-grid"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} /></section>`;
       if (activeTab === "bottle") return html`<section className="occ-machine-grid"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} /></section>`;
@@ -625,7 +640,7 @@
           <${TrendPanel} trend=${mes.trend || {}} />
           <section className="wall-panel"><h3>CYCLE TIME ANALYSIS (AVG)</h3><div className="panel-empty">${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"}</div></section>
           <section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section>
-          <section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "STAGING AREA", "BAG", "TIME IN AREA"]} rows=${stagingRows} /></section>
+          <section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section>
         </section>
         <section className="occ-wall wall-row-b">
           <section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section>
