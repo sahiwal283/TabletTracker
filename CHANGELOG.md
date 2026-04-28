@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ops TV station mapping:** machine cards now come from configured workflow stations instead of fixed assumptions, so the blister/card band shows the blister machine, all configured heat sealing stations, and the QR/timer packaging station.
 - **Packaging visibility:** packaging now has its own machine card with current bag, SKU, timer, counter, throughput, units, and historical-threshold flashing like other stations.
 - **Bottle honesty:** bottle-flow cards are only rendered from real configured bottle/stickering stations; no blister/card packaging or heat-seal station is reused as fake bottle capacity.
+- **Production forms (QR transition):** removed the legacy **Full run** form and its tab from `Production`; machine-count/split workflow remains as the default path.
 
 ---
 
