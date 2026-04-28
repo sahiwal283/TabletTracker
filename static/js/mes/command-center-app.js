@@ -242,12 +242,23 @@
     var valid = trend.series_valid && Array.isArray(trend.blister) && trend.blister.length;
     var series = valid ? [trend.blister || [], trend.bottle || [], trend.card || []] : [];
     var max = Math.max.apply(null, [1].concat(series.reduce(function (a, b) { return a.concat(b); }, [])));
+    var names = ["Blister / Card", "Bottle", "Card Finishing"];
+    var labels = trend.labels || ["12A", "4A", "8A", "12P", "4P", "8P", "12A"];
     return html`<section className="wall-panel trend-panel"><h3>PRODUCTION TREND (UNITS)</h3>
-      ${valid ? html`<svg viewBox="0 0 420 150" className="trend-svg">
-        ${[0, 1, 2, 3, 4].map(function (i) { return html`<path key=${i} d=${"M0 " + (130 - i * 27) + "H410"} />`; })}
+      <div className="trend-legend">${names.map(function (n, i) { return html`<span key=${n} className=${"legend s" + i}>${n}</span>`; })}</div>
+      ${valid ? html`<svg viewBox="0 0 460 176" className="trend-svg" role="img" aria-label="Production trend in units by line">
+        ${[0, 1, 2, 3, 4].map(function (i) {
+          var y = 132 - i * 27;
+          var val = Math.round((max / 4) * i);
+          return html`<g key=${i}><path d=${"M36 " + y + "H446"} /><text x="4" y=${y + 3}>${fmtNumber(val)}</text></g>`;
+        })}
+        ${labels.slice(0, 7).map(function (l, i) {
+          var x = 42 + (i / 6) * 390;
+          return html`<text key=${i} className="x-label" x=${x} y="166">${l}</text>`;
+        })}
         ${series.map(function (s, si) {
           var d = s.map(function (v, i) {
-            var x = 12 + (i / Math.max(1, s.length - 1)) * 390;
+            var x = 42 + (i / Math.max(1, s.length - 1)) * 390;
             var y = 132 - (Number(v || 0) / max) * 116;
             return (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
           }).join(" ");
@@ -325,6 +336,14 @@
       { slot: 5, shortLabel: "MACHINE 5", label: "BOTTLE SEALING MACHINE", kind: "bottle", stationId: slots[4] && slots[4].stationId }
     ];
     var configured = (inp.machines || []).map(function (m) { return m.id; });
+    var bagById = {};
+    (inp.bags || []).forEach(function (b) {
+      if (b && b.id != null) bagById[String(b.id)] = b;
+    });
+    function skuForBag(bagId) {
+      var b = bagId != null ? bagById[String(bagId)] : null;
+      return b && (b.sku || b.productLabel) ? (b.sku || b.productLabel) : "N/A";
+    }
     var machines = defs.map(function (d) {
       var metrics = (derived.machines || []).find(function (m) { return m.id === d.stationId; }) || {};
       var hasBottleEvents = d.slot !== 5 || events.some(function (e) { return eventMachineId(e) === asNum(d.stationId) && eventType(e) === "SEALING_COMPLETE"; });
@@ -337,7 +356,7 @@
         integrationStatus: status,
         latestEvent: latestByMachine(events, d.stationId),
         counterEvent: completedCounterEvent(events, d.stationId),
-        sku: (inp.bags && inp.bags[0] && inp.bags[0].sku) || "N/A",
+        sku: skuForBag(metrics.currentBagId),
       });
     });
 
@@ -364,6 +383,10 @@
     });
 
     var bottleIntegrated = machines[4].integrationStatus !== "NOT_INTEGRATED";
+    var blisterSku = machines[0].sku !== "N/A" ? machines[0].sku : (machines[1].sku !== "N/A" ? machines[1].sku : "N/A");
+    var cardSku = blisterSku;
+    var bottleSku = bottleIntegrated && machines[4].sku !== "N/A" ? machines[4].sku : "N/A";
+    var oeeTargetNote = inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "configured" ? "Target configured" : (inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "historical" ? "Historical pace estimate" : "No target set");
     var generated = snap && snap.generated_at_ms;
     return html`<div className="occ-app">
       <${Sidebar} boot=${boot} />
@@ -377,12 +400,12 @@
           <${KpiCard} label="TOTAL UNITS PROCESSED (TODAY)" value=${kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"} note="Completed counter deltas" icon="bars" />
           <${KpiCard} label="PRODUCTION CYCLES (TODAY)" value=${kpiBy.cycles ? fmtNumber(kpiBy.cycles.value) : "0"} note="Active WIP" icon="cycle" />
           <${KpiCard} label="AVERAGE CYCLE TIME (ALL)" value=${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"} note=${kpiBy.avg_cycle && kpiBy.avg_cycle.value !== "Insufficient data" ? "From completed operations" : "Insufficient data"} icon="clock" tone="amber" />
-          <${KpiCard} label="OEE (OVERALL)" value=${kpiBy.oee ? kpiBy.oee.value : "Insufficient data"} note=${inp.shiftConfig && inp.shiftConfig.targetThroughputPerHour ? "Target configured" : "No target set"} icon="gauge" tone="green" />
+          <${KpiCard} label="OEE (OVERALL)" value=${kpiBy.oee ? kpiBy.oee.value : "Insufficient data"} note=${oeeTargetNote} icon="gauge" tone="green" />
           <${KpiCard} label="ON TIME COMPLETION" value=${kpiBy.on_time ? kpiBy.on_time.value : "No target set"} note=${inp.shiftConfig && inp.shiftConfig.productionDueMs ? "Due time configured" : "No target set"} icon="target" tone="red" />
           <${KpiCard} label="REWORK / REJECTS" value=${kpiBy.rework ? kpiBy.rework.value : "No reject data"} note="Real reject events only" icon="warn" tone="red" />
         </section>
         <section className="occ-life-grid">
-          <${LifecycleLane} tone="blue" title="BLISTER PACKING LINE" sku=${(inp.bags && inp.bags[0] && inp.bags[0].sku) || "N/A"} steps=${[
+          <${LifecycleLane} tone="blue" title="BLISTER PACKING LINE" sku=${blisterSku} steps=${[
             { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: "Received qty N/A", icon: "bag" },
             { title: "BLISTER (DPP115)", sub: "Machine 1 Blistering", detail: machines[0].currentBagId ? "Bag " + machines[0].currentBagId : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
             { title: "POST-BLISTER STAGING", sub: "Buffer queue", detail: "Staged bags " + staging.length, icon: "bag" },
@@ -390,7 +413,7 @@
             { title: "POST-SEAL STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
             { title: "PACKAGING", sub: "Hand pack / master", detail: "Insufficient data", icon: "bag" }
           ]} />
-          <${LifecycleLane} tone="green" title="BOTTLE SEALING LINE" sku="N/A" dimmed=${!bottleIntegrated} steps=${[
+          <${LifecycleLane} tone="green" title="BOTTLE SEALING LINE" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
             { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: machines[4].integrationStatus },
             { title: "HAND COUNTING", sub: "Scan start / complete", detail: "Insufficient data", icon: "bottle", status: machines[4].integrationStatus },
             { title: "COUNTING STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
@@ -399,7 +422,7 @@
             { title: "SEALING", sub: "Machine 5", detail: bottleIntegrated ? "Real sealing events" : "Not integrated", icon: "heat", status: machines[4].integrationStatus },
             { title: "PACKING", sub: "Handmade displays", detail: "Insufficient data", icon: "bag" }
           ]} />
-          <${LifecycleLane} tone="purple" title="CARD / BLISTER CARD LINE" sku="N/A" steps=${[
+          <${LifecycleLane} tone="purple" title="CARD / BLISTER CARD LINE" sku=${cardSku} steps=${[
             { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: "Received qty N/A", icon: "bag" },
             { title: "HEAT SEALING", sub: "Machine 2 / 3", detail: "Insufficient data", icon: "heat", status: machines[1].integrationStatus },
             { title: "STICKERING", sub: "Machine 4", detail: "Insufficient data", icon: "sticker", status: machines[3].integrationStatus },
@@ -416,7 +439,7 @@
           <section className="wall-panel"><h3>BAG INVENTORY (IN STOCK)</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section>
           <${TrendPanel} trend=${mes.trend || {}} />
           <section className="wall-panel"><h3>CYCLE TIME ANALYSIS (AVG)</h3><div className="panel-empty">${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"}</div></section>
-          <section className="wall-panel"><h3>TOP SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section>
+          <section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section>
           <section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "STAGING AREA", "BAG", "TIME IN AREA"]} rows=${stagingRows} /></section>
         </section>
         <section className="occ-wall wall-row-b">

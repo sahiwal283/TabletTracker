@@ -326,7 +326,7 @@ input {
 
 .step-row {
   display: grid;
-  grid-template-columns: repeat(var(--step-count, 4), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--step-count, 4), minmax(82px, 1fr));
   gap: 8px;
   min-width: 0;
 }
@@ -396,7 +396,9 @@ input {
   font-size: 9px;
   line-height: 1.2;
   font-weight: 900;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .step-card small {
@@ -760,13 +762,23 @@ input {
 
 .trend-svg {
   width: 100%;
-  height: calc(100% - 25px);
+  height: calc(100% - 48px);
 }
 
 .trend-svg path {
   fill: none;
   stroke: rgba(65, 121, 157, 0.28);
   stroke-width: 1;
+}
+
+.trend-svg text {
+  fill: #9eb2c9;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.trend-svg .x-label {
+  text-anchor: middle;
 }
 
 .trend-svg .line {
@@ -783,6 +795,38 @@ input {
 
 .trend-svg .s2 {
   stroke: #9d78f5;
+}
+
+.trend-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: -4px 0 4px;
+  color: #cbd8e8;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.trend-legend span::before {
+  content: "";
+  width: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: #1f8def;
+}
+
+.trend-legend .s1::before {
+  background: #5fcf54;
+}
+
+.trend-legend .s2::before {
+  background: #9d78f5;
 }
 
 .oee-panel {

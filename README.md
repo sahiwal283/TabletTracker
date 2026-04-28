@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.15.10** (Ops TV reference command center, scan-driven flow, and asset cache bump)
+Current: **v4.15.11** (Ops TV line-aware SKUs, labeled trend graph, and lifecycle layout fixes)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

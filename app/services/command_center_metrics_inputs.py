@@ -256,12 +256,29 @@ def build_metrics_inputs_bundle(
     mrows = [_ms_row(m) for m in machines]
 
     default_bag = pick_default_bag_id(conn, day_start_ms, end_ms)
-    bags: list[dict[str, Any]] = []
-    if default_bag is not None:
-        bags = gather_bags_for_trace(conn, [default_bag])
+    bag_ids: list[int] = []
+    seen_bag_ids: set[int] = set()
+    for ev in reversed(events):
+        bid = ev.get("bagId")
+        if bid is None:
+            continue
+        try:
+            bid_int = int(bid)
+        except (TypeError, ValueError):
+            continue
+        if bid_int in seen_bag_ids:
+            continue
+        seen_bag_ids.add(bid_int)
+        bag_ids.append(bid_int)
+        if len(bag_ids) >= 200:
+            break
+    if default_bag is not None and default_bag not in seen_bag_ids:
+        bag_ids.insert(0, default_bag)
+    bags = gather_bags_for_trace(conn, bag_ids)
 
     configured_target = _float_setting(conn, "ops_tv_target_units_per_hour")
     bm = configured_target if configured_target is not None else (kpis_benchmark_uh if kpis_benchmark_uh and kpis_benchmark_uh > 0.5 else None)
+    target_source = "configured" if configured_target is not None else ("historical" if bm is not None else None)
     planned_min = max(1.0, (now_ms - day_start_ms) / 60000.0)
 
     shift_cfg = {
@@ -269,6 +286,7 @@ def build_metrics_inputs_bundle(
         "nowMs": int(now_ms),
         "plannedShiftMinutes": planned_min,
         "targetThroughputPerHour": bm,
+        "targetThroughputSource": target_source,
         "productionDueMs": _due_time_ms(conn, day_start_ms),
     }
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.11] - 2026-04-28
+
+### Changed
+- **Ops TV line SKUs:** Blister and card lanes share the active blister/card SKU, while bottle stays `N/A` unless real bottle-line bag metadata exists.
+- **Ops TV trend chart:** added line legend, y-axis unit ticks, and x-axis labels so production trend colors are readable.
+- **Ops TV lifecycle layout:** tightened step cards to avoid text overlap and expanded snapshot bag metadata so machine cards can show the current bag SKU/flavor from real QR events.
+
+---
+
 ## [4.15.10] - 2026-04-28
 
 ### Changed
