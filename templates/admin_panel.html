@@ -5,13 +5,13 @@
 {% block content %}
 <div class="max-w-6xl mx-auto">
     <!-- Settings Header -->
-    <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-gray-900"><svg class="inline w-8 h-8 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-gear" /></svg> Settings</h1>
-        <p class="text-gray-600 mt-2">System configuration and management tools</p>
-        
-        <!-- Logout button -->
-        <div class="mt-4">
-            <a href="/admin/logout" class="text-sm text-red-600 hover:text-red-800 underline flex items-center justify-center">
+    <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900"><svg class="inline w-8 h-8 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-gear" /></svg> Settings</h1>
+            <p class="text-gray-600 mt-2 max-w-2xl">Manage employee access, product setup, machine configuration, and system maintenance tools.</p>
+        </div>
+        <div>
+            <a href="/admin/logout" class="btn-secondary text-sm py-2 px-4 inline-flex items-center justify-center">
                 <svg class="w-4 h-4 mr-1" aria-hidden="true"><use href="#icon-logout" /></svg>
                 Log out
             </a>
@@ -29,7 +29,7 @@
                 <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Employee Management</h3>
                 <p class="text-sm text-gray-600 text-center mb-4">Add and manage employee accounts</p>
                 <a href="/admin/employees" 
-                   class="block w-full text-center btn-primary text-sm py-2 flex items-center justify-center">
+                   class="block w-full text-center btn-secondary text-sm py-2 flex items-center justify-center">
                     <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-users" /></svg>
                     Manage Employees
                 </a>
@@ -45,9 +45,9 @@
                 <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Product Configuration</h3>
                 <p class="text-sm text-gray-600 text-center mb-4">Manage tablet types, products, categories, and inventory IDs</p>
                 <a href="/admin/config" 
-                   class="block w-full text-center btn-primary text-sm py-2.5 flex items-center justify-center">
+                   class="block w-full text-center btn-secondary text-sm py-2.5 flex items-center justify-center">
                     <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-chart" /></svg>
-                    Open Configuration
+                    Configure Products
                 </a>
             </div>
         </div>
@@ -61,9 +61,9 @@
                 <h3 class="text-lg font-semibold text-center text-gray-900 mb-2">Machine Settings</h3>
                 <p class="text-sm text-gray-600 text-center mb-4">Configure machines, areas, categories, materials, and compressors</p>
                 <a href="{{ url_for('admin.machine_settings_page') }}"
-                   class="block w-full text-center btn-primary text-sm py-2.5 flex items-center justify-center">
+                   class="block w-full text-center btn-secondary text-sm py-2.5 flex items-center justify-center">
                     <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-gear" /></svg>
-                    Open Machine Settings
+                    Configure Machines
                 </a>
             </div>
         </div>
@@ -75,7 +75,7 @@
         <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center flex items-center justify-center gap-2"><svg class="w-5 h-5 text-slate-500 shrink-0" aria-hidden="true"><use href="#icon-gear"/></svg> System Tools</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
             <button id="test-zoho-connection-btn" 
-                    class="btn-primary flex items-center justify-center py-2.5">
+                    class="btn-secondary flex items-center justify-center py-2.5">
                 <svg class="w-4 h-4 mr-2" aria-hidden="true"><use href="#icon-plug" /></svg>
                 Test Zoho Connection
             </button>
@@ -83,7 +83,7 @@
                     class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105">
                 <span class="flex items-center justify-center gap-2">
                     <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-spinner"/></svg>
-                    SYNC ZOHO POs
+                    Sync Zoho POs
                 </span>
             </button>
             <!-- "View Flagged" button removed - no flagged submissions in system -->
@@ -92,12 +92,12 @@
                     title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
                 <span class="flex items-center justify-center gap-2">
                     <svg class="w-4 h-4 shrink-0" aria-hidden="true"><use href="#icon-trash"/></svg>
-                    Clear PO Data
+                    Clear synced PO data
                 </span>
             </button>
         </div>
-        <p class="text-xs text-gray-500 mt-3 text-center">
-            <strong>Clear PO Data:</strong> Start fresh testing • Fix corrupted sync data • Reset all counts to zero
+        <p class="text-xs text-gray-500 mt-3 text-center max-w-2xl mx-auto">
+            Clearing synced PO data resets synced purchase orders and counts. Use only when testing sync or recovering from corrupted sync data.
         </p>
     </div>
 </div>

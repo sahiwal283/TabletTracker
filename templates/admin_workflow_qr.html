@@ -153,7 +153,11 @@
       </table>
     </div>
     {% else %}
-    <p class="px-5 py-8 text-slate-500 text-sm text-center">No workflow stations configured.</p>
+    <div class="px-5 py-8 text-center">
+      <div class="tt-empty-state-icon mb-3" aria-hidden="true"><svg><use href="#icon-mobile"/></svg></div>
+      <p class="text-sm font-semibold text-slate-300">No workflow stations configured</p>
+      <p class="text-xs text-slate-500 mt-1">Use Staff tools and configuration below to add the first floor station.</p>
+    </div>
     {% endif %}
   </div>
 

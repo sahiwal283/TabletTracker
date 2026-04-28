@@ -2,11 +2,15 @@
 {% block title %}Workflow manual entry{% endblock %}
 {% block content %}
 <div class="max-w-lg mx-auto p-4">
-  <h1 class="text-2xl font-bold mb-4">Manual entry</h1>
-  <p class="text-sm text-gray-600 mb-4">Paste a station token and open the station page.</p>
-  <label class="block text-sm font-medium mb-1">Station token</label>
-  <input id="station-token" class="form-input mb-3" placeholder="seal-dev-station-1" />
-  <button type="button" id="go" class="btn-primary px-6 py-4">Open station</button>
+  <div class="mb-5">
+    <h1 class="text-2xl font-bold mb-2">Open station by token</h1>
+    <p class="text-sm text-gray-600">Use this when a station QR is unavailable or a tablet needs a typed station token.</p>
+  </div>
+  <div class="card p-5">
+    <label class="block text-sm font-medium mb-2" for="station-token">Station token</label>
+    <input id="station-token" class="form-input mb-4" placeholder="seal-dev-station-1" />
+    <button type="button" id="go" class="btn-primary px-6 py-4 w-full">Open station</button>
+  </div>
 </div>
 <script>
   const inp = document.getElementById('station-token');
