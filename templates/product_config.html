@@ -35,10 +35,10 @@
                 class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap inline-flex items-center gap-2">
             <svg class="w-4 h-4 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-list"/></svg> Categories
         </button>
-        <button data-config-tab="machines" id="tab-machines" type="button"
+        <a href="/admin/settings/machines" id="tab-machines"
                 class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap inline-flex items-center gap-2">
             <svg class="w-4 h-4 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-gear"/></svg> Machines
-        </button>
+        </a>
     </div>
 
     <!-- ===== TABLET TYPES TAB ===== -->
@@ -531,6 +531,7 @@
 
     <!-- ===== MACHINES TAB ===== -->
     <div id="content-machines" class="tab-content hidden">
+        <div class="p-3 mb-3 rounded-lg bg-blue-50 text-blue-800 text-sm">Machine management moved to <a class="underline font-semibold" href="/admin/settings/machines">Settings → Machine Settings</a>.</div>
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 class="font-semibold text-blue-900 mb-1 inline-flex items-center gap-2 flex-wrap"><svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-gear"/></svg> What are Machines?</h3>
             <p class="text-sm text-blue-800">Machines are used for production counting. Set each machine as Sealing or Blister so forms show the right counters for each production stage.</p>
@@ -1719,4 +1720,3 @@ document.addEventListener('change', function (event) {
 });
 </script>
 {% endblock %}
-

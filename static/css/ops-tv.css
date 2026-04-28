@@ -1,2 +1,2 @@
-/* Shim: stale browsers/CDNs may still request ops-tv.css — forward to canonical bundle */
-@import url("ops-command-center-wall.css");
+/* Backward-compatible stylesheet entrypoint for legacy ops-tv assets. */
+@import url("mes-command-center.css");
