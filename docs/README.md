@@ -204,7 +204,7 @@ pip install -r requirements.txt
 
 2. **Setup Environment Variables**
 ```bash
-cp env_template.txt .env
+cp .env.example .env
 # Edit .env with your Zoho API credentials
 ```
 
@@ -385,7 +385,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Configure environment variables
-cp env_template.txt .env
+cp .env.example .env
 # Edit .env with your Zoho API credentials
 
 # Initialize database

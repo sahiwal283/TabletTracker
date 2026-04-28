@@ -51,11 +51,6 @@ pip3.10 install --user bleach==6.1.0 || {
     exit 1
 }
 
-echo "Installing python-magic (optional - may fail)..."
-pip3.10 install --user python-magic==0.4.27 || {
-    echo "⚠️  python-magic failed (not critical - skipping)"
-}
-
 echo "✅ Dependencies installed"
 
 # Step 4: Check environment variables
@@ -108,7 +103,6 @@ echo "🔄 To rollback if needed:"
 echo "   git checkout <previous-commit>"
 echo "   cp $BACKUP_FILE database/tablet_counter.db"
 echo "   Reload web app"
-
 
 
 

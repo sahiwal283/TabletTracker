@@ -7,12 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [4.16.11] - 2026-04-28
+## [4.16.16] - 2026-04-28
 
 ### Changed
+- **Review pass:** bumped version after branch review and corrected a stale receiving-page log label left from the legacy `/shipping` route name.
 - **Ops TV packaging station:** restored packaging as a shared QR/timer station band, visible separately from production machines and reflected in both card/blister and bottle lifecycles.
 - **7-day station averages:** machine/station cards now show the real historical average cycle time used for threshold flashing.
 - **Lifecycle readability:** lifecycle step cards now wrap stage labels and values instead of clipping them with ellipses.
+
+---
+
+## [4.16.15] - 2026-04-28
+
+### Changed
+- **Config cleanup:** consolidated environment variable documentation in `.env.example`, removed the stale duplicate `env_template.txt`, and made boolean/integer env parsing more tolerant.
+- **Dependencies:** removed unused `weasyprint` and `python-magic`; PDF generation continues to use `reportlab`.
+
+---
+
+## [4.16.14] - 2026-04-28
+
+### Changed
+- **UI polish:** clarified Settings button hierarchy, improved QR manual/assignment page headings, and upgraded empty states for workflow stations and machine lists.
+
+---
+
+## [4.16.13] - 2026-04-28
+
+### Changed
+- **Workflow architecture:** moved shared QR assignment form context, product loading, and simple form parsing out of blueprint modules into `app/services/workflow_assign_form.py` so admin and staff routes depend on a shared service boundary.
+
+---
+
+## [4.16.12] - 2026-04-28
+
+### Changed
+- **QR assignment form refactor:** extracted the shared bag-assignment template context and scanner script include used by the standalone staff page and Command Center embed.
+
+---
+
+## [4.16.11] - 2026-04-28
+
+### Changed
+- **Navigation cleanup:** removed legacy/dead navigation routes and templates for retired pages, tightened duplicate UI actions, and added active-state metadata to the main sidebar.
+- **Command Center sidebar:** split the combined blister/card machine view into distinct **Blister Line** and **Card Line** tabs, and renamed ambiguous **Users** / **Settings** tabs to **Team** / **Materials**.
 
 ---
 

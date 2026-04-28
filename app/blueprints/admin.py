@@ -1,8 +1,8 @@
 """
 Admin routes
 """
-import logging
 import json
+import logging
 import re
 import secrets
 import sqlite3
@@ -14,20 +14,35 @@ from datetime import datetime
 from time import time as epoch_time
 
 from config import Config
-from flask import Blueprint, current_app, flash, jsonify, make_response, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.blueprints.workflow_floor import _current_station_occupancy
-from app.blueprints.workflow_staff import ASSIGN_BAG_RETURN_COMMAND_CENTER, _load_workflow_products
 from app.services import workflow_constants as WC
+from app.services.mes_dashboard import build_mes_dashboard
+from app.services.ops_flow_intel import compute_production_flow_intel
+from app.services.pill_command_center_board import build_pill_command_center_board_payload
+from app.services.workflow_assign_form import (
+    ASSIGN_BAG_RETURN_COMMAND_CENTER,
+    build_assign_bag_context,
+    load_workflow_products,
+)
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required, session_has_admin_panel_access
 from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
-from app.services.ops_flow_intel import compute_production_flow_intel
-from app.services.pill_command_center_board import build_pill_command_center_board_payload
-from app.services.mes_dashboard import build_mes_dashboard
 
 _LOGGER_ADMIN = logging.getLogger(__name__)
 
@@ -1580,21 +1595,13 @@ def workflow_qr_management():
             for s in stations:
                 k = _normalize_station_kind(s.get("station_kind"))
                 stations_by_kind.setdefault(k, []).append(s)
-            bag_assign = {
-                "products": [],
-                "ambiguous_matches": None,
-                "form_product_id": None,
-                "form_box_number": None,
-                "form_bag_number": None,
-                "form_card_scan_token": None,
-                "form_receipt_number": None,
-                "form_hand_packed": False,
-                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
-                "restart_url": url_for("admin.workflow_qr_management"),
-                "products_load_failed": False,
-            }
+            bag_assign = build_assign_bag_context(
+                products=[],
+                return_to=ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                restart_url=url_for("admin.workflow_qr_management"),
+            )
             try:
-                bag_assign["products"] = _load_workflow_products(conn)
+                bag_assign["products"] = load_workflow_products(conn)
             except Exception:
                 bag_assign["products_load_failed"] = True
                 current_app.logger.warning(
@@ -1644,19 +1651,12 @@ def workflow_qr_management():
             floor_station_day_stats={},
             floor_ops_date_label="",
             floor_ops_overview=_floor_ops_overview([], {}, {}, []),
-            bag_assign={
-                "products": [],
-                "ambiguous_matches": None,
-                "form_product_id": None,
-                "form_box_number": None,
-                "form_bag_number": None,
-                "form_card_scan_token": None,
-                "form_receipt_number": None,
-                "form_hand_packed": False,
-                "return_to": ASSIGN_BAG_RETURN_COMMAND_CENTER,
-                "restart_url": url_for("admin.workflow_qr_management"),
-                "products_load_failed": True,
-            },
+            bag_assign=build_assign_bag_context(
+                products=[],
+                return_to=ASSIGN_BAG_RETURN_COMMAND_CENTER,
+                restart_url=url_for("admin.workflow_qr_management"),
+                products_load_failed=True,
+            ),
         )
 
 
@@ -1675,14 +1675,15 @@ def _render_ops_tv_dashboard_page():
         "nav": [
             {"label": "Overview", "tab": "overview", "icon": "◇"},
             {"label": "Blister Line", "tab": "blister", "icon": "▭"},
+            {"label": "Card Line", "tab": "card", "icon": "▭"},
             {"label": "Bottle Line", "tab": "bottle", "icon": "▭"},
             {"label": "Machines", "tab": "machines", "icon": "⚙"},
             {"label": "Bags / Inventory", "tab": "bags", "icon": "▣"},
             {"label": "Staging", "tab": "staging", "icon": "▤"},
             {"label": "Alerts", "tab": "alerts", "icon": "!"},
             {"label": "Analytics", "tab": "analytics", "icon": "▧"},
-            {"label": "Users", "tab": "users", "icon": "◎"},
-            {"label": "Settings", "tab": "settings", "icon": "☰"},
+            {"label": "Team", "tab": "team", "icon": "◎"},
+            {"label": "Materials", "tab": "materials", "icon": "☰"},
         ],
         "exit": {"label": "Exit Command Center", "href": cc},
         "urls": {

@@ -2,12 +2,16 @@
 {% block title %}Assign bag to QR card{% endblock %}
 {% block content %}
 <div class="max-w-xl mx-auto p-4">
-  <div class="mb-4 flex items-center gap-2">
-    <a href="{{ url_for('production.production_form') }}" class="btn-secondary px-4 py-2">Production forms</a>
-    <a href="{{ url_for('workflow_staff.new_bag') }}" class="btn-secondary px-4 py-2">QR workflow</a>
-    <a href="{{ url_for('admin.workflow_qr_management') }}" class="btn-secondary px-4 py-2">Command Center</a>
+  <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold mb-2">Assign bag to QR card</h1>
+      <p class="text-sm text-gray-600">Link one received shipment bag to the physical QR card operators will scan on the floor.</p>
+    </div>
+    <div class="flex shrink-0 flex-wrap gap-2">
+      <a href="{{ url_for('production.production_form') }}" class="btn-secondary px-4 py-2 text-sm">Production</a>
+      <a href="{{ url_for('admin.workflow_qr_management') }}" class="btn-secondary px-4 py-2 text-sm">Command Center</a>
+    </div>
   </div>
-  <h1 class="text-2xl font-bold mb-4">Assign shipment bag to QR card</h1>
 
   <details class="mb-6 border border-neutral-border rounded-lg p-4 bg-surface-2">
     <summary class="cursor-pointer font-semibold text-slate-800">QR codes: stations vs bags</summary>
@@ -20,6 +24,5 @@
 
   {% include "includes/workflow_assign_bag_form.html" %}
 </div>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="{{ url_for('static', filename='js/workflow-assign-bag.js') }}"></script>
+{% include "includes/workflow_assign_bag_scripts.html" %}
 {% endblock %}

@@ -2,7 +2,7 @@
 
 import traceback
 
-from flask import current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import current_app, jsonify, request, session
 
 from app.services.receiving_admin_service import (
     toggle_bag_closed as toggle_bag_closed_service,
@@ -12,87 +12,13 @@ from app.services.receiving_admin_service import (
 )
 from app.services.receiving_service import (
     get_packaged_counts_for_bag_ids,
-    get_receiving_with_details,
     resolve_bag_weight_columns_for_save,
 )
-from app.utils.auth_utils import admin_required, role_required
-from app.utils.db_utils import db_read_only, db_transaction
+from app.utils.auth_utils import role_required
+from app.utils.db_utils import db_transaction
 
 from . import bp
 from .helpers import normalize_batch_number
-
-
-@bp.route('/receiving')
-@admin_required
-def receiving_management():
-    """Receiving management page"""
-    try:
-        with db_read_only() as conn:
-            try:
-                test_query = conn.execute('SELECT COUNT(*) as count FROM receiving').fetchone()
-                test_query['count'] if test_query else 0
-            except Exception as e:
-                return f"""
-                <h2>Database Error</h2>
-                <p>Cannot access receiving table: {str(e)}</p>
-                <p><a href="/debug/server-info">Check Database</a></p>
-                """
-
-            # Get pending shipments (delivered but not yet received)
-            pending_shipments = conn.execute('''
-                SELECT s.*, po.po_number
-                FROM shipments s
-                JOIN purchase_orders po ON s.po_id = po.id
-                LEFT JOIN receiving r ON s.id = r.shipment_id
-                WHERE s.tracking_status = 'Delivered' AND r.id IS NULL
-                ORDER BY s.delivered_at DESC, s.created_at DESC
-            ''').fetchall()
-
-            # Get recent receiving history
-            recent_receiving = conn.execute('''
-                SELECT r.*, po.po_number,
-                       COUNT(sb.id) as total_boxes,
-                       SUM(sb.total_bags) as total_bags
-                FROM receiving r
-                JOIN purchase_orders po ON r.po_id = po.id
-                LEFT JOIN small_boxes sb ON r.id = sb.receiving_id
-                GROUP BY r.id
-                ORDER BY r.received_date DESC
-                LIMIT 20
-            ''').fetchall()
-
-            return render_template('receiving_management.html',
-                                 pending_shipments=pending_shipments,
-                                 recent_receiving=recent_receiving)
-    except Exception as e:
-        current_app.logger.error(f"Error in receiving_management: {str(e)}")
-        return f"""
-        <h2>Receiving Page Error</h2>
-        <p>Template error: {str(e)}</p>
-        <p><a href="/receiving/debug">View debug info</a></p>
-        <p><a href="/debug/server-info">Check Server Info</a></p>
-        <p><a href="/admin">Back to admin</a></p>
-        """
-
-
-@bp.route('/receiving/<int:receiving_id>')
-@admin_required
-def receiving_details_view(receiving_id):
-    """View detailed information about a specific receiving record"""
-    try:
-        receiving = get_receiving_with_details(receiving_id)
-        if not receiving:
-            flash('Receiving record not found', 'error')
-            return redirect(url_for('api_receiving.receiving_management'))
-
-        boxes = receiving.get('small_boxes', [])
-        return render_template('receiving_details.html',
-                             receiving=receiving,
-                             boxes=boxes)
-    except Exception as e:
-        current_app.logger.error(f"Error loading receiving details: {str(e)}")
-        flash(f'Error loading receiving details: {str(e)}', 'error')
-        return redirect(url_for('api_receiving.receiving_management'))
 
 
 @bp.route('/api/receiving/<int:receiving_id>', methods=['DELETE'])
@@ -373,4 +299,3 @@ def update_bag_label_count(bag_id):
         current_app.logger.error(f"Error updating bag label count for bag {bag_id}: {str(e)}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Failed to update bag label count: {str(e)}'}), 500
-

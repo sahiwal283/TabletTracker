@@ -2,7 +2,7 @@
 
 ## ⚠️ Important Notes
 
-1. **python-magic is NOT used** - We can skip it if it causes issues
+1. **python-magic is not required** - It is no longer listed in runtime requirements
 2. **CSRF tokens** - Existing forms will need CSRF tokens added
 3. **Rate limiting** - May affect legitimate users if too strict
 4. **Test in staging first** if possible
@@ -30,15 +30,12 @@ git fetch origin
 git pull origin main
 ```
 
-### Step 3: Install Dependencies (Skip python-magic if it fails)
+### Step 3: Install Dependencies
 
 ```bash
 # Try installing all dependencies
 pip3.10 install --user Flask-WTF==1.2.1 Flask-Limiter==3.5.0 bleach==6.1.0
 
-# If python-magic fails, that's OK - it's not used in the code
-# You can skip it:
-# pip3.10 install --user python-magic==0.4.27 || echo "python-magic skipped (not critical)"
 ```
 
 ### Step 4: Verify Environment Variables
@@ -113,19 +110,16 @@ Edit `app/__init__.py` and comment out:
 
 ## Potential Issues & Solutions
 
-### Issue 1: python-magic Installation Fails
-**Solution:** Skip it - it's not used in the code. Remove from requirements.txt if needed.
-
-### Issue 2: CSRF Token Errors
+### Issue 1: CSRF Token Errors
 **Solution:** Forms need CSRF tokens. Check browser console for errors. May need to update templates.
 
-### Issue 3: Rate Limiting Too Strict
+### Issue 2: Rate Limiting Too Strict
 **Solution:** Adjust limits in `app/__init__.py`:
 ```python
 default_limits=["200 per day", "50 per hour"]  # Make these higher if needed
 ```
 
-### Issue 4: Import Errors
+### Issue 3: Import Errors
 **Solution:** Check if all dependencies installed:
 ```bash
 pip3.10 list | grep -E "(Flask-WTF|Flask-Limiter|bleach)"
@@ -147,7 +141,6 @@ If something breaks:
 1. Check PythonAnywhere error logs (Dashboard → Web → Error log)
 2. Check browser console for JavaScript errors
 3. Try the rollback plan above
-
 
 
 
