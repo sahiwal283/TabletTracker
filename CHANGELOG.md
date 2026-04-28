@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.28] - 2026-04-28
+
+### Fixed
+- **Submissions:** Warehouse history table—product and PO/receive columns use high-contrast slate text; sort indicators use cyan accents instead of low-contrast blue.
+- **Command Center chips:** Pastel `bg-*-100` badges (machine type, sealing, packaging, etc.) use dark fills with light labels so `text-*-800` is readable site-wide.
+- **Submission details modal:** Modal is rendered under `body`, so global gray-surface remaps were turning stat cards and footer dark while labels stayed dark gray—the modal container now restores a light paper theme for counts, badges, and footer copy.
+
+---
+
 ## [4.16.27] - 2026-04-28
 
 ### Changed

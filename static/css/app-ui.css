@@ -198,9 +198,6 @@ main.tt-app-main .border-red-300 {
 main.tt-app-main .text-red-700 {
   color: #fecaca !important;
 }
-main.tt-app-main .bg-green-100 {
-  background: rgba(6, 78, 59, 0.35) !important;
-}
 main.tt-app-main .border-green-300 {
   border-color: rgba(52, 211, 153, 0.4) !important;
 }
@@ -548,6 +545,233 @@ main.tt-app-main .text-orange-700 {
 
 main.tt-app-main .bg-orange-200 {
   background: rgba(154, 52, 18, 0.45) !important;
+}
+
+/* Pastel section headers (cyan / purple) — match blue-50 callout treatment */
+main.tt-app-main .bg-cyan-50,
+main.tt-app-main .bg-teal-50 {
+  background: linear-gradient(165deg, rgba(21, 29, 46, 0.96), rgba(17, 24, 38, 0.92)) !important;
+}
+
+main.tt-app-main .bg-purple-50,
+main.tt-app-main .bg-pink-50 {
+  background: linear-gradient(165deg, rgba(28, 22, 44, 0.96), rgba(17, 24, 38, 0.92)) !important;
+}
+
+main.tt-app-main .text-cyan-900,
+main.tt-app-main .text-teal-900 {
+  color: #ecfeff !important;
+}
+
+main.tt-app-main .text-purple-900 {
+  color: #faf5ff !important;
+}
+
+main.tt-app-main .border-cyan-200 {
+  border-color: rgba(34, 211, 238, 0.28) !important;
+}
+
+main.tt-app-main .border-purple-200 {
+  border-color: rgba(167, 139, 250, 0.32) !important;
+}
+
+/* Tailwind *-100 chips: text-*-800 was remapped to light copy for dark panels — darken fills */
+main.tt-app-main .bg-blue-100 {
+  background: rgba(12, 55, 82, 0.94) !important;
+  border: 1px solid rgba(56, 189, 248, 0.38);
+}
+
+main.tt-app-main .bg-cyan-100 {
+  background: rgba(6, 56, 67, 0.94) !important;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+}
+
+main.tt-app-main .text-cyan-800,
+main.tt-app-main .text-cyan-700 {
+  color: #cffafe !important;
+}
+
+main.tt-app-main .bg-purple-100 {
+  background: rgba(42, 28, 72, 0.92) !important;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+}
+
+main.tt-app-main .text-purple-800 {
+  color: #f3e8ff !important;
+}
+
+main.tt-app-main .bg-green-100 {
+  background: rgba(6, 78, 59, 0.5) !important;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+main.tt-app-main .bg-teal-100 {
+  background: rgba(8, 62, 68, 0.9) !important;
+  border: 1px solid rgba(45, 212, 191, 0.35);
+}
+
+main.tt-app-main .text-teal-800 {
+  color: #ccfbf1 !important;
+}
+
+main.tt-app-main .bg-amber-100 {
+  background: rgba(69, 47, 12, 0.72) !important;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+main.tt-app-main .text-amber-900,
+main.tt-app-main .text-amber-800 {
+  color: #fef3c7 !important;
+}
+
+main.tt-app-main .bg-pink-100 {
+  background: rgba(75, 28, 58, 0.55) !important;
+  border: 1px solid rgba(244, 114, 182, 0.35);
+}
+
+main.tt-app-main .text-pink-600 {
+  color: #f9a8d4 !important;
+}
+
+main.tt-app-main .bg-indigo-100 {
+  background: rgba(36, 36, 92, 0.55) !important;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+}
+
+main.tt-app-main .text-indigo-800 {
+  color: #e0e7ff !important;
+}
+
+main.tt-app-main .bg-yellow-100 {
+  background: rgba(58, 48, 8, 0.65) !important;
+  border: 1px solid rgba(253, 224, 71, 0.35);
+}
+
+main.tt-app-main .text-yellow-800 {
+  color: #fef9c3 !important;
+}
+
+main.tt-app-main .text-green-800 {
+  color: #bbf7d0 !important;
+}
+
+/*
+ * Submission details modal is appended to document.body (outside main).
+ * Global body.tt-app-body surface remaps turn gray/blue panels dark while
+ * default Tailwind gray-900 stays dark → unreadable counts/footer.
+ * Restore a light “paper” modal theme inside this container only.
+ */
+body.tt-app-body #submission-details-modal-container .bg-gray-50 {
+  background: #f1f5f9 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-gray-100 {
+  background: #e2e8f0 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-white {
+  background: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-gray-900 {
+  color: #0f172a !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-gray-800 {
+  color: #1e293b !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-gray-700 {
+  color: #334155 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-gray-600 {
+  color: #475569 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-gray-500 {
+  color: #64748b !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-gray-200 {
+  border-color: #e2e8f0 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-blue-50 {
+  background: #eff6ff !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-purple-50 {
+  background: #faf5ff !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-teal-50 {
+  background: #f0fdfa !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-amber-50 {
+  background: #fffbeb !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-orange-50 {
+  background: linear-gradient(165deg, #fff7ed, #ffedd5) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-pink-50 {
+  background: #fdf2f8 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-red-50 {
+  background: #fef2f2 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-blue-600 {
+  color: #2563eb !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-blue-700 {
+  color: #1d4ed8 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-purple-600 {
+  color: #9333ea !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-teal-700 {
+  color: #0f766e !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-amber-900 {
+  color: #78350f !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-blue-100 {
+  background: #dbeafe !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-blue-800 {
+  color: #1e40af !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-green-100 {
+  background: #dcfce7 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-green-700 {
+  color: #15803d !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-red-100 {
+  background: #fee2e2 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-red-700 {
+  color: #b91c1c !important;
 }
 
 /* Shipments Received — accordion rows + nested cards keep readable hierarchy */

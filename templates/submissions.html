@@ -231,7 +231,7 @@
                     <td class="{{ cell_class }}">
                         {% if sub.receive_name %}
                             <div class="flex items-center gap-2">
-                                <span class="font-medium {% if sub.po_closed %}text-gray-500{% else %}text-blue-600{% endif %}">{{ sub.receive_name }}</span>
+                                <span class="font-medium {% if sub.po_closed %}text-gray-400{% else %}text-slate-100{% endif %}">{{ sub.receive_name }}</span>
                                 {% if sub.po_closed %}
                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
                                         <svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-lock"/></svg>
@@ -530,7 +530,7 @@
                                title="Sort by most recent submission time in this receipt">
                                 Recent
                                 {% if sort_by == 'created_at' %}
-                                    <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                                    <span class="text-cyan-400">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
                                 {% endif %}
                             </a>
                             <span class="text-gray-300" aria-hidden="true">/</span>
@@ -539,7 +539,7 @@
                                title="Sort by receipt number">
                                 Receipt #
                                 {% if sort_by == 'receipt_number' %}
-                                    <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
+                                    <span class="text-cyan-400">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
                                 {% endif %}
                             </a>
                         </div>
@@ -549,7 +549,7 @@
                            class="flex items-center gap-1 hover:text-gray-700">
                             Bag start<br><span class="text-xs font-normal normal-case">(Eastern)</span>
                             {% if bag_start_sort_active %}
-                                <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                                <span class="text-cyan-400">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
                             {% endif %}
                         </a>
                     </th>
@@ -558,7 +558,7 @@
                            class="flex items-center gap-1 hover:text-gray-700">
                             Bag end<br><span class="text-xs font-normal normal-case">(Eastern)</span>
                             {% if bag_end_sort_active %}
-                                <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                                <span class="text-cyan-400">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
                             {% endif %}
                         </a>
                     </th>
@@ -567,7 +567,7 @@
                            class="flex items-center gap-1 hover:text-gray-700">
                             Product
                             {% if sort_by == 'product_name' %}
-                                <span class="text-blue-600">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
+                                <span class="text-cyan-400">{% if sort_order == 'asc' %}↑{% else %}↓{% endif %}</span>
                             {% endif %}
                         </a>
                     </th>
@@ -579,7 +579,7 @@
                            class="flex items-center gap-1 hover:text-gray-700">
                             Total
                             {% if sort_by == 'total' %}
-                                <span class="text-blue-600">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
+                                <span class="text-cyan-400">{% if sort_order == 'desc' %}↓{% else %}↑{% endif %}</span>
                             {% endif %}
                         </a>
                     </th>
@@ -600,7 +600,7 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {{ group.bag_end_time|to_est if group.bag_end_time else '—' }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-base text-gray-600">
+                    <td class="px-6 py-4 whitespace-nowrap text-base font-medium text-slate-100">
                         {{ group.product_label }}
                     </td>
                     {{ submission_bag_cell_td(psub) }}
@@ -1292,8 +1292,8 @@ async function loadAdminReassignPOs(submissionId, productName) {
                                 <div class="font-medium text-red-600">${po.damaged.toLocaleString()}</div>
                             </div>
                             <div>
-                                <div class="text-xs text-blue-600">Remaining</div>
-                                <div class="font-medium text-blue-600">${po.remaining.toLocaleString()}</div>
+                                <div class="text-xs text-cyan-300">Remaining</div>
+                                <div class="font-medium text-cyan-200">${po.remaining.toLocaleString()}</div>
                             </div>
                         </div>
                     </div>
