@@ -188,11 +188,27 @@
   }
 
   async function editMachine(id) {
+    const targetId = parseInt(id, 10);
+    if (!Number.isFinite(targetId)) return;
+    const localMatch = (machinesCache || []).find((x) => parseInt(x.id, 10) === targetId);
+    if (localMatch) {
+      editingId = targetId;
+      openEditor();
+      document.getElementById('name').value = localMatch.machine_name || '';
+      document.getElementById('cards').value = localMatch.cards_per_turn || 1;
+      document.getElementById('role').value = localMatch.machine_role || 'sealing';
+      refreshCardsFieldCopy();
+      document.getElementById('area').value = localMatch.area_name || '';
+      document.getElementById('category').value = localMatch.machine_category || '';
+      document.getElementById('raw').value = listToCsv(localMatch.raw_materials);
+      document.getElementById('components').value = listToCsv((localMatch.components || []).concat(localMatch.compressor || []));
+      return;
+    }
     const r = await fetch('/api/machines');
     const d = await r.json();
-    const m = (d.machines || []).find((x) => x.id === id);
+    const m = (d.machines || []).find((x) => parseInt(x.id, 10) === targetId);
     if (!m) return;
-    editingId = id;
+    editingId = targetId;
     openEditor();
     document.getElementById('name').value = m.machine_name || '';
     document.getElementById('cards').value = m.cards_per_turn || 1;

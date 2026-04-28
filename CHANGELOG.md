@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.2] - 2026-04-28
+
+### Changed
+- **Machine Settings edit action:** fixed card Edit behavior by normalizing machine IDs and using cached machine rows before refetch, preventing no-op clicks in mixed string/integer ID responses.
+- **Settings cleanup:** removed the redundant **Workflow QR & stations** card from the Settings grid.
+
+---
+
 ## [4.16.1] - 2026-04-28
 
 ### Changed
