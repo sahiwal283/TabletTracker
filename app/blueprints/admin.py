@@ -13,7 +13,7 @@ from datetime import datetime
 from time import time as epoch_time
 
 from config import Config
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, jsonify, make_response, redirect, render_template, request, session, url_for
 
 from app.blueprints.workflow_floor import _current_station_occupancy
 from app.blueprints.workflow_staff import ASSIGN_BAG_RETURN_COMMAND_CENTER, _load_workflow_products
@@ -1607,12 +1607,18 @@ def workflow_qr_management():
 def ops_tv_dashboard():
     """Full-screen TV operations board (no data tables; wall display)."""
     ver = read_version_constants().get("__version__", "1")
-    return render_template(
+    html = render_template(
         "ops_tv_dashboard.html",
         snapshot_api_url=url_for("admin.ops_tv_snapshot_api"),
         command_center_url=url_for("admin.workflow_qr_management"),
         app_version=ver,
     )
+    resp = make_response(html)
+    # Wall uses renamed static assets — avoid HTML cached while CSS/JS 404 at old paths behind proxies stripping ?v=
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Surrogate-Control"] = "no-store"
+    return resp
 
 
 @bp.route("/command-center/ops-tv/api/snapshot")
@@ -1621,7 +1627,10 @@ def ops_tv_snapshot_api():
     try:
         with db_read_only() as conn:
             payload = build_ops_tv_snapshot(conn)
-        return jsonify(payload)
+        r = jsonify(payload)
+        r.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        r.headers["Pragma"] = "no-cache"
+        return r
     except Exception as e:
         current_app.logger.exception("ops_tv_snapshot_api")
         return jsonify({"error": str(e)}), 500

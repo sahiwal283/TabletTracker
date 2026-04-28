@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Operations TV · TabletTracker</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>Pill packing command center · TabletTracker</title>
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ app_version }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-tv.css') }}?v={{ app_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-command-center-wall.css') }}?v={{ app_version }}" id="ops-wall-styles">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
@@ -95,11 +97,11 @@
       </footer>
 
       <div class="ops-status-bar">
-        <span class="ops-status-bar-left">Floor data refreshes automatically</span>
+        <span class="ops-status-bar-left">Fullscreen floor layout only · menu pages (Reports, Shipments…) use a different shell — bookmark <span class="ops-url-hint">/command-center/ops-tv</span></span>
         <span id="ops-footer-strip" class="ops-status-bar-right"></span>
       </div>
     </div>
   </div>
-  <script src="{{ url_for('static', filename='js/ops-tv.js') }}?v={{ app_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ops-command-center-wall.js') }}?v={{ app_version }}" defer></script>
 </body>
 </html>

@@ -20,7 +20,7 @@
   --cmd-alert: #f87171;
   --cmd-orange: #fb923c;
 
-  /* ── Ops TV compatibility (used by static/css/ops-tv.css) ──────────────── */
+  /* ── Ops TV compatibility (see static/css/ops-command-center-wall.css) ─── */
   --bg: var(--cmd-bg);
   --bg-deep: var(--cmd-bg-deep);
   --panel: var(--cmd-panel);
