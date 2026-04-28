@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.27] - 2026-04-28
+
+### Changed
+- **Blister roll change API:** `POST /api/blister-material-rolls/change` is allowed for **any logged-in employee** (same as the roll summary GET), so operators can record roll changes from the Command Center without admin-only access.
+
+---
+
 ## [4.16.26] - 2026-04-28
 
 ### Changed

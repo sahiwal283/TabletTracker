@@ -543,7 +543,7 @@ def get_blister_roll_summary():
 
 
 @bp.route('/api/blister-material-rolls/change', methods=['POST'])
-@admin_required
+@employee_required
 def change_blister_material_roll():
     try:
         data = request.get_json() or {}
