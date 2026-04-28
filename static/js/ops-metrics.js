@@ -1,4 +1,5 @@
 (function () {
+  // Conflict-resolved metrics layer: event-derived values only.
   function asNum(v) {
     var n = Number(v);
     return Number.isFinite(n) ? n : null;

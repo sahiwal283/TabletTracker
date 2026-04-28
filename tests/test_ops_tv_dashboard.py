@@ -116,3 +116,9 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("Activity feed", source)
         self.assertIn("alertsOnly", source)
         self.assertIn("activityFeed", source)
+
+
+    def test_light_theme_palette_applied(self):
+        css = Path("static/css/mes-command-center.css").read_text(encoding="utf-8")
+        self.assertIn("background: #eef2f5", css)
+        self.assertIn("background: #ffffff", css)
