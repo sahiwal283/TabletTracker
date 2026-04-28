@@ -54,35 +54,86 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
     blisters = _find_by_kind(machines, "blister")
     seal_list = _find_by_kind(machines, "sealing")
     packs = _find_by_kind(machines, "packaging")
-    bottle_list = _find_by_role(machines, "bottle")
-    slot_pick: list[dict | None] = [
-        blisters[0] if len(blisters) > 0 else None,
-        seal_list[0] if len(seal_list) > 0 else None,
-        seal_list[1] if len(seal_list) > 1 else None,
-        packs[0] if len(packs) > 0 else None,
-        bottle_list[0] if len(bottle_list) > 0 else None,
+    bottle_flow = [
+        m for m in machines
+        if str(m.get("machine_role") or "").lower() in {"bottle", "stickering"}
     ]
-    defs = [
-        {"slot": 1, "label": "M1 DPP115", "shortLabel": "M1", "canonical": "M1 DPP115", "role": None},
-        {"slot": 2, "label": "M2 Heat Seal", "shortLabel": "M2", "canonical": "M2 Heat Seal", "role": None},
-        {"slot": 3, "label": "M3 Heat Seal", "shortLabel": "M3", "canonical": "M3 Heat Seal", "role": None},
-        {"slot": 4, "label": "M4 Stickering", "shortLabel": "M4", "canonical": "M4 Stickering", "role": None},
-        {"slot": 5, "label": "M5 Bottle Sealer", "shortLabel": "M5", "canonical": "M5 Bottle Sealer", "role": "bottle_seal"},
-    ]
+    used_ids: set[int] = set()
+    ordered: list[tuple[dict, dict[str, Any]]] = []
+
+    def _append(picked: dict | None, meta: dict[str, Any]) -> None:
+        if not isinstance(picked, dict):
+            return
+        mid = picked.get("id")
+        try:
+            sid = int(mid)
+        except (TypeError, ValueError):
+            return
+        if sid in used_ids:
+            return
+        used_ids.add(sid)
+        ordered.append((picked, meta))
+
+    for idx, picked in enumerate(blisters, start=1):
+        _append(
+            picked,
+            {
+                "shortLabel": f"MACHINE {idx}",
+                "canonical": "DPP115 BLISTER MACHINE",
+                "flow": "blister_card",
+                "stepRole": "blister",
+            },
+        )
+    heat_start = len(blisters) + 1
+    for idx, picked in enumerate(seal_list, start=heat_start):
+        _append(
+            picked,
+            {
+                "shortLabel": f"MACHINE {idx}",
+                "canonical": "HEAT PRESS MACHINE",
+                "flow": "blister_card",
+                "stepRole": "heat_seal",
+            },
+        )
+    for idx, picked in enumerate(packs, start=1):
+        _append(
+            picked,
+            {
+                "shortLabel": "PACKAGING" if idx == 1 else f"PACKAGING {idx}",
+                "canonical": "PACKAGING STATION",
+                "flow": "blister_card",
+                "stepRole": "packaging",
+            },
+        )
+    for picked in bottle_flow:
+        role = str(picked.get("machine_role") or "").lower()
+        _append(
+            picked,
+            {
+                "shortLabel": str(picked.get("machine_name") or picked.get("label") or "BOTTLE FLOW").upper()[:18],
+                "canonical": "BOTTLE STATION" if role == "bottle" else "STICKERING STATION",
+                "flow": "bottle",
+                "stepRole": role or "bottle",
+            },
+        )
+
     slots: list[dict[str, Any]] = []
-    for d, picked in zip(defs, slot_pick):
-        mid = picked.get("id") if isinstance(picked, dict) else None
-        sk = picked.get("station_kind") if isinstance(picked, dict) else None
-        mr = picked.get("machine_role") if isinstance(picked, dict) else None
+    for slot_idx, (picked, meta) in enumerate(ordered, start=1):
+        mid = picked.get("id")
+        sk = picked.get("station_kind")
+        mr = picked.get("machine_role")
         slots.append(
             {
-                "slot": d["slot"],
-                "label": d["canonical"],
-                "shortLabel": d["shortLabel"],
+                "slot": slot_idx,
+                "label": meta["canonical"],
+                "shortLabel": meta["shortLabel"],
                 "stationId": int(mid) if mid is not None else None,
                 "stationKind": str(sk).lower() if sk else None,
                 "machineRole": str(mr).lower() if mr else None,
-                "role": d.get("role"),
+                "flow": meta["flow"],
+                "stepRole": meta["stepRole"],
+                "stationLabel": str(picked.get("label") or ""),
+                "displayName": str(picked.get("machine_name") or picked.get("label") or meta["canonical"]),
             }
         )
     return slots
