@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.15.11** (Ops TV line-aware SKUs, labeled trend graph, and lifecycle layout fixes)
+Current: **v4.16.4** (Ops TV two-flow lifecycle, offline bottle line, and compact layout)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

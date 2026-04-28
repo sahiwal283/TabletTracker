@@ -120,7 +120,7 @@ input {
   box-sizing: border-box;
   padding: 14px 16px 10px;
   display: grid;
-  grid-template-rows: auto minmax(94px, auto) minmax(214px, auto) minmax(230px, auto) minmax(204px, auto) minmax(196px, auto) minmax(176px, auto) minmax(18px, auto);
+  grid-template-rows: auto minmax(94px, auto) auto minmax(230px, auto) minmax(204px, auto) minmax(196px, auto) minmax(176px, auto) minmax(18px, auto);
   gap: 8px;
   overflow: visible;
 }
@@ -270,16 +270,17 @@ input {
 
 .occ-life-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.45fr) minmax(0, 1.05fr) minmax(176px, 0.38fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.32fr) minmax(190px, 0.34fr);
   gap: 8px;
   min-width: 0;
-  align-items: stretch;
+  align-items: start;
 }
 
 .life-lane {
   padding: 12px 14px;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .life-lane.dimmed {
@@ -343,11 +344,11 @@ input {
 }
 
 .life-lane.blue .step-row {
-  --step-count: 6;
+  --step-count: 7;
 }
 
 .life-lane.green .step-row {
-  --step-count: 7;
+  --step-count: 9;
 }
 
 .life-lane.purple .step-row {
@@ -357,7 +358,7 @@ input {
 .step-card {
   position: relative;
   min-width: 0;
-  min-height: 102px;
+  min-height: 96px;
   padding: 9px 7px 8px;
   border: 1px solid rgba(65, 121, 157, 0.7);
   border-radius: 3px;
@@ -475,6 +476,7 @@ input {
   padding: 12px;
   overflow: auto;
   min-width: 0;
+  max-height: 206px;
 }
 
 .alerts-rail header {

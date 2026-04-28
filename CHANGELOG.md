@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.4] - 2026-04-28
+
+### Changed
+- **Ops TV process model:** lifecycle map now shows the two real flows: `bag -> blister -> stage -> card/heat seal -> stage -> packaging -> final` and `bag -> bottle -> stage -> sticker -> stage -> heat seal -> stage -> packaging -> final`.
+- **Bottle line honesty:** M5 no longer maps to a generic sealing station; the bottle lane and bottle machine cards stay `NOT_INTEGRATED` unless a real bottle-role machine/station exists.
+- **Layout density:** lifecycle lanes no longer stretch to the alerts rail height, reducing unused space and preventing step-card overlap/cutoff.
+
+---
+
 ## [4.16.3] - 2026-04-28
 
 ### Fixed

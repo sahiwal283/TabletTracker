@@ -514,6 +514,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             """
             SELECT ws.id, ws.label, ws.station_scan_token, ws.station_code, ws.machine_id,
                    m.machine_name AS machine_name,
+                   COALESCE(m.machine_role, '') AS machine_role,
                    COALESCE(ws.station_kind, 'sealing') AS station_kind
             FROM workflow_stations ws
             LEFT JOIN machines m ON m.id = ws.machine_id
@@ -2140,4 +2141,3 @@ def workflow_qr_add_station():
         current_app.logger.error("workflow_qr_add_station: %s", e)
         flash(str(e), "error")
     return redirect(url_for("admin.workflow_qr_management"))
-

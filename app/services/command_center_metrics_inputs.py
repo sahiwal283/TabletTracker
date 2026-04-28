@@ -42,16 +42,22 @@ def _find_by_kind(machines: list[dict], kind: str) -> list[dict]:
     return [m for m in machines if str(m.get("station_kind") or "").lower() == k]
 
 
+def _find_by_role(machines: list[dict], role: str) -> list[dict]:
+    r = role.lower()
+    return [m for m in machines if str(m.get("machine_role") or "").lower() == r]
+
+
 def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
     blisters = _find_by_kind(machines, "blister")
     seal_list = _find_by_kind(machines, "sealing")
     packs = _find_by_kind(machines, "packaging")
+    bottle_list = _find_by_role(machines, "bottle")
     slot_pick: list[dict | None] = [
         blisters[0] if len(blisters) > 0 else None,
         seal_list[0] if len(seal_list) > 0 else None,
         seal_list[1] if len(seal_list) > 1 else None,
         packs[0] if len(packs) > 0 else None,
-        seal_list[2] if len(seal_list) > 2 else None,
+        bottle_list[0] if len(bottle_list) > 0 else None,
     ]
     defs = [
         {"slot": 1, "label": "M1 DPP115", "shortLabel": "M1", "canonical": "M1 DPP115", "role": None},
@@ -64,6 +70,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
     for d, picked in zip(defs, slot_pick):
         mid = picked.get("id") if isinstance(picked, dict) else None
         sk = picked.get("station_kind") if isinstance(picked, dict) else None
+        mr = picked.get("machine_role") if isinstance(picked, dict) else None
         slots.append(
             {
                 "slot": d["slot"],
@@ -71,6 +78,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
                 "shortLabel": d["shortLabel"],
                 "stationId": int(mid) if mid is not None else None,
                 "stationKind": str(sk).lower() if sk else None,
+                "machineRole": str(mr).lower() if mr else None,
                 "role": d.get("role"),
             }
         )
@@ -246,6 +254,7 @@ def build_metrics_inputs_bundle(
             "displayName": str(m.get("display_name") or ""),
             "stationLabel": str(m.get("station_label") or ""),
             "stationKind": str(m.get("station_kind") or ""),
+            "machineRole": str(m.get("machine_role") or ""),
             "status": str(m.get("status") or "idle"),
             "occupancyStartedAtMs": int(live_occ) if live_occ is not None else None,
             "pausedAtMs": int(paused) if paused is not None else None,

@@ -430,11 +430,13 @@
     }
     var machines = defs.map(function (d) {
       var metrics = (derived.machines || []).find(function (m) { return m.id === d.stationId; }) || {};
-      var hasBottleEvents = d.slot !== 5 || events.some(function (e) { return eventMachineId(e) === asNum(d.stationId) && eventType(e) === "SEALING_COMPLETE"; });
+      var slotInfo = slots[d.slot - 1] || {};
+      var hasBottleSource = d.slot !== 5 || String(slotInfo.machineRole || "").toLowerCase() === "bottle";
+      var hasBottleEvents = d.slot !== 5 || (hasBottleSource && events.some(function (e) { return eventMachineId(e) === asNum(d.stationId); }));
       var status = d.stationId == null ? "NOT_INTEGRATED" : window.OpsMetrics.getMachineIntegrationStatus(d.stationId, events, {
         dayStartMs: inp.shiftConfig && inp.shiftConfig.dayStartMs,
         configuredMachineIds: configured,
-        forceNotIntegratedMachineIds: hasBottleEvents ? [] : [d.stationId],
+        forceNotIntegratedMachineIds: hasBottleEvents && hasBottleSource ? [] : [d.stationId],
       });
       return Object.assign({}, d, metrics, {
         integrationStatus: status,
@@ -480,8 +482,18 @@
 
     var bottleIntegrated = machines[4].integrationStatus !== "NOT_INTEGRATED";
     var blisterSku = machines[0].sku !== "N/A" ? machines[0].sku : (machines[1].sku !== "N/A" ? machines[1].sku : "N/A");
-    var cardSku = blisterSku;
     var bottleSku = bottleIntegrated && machines[4].sku !== "N/A" ? machines[4].sku : "N/A";
+    function offlineCopy(m) {
+      return Object.assign({}, m, {
+        integrationStatus: "NOT_INTEGRATED",
+        currentBagId: null,
+        lastScanMs: null,
+        throughputPerHour: null,
+        completedUnits: null,
+        sku: "N/A",
+      });
+    }
+    var bottleLineMachines = bottleIntegrated ? [machines[4], machines[3]] : [offlineCopy(machines[4]), offlineCopy(machines[3])];
     var oeeTargetNote = inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "configured" ? "Target configured" : (inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "historical" ? "Historical pace estimate" : "No target set");
     var blisterStationId = machines[0] && machines[0].stationId ? machines[0].stationId : null;
 
@@ -570,34 +582,31 @@
           <${KpiCard} label="REWORK / REJECTS" value=${kpiBy.rework ? kpiBy.rework.value : "No reject data"} note="Real reject events only" icon="warn" tone="red" />
         </section>
         <section className="occ-life-grid">
-          <${LifecycleLane} tone="blue" title="BLISTER PACKING LINE" sku=${blisterSku} steps=${[
-            { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: "Received qty N/A", icon: "bag" },
-            { title: "BLISTER (DPP115)", sub: "Machine 1 Blistering", detail: machines[0].currentBagId ? "Bag " + machines[0].currentBagId : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
-            { title: "POST-BLISTER STAGING", sub: "Buffer queue", detail: "Staged bags " + staging.length, icon: "bag" },
-            { title: "HEAT SEALING", sub: "Machine 2 / 3", detail: "Counter required", icon: "heat", status: machines[1].integrationStatus },
-            { title: "POST-SEAL STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
-            { title: "PACKAGING", sub: "Hand pack / master", detail: "Insufficient data", icon: "bag" }
+          <${LifecycleLane} tone="blue" title="BLISTER / CARD FLOW" sku=${blisterSku} steps=${[
+            { title: "BAG", sub: "Bag QR scanned", detail: "Received qty N/A", icon: "bag" },
+            { title: "BLISTER", sub: "M1 DPP115", detail: machines[0].currentBagId ? "Bag " + machines[0].currentBagId : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After blister, before heat seal", icon: "bag" },
+            { title: "CARD / HEAT SEAL", sub: "M2 / M3", detail: "Scan station + bag", icon: "heat", status: machines[1].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
+            { title: "PACKAGING", sub: "Hand pack displays", detail: "Counter required", icon: "bag" },
+            { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} />
-          <${LifecycleLane} tone="green" title="BOTTLE SEALING LINE" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
-            { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: machines[4].integrationStatus },
-            { title: "HAND COUNTING", sub: "Scan start / complete", detail: "Insufficient data", icon: "bottle", status: machines[4].integrationStatus },
-            { title: "COUNTING STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
-            { title: "STICKERING", sub: "Machine 4", detail: "Insufficient data", icon: "sticker", status: machines[3].integrationStatus },
-            { title: "STICKER STAGING", sub: "Buffer queue", detail: "Insufficient data", icon: "bag" },
-            { title: "SEALING", sub: "Machine 5", detail: bottleIntegrated ? "Real sealing events" : "Not integrated", icon: "heat", status: machines[4].integrationStatus },
-            { title: "PACKING", sub: "Handmade displays", detail: "Insufficient data", icon: "bag" }
-          ]} />
-          <${LifecycleLane} tone="purple" title="CARD / BLISTER CARD LINE" sku=${cardSku} steps=${[
-            { title: "RAW MATERIAL RECEIPT", sub: "QR code assigned", detail: "Received qty N/A", icon: "bag" },
-            { title: "HEAT SEALING", sub: "Machine 2 / 3", detail: "Insufficient data", icon: "heat", status: machines[1].integrationStatus },
-            { title: "STICKERING", sub: "Machine 4", detail: "Insufficient data", icon: "sticker", status: machines[3].integrationStatus },
-            { title: "PACKAGING", sub: "Hand pack / master", detail: "Insufficient data", icon: "bag" }
+          <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
+            { title: "BAG", sub: "Bag QR scanned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line offline", icon: "bag", status: machines[4].integrationStatus },
+            { title: "BOTTLE", sub: "Bottle station", detail: bottleIntegrated ? "Scan station + bag" : "Not integrated", icon: "bottle", status: machines[4].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After bottle, before sticker", icon: "bag" },
+            { title: "STICKER", sub: "Stickering station", detail: bottleIntegrated ? "Scan station + bag" : "Offline", icon: "sticker", status: machines[4].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After sticker, before seal", icon: "bag" },
+            { title: "HEAT SEAL", sub: "Bottle seal", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
+            { title: "PACKAGING", sub: "Handmade displays", detail: "Counter required", icon: "bag" },
+            { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} />
           <${AlertsRail} alerts=${alerts} />
         </section>
         <section className="occ-machine-grid">
           <${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} />
-          <${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} />
+          <${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} />
           <${MachineBand} title="CARD LINE MACHINES" tone="purple" machines=${[machines[1], machines[3]]} />
         </section>
         <section className="occ-wall wall-row-a">
