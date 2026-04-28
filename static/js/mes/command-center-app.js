@@ -408,6 +408,9 @@
     var foilCodeState = useState("");
     var foilCode = foilCodeState[0];
     var setFoilCode = foilCodeState[1];
+    var compressorsState = useState([]);
+    var compressors = compressorsState[0];
+    var setCompressors = compressorsState[1];
 
     useEffect(function () {
       var t = setInterval(function () { setNow(new Date()); }, 1000);
@@ -557,6 +560,21 @@
       var bid = m.workflowBagId != null ? m.workflowBagId : m.currentBagId;
       return [m.shortLabel, m.label, m.stationId != null ? String(m.stationId) : "N/A", statusText(m.integrationStatus), bid != null ? bagDisplayLabel(bid) : "No activity", m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data"];
     });
+    var machineNameById = {};
+    machines.forEach(function (m) {
+      if (m && m.stationId != null) {
+        machineNameById[String(m.stationId)] = m.shortLabel + " - " + (m.label || "Machine");
+      }
+    });
+    var compressorRows = (compressors || []).map(function (c) {
+      var rawStatus = String((c && c.status) || "").toLowerCase();
+      var status = rawStatus === "working" ? "RUNNING" : (rawStatus ? rawStatus.toUpperCase() : "N/A");
+      var tone = rawStatus === "working" ? "run" : (rawStatus === "maintenance" ? "idle" : "off");
+      var machineName = c && c.machine_id != null
+        ? (machineNameById[String(c.machine_id)] || c.machine_name || ("Machine #" + c.machine_id))
+        : "Unassigned";
+      return [(c && c.compressor_name) || "N/A", html`<${Badge} tone=${tone}>${status}</${Badge}>`, machineName];
+    });
     var stagingBagRows = staging.map(function (r) {
       return [bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs), r.lastStationLabel || "N/A", r.lastEventType || "N/A"];
     });
@@ -617,6 +635,17 @@
         .finally(function () { setMaterialBusy(false); });
     }
 
+    function loadCompressors() {
+      fetch("/api/compressors", { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (out) {
+          if (out && out.success && Array.isArray(out.compressors)) {
+            setCompressors(out.compressors);
+          }
+        })
+        .catch(function () {});
+    }
+
     useEffect(function () {
       if (blisterStationId) loadMaterialSummary(blisterStationId);
     }, [blisterStationId]);
@@ -626,6 +655,12 @@
       var id = setInterval(function () { loadMaterialSummary(blisterStationId); }, 5000);
       return function () { clearInterval(id); };
     }, [blisterStationId]);
+
+    useEffect(function () {
+      loadCompressors();
+      var id = setInterval(loadCompressors, 5000);
+      return function () { clearInterval(id); };
+    }, []);
 
     useEffect(function () {
       function onHashChange() {
@@ -645,7 +680,7 @@
 
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
-      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid three-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section></div>`;
+      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid three-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="wall-panel"><h3>COMPRESSORS</h3><${DataTable} headers=${["COMPRESSOR", "STATUS", "CONNECTED MACHINE"]} rows=${compressorRows} /></section></div>`;
       if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags") return html`<section className="occ-wall"><section className="wall-panel"><h3>BAGS / INVENTORY</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
       if (activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;

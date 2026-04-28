@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.18] - 2026-04-28
+
+### Changed
+- **Machines tab compressors card:** status now renders as color-coded pills for faster TV readability (`RUNNING` green, `MAINTENANCE` amber, `DOWN`/other non-working states dim/off), while keeping real compressor-to-machine mapping data.
+
+---
+
 ## [4.16.17] - 2026-04-28
 
 ### Changed
