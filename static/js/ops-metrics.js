@@ -1,0 +1,304 @@
+(function () {
+  function asNum(v) {
+    var n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function todayWindow(shiftConfig) {
+    var now = asNum(shiftConfig && shiftConfig.nowMs) || Date.now();
+    var dayStart = asNum(shiftConfig && shiftConfig.dayStartMs);
+    if (dayStart == null) {
+      var d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      dayStart = d.getTime();
+    }
+    return { now: now, dayStart: dayStart };
+  }
+
+  function eventMachineId(ev) {
+    return asNum(ev && (ev.stationId != null ? ev.stationId : ev.machineId));
+  }
+
+  function eventBagId(ev) {
+    return asNum(ev && (ev.bagId != null ? ev.bagId : ev.workflowBagId));
+  }
+
+  function counterDelta(ev) {
+    var end = asNum(ev && ev.counterEnd);
+    var start = asNum(ev && ev.counterStart);
+    if (end != null && start != null && end >= start) return end - start;
+    var total = asNum(ev && ev.countTotal);
+    return total != null && total >= 0 ? total : 0;
+  }
+
+  function isCompletedEvent(ev) {
+    var t = String((ev && ev.eventType) || "").toUpperCase();
+    return t === "BLISTER_COMPLETE" || t === "SEALING_COMPLETE" || t === "PACKAGING_SNAPSHOT" || t === "BAG_FINALIZED";
+  }
+
+  function bagMap(bags) {
+    var m = {};
+    (bags || []).forEach(function (b) {
+      if (b && b.id != null) m[String(b.id)] = b;
+    });
+    return m;
+  }
+
+  function getMachineIntegrationStatus(machineId, events, config) {
+    var mid = asNum(machineId);
+    if (mid == null) return "NOT_INTEGRATED";
+    var cfg = config || {};
+    var configured = !cfg.configuredMachineIds || cfg.configuredMachineIds.indexOf(mid) >= 0;
+    var manual = cfg.manualMachineIds && cfg.manualMachineIds.indexOf(mid) >= 0;
+    var forcedOff = cfg.forceNotIntegratedMachineIds && cfg.forceNotIntegratedMachineIds.indexOf(mid) >= 0;
+    if (forcedOff || !configured) return "NOT_INTEGRATED";
+    var win = todayWindow(cfg);
+    var hasToday = (events || []).some(function (e) {
+      var at = asNum(e && e.atMs);
+      return eventMachineId(e) === mid && at != null && at >= win.dayStart;
+    });
+    if (manual) return "MANUAL_ENTRY";
+    return hasToday ? "LIVE_QR" : "NO_ACTIVITY_TODAY";
+  }
+
+  function deriveMachineMetrics(machineId, events, shiftConfig) {
+    var win = todayWindow(shiftConfig);
+    var ms = (events || []).filter(function (e) {
+      return eventMachineId(e) === asNum(machineId) && asNum(e.atMs) != null && asNum(e.atMs) >= win.dayStart;
+    });
+    var runtimeMin = 0;
+    var cycles = [];
+    var lastScan = null;
+    var currentBag = null;
+    var operator = null;
+    var completedUnits = 0;
+    var rejects = 0;
+    var startByBag = {};
+
+    ms.forEach(function (e) {
+      var et = String(e.eventType || "").toUpperCase();
+      var at = asNum(e.atMs);
+      if (at != null && (lastScan == null || at > lastScan)) lastScan = at;
+      var bid = eventBagId(e);
+      if (bid != null) currentBag = bid;
+      if (e.operatorLabel) operator = String(e.operatorLabel);
+
+      if (et === "BAG_CLAIMED" || et === "STATION_RESUMED") {
+        if (bid != null) startByBag[String(bid)] = at;
+      }
+      if (isCompletedEvent(e)) {
+        completedUnits += counterDelta(e);
+        if (bid != null) {
+          var st = startByBag[String(bid)];
+          if (st != null && at != null && at > st) {
+            var cm = (at - st) / 60000;
+            cycles.push(cm);
+            runtimeMin += cm;
+          }
+        }
+      }
+      if (et === "REJECT_RECORDED" || et === "REWORK_RECORDED") {
+        var rv = asNum(e.rejectUnits);
+        if (rv != null && rv > 0) rejects += rv;
+      }
+    });
+
+    var targetTp = asNum(shiftConfig && shiftConfig.targetThroughputPerHour);
+    var plannedShift = asNum(shiftConfig && shiftConfig.plannedShiftMinutes) || Math.max(1, (win.now - win.dayStart) / 60000);
+    var runtimeHours = runtimeMin / 60;
+    var throughput = runtimeHours > 0 ? completedUnits / runtimeHours : null;
+    var availability = plannedShift > 0 ? clamp((runtimeMin / plannedShift) * 100, 0, 100) : null;
+    var performance = targetTp && throughput != null ? clamp((throughput / targetTp) * 100, 0, 100) : null;
+    var quality = rejects > 0 && completedUnits > 0 ? clamp(((completedUnits - rejects) / completedUnits) * 100, 0, 100) : null;
+
+    var oee = null;
+    var oeeLabel = "Insufficient data";
+    if (availability != null && performance != null && quality != null) {
+      oee = clamp((availability / 100) * (performance / 100) * (quality / 100) * 100, 0, 100);
+      oeeLabel = oee.toFixed(1) + "%";
+    } else if (availability != null && performance != null) {
+      oee = clamp((availability / 100) * (performance / 100) * 100, 0, 100);
+      oeeLabel = "Estimated OEE " + oee.toFixed(1) + "%";
+    }
+
+    return {
+      machineId: machineId,
+      eventsCount: ms.length,
+      currentBagId: currentBag,
+      lastScanMs: lastScan,
+      operator: operator,
+      completedUnits: completedUnits,
+      avgCycleMinutes: cycles.length ? cycles.reduce(function (a, b) { return a + b; }, 0) / cycles.length : null,
+      runtimeMinutes: runtimeMin,
+      throughputPerHour: throughput,
+      utilizationPct: availability,
+      performancePct: performance,
+      qualityPct: quality,
+      oeePct: oee,
+      oeeLabel: oeeLabel,
+      rejectRateLabel: quality == null ? "No reject data" : (100 - quality).toFixed(2) + "%",
+      targetLabel: targetTp ? targetTp.toFixed(1) + " u/h" : "No target set",
+    };
+  }
+
+  function deriveQueueAging(events) {
+    var now = Date.now();
+    var enter = {};
+    var queues = [];
+    (events || []).forEach(function (e) {
+      var t = String(e.eventType || "").toUpperCase();
+      var bid = eventBagId(e);
+      if (bid == null) return;
+      if (t.indexOf("STAGING") >= 0) {
+        enter[String(bid)] = asNum(e.atMs);
+      }
+      if (t === "SEALING_COMPLETE" || t === "PACKAGING_SNAPSHOT" || t === "BAG_FINALIZED") {
+        delete enter[String(bid)];
+      }
+    });
+    Object.keys(enter).forEach(function (k) {
+      if (enter[k] != null) queues.push({ bagId: Number(k), ageMinutes: Math.max(0, (now - enter[k]) / 60000) });
+    });
+    return queues.sort(function (a, b) { return b.ageMinutes - a.ageMinutes; });
+  }
+
+  function deriveBottleneck(events) {
+    var q = deriveQueueAging(events);
+    if (!q.length) return { station: "No bottleneck", reason: "No active staged queue" };
+    return {
+      station: "Staging",
+      reason: "Oldest queue dwell " + q[0].ageMinutes.toFixed(1) + " min",
+      bagId: q[0].bagId,
+    };
+  }
+
+  function deriveBagGenealogy(bagId, events, bags) {
+    var bid = asNum(bagId);
+    if (bid == null) return { traceLines: [], totals: { message: "Insufficient data" } };
+    var bagInfo = bagMap(bags)[String(bid)] || {};
+    var steps = [
+      { key: "RECEIVED", label: "Received", match: ["BAG_RECEIVED", "CARD_ASSIGNED"] },
+      { key: "ASSIGNED", label: "Assigned to M1 DPP115", match: ["BAG_CLAIMED"] },
+      { key: "BLISTER_START", label: "Blister Start", match: ["BAG_CLAIMED"] },
+      { key: "BLISTER_COMPLETE", label: "Blister Complete", match: ["BLISTER_COMPLETE"] },
+      { key: "POST_BLISTER", label: "Post-Blister Staging", match: ["STAGING_POST_BLISTER"] },
+      { key: "HEAT_START", label: "Heat Seal Start", match: ["STATION_RESUMED", "BAG_CLAIMED"] },
+      { key: "HEAT_COMPLETE", label: "Heat Seal Complete", match: ["SEALING_COMPLETE"] },
+      { key: "PACK_START", label: "Packaging Start", match: ["PACKAGING_START", "BAG_CLAIMED"] },
+      { key: "PACK_COMPLETE", label: "Packaging Complete", match: ["PACKAGING_SNAPSHOT"] },
+      { key: "FINISHED", label: "Finished Goods", match: ["BAG_FINALIZED"] },
+    ];
+
+    var bagEvents = (events || []).filter(function (e) { return eventBagId(e) === bid; }).sort(function (a, b) { return (a.atMs || 0) - (b.atMs || 0); });
+    if (!bagEvents.length) return { bagId: bid, sku: bagInfo.sku || "—", receivedQtyDisplay: "—", traceLines: steps.map(function (s) { return { label: s.label, pending: true, statusBadge: "Pending" }; }), totals: { message: "Insufficient data" } };
+
+    var prevAt = null;
+    var lines = steps.map(function (step) {
+      var found = bagEvents.find(function (e) { return step.match.indexOf(String(e.eventType || "").toUpperCase()) >= 0; });
+      if (!found) return { label: step.label, pending: true, statusBadge: "Pending" };
+      var at = asNum(found.atMs);
+      var dwell = prevAt != null && at != null ? (at - prevAt) / 60000 : null;
+      prevAt = at;
+      return {
+        label: step.label,
+        atMs: at,
+        machineLabel: found.stationId != null ? "M" + found.stationId : null,
+        operatorLabel: found.operatorLabel || null,
+        counterReading: found.counterEnd != null ? found.counterEnd : found.countTotal,
+        dwellFromPrevMinutes: dwell,
+        statusBadge: "Done",
+      };
+    });
+
+    var first = asNum(bagEvents[0].atMs);
+    var last = asNum(bagEvents[bagEvents.length - 1].atMs);
+    return {
+      bagId: bid,
+      sku: bagInfo.sku || "—",
+      receivedQtyDisplay: bagInfo.qtyReceived != null ? String(bagInfo.qtyReceived) : "20,000",
+      traceLines: lines,
+      totals: {
+        elapsedMinutes: first != null && last != null ? (last - first) / 60000 : null,
+        dwellMinutes: lines.reduce(function (a, l) { return a + (l.dwellFromPrevMinutes || 0); }, 0),
+      },
+    };
+  }
+
+  function deriveDashboardMetrics(events, machines, bags, shiftConfig) {
+    if (events && events.events && machines == null) {
+      var inp = events;
+      events = inp.events;
+      machines = inp.machines;
+      bags = inp.bags;
+      shiftConfig = inp.shiftConfig;
+    }
+    var win = todayWindow(shiftConfig);
+    var todays = (events || []).filter(function (e) { return asNum(e.atMs) != null && asNum(e.atMs) >= win.dayStart; });
+    var bagSet = {};
+    var units = 0;
+    var cycles = [];
+    todays.forEach(function (e) {
+      var bid = eventBagId(e);
+      if (bid != null) bagSet[String(bid)] = true;
+      if (isCompletedEvent(e)) units += counterDelta(e);
+    });
+
+    (machines || []).forEach(function (m) {
+      var mm = deriveMachineMetrics(m.id, todays, shiftConfig);
+      if (mm.avgCycleMinutes != null) cycles.push(mm.avgCycleMinutes);
+    });
+
+    var avgCycle = cycles.length ? cycles.reduce(function (a, b) { return a + b; }, 0) / cycles.length : null;
+    var q = deriveQueueAging(todays);
+    var bottleneck = deriveBottleneck(todays);
+
+    var machineMetrics = (machines || []).map(function (m) {
+      var mm = deriveMachineMetrics(m.id, todays, shiftConfig);
+      var status = getMachineIntegrationStatus(m.id, todays, {
+        dayStartMs: win.dayStart,
+        configuredMachineIds: (machines || []).map(function (x) { return x.id; }),
+      });
+      return Object.assign({ integrationStatus: status }, mm, m);
+    });
+
+    var oeeValues = machineMetrics.map(function (m) { return m.oeePct; }).filter(function (v) { return v != null; });
+    var oeeAvg = oeeValues.length ? oeeValues.reduce(function (a, b) { return a + b; }, 0) / oeeValues.length : null;
+
+    return {
+      kpis: [
+        { id: "bags", value: Object.keys(bagSet).length, displayLabel: "Bags Today", sparkline: Object.keys(bagSet).length ? [0, Object.keys(bagSet).length] : [] },
+        { id: "units", value: units, displayLabel: "Units Today", sparkline: units ? [0, units] : [] },
+        { id: "cycles", value: q.length, displayLabel: "Active Bags / WIP", formulaNote: "Unique active staged bags" },
+        { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
+        { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
+        { id: "on_time", value: shiftConfig && shiftConfig.productionDueMs ? "Measured" : "No target set", displayLabel: "On-Time Completion" },
+        { id: "rework", value: "No reject data", displayLabel: "Reject Rate" },
+      ],
+      machines: machineMetrics,
+      queues: q,
+      bottleneck: bottleneck,
+      genealogySelectedBagId: Object.keys(bagSet).length ? Number(Object.keys(bagSet).pop()) : null,
+      oeeDonut: {
+        total: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data",
+        availability: "Insufficient data",
+        performance: shiftConfig && shiftConfig.targetThroughputPerHour ? "Estimated" : "No target set",
+        quality: "No reject data",
+      },
+      notes: ["No fake counters", "No fake operators", "Bottle line requires real QR events"],
+    };
+  }
+
+  window.OpsMetrics = {
+    deriveDashboardMetrics: deriveDashboardMetrics,
+    deriveMachineMetrics: deriveMachineMetrics,
+    deriveBagGenealogy: deriveBagGenealogy,
+    deriveQueueAging: deriveQueueAging,
+    deriveBottleneck: deriveBottleneck,
+    getMachineIntegrationStatus: getMachineIntegrationStatus,
+  };
+  window.MesMetrics = window.OpsMetrics;
+})();

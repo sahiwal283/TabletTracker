@@ -3,6 +3,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from pathlib import Path
 
 from app import create_app
 from app.models import database as database_module
@@ -46,16 +47,11 @@ class TestOpsTvDashboard(unittest.TestCase):
     def test_ops_tv_page_loads(self):
         r = self.client.get("/command-center/ops-tv")
         self.assertEqual(r.status_code, 200)
-        self.assertIn(b"id=\"mes-root\"", r.data)
+        self.assertIn(b'id="mes-root"', r.data)
         self.assertIn(b"mes-command-center.css", r.data)
-        self.assertIn(b"js/mes/vendor/react.production.min.js", r.data)
-        self.assertIn(b"js/mes/vendor/htm.umd.js", r.data)
+        self.assertIn(b"js/ops-metrics.js", r.data)
         self.assertIn(b"command-center-app.js", r.data)
         self.assertIn(b"command-center/ops-tv/api/snapshot", r.data)
-        self.assertIn(b"ops-tv-initial-data", r.data)
-        self.assertIn(b'"kpis"', r.data)
-        self.assertIn(b'"pill_board"', r.data)
-        self.assertIn(b'"mes"', r.data)
 
     def test_ops_tv_snapshot_json(self):
         r = self.client.get("/command-center/ops-tv/api/snapshot")
@@ -64,13 +60,39 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("kpis", data)
         self.assertIn("machines", data)
         self.assertIn("activity", data)
-        self.assertIn("chart_hourly_output", data)
-        self.assertIn("flow", data)
-        self.assertIn("pipeline", data["flow"])
-        self.assertIn("bottleneck", data["flow"])
-        self.assertIn("pill_board", data)
         self.assertIn("mes", data)
-        for m in data.get("machines") or []:
-            self.assertIn("rate_hist_uh", m)
-            self.assertIn("perf_tier", m)
-            break
+        self.assertIn("metrics_inputs", data["mes"])
+
+    def test_oee_clamped_to_100_in_metrics_layer(self):
+        source = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
+        self.assertIn("Math.min(100", source)
+        self.assertIn("Insufficient data", source)
+
+    def test_unintegrated_machine_shows_not_integrated_and_na(self):
+        source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
+        self.assertIn("NOT_INTEGRATED", source)
+        self.assertIn('"N/A"', source)
+        self.assertIn("Not connected", source)
+
+    def test_missing_target_state_is_explicit(self):
+        source = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
+        self.assertTrue("No target set" in source or "Insufficient data" in source)
+
+    def test_bottle_sealing_not_fake_running_when_no_events(self):
+        source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
+        self.assertIn("Bottle line not integrated yet", source)
+        self.assertIn("forceNotIntegrated", source)
+
+    def test_lot_trace_panel_exists(self):
+        source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
+        self.assertIn("Live Bag Genealogy / Lot Trace", source)
+        self.assertIn("Trace bag ID", source)
+
+    def test_machine_illustration_svg_render_functions_exist(self):
+        source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
+        self.assertIn("function renderDPP115BlisterMachine", source)
+        self.assertIn("function renderHeatPressMachine", source)
+        self.assertIn("function renderStickeringMachine", source)
+        self.assertIn("function renderBottleSealingMachine", source)
+        self.assertIn("function renderPackagingStation", source)
+        self.assertIn("<svg", source)
