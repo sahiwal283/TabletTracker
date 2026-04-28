@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.16] - 2026-04-28
+
+### Changed
+- **Review pass:** bumped version after branch review and corrected a stale receiving-page log label left from the legacy `/shipping` route name.
+
+---
+
 ## [4.16.15] - 2026-04-28
 
 ### Changed

@@ -179,7 +179,7 @@ def receiving_list():
                                  user_role=session.get('employee_role'))
     except Exception as e:
         error_details = traceback.format_exc()
-        current_app.logger.error(f"Error in shipping_unified: {str(e)}\n{error_details}")
+        current_app.logger.error(f"Error in receiving_list: {str(e)}\n{error_details}")
         return render_template('error.html',
                              error_message=f"Error loading shipping page: {str(e)}\n\nFull traceback:\n{error_details}"), 500
 
