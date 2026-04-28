@@ -1691,6 +1691,7 @@ def _render_ops_tv_dashboard_page():
             "receiving": url_for("receiving.receiving_list"),
             "employees": url_for("admin.manage_employees"),
             "product_config": url_for("admin.product_config"),
+            "machine_settings": url_for("admin.machine_settings_page"),
             "command_center": cc,
         },
     }

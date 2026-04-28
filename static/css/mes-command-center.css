@@ -954,6 +954,27 @@ input {
   text-transform: uppercase;
 }
 
+.trace-meta a.mes-link-btn {
+  min-height: 34px;
+  border: 1px solid rgba(65, 121, 157, 0.8);
+  border-radius: 3px;
+  background: rgba(10, 37, 58, 0.92);
+  color: #e7f2ff;
+  padding: 6px 10px;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 900;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.trace-meta a.mes-link-btn:hover {
+  filter: brightness(1.08);
+}
+
 .trace-meta button:disabled {
   opacity: 0.5;
 }

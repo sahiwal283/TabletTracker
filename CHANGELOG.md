@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.19] - 2026-04-28
+
+### Changed
+- **Machines tab compressors:** unassigned compressors now display **IDLE** status (instead of RUNNING) to reflect that they are not actively connected.
+- **Machines tab navigation:** added a styled **Open Machine Settings** action button that matches the command center UI and routes to machine settings.
+
+---
+
 ## [4.16.18] - 2026-04-28
 
 ### Changed
