@@ -185,15 +185,27 @@
   }
 
   async function save() {
+    const nameEl = document.getElementById('name');
+    const roleEl = document.getElementById('role');
+    const cardsEl = document.getElementById('cards');
+    const areaEl = document.getElementById('area');
+    const categoryEl = document.getElementById('category');
+    const rawEl = document.getElementById('raw');
+    const componentsEl = document.getElementById('components');
+    if (!nameEl || !roleEl || !cardsEl || !areaEl || !categoryEl || !rawEl || !componentsEl) {
+      if (typeof showError === 'function') showError('Machine settings form is missing required fields');
+      return;
+    }
+
     const payload = {
-      machine_name: name.value.trim(),
-      machine_role: role.value,
-      cards_per_turn: parseInt(cards.value || '1', 10),
-      area_name: area.value.trim(),
-      machine_category: category.value.trim(),
-      raw_materials: csvToList(raw.value),
-      components: csvToList(components.value).filter((x) => !x.toLowerCase().includes('compressor')),
-      compressor: csvToList(components.value).filter((x) => x.toLowerCase().includes('compressor')),
+      machine_name: nameEl.value.trim(),
+      machine_role: roleEl.value,
+      cards_per_turn: parseInt(cardsEl.value || '1', 10),
+      area_name: areaEl.value.trim(),
+      machine_category: categoryEl.value.trim(),
+      raw_materials: csvToList(rawEl.value),
+      components: csvToList(componentsEl.value).filter((x) => !x.toLowerCase().includes('compressor')),
+      compressor: csvToList(componentsEl.value).filter((x) => x.toLowerCase().includes('compressor')),
     };
     const url = editingId ? '/api/machines/' + editingId : '/api/machines';
     const method = editingId ? 'PUT' : 'POST';
