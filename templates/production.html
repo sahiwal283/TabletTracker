@@ -290,13 +290,13 @@
     </div>
 
     <!-- Tablet search / Repack (end of PO) -->
-    <div id="repack-form" class="card hover-lift p-4 sm:p-8 hidden">
+    <div id="repack-form" class="card hover-lift p-4 sm:p-8 hidden tt-repack-form">
         <div class="text-center mb-6 sm:mb-8">
-            <h2 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent mb-2">Repack / tablet search</h2>
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-100 tracking-tight mb-2">Repack / tablet search</h2>
             {% if employee %}
-            <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
-                <p class="text-amber-900 font-semibold flex items-center justify-center text-base sm:text-lg">
-                    <svg class="tt-inline-icon w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-amber-700 shrink-0" aria-hidden="true" width="28" height="28"><use href="#icon-box"/></svg>
+            <div class="rounded-xl border border-cyan-500/20 bg-slate-900/45 p-3 sm:p-4 mb-3 sm:mb-4">
+                <p class="text-slate-200 font-semibold flex items-center justify-center text-base sm:text-lg">
+                    <svg class="tt-inline-icon w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-cyan-400/90 shrink-0" aria-hidden="true" width="28" height="28"><use href="#icon-box"/></svg>
                     {{ gettext('Employee') }}: <span id="repack-employee-name-display">{{ employee.full_name }}</span>
                 </p>
             </div>
@@ -328,7 +328,7 @@
             <div>
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <span class="block text-sm font-medium text-gray-700">Flavors (one row per product on this receipt)</span>
-                    <button type="button" id="repack-add-line" class="text-sm px-3 py-1 rounded-lg border border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100">
+                    <button type="button" id="repack-add-line" class="btn-secondary text-sm py-2 px-4 rounded-xl font-semibold whitespace-nowrap shrink-0 tt-repack-toolbar-btn">
                         + Add flavor
                     </button>
                 </div>
@@ -344,11 +344,11 @@
                 <label for="repack_submission_date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <input type="date" id="repack_submission_date" name="submission_date" class="form-input" value="{{ today_date }}">
             </div>
-            <div class="flex flex-col sm:flex-row gap-2">
-                <button type="button" id="repack-preview-btn" class="w-full sm:w-auto py-3 px-6 text-base font-semibold rounded-lg border-2 border-amber-400 text-amber-900 bg-white hover:bg-amber-50">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" id="repack-preview-btn" class="btn-secondary w-full sm:w-auto py-3 px-6 text-base font-semibold rounded-xl tt-repack-toolbar-btn">
                     Preview allocation
                 </button>
-                <button type="submit" class="flex-1 py-3 sm:py-4 px-6 text-base font-bold btn-primary rounded-lg">Submit repack</button>
+                <button type="submit" class="flex-1 py-3 sm:py-4 px-6 text-base font-bold btn-primary rounded-xl">Submit repack</button>
             </div>
         </form>
         <div id="repack-form-messages" class="mt-4"></div>
@@ -2116,7 +2116,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     function buildRepackLineRow() {
         const wrap = document.createElement('div');
-        wrap.className = 'repack-line border border-amber-100 rounded-lg p-3 space-y-2 bg-amber-50/40';
+        wrap.className = 'repack-line tt-repack-line rounded-lg p-3 space-y-2 border border-cyan-500/15';
         wrap.innerHTML = `
             <div class="flex justify-between items-center gap-2">
                 <span class="text-sm font-medium text-gray-700">{{ gettext("Product") }} *</span>

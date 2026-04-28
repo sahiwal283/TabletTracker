@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.17.3] - 2026-04-28
+
+### Fixed
+- **Production → Repack form:** Replaced amber-on-white “+ Add flavor” and “Preview allocation” styles (global dark-theme remaps made labels unreadable) with `btn-secondary`; aligned title and employee strip with Command Center surfaces; flavor rows use dark inset panels (`tt-repack-line`); receipt/vendor-return placeholders use explicit readable slate via `#repack-form` scoped rules.
+
+---
+
 ## [4.17.2] - 2026-04-28
 
 ### Fixed
