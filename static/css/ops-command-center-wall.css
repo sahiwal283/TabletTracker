@@ -65,18 +65,217 @@ body {
   height: 100%;
   width: 100%;
   padding: 0.2rem 0.45rem 0.15rem;
-  display: grid;
-  grid-template-rows: auto minmax(0, min(34vh, 360px)) minmax(300px, 1fr) auto;
-  gap: 0.18rem;
   min-height: 0;
 }
 
-/* ── Header: hero strip + KPI band ─────────────────────────────────── */
-.ops-top {
+/* Full dashboard stack — mirrors floor TV blueprint (brand → KPI → flow → split → charts → table) */
+.ops-root.occ-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
-  flex-shrink: 0;
+  gap: 0.22rem;
+  overflow: hidden;
+}
+
+.occ-brand {
+  flex: 0 0 auto;
+}
+
+.occ-kpi {
+  flex: 0 0 auto;
+}
+
+.occ-flow-pane {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.occ-split {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(188px, 24vw);
+  gap: 0.28rem;
+  align-items: stretch;
+}
+
+.occ-highlights-strip {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: none;
+}
+
+.occ-highlights-strip.occ-highlights-visible {
+  display: block;
+}
+
+.occ-highlights-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.32rem 0.42rem;
+  border: 1px solid rgba(0, 242, 255, 0.2);
+  border-radius: 2px;
+  background: rgba(8, 16, 24, 0.85);
+}
+
+.occ-hl-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.occ-hl-lab {
+  color: rgba(148, 163, 184, 0.95);
+  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.occ-hl--best strong {
+  color: #4ade80;
+}
+
+.occ-hl--low strong {
+  color: #fb923c;
+}
+
+.occ-machines-pane,
+.occ-alerts-pane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.occ-cards {
+  overflow: auto;
+}
+
+.occ-pane-title {
+  margin: 0 0 0.18rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.occ-chart-major {
+  min-height: 200px;
+}
+
+.occ-events {
+  flex: 0 0 auto;
+  max-height: min(28vh, 220px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.12rem 0;
+}
+
+.occ-table-scroll {
+  overflow: auto;
+  flex: 1;
+  border: 1px solid rgba(0, 242, 255, 0.12);
+  border-radius: 2px;
+  background: rgba(3, 8, 14, 0.55);
+}
+
+.occ-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.64rem;
+}
+
+.occ-table thead th {
+  text-align: left;
+  padding: 0.32rem 0.42rem;
+  font-size: 0.56rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(148, 163, 184, 0.88);
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.occ-table td {
+  padding: 0.28rem 0.42rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  vertical-align: top;
+}
+
+.occ-table tbody tr:nth-child(odd) {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.occ-td-time {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: rgba(203, 213, 225, 0.85);
+  white-space: nowrap;
+  width: 1%;
+}
+
+.occ-td-msg {
+  color: #fef9c3;
+  line-height: 1.35;
+}
+
+.occ-tag {
+  display: inline-block;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 0.08rem 0.22rem;
+  border-radius: 2px;
+  border: 1px solid transparent;
+}
+
+.occ-tag--alert {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.occ-tag--warn {
+  color: #fef08a;
+  border-color: rgba(251, 191, 36, 0.38);
+}
+
+.occ-tag--info {
+  color: #bae6fd;
+  border-color: rgba(56, 189, 248, 0.32);
+}
+
+.occ-td-empty {
+  text-align: center;
+  padding: 0.85rem !important;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.occ-chart-micro {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.occ-chart-el canvas {
+  min-height: 0;
+}
+
+.occ-bottleneck-band.ops-bottleneck {
+  padding: 0.22rem 0.28rem 0;
+}
+
+/* ── Legacy: brand strip standalone (inside occ-brand) ─────────────── */
+.ops-top {
+  display: none;
 }
 
 .ops-brand-strip {
@@ -735,13 +934,13 @@ body {
   }
 }
 
-/* Charts */
+/* Charts — height-capped band in flex shell */
 .ops-charts {
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
 }
 
 .ops-chart-row-main {
@@ -845,7 +1044,14 @@ body {
 }
 
 @media (max-width: 1100px) {
-  .ops-mid {
-    grid-template-columns: minmax(0, 1fr) minmax(160px, 28vw);
+  .occ-split {
+    grid-template-columns: minmax(0, 1fr) minmax(148px, 32vw);
+  }
+}
+
+@media (max-width: 820px) {
+  .occ-split {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 }

@@ -15,19 +15,18 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
-  <!-- Full-bleed command center wall (no decorative rail — matches floor TV reference) -->
   <div class="ops-tv-shell">
     <div
       id="ops-root"
-      class="ops-root"
+      class="ops-root occ-dashboard"
       data-snapshot-url="{{ snapshot_api_url }}"
       role="application"
-      aria-label="Live operations dashboard"
+      aria-label="Pill packing command center"
     >
-      <header class="ops-top">
+      <header class="occ-brand">
         <div class="ops-brand-strip">
           <div class="ops-brand-left">
-            <div class="ops-brand-hero" aria-label="Pill packing command center, TabletTracker live">
+            <div class="ops-brand-hero">
               <span class="ops-hero-line1">Pill packing command center</span>
               <span class="ops-hero-sep" aria-hidden="true">|</span>
               <span class="ops-hero-product">TabletTracker</span>
@@ -47,48 +46,57 @@
             <a class="ops-exit" href="{{ command_center_url }}">Command&nbsp;Center</a>
           </div>
         </div>
-        <div class="ops-kpi-band">
-          <div class="ops-head" id="ops-head"></div>
-        </div>
       </header>
 
-      <div class="ops-mid">
-        <div class="ops-mid-primary">
-          <section class="ops-flow-wrap" aria-label="Production flow">
-            <div id="ops-flow" class="ops-flow"></div>
-            <div id="ops-bottleneck" class="ops-bottleneck"></div>
-          </section>
-          <section class="ops-cards" id="ops-cards" aria-label="Machine status"></section>
+      <section class="occ-kpi" aria-label="Shift KPI">
+        <div class="occ-kpi-inner ops-kpi-band">
+          <div class="ops-head" id="ops-head"></div>
         </div>
-        <aside class="ops-feed" aria-label="Alerts and activity">
+      </section>
+
+      <section class="occ-highlights-strip" id="ops-highlights" aria-label="Shift highlights"></section>
+
+      <section class="occ-flow-pane" aria-label="Production flow">
+        <div class="ops-flow-wrap">
+          <div id="ops-flow" class="ops-flow"></div>
+          <div id="ops-bottleneck" class="ops-bottleneck occ-bottleneck-band"></div>
+        </div>
+      </section>
+
+      <div class="occ-split">
+        <section class="occ-machines-pane" aria-label="Machines">
+          <h3 class="occ-pane-title">Machine status</h3>
+          <div id="ops-cards" class="ops-cards occ-cards"></div>
+        </section>
+        <aside class="occ-alerts-pane ops-feed" aria-label="Alerts">
           <h2 class="ops-feed-title">Alerts</h2>
           <div class="ops-feed-list" id="ops-feed-list"></div>
         </aside>
       </div>
 
-      <footer class="ops-charts">
-        <div class="ops-chart-row-main">
-          <div class="ops-chart-panel panel-cum">
+      <footer class="ops-charts occ-charts" aria-label="Charts">
+        <div class="ops-chart-row-main occ-chart-major">
+          <div class="ops-chart-panel panel-cum occ-chart-el">
             <h3>Displays cumulative — vs 30d pace</h3>
             <canvas id="c-chart-line"></canvas>
           </div>
-          <div class="ops-chart-panel panel-multi">
+          <div class="ops-chart-panel panel-multi occ-chart-el">
             <h3>Displays per hour — top packaging stations</h3>
             <canvas id="c-chart-multi"></canvas>
           </div>
         </div>
-        <div class="ops-chart-row-sub">
-          <div class="ops-chart-panel panel-bar">
+        <div class="ops-chart-row-sub occ-chart-minor">
+          <div class="ops-chart-panel panel-bar occ-chart-el">
             <h3>Output by station (today)</h3>
-            <p class="ops-chart-note">Packaging = displays finalized — Blister / sealing = tablets</p>
+            <p class="ops-chart-note">Packaging = displays finalized — blister / sealing = tablets</p>
             <canvas id="c-chart-bar"></canvas>
           </div>
-          <div class="ops-chart-stack">
-            <div class="ops-chart-panel panel-idle">
+          <div class="occ-chart-micro ops-chart-stack">
+            <div class="ops-chart-panel panel-idle occ-chart-el">
               <h3>Engaged vs idle</h3>
               <canvas id="c-chart-idle"></canvas>
             </div>
-            <div class="ops-chart-panel panel-donut">
+            <div class="ops-chart-panel panel-donut occ-chart-el">
               <h3>Product mix</h3>
               <canvas id="c-chart-donut"></canvas>
             </div>
@@ -96,12 +104,29 @@
         </div>
       </footer>
 
-      <div class="ops-status-bar">
-        <span class="ops-status-bar-left">TabletTracker · Ops floor monitor</span>
+      <section class="occ-events" aria-label="Latest workflow events">
+        <h3 class="occ-pane-title">Latest workflow events</h3>
+        <div class="occ-table-scroll">
+          <table class="occ-table" role="grid">
+            <thead>
+              <tr>
+                <th scope="col">Time (ET)</th>
+                <th scope="col">Class</th>
+                <th scope="col">Detail</th>
+              </tr>
+            </thead>
+            <tbody id="ops-activity-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="ops-status-bar occ-footer-strip">
+        <span class="ops-status-bar-left">TabletTracker · live floor telemetry</span>
         <span id="ops-footer-strip" class="ops-status-bar-right"></span>
       </div>
     </div>
   </div>
+  <script type="application/json" id="ops-tv-initial-data">{{ initial_snapshot | tojson }}</script>
   <script src="{{ url_for('static', filename='js/ops-command-center-wall.js') }}?v={{ app_version }}" defer></script>
 </body>
 </html>

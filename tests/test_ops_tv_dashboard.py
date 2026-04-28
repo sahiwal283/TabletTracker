@@ -48,6 +48,8 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn(b"ops-root", r.data)
         self.assertIn(b"command-center/ops-tv/api/snapshot", r.data)
+        self.assertIn(b"ops-tv-initial-data", r.data)
+        self.assertIn(b'"kpis"', r.data)
 
     def test_ops_tv_snapshot_json(self):
         r = self.client.get("/command-center/ops-tv/api/snapshot")

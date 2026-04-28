@@ -1605,13 +1605,21 @@ def workflow_qr_management():
 @bp.route("/command-center/ops-tv")
 @admin_required
 def ops_tv_dashboard():
-    """Full-screen TV operations board (no data tables; wall display)."""
+    """Full-screen TV operations board — renders live snapshot + polls JSON."""
     ver = read_version_constants().get("__version__", "1")
+    initial_snapshot: dict = {}
+    try:
+        with db_read_only() as conn:
+            initial_snapshot = build_ops_tv_snapshot(conn)
+    except Exception:
+        current_app.logger.exception("ops_tv_dashboard bootstrap snapshot")
+
     html = render_template(
         "ops_tv_dashboard.html",
         snapshot_api_url=url_for("admin.ops_tv_snapshot_api"),
         command_center_url=url_for("admin.workflow_qr_management"),
         app_version=ver,
+        initial_snapshot=initial_snapshot,
     )
     resp = make_response(html)
     # Wall uses renamed static assets — avoid HTML cached while CSS/JS 404 at old paths behind proxies stripping ?v=

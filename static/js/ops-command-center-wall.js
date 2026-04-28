@@ -1,5 +1,5 @@
 /**
- * TV operations board — polls snapshot API, renders tiles + Chart.js (no tables).
+ * Pill packing command center — server bootstrap JSON + polling snapshot API.
  */
 (function () {
   /** Remove emoji / pictographs from API strings (chart labels, SKU names, feed). */
@@ -48,6 +48,7 @@
   var url = root.getAttribute("data-snapshot-url");
   var cardsEl = document.getElementById("ops-cards");
   var feedEl = document.getElementById("ops-feed-list");
+  var highlightsEl = document.getElementById("ops-highlights");
   var headEl = document.getElementById("ops-head");
   var clockEl = document.getElementById("ops-clock");
   var lastRefreshEl = document.getElementById("ops-last-refresh");
@@ -372,6 +373,85 @@
     });
   }
 
+  function renderHighlights(data) {
+    if (!highlightsEl) return;
+    var h = (data && data.highlights) || {};
+    var best = h.best_station;
+    var worst = h.lowest_output_station;
+    if (!best && !worst) {
+      highlightsEl.innerHTML = "";
+      highlightsEl.classList.remove("occ-highlights-visible");
+      return;
+    }
+    highlightsEl.classList.add("occ-highlights-visible");
+    var chunks = [];
+    if (best) {
+      chunks.push(
+        '<span class="occ-hl-chip occ-hl--best"><span class="occ-hl-lab">Highest throughput · shift</span> <strong>' +
+          String(best).replace(/</g, "&lt;") +
+          "</strong></span>",
+      );
+    }
+    if (worst) {
+      chunks.push(
+        '<span class="occ-hl-chip occ-hl--low"><span class="occ-hl-lab">Lowest throughput · coach</span> <strong>' +
+          String(worst).replace(/</g, "&lt;") +
+          "</strong></span>",
+      );
+    }
+    highlightsEl.innerHTML = '<div class="occ-highlights-inner">' + chunks.join("") + "</div>";
+  }
+
+  function fmtEventEt(ms) {
+    if (!ms) return "—";
+    try {
+      return new Date(ms).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+        timeZone: "America/New_York",
+      });
+    } catch (e) {
+      return fmtFeedTime(ms);
+    }
+  }
+
+  function renderActivityTable(activity) {
+    var tbody = document.getElementById("ops-activity-body");
+    if (!tbody) return;
+    var rows = ((activity || []).slice().sort(function (a, b) {
+      return (b.at_ms || 0) - (a.at_ms || 0);
+    })).slice(0, 24);
+
+    if (!rows.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="3" class="occ-td-empty">No workflow events recorded for this refresh window.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows
+      .map(function (it) {
+        var sev = (it.severity || "info").toLowerCase();
+        var msg = stripEmoji(it.message || "").replace(/</g, "&lt;");
+        return (
+          '<tr class="occ-row">' +
+          '<td class="occ-td-time">' +
+          fmtEventEt(it.at_ms) +
+          "</td>" +
+          '<td class="occ-td-class"><span class="occ-tag occ-tag--' +
+          sev +
+          '">' +
+          sev.toUpperCase() +
+          "</span></td>" +
+          '<td class="occ-td-msg">' +
+          msg +
+          "</td></tr>"
+        );
+      })
+      .join("");
+  }
+
   function renderFeed(items) {
     if (!feedEl) return;
     var rank = { alert: 0, warn: 1, info: 2 };
@@ -684,9 +764,11 @@
   function apply(data) {
     if (!data || data.error) return;
     renderHeader(data);
+    renderHighlights(data);
     renderFlow(data.flow);
     renderCards(data.machines);
     renderFeed(data.activity);
+    renderActivityTable(data.activity);
     updateCharts(data);
     if (lastRefreshEl) {
       lastRefreshEl.textContent =
@@ -707,6 +789,17 @@
       .then(apply)
       .catch(function () {});
   }
+
+  (function bootstrapFromPage() {
+    var node = document.getElementById("ops-tv-initial-data");
+    if (!node || !node.textContent) return;
+    var raw = node.textContent.trim();
+    if (!raw || raw === "{}") return;
+    try {
+      var payload = JSON.parse(raw);
+      if (payload && !payload.error) apply(payload);
+    } catch (e) {}
+  })();
 
   poll();
   setInterval(poll, POLL_MS);
