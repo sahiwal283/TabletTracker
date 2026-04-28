@@ -237,7 +237,7 @@
     return html`<article className=${"occ-machine " + statusTone(m.integrationStatus)}>
       <header><div><h3>${m.shortLabel}</h3><p>${m.label}</p></div><${Badge} tone=${statusTone(m.integrationStatus)}>${statusText(m.integrationStatus)}</${Badge}></header>
       <div className="machine-mid">${machineIcon(m.kind, m.integrationStatus)}<dl>
-        <div><dt>Current Bag</dt><dd>${notIntegrated ? "N/A" : (m.currentBagId != null ? "BAG-" + m.currentBagId : "No activity today")}</dd></div>
+        <div><dt>Current Bag</dt><dd>${notIntegrated ? "N/A" : (m.currentBagId != null ? (m.currentBagLabel || ("BAG-" + m.currentBagId)) : "No activity today")}</dd></div>
         <div><dt>SKU</dt><dd>${m.sku || "N/A"}</dd></div>
       </dl></div>
       <div className="machine-grid-data">
@@ -428,6 +428,16 @@
       var b = bagId != null ? bagById[String(bagId)] : null;
       return b && (b.sku || b.productLabel) ? (b.sku || b.productLabel) : "N/A";
     }
+    function bagDisplayLabel(bagId) {
+      if (bagId == null || bagId === "") return "N/A";
+      var b = bagById[String(bagId)] || null;
+      var receipt = b ? String(b.receiptNumber || "").trim() : "";
+      var flavor = b ? String(b.productLabel || b.sku || "").trim() : "";
+      if (receipt && flavor && flavor !== "—") return receipt + " (" + flavor + ")";
+      if (receipt) return receipt;
+      if (flavor && flavor !== "—") return "BAG-" + bagId + " (" + flavor + ")";
+      return "BAG-" + bagId;
+    }
     var machines = defs.map(function (d) {
       var metrics = (derived.machines || []).find(function (m) { return m.id === d.stationId; }) || {};
       var slotInfo = slots[d.slot - 1] || {};
@@ -443,6 +453,7 @@
         latestEvent: latestByMachine(events, d.stationId),
         counterEvent: completedCounterEvent(events, d.stationId),
         sku: skuForBag(metrics.currentBagId),
+        currentBagLabel: bagDisplayLabel(metrics.currentBagId),
       });
     });
 
@@ -450,16 +461,16 @@
     var timeline = (mes.timeline || []).slice(0, 7);
     var staging = derived.stagingBags || [];
     var inventoryRows = (mes.inventory || []).slice(0, 6).map(function (r) {
-      return [r.sku || r.product || "N/A", r.bag_id || r.bagId || "N/A", fmtNumber(r.units || r.qty), fmtNumber(r.quantity || r.bags), r.status || "N/A"];
+      return [r.sku || r.product || "N/A", bagDisplayLabel(r.bag_id || r.bagId), fmtNumber(r.units || r.qty), fmtNumber(r.quantity || r.bags), r.status || "N/A"];
     });
     var topSkuRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.units), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
     var stagingRows = staging.slice(0, 6).map(function (r) {
-      return ["Line", "Post Staging", r.bagId, elapsedSince(r.enteredAtMs)];
+      return ["Line", "Post Staging", bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs)];
     });
     var timelineRows = timeline.map(function (r) {
-      return [fmtTime(r.at_ms || r.atMs), r.line || "N/A", r.machine || r.station || "N/A", r.event || r.message || "Activity", r.bag_id || "N/A"];
+      return [fmtTime(r.at_ms || r.atMs), r.line || "N/A", r.machine || r.station || "N/A", r.event || r.message || "Activity", bagDisplayLabel(r.bag_id)];
     });
     var teamRows = (mes.team || []).slice(0, 6).map(function (r) {
       return [r.employee || r.operator || r.name || "N/A", r.line || "N/A", fmtNumber(r.cycles || r.bags), fmtNumber(r.units || r.qty)];
@@ -471,13 +482,13 @@
       return [fmtTime(a.at_ms || a.atMs), String(a.severity || "info").toUpperCase(), a.message || "Alert"];
     });
     var allMachineRows = machines.map(function (m) {
-      return [m.shortLabel, m.label, m.stationId != null ? String(m.stationId) : "N/A", statusText(m.integrationStatus), m.currentBagId != null ? "BAG-" + m.currentBagId : "No activity", m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data"];
+      return [m.shortLabel, m.label, m.stationId != null ? String(m.stationId) : "N/A", statusText(m.integrationStatus), m.currentBagId != null ? bagDisplayLabel(m.currentBagId) : "No activity", m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data"];
     });
     var stagingBagRows = staging.map(function (r) {
-      return ["BAG-" + r.bagId, elapsedSince(r.enteredAtMs), r.lastStationLabel || "N/A", r.lastEventType || "N/A"];
+      return [bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs), r.lastStationLabel || "N/A", r.lastEventType || "N/A"];
     });
     var bagAssignmentRows = (inp.machines || []).filter(function (r) { return r.workflowBagId != null; }).map(function (r) {
-      return ["BAG-" + r.workflowBagId, r.displayName || r.stationLabel || "N/A", r.stationKind || "N/A", r.status || "N/A", elapsedSince(r.occupancyStartedAtMs)];
+      return [bagDisplayLabel(r.workflowBagId), r.displayName || r.stationLabel || "N/A", r.stationKind || "N/A", r.status || "N/A", elapsedSince(r.occupancyStartedAtMs)];
     });
 
     var bottleIntegrated = machines[4].integrationStatus !== "NOT_INTEGRATED";
@@ -584,7 +595,7 @@
         <section className="occ-life-grid">
           <${LifecycleLane} tone="blue" title="BLISTER / CARD FLOW" sku=${blisterSku} steps=${[
             { title: "BAG", sub: "Bag QR scanned", detail: "Received qty N/A", icon: "bag" },
-            { title: "BLISTER", sub: "M1 DPP115", detail: machines[0].currentBagId ? "Bag " + machines[0].currentBagId : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
+            { title: "BLISTER", sub: "M1 DPP115", detail: machines[0].currentBagId ? bagDisplayLabel(machines[0].currentBagId) : "Insufficient data", icon: "blister", status: machines[0].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After blister, before heat seal", icon: "bag" },
             { title: "CARD / HEAT SEAL", sub: "M2 / M3", detail: "Scan station + bag", icon: "heat", status: machines[1].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
@@ -592,7 +603,7 @@
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} />
           <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
-            { title: "BAG", sub: "Bag QR scanned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line offline", icon: "bag", status: machines[4].integrationStatus },
+            { title: "BAG", sub: "Bag QR scanned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: machines[4].integrationStatus },
             { title: "BOTTLE", sub: "Bottle station", detail: bottleIntegrated ? "Scan station + bag" : "Not integrated", icon: "bottle", status: machines[4].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After bottle, before sticker", icon: "bag" },
             { title: "STICKER", sub: "Stickering station", detail: bottleIntegrated ? "Scan station + bag" : "Offline", icon: "sticker", status: machines[4].integrationStatus },

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.5] - 2026-04-28
+
+### Changed
+- **Fullscreen command center bag labels:** all bag references now use the stakeholder format `PO#-SHIPMENT#-BOX#-BAG#` with flavor when available, replacing raw `BAG-<id>` labels across staging, inventory, timeline, machine, and assignment views.
+
+---
+
 ## [4.16.4] - 2026-04-28
 
 ### Changed
