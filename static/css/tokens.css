@@ -1,0 +1,52 @@
+/**
+ * TabletTracker design tokens — typography & light shell polish (v4.6).
+ * Loads before Tailwind; Winter Chill palette remains in base.html inline block.
+ */
+
+:root {
+  --tt-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --tt-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+}
+
+html {
+  font-family: var(--tt-font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter stylistic tweaks */
+}
+
+body.min-h-screen {
+  font-family: var(--tt-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tttabular,
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Section / card tables: clearer hierarchy without changing markup */
+.card table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.card thead th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: rgba(15, 23, 42, 0.03);
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.card tbody td {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  vertical-align: middle;
+}
+
+.card tbody tr:last-child td {
+  border-bottom: none;
+}

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.6.0] - 2026-04-28
+
+### Added
+- **`static/css/tokens.css`** — shared typography tokens (Inter + IBM Plex Mono via Google Fonts); card table header polish.
+- **`docs/PYTHONANYWHERE_UPDATE_4.6.md`** — copy-paste steps to pull UI release and reload on PythonAnywhere.
+
+### Changed
+- **Ops TV** (`templates/ops_tv_dashboard.html`, `static/css/ops-tv.css`, `static/js/ops-tv.js`): command-center layout with brand strip, LIVE indicator, IBM Plex timers/KPI digits, cyan/emerald semantic palette, grid backdrop, wider alerts rail, refined Chart.js theming; **last snapshot time** shown after each successful poll (same `/command-center/ops-tv/api/snapshot` payload).
+- **App shell** (`templates/base.html`, `templates/components/section_title.html`): Inter + tokens; cleaner top-bar title and subsection titles; softer table typography inside `.card`.
+- **CSP** (`app/__init__.py`): allow Google Fonts stylesheet and `fonts.gstatic.com` for font files.
+
+---
+
 ## [4.5.9] - 2026-04-24
 
 ### Changed

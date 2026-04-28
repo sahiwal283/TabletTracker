@@ -5,8 +5,8 @@
     {% if icon_svg %}
     <svg class="{{ icon_svg_class|default('w-6 h-6 mr-3') }}" aria-hidden="true"><use href="{{ icon_svg }}" /></svg>
     {% endif %}
-    <h3 class="{{ title_class|default('text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent') }}">{{ title }}</h3>
+    <h3 class="{{ title_class|default('text-xl font-semibold tracking-tight text-slate-900') }}">{{ title }}</h3>
     {% if subtitle %}
-    <span class="{{ subtitle_class|default('ml-3 text-sm text-gray-500') }}">{{ subtitle }}</span>
+    <span class="{{ subtitle_class|default('ml-3 text-sm font-medium text-slate-500') }}">{{ subtitle }}</span>
     {% endif %}
 </div>

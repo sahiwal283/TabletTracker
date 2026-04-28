@@ -67,6 +67,8 @@ python -m unittest discover tests
 
 ## 🚀 Deployment (PythonAnywhere)
 
+For updating an existing production install after pulling **v4.6.x**, see [docs/PYTHONANYWHERE_UPDATE_4.6.md](docs/PYTHONANYWHERE_UPDATE_4.6.md).
+
 Update `wsgi.py`:
 ```python
 from app import create_app
@@ -109,14 +111,9 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: v2.47.23 (global noise cleanup + lint/UX hardening)
-- Refactored `app/__init__.py` into explicit setup units for app config, extensions, hooks, error handlers, blueprints, and DB initialization
-- Hardened silent-failure patterns across DB utilities, API/submissions paths, migrations, tracking service parsing, and report resource cleanup
-- Removed inline receives-form submit handler in `templates/receiving.html` in favor of delegated JavaScript submit wiring
-- Continued dynamic handler cleanup in `dashboard`, `base`, and `purchase_orders` templates by replacing string-bound click/filter logic with `data-*`/listener-based routing
-- Preserved existing UI behavior and API interactions while improving internal maintainability and error observability
-- Full regression suite green (`46` tests)
-- PATCH release: backward-compatible backend maintainability improvements
+Current: **v4.6.0** (typography + Ops TV command-center UI; CSP for Google Fonts)
+
+See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 ## 🔐 Security
 

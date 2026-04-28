@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operations TV · TabletTracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-tv.css') }}?v={{ app_version }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -15,12 +18,20 @@
     role="application"
     aria-label="Live operations dashboard"
   >
-    <a class="ops-exit" href="{{ command_center_url }}">Command Center</a>
-
     <header class="ops-top">
-      <div class="ops-head-row">
-        <span class="ops-brand">Live operations</span>
-        <span id="ops-clock" class="ops-clock"></span>
+      <div class="ops-brand-strip">
+        <div class="ops-brand-left">
+          <div class="ops-title-line">
+            <span class="ops-cc-title">TabletTracker</span>
+            <span class="ops-live" aria-live="polite"><span class="ops-live-dot" aria-hidden="true"></span>LIVE</span>
+          </div>
+          <p class="ops-cc-subtitle">Operations command center · live floor telemetry</p>
+        </div>
+        <div class="ops-brand-right">
+          <span id="ops-clock" class="ops-clock"></span>
+          <span id="ops-last-refresh" class="ops-last-refresh"></span>
+          <a class="ops-exit" href="{{ command_center_url }}">Command Center</a>
+        </div>
       </div>
       <div class="ops-head" id="ops-head"></div>
     </header>
@@ -39,7 +50,7 @@
       </aside>
     </div>
 
-    <footer class="ops-charts" aria-hidden="true">
+    <footer class="ops-charts">
       <div class="ops-chart-row-main">
         <div class="ops-chart-panel panel-cum">
           <h3>Displays cumulative · vs 30d pace</h3>

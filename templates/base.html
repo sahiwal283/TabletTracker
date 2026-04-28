@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Tablet Counter{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}?v={{ version() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style type="text/tailwindcss">
@@ -2155,11 +2159,11 @@ async function convertToTwoLevelDropdown(selectElement) {
                     </svg>
                 </button>
                 {% endif %}
-                <h1 class="text-lg md:text-2xl font-bold flex flex-wrap items-center gap-x-2 min-w-0">
-                    <a href="{{ url_for('auth.index') }}" class="hover:text-primary truncate transition-colors duration-300 flex items-center gap-2">
-                        <svg class="w-6 h-6 md:w-7 md:h-7 shrink-0" aria-hidden="true"><use href="#icon-chart" /></svg>
-                        <span class="bg-gradient-to-r from-white to-[#B8E3E9] bg-clip-text text-transparent">TabletTracker</span>
-                        <span class="text-xs text-gray-300 font-normal whitespace-nowrap">v{{ version() }}</span>
+                <h1 class="text-lg md:text-2xl font-semibold tracking-tight flex flex-wrap items-center gap-x-2 min-w-0">
+                    <a href="{{ url_for('auth.index') }}" class="hover:text-white/90 truncate transition-colors duration-300 flex items-center gap-2 text-white">
+                        <svg class="w-6 h-6 md:w-7 md:h-7 shrink-0 opacity-95" aria-hidden="true"><use href="#icon-chart" /></svg>
+                        <span class="text-white">TabletTracker</span>
+                        <span class="text-xs text-white/55 font-medium tttabular whitespace-nowrap">v{{ version() }}</span>
                     </a>
                 </h1>
                 <span class="flex-1 min-w-[1rem]"></span>

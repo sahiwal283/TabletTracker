@@ -11,6 +11,7 @@
   var feedEl = document.getElementById("ops-feed-list");
   var headEl = document.getElementById("ops-head");
   var clockEl = document.getElementById("ops-clock");
+  var lastRefreshEl = document.getElementById("ops-last-refresh");
 
   var charts = {
     line: null,
@@ -27,7 +28,7 @@
     plugins: {
       legend: {
         display: true,
-        labels: { color: "#9aa8b8", font: { size: 12 }, boxWidth: 14 },
+        labels: { color: "#cbd5e1", font: { size: 11, family: "'Inter', sans-serif" }, boxWidth: 14 },
       },
     },
     scales: {},
@@ -60,7 +61,7 @@
     ctx.clearRect(0, 0, W, H);
     var max = Math.max.apply(null, values.concat([1]));
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(0, 212, 255, 0.85)";
+    ctx.strokeStyle = "rgba(34, 211, 238, 0.9)";
     ctx.lineWidth = 2;
     values.forEach(function (v, i) {
       var x = (i / (values.length - 1 || 1)) * (W - 4) + 2;
@@ -71,7 +72,7 @@
     ctx.stroke();
     ctx.lineTo(W - 2, H - 2);
     ctx.lineTo(2, H - 2);
-    ctx.fillStyle = "rgba(0, 212, 255, 0.08)";
+    ctx.fillStyle = "rgba(34, 211, 238, 0.1)";
     ctx.fill();
   }
 
@@ -357,21 +358,21 @@
   function ensureCharts(labels) {
     if (typeof Chart === "undefined") return;
 
-    var tickFont = { size: 14 };
+    var tickFont = { size: 12, family: "'IBM Plex Mono', ui-monospace, monospace" };
     var darkScales = {
       x: {
         ticks: {
-          color: "#7a8a9a",
+          color: "#94a3b8",
           maxRotation: 0,
           autoSkip: true,
           maxTicksLimit: 8,
           font: tickFont,
         },
-        grid: { color: "rgba(0,255,200,0.06)" },
+        grid: { color: "rgba(56, 189, 248, 0.08)" },
       },
       y: {
-        ticks: { color: "#7a8a9a", font: tickFont },
-        grid: { color: "rgba(0,255,200,0.06)" },
+        ticks: { color: "#94a3b8", font: tickFont },
+        grid: { color: "rgba(56, 189, 248, 0.08)" },
       },
     };
 
@@ -383,7 +384,11 @@
           data: { labels: labels, datasets: [] },
           options: Object.assign({}, chartCommon, {
             scales: darkScales,
-            plugins: { legend: { labels: { color: "#9aa8b8", font: { size: 12 }, boxWidth: 14 } } },
+            plugins: {
+              legend: {
+                labels: { color: "#cbd5e1", font: { size: 11, family: "'Inter', sans-serif" }, boxWidth: 14 },
+              },
+            },
           }),
         });
     }
@@ -399,7 +404,7 @@
               legend: {
                 display: true,
                 position: "bottom",
-                labels: { color: "#9aa8b8", font: { size: 11 }, boxWidth: 12 },
+                labels: { color: "#cbd5e1", font: { size: 10, family: "'Inter', sans-serif" }, boxWidth: 12 },
               },
             },
           }),
@@ -415,11 +420,11 @@
             indexAxis: "y",
             scales: {
               x: {
-                ticks: { color: "#7a8a9a", font: tickFont },
-                grid: { color: "rgba(0,255,200,0.06)" },
+                ticks: { color: "#94a3b8", font: tickFont },
+                grid: { color: "rgba(56, 189, 248, 0.08)" },
               },
               y: {
-                ticks: { color: "#9aa8b8", font: tickFont },
+                ticks: { color: "#cbd5e1", font: tickFont },
                 grid: { display: false },
               },
             },
@@ -440,19 +445,23 @@
                 stacked: true,
                 max: 100,
                 ticks: {
-                  color: "#7a8a9a",
+                  color: "#94a3b8",
                   font: tickFont,
                   callback: function (v) { return v + "%"; },
                 },
-                grid: { color: "rgba(0,255,200,0.06)" },
+                grid: { color: "rgba(56, 189, 248, 0.08)" },
               },
               y: {
                 stacked: true,
-                ticks: { color: "#9aa8b8", font: tickFont },
+                ticks: { color: "#cbd5e1", font: tickFont },
                 grid: { display: false },
               },
             },
-            plugins: { legend: { labels: { color: "#9aa8b8", font: { size: 11 }, boxWidth: 12 } } },
+            plugins: {
+              legend: {
+                labels: { color: "#cbd5e1", font: { size: 10, family: "'Inter', sans-serif" }, boxWidth: 12 },
+              },
+            },
           }),
         });
     }
@@ -467,7 +476,7 @@
             plugins: {
               legend: {
                 position: "bottom",
-                labels: { color: "#9aa8b8", font: { size: 10 }, boxWidth: 12 },
+                labels: { color: "#cbd5e1", font: { size: 10, family: "'Inter', sans-serif" }, boxWidth: 12 },
               },
             },
           }),
@@ -476,14 +485,14 @@
   }
 
   var palette = [
-    "#00d4ff",
-    "#00ff9d",
-    "#ffcc00",
-    "#ff9f43",
-    "#a29bfe",
-    "#fd79a8",
-    "#ffeaa7",
-    "#74b9ff",
+    "#22d3ee",
+    "#34d399",
+    "#fbbf24",
+    "#fb923c",
+    "#a78bfa",
+    "#f472b6",
+    "#fde68a",
+    "#38bdf8",
   ];
 
   function updateCharts(data) {
@@ -497,8 +506,8 @@
         {
           label: "Cumulative displays",
           data: data.chart_cumulative_output || [],
-          borderColor: "#00d4ff",
-          backgroundColor: "rgba(0, 212, 255, 0.06)",
+          borderColor: "#22d3ee",
+          backgroundColor: "rgba(34, 211, 238, 0.08)",
           fill: true,
           tension: 0.25,
           borderWidth: 3,
@@ -506,7 +515,7 @@
         {
           label: "30d avg pace",
           data: data.chart_target_cumulative || [],
-          borderColor: "rgba(255, 204, 0, 0.55)",
+          borderColor: "rgba(251, 191, 36, 0.65)",
           borderDash: [6, 4],
           fill: false,
           tension: 0,
@@ -539,7 +548,7 @@
         ds.push({
           label: "—",
           data: labels.map(function () { return 0; }),
-          borderColor: "rgba(122,138,154,0.4)",
+          borderColor: "rgba(148,163,184,0.45)",
           borderWidth: 2,
           pointRadius: 0,
         });
@@ -553,7 +562,7 @@
       if (!bars.length) {
         charts.bar.data.labels = ["—"];
         charts.bar.data.datasets = [
-          { label: "Output", data: [0], backgroundColor: ["rgba(122,138,154,0.4)"] },
+          { label: "Output", data: [0], backgroundColor: ["rgba(148,163,184,0.4)"] },
         ];
       } else {
         charts.bar.data.labels = bars.map(function (b) { return b.name; });
@@ -575,8 +584,8 @@
       if (!idles.length) {
         charts.idle.data.labels = ["—"];
         charts.idle.data.datasets = [
-          { label: "Engaged", data: [0], backgroundColor: "rgba(0, 255, 157, 0.35)" },
-          { label: "Idle / wait", data: [100], backgroundColor: "rgba(255, 204, 0, 0.35)" },
+          { label: "Engaged", data: [0], backgroundColor: "rgba(52, 211, 153, 0.4)" },
+          { label: "Idle / wait", data: [100], backgroundColor: "rgba(251, 191, 36, 0.4)" },
         ];
       } else {
         charts.idle.data.labels = idles.map(function (r) { return r.name; });
@@ -584,12 +593,12 @@
           {
             label: "Engaged",
             data: idles.map(function (r) { return r.load_pct; }),
-            backgroundColor: "rgba(0, 255, 157, 0.7)",
+            backgroundColor: "rgba(52, 211, 153, 0.75)",
           },
           {
             label: "Idle / wait",
             data: idles.map(function (r) { return r.pct; }),
-            backgroundColor: "rgba(255, 204, 0, 0.45)",
+            backgroundColor: "rgba(251, 191, 36, 0.55)",
           },
         ];
       }
@@ -601,7 +610,7 @@
       if (!fb.length) {
         charts.donut.data.labels = ["No mix yet"];
         charts.donut.data.datasets = [
-          { data: [1], backgroundColor: ["rgba(122,138,154,0.35)"] },
+          { data: [1], backgroundColor: ["rgba(148,163,184,0.4)"] },
         ];
       } else {
         charts.donut.data.labels = fb.map(function (f) { return f.label; });
@@ -625,6 +634,11 @@
     renderCards(data.machines);
     renderFeed(data.activity);
     updateCharts(data);
+    if (lastRefreshEl) {
+      lastRefreshEl.textContent =
+        "Snapshot · " +
+        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
   }
 
   function poll() {
