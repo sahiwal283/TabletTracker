@@ -258,10 +258,11 @@
     var start = done.counterStart != null ? done.counterStart : latest.counterStart;
     var end = done.counterEnd != null ? done.counterEnd : latest.counterEnd;
     var counter = notIntegrated ? "N/A" : (start != null || end != null ? String(start != null ? start : "N/A") + " / " + String(end != null ? end : "N/A") : "Insufficient data");
+    var bagLabel = notIntegrated ? "N/A" : ((m.workflowBagId != null || m.currentBagId != null) ? (m.currentBagLabel || ("BAG-" + (m.workflowBagId != null ? m.workflowBagId : m.currentBagId))) : "No activity today");
     return html`<article className=${"occ-machine " + statusTone(m.integrationStatus) + (props.attention ? " attention" : "")}>
       <header><div><h3>${m.shortLabel}</h3><p>${m.label}</p></div><${Badge} tone=${statusTone(m.integrationStatus)}>${statusText(m.integrationStatus)}</${Badge}></header>
       <div className="machine-mid">${machineIcon(m.kind, m.integrationStatus)}<dl>
-        <div><dt>Current Bag</dt><dd>${notIntegrated ? "N/A" : ((m.workflowBagId != null || m.currentBagId != null) ? (m.currentBagLabel || ("BAG-" + (m.workflowBagId != null ? m.workflowBagId : m.currentBagId))) : "No activity today")}</dd></div>
+        <div><dt>Current Bag</dt><dd title=${bagLabel}>${bagLabel}</dd></div>
         <div><dt>SKU</dt><dd>${m.sku || "N/A"}</dd></div>
       </dl></div>
       <div className="machine-grid-data">
@@ -464,7 +465,7 @@
       { slot: 2, shortLabel: "MACHINE 2", label: "HEAT PRESS MACHINE", kind: "heat", stationId: null, flow: "blister_card", stepRole: "heat_seal" },
       { slot: 3, shortLabel: "MACHINE 3", label: "HEAT PRESS MACHINE", kind: "heat", stationId: null, flow: "blister_card", stepRole: "heat_seal" },
       { slot: 4, shortLabel: "MACHINE 4", label: "HEAT PRESS MACHINE", kind: "heat", stationId: null, flow: "blister_card", stepRole: "heat_seal" },
-      { slot: 5, shortLabel: "PACKAGING", label: "PACKAGING STATION", kind: "pack", stationId: null, flow: "blister_card", stepRole: "packaging" },
+      { slot: 5, shortLabel: "PACKAGING", label: "PACKAGING STATION", kind: "pack", stationId: null, flow: "packaging_station", stepRole: "packaging" },
     ];
     var configured = (inp.machines || []).map(function (m) { return m.id; });
     var bagById = {};
@@ -503,10 +504,11 @@
       });
     });
 
-    var blisterCardMachines = machines.filter(function (m) { return m.flow === "blister_card"; });
-    var blisterMachines = blisterCardMachines.filter(function (m) { return m.stepRole === "blister" || m.stationKind === "blister"; });
-    var heatSealMachines = blisterCardMachines.filter(function (m) { return m.stepRole === "heat_seal" || m.stationKind === "sealing"; });
-    var packagingMachines = blisterCardMachines.filter(function (m) { return m.stepRole === "packaging" || m.stationKind === "packaging"; });
+    var blisterCardMachines = machines.filter(function (m) { return m.flow === "blister_card" && (m.stepRole === "blister" || m.stepRole === "heat_seal"); });
+    var blisterMachines = blisterCardMachines.filter(function (m) { return m.stepRole === "blister" || m.stationKind === "blister"; }).slice(0, 1);
+    var heatSealMachines = blisterCardMachines.filter(function (m) { return m.stepRole === "heat_seal" || m.stationKind === "sealing"; }).slice(0, 3);
+    blisterCardMachines = blisterMachines.concat(heatSealMachines);
+    var packagingMachines = machines.filter(function (m) { return m.flow === "packaging_station" || m.stepRole === "packaging" || m.stationKind === "packaging"; });
 
     var alerts = (mes.alerts || []).filter(function (a) { return String(a.severity || "info").toLowerCase() !== "info"; });
     var timeline = (mes.timeline || []).slice(0, 7);

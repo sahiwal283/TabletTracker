@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.9] - 2026-04-28
+
+### Changed
+- **Ops TV machine alignment:** the blister/card machine band is capped to the real machine set: one blister machine and three heat sealing machines. Packaging remains a QR/timer station in the lifecycle instead of being shown as a production machine.
+- **Readability:** machine cards now have wider columns, taller card bodies, wrapping bag/SKU/timer values, and no ellipsis truncation for key data.
+- **Blister material tracking:** roll-code inputs and change buttons now use compact dashboard styling instead of oversized browser-default controls.
+
+---
+
 ## [4.16.8] - 2026-04-28
 
 ### Changed

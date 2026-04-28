@@ -51,8 +51,8 @@ def _find_by_role(machines: list[dict], role: str) -> list[dict]:
 
 
 def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
-    blisters = _find_by_kind(machines, "blister")
-    seal_list = _find_by_kind(machines, "sealing")
+    blisters = _find_by_kind(machines, "blister")[:1]
+    seal_list = _find_by_kind(machines, "sealing")[:3]
     packs = _find_by_kind(machines, "packaging")
     bottle_flow = [
         m for m in machines
@@ -69,9 +69,14 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
             sid = int(mid)
         except (TypeError, ValueError):
             return
-        if sid in used_ids:
+        dedupe_id = picked.get("machine_id") or sid
+        try:
+            dedupe_int = int(dedupe_id)
+        except (TypeError, ValueError):
+            dedupe_int = sid
+        if dedupe_int in used_ids:
             return
-        used_ids.add(sid)
+        used_ids.add(dedupe_int)
         ordered.append((picked, meta))
 
     for idx, picked in enumerate(blisters, start=1):
@@ -101,7 +106,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
             {
                 "shortLabel": "PACKAGING" if idx == 1 else f"PACKAGING {idx}",
                 "canonical": "PACKAGING STATION",
-                "flow": "blister_card",
+                "flow": "packaging_station",
                 "stepRole": "packaging",
             },
         )
@@ -128,6 +133,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
                 "label": meta["canonical"],
                 "shortLabel": meta["shortLabel"],
                 "stationId": int(mid) if mid is not None else None,
+                "machineId": int(picked["machine_id"]) if picked.get("machine_id") not in (None, "") else None,
                 "stationKind": str(sk).lower() if sk else None,
                 "machineRole": str(mr).lower() if mr else None,
                 "flow": meta["flow"],

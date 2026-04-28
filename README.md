@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.16.8** (Ops TV configured station mapping with blister, all heat sealers, and packaging)
+Current: **v4.16.9** (Ops TV machine alignment and readable control-room cards)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
