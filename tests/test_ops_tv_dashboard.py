@@ -57,7 +57,7 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn(b'"pill_board"', r.data)
         self.assertIn(b'"mes"', r.data)
         self.assertIn(b'"tab": "overview"', r.data)
-        self.assertIn(b"Exit to Command Center", r.data)
+        self.assertIn(b"Exit Command Center", r.data)
 
     def test_pill_packing_alias_loads(self):
         r = self.client.get("/command-center/pill-packing")
