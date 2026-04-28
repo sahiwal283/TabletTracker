@@ -18,7 +18,7 @@
             <svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-chart" /></svg>
             Product & Tablet Configuration
         </h1>
-        <p class="text-gray-600 mt-2">Manage tablets, products, categories, and Zoho inventory mappings</p>
+        <p class="text-gray-600 mt-2">Manage tablet types, products, categories, and Zoho inventory mappings.</p>
     </div>
 
     <!-- Tab Navigation -->
@@ -46,7 +46,7 @@
         </div>
         
         <!-- Add new tablet -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="card p-6 mb-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">
                 <svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg>
                 Add new tablet
@@ -65,7 +65,7 @@
         </div>
 
         <!-- Tablet types (grouped list) -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="card overflow-hidden p-0">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">Tablet types</h3>
                 <p class="text-sm text-gray-500 mt-1">Each heading is a tablet type. Expand it to see the tablets in that type.</p>
@@ -201,7 +201,7 @@
         </div>
 
         <!-- Add New Product -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="card p-6 mb-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">
                 <svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg>
                 Add New Product
@@ -292,7 +292,7 @@
         </div>
 
         <!-- Products List -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="card overflow-hidden p-0">
             <div class="px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">All Products</h3>
             </div>
@@ -447,7 +447,7 @@
 
     <!-- ===== CATEGORIES TAB ===== -->
     <div id="content-categories" class="tab-content hidden">
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="card p-6 mb-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Category Management</h3>
                 <button data-open-add-category-modal type="button" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm inline-flex items-center gap-1.5">
@@ -1181,7 +1181,7 @@ async function saveEditProduct() {
 
 <!-- Edit Product Modal (Card/Bottle) -->
 <div id="edit-product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" data-close-edit-product-overlay>
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-auto my-4">
+    <div class="card shadow-xl max-w-2xl w-full mx-auto my-4">
         <div class="bg-gradient-to-r from-blue-600 to-teal-600 text-white px-6 py-4 rounded-t-lg">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Edit Product</h3>
@@ -1307,7 +1307,7 @@ async function saveEditProduct() {
 
 <!-- Edit Variety Pack Modal -->
 <div id="edit-variety-pack-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-close-edit-variety-pack-overlay>
-    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="card shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-lg">
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Edit variety pack</h3>

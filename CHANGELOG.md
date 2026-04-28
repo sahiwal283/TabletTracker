@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.25] - 2026-04-28
+
+### Fixed
+- **Command Center theme:** pastel Tailwind rows (`from-green-50`, purple/orange accents, etc.) no longer render as light mint/yellow strips while body text stays light—accordion and list headers stay dark-panel with readable contrast site-wide.
+- **Product & Tablet Configuration:** info callout headings (`text-blue-900`, orange warnings) remap to light-on-panel copy under `main`. Product configuration panels use the shared `card` styling for consistency with the rest of the app.
+
+---
+
 ## [4.16.24] - 2026-04-28
 
 ### Changed

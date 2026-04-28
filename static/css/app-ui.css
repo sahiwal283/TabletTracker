@@ -454,6 +454,102 @@ body.tt-app-body .to-cyan-50 {
   --tw-gradient-to: rgba(15, 23, 42, 0.96) !important;
 }
 
+/* Green / emerald / teal / purple / orange / amber pastels — same issue as blue-50 rows:
+   literal mint backgrounds + forced light body text = unreadable. Map stops to panels. */
+body.tt-app-body .from-green-50,
+body.tt-app-body .from-emerald-50,
+body.tt-app-body .from-teal-50,
+body.tt-app-body .from-lime-50,
+body.tt-app-body .from-purple-50,
+body.tt-app-body .from-pink-50,
+body.tt-app-body .from-fuchsia-50,
+body.tt-app-body .from-orange-50,
+body.tt-app-body .from-yellow-50,
+body.tt-app-body .from-amber-50 {
+  --tw-gradient-from: rgba(21, 29, 46, 0.98) !important;
+}
+
+body.tt-app-body .to-green-50,
+body.tt-app-body .to-emerald-50,
+body.tt-app-body .to-teal-50,
+body.tt-app-body .to-lime-50,
+body.tt-app-body .to-purple-50,
+body.tt-app-body .to-pink-50,
+body.tt-app-body .to-fuchsia-50,
+body.tt-app-body .to-orange-50,
+body.tt-app-body .to-yellow-50,
+body.tt-app-body .to-amber-50 {
+  --tw-gradient-to: rgba(15, 23, 42, 0.96) !important;
+}
+
+body.tt-app-body .hover\:from-green-100:hover,
+body.tt-app-body .hover\:from-emerald-100:hover,
+body.tt-app-body .hover\:from-teal-100:hover,
+body.tt-app-body .hover\:from-purple-100:hover,
+body.tt-app-body .hover\:from-pink-100:hover,
+body.tt-app-body .hover\:from-orange-100:hover,
+body.tt-app-body .hover\:from-yellow-100:hover,
+body.tt-app-body .hover\:from-amber-100:hover,
+body.tt-app-body .hover\:from-blue-100:hover,
+body.tt-app-body .hover\:from-indigo-100:hover {
+  --tw-gradient-from: rgba(30, 41, 59, 0.95) !important;
+}
+
+body.tt-app-body .hover\:to-green-100:hover,
+body.tt-app-body .hover\:to-emerald-100:hover,
+body.tt-app-body .hover\:to-teal-100:hover,
+body.tt-app-body .hover\:to-purple-100:hover,
+body.tt-app-body .hover\:to-pink-100:hover,
+body.tt-app-body .hover\:to-yellow-100:hover,
+body.tt-app-body .hover\:to-indigo-100:hover {
+  --tw-gradient-to: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Pastel info / warning boxes: panels already dark — “blue-900” body text must not stay navy */
+main.tt-app-main .bg-blue-50,
+main.tt-app-main .bg-indigo-50,
+main.tt-app-main .bg-sky-50 {
+  background: linear-gradient(165deg, rgba(21, 29, 46, 0.96), rgba(17, 24, 38, 0.92)) !important;
+}
+
+main.tt-app-main .border-blue-100,
+main.tt-app-main .border-blue-200 {
+  border-color: rgba(56, 189, 248, 0.28) !important;
+}
+
+main.tt-app-main .text-blue-900 {
+  color: #f0f9ff !important;
+}
+
+main.tt-app-main .text-blue-800 {
+  color: #e0f2fe !important;
+}
+
+main.tt-app-main .text-blue-700 {
+  color: #7dd3fc !important;
+}
+
+main.tt-app-main .bg-orange-50 {
+  background: linear-gradient(165deg, rgba(55, 40, 20, 0.65), rgba(17, 24, 38, 0.92)) !important;
+}
+
+main.tt-app-main .border-orange-500 {
+  border-color: rgba(251, 146, 60, 0.5) !important;
+}
+
+main.tt-app-main .text-orange-900,
+main.tt-app-main .text-orange-800 {
+  color: #ffedd5 !important;
+}
+
+main.tt-app-main .text-orange-700 {
+  color: #fdba74 !important;
+}
+
+main.tt-app-main .bg-orange-200 {
+  background: rgba(154, 52, 18, 0.45) !important;
+}
+
 /* Shipments Received — accordion rows + nested cards keep readable hierarchy */
 main.tt-app-main .tt-receiving-shell .border-l-4.border-blue-500 {
   border-left-color: rgba(56, 189, 248, 0.55) !important;
