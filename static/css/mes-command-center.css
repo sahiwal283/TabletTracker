@@ -770,6 +770,32 @@ input {
   gap: 8px;
 }
 
+.occ-po-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.occ-po-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a9bd;
+}
+
+.occ-po-select {
+  min-width: 200px;
+  max-width: min(420px, 100%);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(65, 121, 157, 0.55);
+  background: rgba(12, 28, 48, 0.92);
+  color: #e8f2fb;
+  font-size: 11px;
+}
+
 .wall-row-a {
   grid-template-columns: 0.9fr 1.05fr 0.82fr 0.72fr 1.08fr;
 }

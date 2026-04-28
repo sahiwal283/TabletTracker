@@ -268,6 +268,7 @@ def build_mes_dashboard(
         "cycle_analysis": pb.get("cycle_analysis") or {},
         "oee_donut": oee_blank,
         "inventory": pb.get("inventory") or [],
+        "inventory_po_options": pb.get("inventory_po_options") or [],
         "sku_table": pb.get("sku_table") or [],
         "staging": pb.get("staging") or [],
         "timeline": pb.get("timeline") or [],

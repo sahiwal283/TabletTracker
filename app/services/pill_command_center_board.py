@@ -29,6 +29,21 @@ def _ny_yesterday_bounds_ms() -> tuple[int, int]:
     return start, end
 
 
+def _physical_bag_label_short(
+    shipment_number: object, box_number: object, bag_number: object
+) -> str | None:
+    """Shorter physical id: shipment#-box#-bag# (receiving line)."""
+    if box_number is None or bag_number is None:
+        return None
+    try:
+        sh = int(shipment_number or 1)
+        bx = int(box_number)
+        bg = int(bag_number)
+    except (TypeError, ValueError):
+        return None
+    return f"{sh}-{bx}-{bg}"
+
+
 def _count_finalize_events(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> int:
     try:
         r = conn.execute(
@@ -336,31 +351,93 @@ def build_pill_command_center_board_payload(
     except sqlite3.OperationalError:
         pass
 
+    inventory_po_options: list[str] = []
+    try:
+        for r in conn.execute(
+            """
+            SELECT DISTINCT trim(po.po_number) AS po
+            FROM workflow_bags wb
+            JOIN bags bg ON bg.id = wb.inventory_bag_id
+            JOIN small_boxes sb ON bg.small_box_id = sb.id
+            JOIN receiving rc ON sb.receiving_id = rc.id
+            JOIN purchase_orders po ON rc.po_id = po.id
+            WHERE trim(COALESCE(po.po_number, '')) != ''
+            ORDER BY po.po_number DESC
+            LIMIT 80
+            """
+        ).fetchall():
+            p = (r["po"] or "").strip()
+            if p and p not in inventory_po_options:
+                inventory_po_options.append(p)
+    except sqlite3.OperationalError:
+        inventory_po_options = []
+
     inventory_rows: list[dict] = []
     try:
         for r in conn.execute(
             """
             SELECT COALESCE(pd.product_name, '—') AS sku,
-                   wb.receipt_number AS bag_ref,
-                   wb.id AS wid
+                   wb.id AS workflow_bag_id,
+                   wb.receipt_number,
+                   COALESCE(rc.shipment_number, 1) AS shipment_number,
+                   sb.box_number,
+                   bg.bag_number,
+                   trim(COALESCE(po.po_number, '')) AS po_number
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
+            LEFT JOIN bags bg ON bg.id = wb.inventory_bag_id
+            LEFT JOIN small_boxes sb ON bg.small_box_id = sb.id
+            LEFT JOIN receiving rc ON sb.receiving_id = rc.id
+            LEFT JOIN purchase_orders po ON rc.po_id = po.id
             ORDER BY wb.created_at DESC
-            LIMIT 12
+            LIMIT 500
             """
         ).fetchall():
-            ref = (r["bag_ref"] or "").strip() or f"WB-{int(r['wid'])}"
+            wid = int(r["workflow_bag_id"])
+            phys = _physical_bag_label_short(
+                r["shipment_number"], r["box_number"], r["bag_number"]
+            )
+            receipt = (r["receipt_number"] or "").strip()
+            bag_display = phys or (receipt[:40] if receipt else f"WB-{wid}")
+            po = (r["po_number"] or "").strip()
             inventory_rows.append(
                 {
                     "sku": str(r["sku"] or "")[:42],
-                    "bag_id": ref[:32],
+                    "bag_id": bag_display[:40],
+                    "workflow_bag_id": wid,
+                    "po_number": po,
                     "units": 0,
-                    "qty": 1,
+                    "quantity": 1,
                     "status": "Available",
                 }
             )
     except sqlite3.OperationalError:
-        pass
+        try:
+            for r in conn.execute(
+                """
+                SELECT COALESCE(pd.product_name, '—') AS sku,
+                       wb.receipt_number AS bag_ref,
+                       wb.id AS wid
+                FROM workflow_bags wb
+                LEFT JOIN product_details pd ON pd.id = wb.product_id
+                ORDER BY wb.created_at DESC
+                LIMIT 80
+                """
+            ).fetchall():
+                ref = (r["bag_ref"] or "").strip() or f"WB-{int(r['wid'])}"
+                inventory_rows.append(
+                    {
+                        "sku": str(r["sku"] or "")[:42],
+                        "bag_id": ref[:40],
+                        "workflow_bag_id": int(r["wid"]),
+                        "po_number": "",
+                        "units": 0,
+                        "quantity": 1,
+                        "status": "Available",
+                    }
+                )
+        except sqlite3.OperationalError:
+            pass
 
     staging_rows: list[dict] = []
     pipe = (flow_intel or {}).get("pipeline") or []
@@ -601,6 +678,7 @@ def build_pill_command_center_board_payload(
         "kpis": kpis_strip,
         "lifelines": lifelines,
         "inventory": inventory_rows,
+        "inventory_po_options": inventory_po_options,
         "staging": staging_rows,
         "timeline": timeline_rows,
         "sku_table": sku_rows,
