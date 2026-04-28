@@ -3,7 +3,7 @@
 import unittest
 
 from app import create_app
-from app.blueprints.workflow_staff import build_assign_bag_context
+from app.services.workflow_assign_form import build_assign_bag_context, parse_nonnegative_int
 
 
 class TestWorkflowAssignContext(unittest.TestCase):
@@ -52,3 +52,11 @@ class TestWorkflowAssignContext(unittest.TestCase):
         self.assertEqual(ctx["return_to"], "command_center")
         self.assertEqual(ctx["restart_url"], "/admin/workflow-qr")
         self.assertTrue(ctx["products_load_failed"])
+
+    def test_parse_nonnegative_int(self):
+        self.assertEqual(parse_nonnegative_int("0"), 0)
+        self.assertEqual(parse_nonnegative_int("42"), 42)
+        self.assertIsNone(parse_nonnegative_int(""))
+        self.assertIsNone(parse_nonnegative_int(None))
+        self.assertIsNone(parse_nonnegative_int("-1"))
+        self.assertIsNone(parse_nonnegative_int("not-a-number"))

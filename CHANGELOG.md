@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.13] - 2026-04-28
+
+### Changed
+- **Workflow architecture:** moved shared QR assignment form context, product loading, and simple form parsing out of blueprint modules into `app/services/workflow_assign_form.py` so admin and staff routes depend on a shared service boundary.
+
+---
+
 ## [4.16.12] - 2026-04-28
 
 ### Changed

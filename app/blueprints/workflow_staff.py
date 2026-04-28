@@ -8,6 +8,12 @@ import sqlite3
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app.services.workflow_assign_form import (
+    ASSIGN_BAG_RETURN_COMMAND_CENTER,
+    build_assign_bag_context,
+    load_workflow_products,
+    parse_nonnegative_int,
+)
 from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_for_product
 from app.services.workflow_finalize import assign_inventory_bag_to_card, force_release_card
 from app.services.workflow_read import production_day_for_event_ms
@@ -54,42 +60,6 @@ def _bag_display_name(conn: sqlite3.Connection, inventory_bag_id: int) -> str:
     return f"{po_num}-{int(row['shipment_number'])}-{row['box_number']}-{row['bag_number']}"
 
 
-def _load_workflow_products(conn):
-    rows = conn.execute(
-        """
-        SELECT pd.id, pd.product_name, pd.tablet_type_id,
-               pd.category,
-               tt.category AS tablet_category
-        FROM product_details pd
-        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-        WHERE COALESCE(pd.is_variety_pack, 0) = 0
-        AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
-        ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
-        LIMIT 500
-        """
-    ).fetchall()
-    return [dict(p) for p in rows]
-
-
-def _parse_nonneg_int(raw):
-    if raw is None:
-        return None
-    s = str(raw).strip()
-    if not s:
-        return None
-    try:
-        v = int(s)
-    except ValueError:
-        return None
-    if v < 0:
-        return None
-    return v
-
-
-# Hidden form field value: embed assigns bag from Command Center; redirects return there after POST.
-ASSIGN_BAG_RETURN_COMMAND_CENTER = "command_center"
-
-
 def assign_bag_redirect_after_post():
     rt = (request.form.get("return_to") or "").strip()
     if rt == ASSIGN_BAG_RETURN_COMMAND_CENTER:
@@ -104,36 +74,6 @@ def _assign_bag_restart_url_from_form():
     return url_for("workflow_staff.new_bag")
 
 
-def build_assign_bag_context(
-    *,
-    products,
-    ambiguous_matches=None,
-    form_product_id=None,
-    form_box_number=None,
-    form_bag_number=None,
-    form_card_scan_token=None,
-    form_receipt_number=None,
-    form_hand_packed=False,
-    return_to="",
-    restart_url=None,
-    products_load_failed=False,
-):
-    """Template context for the shared QR-card bag assignment form."""
-    return {
-        "products": products,
-        "ambiguous_matches": ambiguous_matches,
-        "form_product_id": form_product_id,
-        "form_box_number": form_box_number,
-        "form_bag_number": form_bag_number,
-        "form_card_scan_token": form_card_scan_token,
-        "form_receipt_number": form_receipt_number,
-        "form_hand_packed": bool(form_hand_packed),
-        "return_to": return_to,
-        "restart_url": restart_url or url_for("workflow_staff.new_bag"),
-        "products_load_failed": bool(products_load_failed),
-    }
-
-
 @bp.route("/staff/new-bag", methods=["GET", "POST"])
 @employee_required
 def new_bag():
@@ -141,7 +81,7 @@ def new_bag():
     conn = get_db()
     try:
         if request.method == "GET":
-            products = _load_workflow_products(conn)
+            products = load_workflow_products(conn)
             rt = (request.args.get("return_to") or "").strip()
             if rt != ASSIGN_BAG_RETURN_COMMAND_CENTER:
                 rt = ""
@@ -160,8 +100,8 @@ def new_bag():
             )
 
         product_id = request.form.get("product_id", type=int)
-        box_number = _parse_nonneg_int(request.form.get("box_number"))
-        bag_number = _parse_nonneg_int(request.form.get("bag_number"))
+        box_number = parse_nonnegative_int(request.form.get("box_number"))
+        bag_number = parse_nonnegative_int(request.form.get("bag_number"))
         card_scan_token = (request.form.get("card_scan_token") or "").strip()
         receipt_number = (request.form.get("receipt_number") or "").strip()
         hand_packed = (request.form.get("hand_packed") or "").strip().lower() in (
@@ -221,7 +161,7 @@ def new_bag():
                 )
                 return assign_bag_redirect_after_post()
             if len(matches) > 1:
-                products = _load_workflow_products(conn)
+                products = load_workflow_products(conn)
                 return render_template(
                     "workflow_new_bag.html",
                     bag_assign=build_assign_bag_context(

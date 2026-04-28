@@ -28,15 +28,15 @@ from flask import (
 )
 
 from app.blueprints.workflow_floor import _current_station_occupancy
-from app.blueprints.workflow_staff import (
-    ASSIGN_BAG_RETURN_COMMAND_CENTER,
-    _load_workflow_products,
-    build_assign_bag_context,
-)
 from app.services import workflow_constants as WC
 from app.services.mes_dashboard import build_mes_dashboard
 from app.services.ops_flow_intel import compute_production_flow_intel
 from app.services.pill_command_center_board import build_pill_command_center_board_payload
+from app.services.workflow_assign_form import (
+    ASSIGN_BAG_RETURN_COMMAND_CENTER,
+    build_assign_bag_context,
+    load_workflow_products,
+)
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required, session_has_admin_panel_access
@@ -1601,7 +1601,7 @@ def workflow_qr_management():
                 restart_url=url_for("admin.workflow_qr_management"),
             )
             try:
-                bag_assign["products"] = _load_workflow_products(conn)
+                bag_assign["products"] = load_workflow_products(conn)
             except Exception:
                 bag_assign["products_load_failed"] = True
                 current_app.logger.warning(
