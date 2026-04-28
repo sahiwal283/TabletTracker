@@ -1,8 +1,26 @@
 import json
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes")
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 
 def _parse_zoho_service_extra_headers():
@@ -39,7 +57,7 @@ class Config:
         if ENV == 'production':
             raise ValueError("SECRET_KEY environment variable must be set in production")
         SECRET_KEY = 'dev-secret-change-in-production'  # Only allow in development
-    
+
     # Admin authentication
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
     if not ADMIN_PASSWORD:
@@ -47,7 +65,7 @@ class Config:
         if ENV == 'production':
             raise ValueError("ADMIN_PASSWORD environment variable must be set in production")
         ADMIN_PASSWORD = 'admin'  # Only allow in development
-    
+
     # Zoho API settings
     ZOHO_CLIENT_ID = os.environ.get('ZOHO_CLIENT_ID')
     ZOHO_CLIENT_SECRET = os.environ.get('ZOHO_CLIENT_SECRET')
@@ -74,11 +92,11 @@ class Config:
     ZOHO_SERVICE_EXTRA_HEADERS = _parse_zoho_service_extra_headers()
 
     # Reverse proxy (nginx): trust X-Forwarded-*; optional subpath via X-Forwarded-Prefix
-    BEHIND_PROXY = os.environ.get("BEHIND_PROXY", "").lower() in ("1", "true", "yes")
-    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", "1"))
+    BEHIND_PROXY = _env_flag("BEHIND_PROXY")
+    TRUSTED_PROXY_COUNT = _env_int("TRUSTED_PROXY_COUNT", 1)
     # If the app is mounted under a path (and not only X-Forwarded-Prefix), set e.g. APPLICATION_ROOT=/tablet
     APPLICATION_ROOT = os.environ.get("APPLICATION_ROOT", "").strip() or "/"
-    
+
     # UPS Tracking API (free; client credentials)
     UPS_CLIENT_ID = os.environ.get('UPS_CLIENT_ID')
     UPS_CLIENT_SECRET = os.environ.get('UPS_CLIENT_SECRET')
@@ -101,42 +119,38 @@ class Config:
     # Optional TELEGRAM_WEBHOOK_PATH_SECRET: random path segment instead of putting TELEGRAM_BOT_TOKEN in the URL.
     TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
     TELEGRAM_WEBHOOK_PATH_SECRET = os.environ.get("TELEGRAM_WEBHOOK_PATH_SECRET", "").strip()
-    
+
     # Database (set DATABASE_PATH in Docker to a mounted volume, e.g. /data/tablet_counter.db)
     _config_dir = os.path.dirname(os.path.abspath(__file__))
     DATABASE_PATH = os.environ.get("DATABASE_PATH") or os.path.join(_config_dir, "database", "tablet_counter.db")
     DATABASE_URL = os.environ.get("DATABASE_URL") or f"sqlite:///{DATABASE_PATH}"
-    
+
     # Security settings
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = 28800  # 8 hours in seconds
-    
+
     # CSRF settings - match session lifetime to prevent token expiration during long work sessions
     WTF_CSRF_TIME_LIMIT = 28800  # 8 hours in seconds (same as session)
-    
+
     # App settings
     ITEMS_PER_PAGE = 50
     DEBUG = os.environ.get('FLASK_ENV') == 'development'
-    
+
     # Production settings
     ENV = os.environ.get('FLASK_ENV', 'development')
     TESTING = False
 
     # Performance baseline logging (request/query timing). Default: same as DEBUG.
-    PERF_LOGGING = os.environ.get('PERF_LOGGING', '').lower() in ('1', 'true', 'yes') or os.environ.get('FLASK_ENV') == 'development'
-    
-    # Rate limiting (for future implementation)
-    RATELIMIT_STORAGE_URL = "memory://"
-    RATELIMIT_DEFAULT = "100 per hour"
+    PERF_LOGGING = _env_flag('PERF_LOGGING') or os.environ.get('FLASK_ENV') == 'development'
 
 
 def _validate_self_hosted_zoho():
     """Docker image sets TABLETTRACKER_SELF_HOSTED=1; all Zoho traffic must use the integration service."""
-    if os.environ.get("TABLETTRACKER_SELF_HOSTED", "").lower() not in ("1", "true", "yes"):
+    if not _env_flag("TABLETTRACKER_SELF_HOSTED"):
         return
-    if os.environ.get("SKIP_ZOHO_SERVICE_CHECK", "").lower() in ("1", "true", "yes"):
+    if _env_flag("SKIP_ZOHO_SERVICE_CHECK"):
         return
     if not os.environ.get("ZOHO_SERVICE_BASE_URL", "").strip():
         raise ValueError(

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.15] - 2026-04-28
+
+### Changed
+- **Config cleanup:** consolidated environment variable documentation in `.env.example`, removed the stale duplicate `env_template.txt`, and made boolean/integer env parsing more tolerant.
+- **Dependencies:** removed unused `weasyprint` and `python-magic`; PDF generation continues to use `reportlab`.
+
+---
+
 ## [4.16.14] - 2026-04-28
 
 ### Changed

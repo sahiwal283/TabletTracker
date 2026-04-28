@@ -1,6 +1,5 @@
 """TabletTracker application factory."""
 
-import os
 import time
 import traceback
 from datetime import timedelta
@@ -243,12 +242,8 @@ def create_app(config_class=Config):
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
     _configure_app(app, config_class)
-    if getattr(config_class, "BEHIND_PROXY", False) or os.environ.get("BEHIND_PROXY", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    ):
-        n = int(os.environ.get("TRUSTED_PROXY_COUNT", str(getattr(config_class, "TRUSTED_PROXY_COUNT", 1))))
+    if getattr(config_class, "BEHIND_PROXY", False):
+        n = int(getattr(config_class, "TRUSTED_PROXY_COUNT", 1))
         app.wsgi_app = ProxyFix(
             app.wsgi_app,
             x_for=n,
