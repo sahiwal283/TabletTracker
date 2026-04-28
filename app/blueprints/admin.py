@@ -261,6 +261,65 @@ def _floor_ops_overview(
     }
 
 
+def _command_center_final_product_displays_by_po(
+    conn: sqlite3.Connection, selected_po_id: int | None
+) -> dict:
+    """Packaged-only display totals by product(flavor) for one PO."""
+    out: dict = {
+        "po_options": [],
+        "selected_po_id": None,
+        "selected_po_number": "",
+        "rows": [],
+        "total_displays": 0,
+    }
+    try:
+        po_rows = conn.execute(
+            """
+            SELECT po.id, po.po_number,
+                   COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS total_displays
+            FROM purchase_orders po
+            JOIN warehouse_submissions ws ON ws.assigned_po_id = po.id
+            WHERE COALESCE(ws.submission_type, 'packaged') = 'packaged'
+            GROUP BY po.id, po.po_number
+            HAVING COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) > 0
+            ORDER BY po.po_number DESC
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return out
+    po_options = [dict(r) for r in po_rows]
+    out["po_options"] = po_options
+    if not po_options:
+        return out
+    chosen_po_id: int | None = None
+    if selected_po_id is not None and any(int(p["id"]) == int(selected_po_id) for p in po_options):
+        chosen_po_id = int(selected_po_id)
+    else:
+        chosen_po_id = int(po_options[0]["id"])
+    out["selected_po_id"] = chosen_po_id
+    selected_po = next((p for p in po_options if int(p["id"]) == chosen_po_id), None)
+    out["selected_po_number"] = str((selected_po or {}).get("po_number") or "")
+    try:
+        rows = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(ws.product_name), ''), 'Unspecified') AS flavor,
+                   COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS displays_made
+            FROM warehouse_submissions ws
+            WHERE ws.assigned_po_id = ?
+              AND COALESCE(ws.submission_type, 'packaged') = 'packaged'
+            GROUP BY COALESCE(NULLIF(TRIM(ws.product_name), ''), 'Unspecified')
+            HAVING COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) > 0
+            ORDER BY displays_made DESC, flavor ASC
+            """,
+            (chosen_po_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return out
+    out["rows"] = [dict(r) for r in rows]
+    out["total_displays"] = int(sum(int(r.get("displays_made") or 0) for r in out["rows"]))
+    return out
+
+
 def _ops_tv_daily_target_tablets(conn: sqlite3.Connection) -> int:
     try:
         row = conn.execute(
@@ -1452,6 +1511,13 @@ def manage_employees():
 @admin_required
 def workflow_qr_management():
     """Command Center: monitor workflow stations/cards and manage QR settings."""
+    selected_po_id: int | None = None
+    raw_po = (request.args.get("po_id") or "").strip()
+    if raw_po:
+        try:
+            selected_po_id = int(raw_po)
+        except (TypeError, ValueError):
+            selected_po_id = None
     try:
         with db_read_only() as conn:
             stations = []
@@ -1647,6 +1713,9 @@ def workflow_qr_management():
             floor_ops_overview = _floor_ops_overview(
                 stations, station_live, floor_station_day_stats, cards
             )
+            final_output_by_po = _command_center_final_product_displays_by_po(
+                conn, selected_po_id
+            )
             return render_template(
                 "admin_workflow_qr.html",
                 stations=stations,
@@ -1660,6 +1729,7 @@ def workflow_qr_management():
                 floor_station_day_stats=floor_station_day_stats,
                 floor_ops_date_label=floor_ops_date_label,
                 floor_ops_overview=floor_ops_overview,
+                final_output_by_po=final_output_by_po,
                 bag_assign=bag_assign,
             )
     except Exception as e:
@@ -1680,6 +1750,13 @@ def workflow_qr_management():
             floor_station_day_stats={},
             floor_ops_date_label="",
             floor_ops_overview=_floor_ops_overview([], {}, {}, []),
+            final_output_by_po={
+                "po_options": [],
+                "selected_po_id": None,
+                "selected_po_number": "",
+                "rows": [],
+                "total_displays": 0,
+            },
             bag_assign=build_assign_bag_context(
                 products=[],
                 return_to=ASSIGN_BAG_RETURN_COMMAND_CENTER,

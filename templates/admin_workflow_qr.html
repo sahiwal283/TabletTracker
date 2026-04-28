@@ -163,6 +163,63 @@
     {% endif %}
   </div>
 
+  {% set po_out = final_output_by_po or {} %}
+  <div class="card p-5 mb-6">
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-base font-semibold text-gray-900">Final product by PO</h2>
+        <p class="text-sm text-gray-600">Packaged submissions only. Shows displays made per flavor/product.</p>
+      </div>
+      <form method="get" action="{{ url_for('admin.workflow_qr_management') }}" class="flex items-end gap-2">
+        <label for="po-final-output-select" class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Purchase order</label>
+        <select id="po-final-output-select" name="po_id" class="form-input text-sm min-w-[14rem]" onchange="this.form.submit()">
+          {% if not po_out.po_options %}
+          <option value="">No PO output yet</option>
+          {% else %}
+            {% for po in po_out.po_options %}
+            <option value="{{ po.id }}" {% if po_out.selected_po_id == po.id %}selected{% endif %}>
+              {{ po.po_number }} · {{ po.total_displays }} displays
+            </option>
+            {% endfor %}
+          {% endif %}
+        </select>
+        <button type="submit" class="btn-secondary text-sm py-2 px-3">View</button>
+      </form>
+    </div>
+    {% if po_out.rows %}
+    <div class="overflow-x-auto">
+      <table class="min-w-[30rem] w-full text-sm">
+        <thead>
+          <tr class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+            <th class="px-3 py-2 text-left font-semibold">Flavor / product</th>
+            <th class="px-3 py-2 text-right font-semibold">Displays made</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in po_out.rows %}
+          <tr class="border-b border-gray-100">
+            <td class="px-3 py-2 text-gray-800">{{ r.flavor }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">{{ r.displays_made }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="bg-gray-50 border-t border-gray-200">
+            <td class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
+              Total{% if po_out.selected_po_number %} · {{ po_out.selected_po_number }}{% endif %}
+            </td>
+            <td class="px-3 py-2 text-right tabular-nums font-bold text-gray-900">{{ po_out.total_displays }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% elif po_out.po_options %}
+    <p class="text-sm text-gray-500">No packaged final-product displays found for the selected PO.</p>
+    {% else %}
+    <p class="text-sm text-gray-500">No final-product packaged output has been recorded yet.</p>
+    {% endif %}
+  </div>
+
   <details class="rounded-xl border border-gray-200 bg-gray-50/80 mb-8">
     <summary class="px-4 py-3 cursor-pointer list-none flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 font-semibold text-gray-900 text-sm">
       <span>Staff tools and configuration</span>

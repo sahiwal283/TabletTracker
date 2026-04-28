@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.38] - 2026-04-28
+
+### Added
+- **Command Center PO final-output panel:** between the live station table and staff tools, added a PO selector with a packaged-only breakdown of **displays made per flavor/product** and PO total displays. This view intentionally tracks only final product (`submission_type = packaged`).
+
+---
+
 ## [4.16.36] - 2026-04-28
 
 ### Fixed
