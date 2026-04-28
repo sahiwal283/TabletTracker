@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.3] - 2026-04-28
+
+### Fixed
+- **Fullscreen command center sidebar:** restored sidebar rendering and made each tab reliably clickable after the regression.
+- **Tab behavior:** sidebar tabs now switch in-app sections (alerts, machines, staging, bags/inventory, analytics, users, settings) via hash-backed tab state instead of dead/static navigation.
+
+---
+
 ## [4.16.2] - 2026-04-28
 
 ### Changed

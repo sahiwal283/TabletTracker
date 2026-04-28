@@ -8,6 +8,18 @@
   var useEffect = React.useEffect;
   var useMemo = React.useMemo;
   var useState = React.useState;
+  var FALLBACK_NAV_ITEMS = [
+    { label: "Overview", tab: "overview" },
+    { label: "Blister Line", tab: "blister" },
+    { label: "Bottle Line", tab: "bottle" },
+    { label: "Machines", tab: "machines" },
+    { label: "Bags / Inventory", tab: "bags" },
+    { label: "Staging", tab: "staging" },
+    { label: "Alerts", tab: "alerts" },
+    { label: "Analytics", tab: "analytics" },
+    { label: "Users", tab: "users" },
+    { label: "Settings", tab: "settings" },
+  ];
 
   function readBoot() {
     try {
@@ -386,6 +398,10 @@
     }, [props.snapshotUrl]);
 
     var boot = readBoot();
+    var navItems = Array.isArray(boot.nav) && boot.nav.length ? boot.nav : FALLBACK_NAV_ITEMS;
+    var tabState = useState(function () { return readInitialTab(navItems); });
+    var activeTab = tabState[0];
+    var setActiveTab = tabState[1];
     var mes = (snap && snap.mes) || {};
     var inp = mes.metrics_inputs || {};
     var events = inp.events || [];
@@ -449,6 +465,18 @@
     var downtimeRows = (mes.downtime || []).slice(0, 4).map(function (r) {
       return [r.line || "N/A", r.downtime || r.duration || "N/A", r.reason || "N/A", fmtNumber(r.impact_units || r.impact)];
     });
+    var allAlertRows = (mes.alerts || []).map(function (a) {
+      return [fmtTime(a.at_ms || a.atMs), String(a.severity || "info").toUpperCase(), a.message || "Alert"];
+    });
+    var allMachineRows = machines.map(function (m) {
+      return [m.shortLabel, m.label, m.stationId != null ? String(m.stationId) : "N/A", statusText(m.integrationStatus), m.currentBagId != null ? "BAG-" + m.currentBagId : "No activity", m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data"];
+    });
+    var stagingBagRows = staging.map(function (r) {
+      return ["BAG-" + r.bagId, elapsedSince(r.enteredAtMs), r.lastStationLabel || "N/A", r.lastEventType || "N/A"];
+    });
+    var bagAssignmentRows = (inp.machines || []).filter(function (r) { return r.workflowBagId != null; }).map(function (r) {
+      return ["BAG-" + r.workflowBagId, r.displayName || r.stationLabel || "N/A", r.stationKind || "N/A", r.status || "N/A", elapsedSince(r.occupancyStartedAtMs)];
+    });
 
     var bottleIntegrated = machines[4].integrationStatus !== "NOT_INTEGRATED";
     var blisterSku = machines[0].sku !== "N/A" ? machines[0].sku : (machines[1].sku !== "N/A" ? machines[1].sku : "N/A");
@@ -493,14 +521,45 @@
     useEffect(function () {
       if (blisterStationId) loadMaterialSummary(blisterStationId);
     }, [blisterStationId]);
+
+    useEffect(function () {
+      function onHashChange() {
+        setActiveTab(readInitialTab(navItems));
+      }
+      window.addEventListener("hashchange", onHashChange);
+      return function () {
+        window.removeEventListener("hashchange", onHashChange);
+      };
+    }, [navItems]);
+
+    function selectTab(tab) {
+      setActiveTab(tab);
+      var h = "#" + tab;
+      if (window.location.hash !== h) window.history.replaceState(null, "", h);
+    }
+
+    function renderFocusedTab() {
+      if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
+      if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /></section><section className="occ-machine-grid"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} /><${MachineBand} title="CARD LINE MACHINES" tone="purple" machines=${[machines[1], machines[3]]} /></section></div>`;
+      if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "STAGING AREA", "BAG", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
+      if (activeTab === "bags") return html`<section className="occ-wall"><section className="wall-panel"><h3>BAGS / INVENTORY</h3><${DataTable} headers=${["SKU", "BAG ID", "UNITS", "QUANTITY", "STATUS"]} rows=${inventoryRows} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
+      if (activeTab === "blister") return html`<section className="occ-machine-grid"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${[machines[0], machines[1], machines[2], machines[3]]} /></section>`;
+      if (activeTab === "bottle") return html`<section className="occ-machine-grid"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${[machines[4], machines[3]]} /></section>`;
+      if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
+      if (activeTab === "users") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
+      if (activeTab === "settings") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} pvcCode=${pvcCode} foilCode=${foilCode} setPvcCode=${setPvcCode} setFoilCode=${setFoilCode} onChangeRoll=${changeRoll} /></section>`;
+      return null;
+    }
     var generated = snap && snap.generated_at_ms;
     return html`<div className="occ-app">
-      <${Sidebar} boot=${boot} />
+      <${Sidebar} boot=${boot} items=${navItems} activeTab=${activeTab} onSelect=${selectTab} />
       <main className="occ-main">
         <header className="occ-header">
           <div><h1>PILL PACKING COMMAND CENTER</h1><p>Real-time Production Monitoring <span></span> LIVE</p></div>
           <div className="occ-head-controls"><b>${fmtDate(generated)}</b><b>${fmtTime(now.getTime())}</b><button>All Lines</button><button>All SKUs</button><i>⛶</i></div>
         </header>
+        ${activeTab !== "overview" ? renderFocusedTab() : null}
+        ${activeTab === "overview" ? html`
         <section className="occ-kpis">
           <${KpiCard} label="TOTAL BAGS PROCESSED (TODAY)" value=${kpiBy.bags ? fmtNumber(kpiBy.bags.value) : "0"} note="Real workflow bags" icon="bag" />
           <${KpiCard} label="TOTAL UNITS PROCESSED (TODAY)" value=${kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"} note="Completed counter deltas" icon="bars" />
@@ -565,6 +624,7 @@
           <section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section>
         </section>
         <${TracePanel} events=${events} bags=${inp.bags || []} defaultBagId=${derived.genealogySelectedBagId || inp.genealogySelectedBagId} />
+        ` : null}
         <footer className="occ-footer"><span>All data is real-time and updates automatically.</span><span>Last updated: ${generated ? fmtTime(generated, true) : "N/A"} <i></i></span></footer>
       </main>
     </div>`;

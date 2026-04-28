@@ -68,7 +68,8 @@ input {
   background: #173b77;
 }
 
-.occ-side a {
+.occ-side a,
+.occ-side button {
   width: 68px;
   min-height: 58px;
   box-sizing: border-box;
@@ -82,9 +83,19 @@ input {
   font-size: 11px;
   line-height: 1.05;
   text-align: center;
+  background: transparent;
+  color: #d8e7fb;
+  cursor: pointer;
 }
 
-.occ-side a.active {
+.occ-side button {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+}
+
+.occ-side a.active,
+.occ-side button.active {
   border-color: #0877cb;
   background: rgba(11, 95, 158, 0.42);
   color: #30a8ff;
