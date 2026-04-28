@@ -1,0 +1,618 @@
+/* MES Command Center — production wallboard (spec #08111f, cyan glow) */
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: #08111f;
+  color: #e2e8f0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.mes-body {
+  overflow-x: hidden;
+}
+
+.mes-app {
+  min-height: 100vh;
+  display: flex;
+  background: #08111f;
+}
+
+.mes-aside {
+  width: 196px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(56, 228, 255, 0.1);
+  background: linear-gradient(180deg, #050a14, #08111f);
+  padding: 0.65rem 0;
+}
+
+.mes-nav-a {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+}
+
+.mes-nav-a:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+}
+
+.mes-nav-a.mes-active {
+  border-left-color: #22d3ee;
+  color: #7dd3fc;
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.mes-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mes-banner-err {
+  color: #fb7185;
+  font-size: 11px;
+  padding: 0.25rem 0.75rem;
+}
+
+.mes-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid rgba(56, 228, 255, 0.1);
+  background: rgba(6, 13, 24, 0.95);
+}
+
+.mes-h1 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.mes-sub {
+  margin: 0.2rem 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #22d3ee;
+  letter-spacing: 0.05em;
+}
+
+.mes-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mes-clock {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+
+.mes-select {
+  border-radius: 4px;
+  border: 1px solid rgba(56, 228, 255, 0.35);
+  background: #070f1a;
+  color: #a5f3fc;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0.35rem 0.6rem;
+}
+
+.mes-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+}
+
+@media (max-width: 1600px) {
+  .mes-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .mes-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mes-kpi-card {
+  border-radius: 6px;
+  border: 1px solid rgba(56, 228, 255, 0.35);
+  background: rgba(12, 21, 38, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  padding: 0.55rem 0.65rem;
+  min-height: 104px;
+}
+
+.mes-kpi-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+.mes-kpi-val {
+  margin-top: 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #f0f9ff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.mes-spark {
+  margin-top: 0.35rem;
+  width: 100%;
+}
+
+.mes-kpi-delta {
+  margin-top: 0.35rem;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mes-pos {
+  color: #4ade80;
+}
+
+.mes-neg {
+  color: #fbbf24;
+}
+
+.mes-band {
+  padding: 0 0.75rem 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+@media (min-width: 1280px) {
+  .mes-band {
+    grid-template-columns: 3fr 1fr;
+  }
+}
+
+.mes-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+@media (max-width: 1279px) {
+  .mes-lanes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mes-lane {
+  border-radius: 8px;
+  border: 1px solid rgba(56, 228, 255, 0.15);
+  background: rgba(12, 21, 38, 0.95);
+  padding: 0.55rem;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mes-lane-title {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+}
+
+.mes-lane-sku {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.mes-lane-sku strong {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.mes-stage-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mes-arrow {
+  text-align: center;
+  color: rgba(34, 211, 238, 0.35);
+  font-size: 10px;
+}
+
+.mes-stage {
+  border-radius: 4px;
+  padding: 0.45rem 0.55rem;
+  background: rgba(10, 21, 37, 0.9);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+}
+
+.mes-stage-warn {
+  border-color: rgba(251, 191, 36, 0.45);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.1);
+}
+
+.mes-stage-crit {
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.12);
+}
+
+.mes-stage-h {
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mes-stage-r {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.mes-stage-d {
+  margin-top: 0.25rem;
+  font-size: 10px;
+  color: #fcd34d;
+}
+
+.mes-stage-note {
+  margin-top: 0.25rem;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+
+.mes-alerts {
+  border-radius: 8px;
+  border: 1px solid rgba(244, 63, 94, 0.45);
+  background: rgba(10, 12, 18, 0.9);
+  padding: 0.55rem;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mes-alerts-h {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fecdd3;
+  margin-bottom: 0.35rem;
+}
+
+.mes-alert-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mes-alert {
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 0.35rem 0.45rem;
+  border-radius: 4px;
+  border-left: 3px solid #38bdf8;
+  background: rgba(12, 25, 45, 0.9);
+}
+
+.mes-alert-a {
+  border-left-color: #f87171;
+  background: rgba(70, 20, 30, 0.35);
+  color: #fecaca;
+}
+
+.mes-alert-w {
+  border-left-color: #fbbf24;
+  background: rgba(50, 40, 10, 0.35);
+  color: #fef3c7;
+}
+
+.mes-scada-head {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #64748b;
+  margin: 0.5rem 0.75rem 0.35rem;
+}
+
+.mes-scada-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+}
+
+@media (max-width: 1400px) {
+  .mes-scada-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mes-scada {
+  border-radius: 8px;
+  border: 1px solid rgba(56, 200, 255, 0.2);
+  padding: 0.55rem 0.65rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent), rgba(8, 24, 35, 0.55);
+}
+
+.mes-scada-idle {
+  opacity: 0.88;
+}
+
+.mes-scada-name {
+  font-size: 12px;
+  font-weight: 900;
+  color: #f0f9ff;
+}
+
+.mes-scada-can {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.mes-scada-st {
+  margin-top: 0.35rem;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.mes-scada-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 0.5rem;
+  font-size: 10px;
+  gap: 0.2rem 0.35rem;
+  align-items: baseline;
+}
+
+.mes-scada-grid2 .rt {
+  text-align: right;
+}
+
+.mes-scada-grid2 .mes-ell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mes-c-util {
+  color: #67e8f9;
+}
+
+.mes-c-oee {
+  color: #86efac;
+}
+
+.mes-ts {
+  font-size: 10px;
+}
+
+.mes-run {
+  color: #4ade80;
+}
+
+.mes-wait {
+  color: #fbbf24;
+}
+
+.mes-idle {
+  color: #64748b;
+}
+
+.mes-grid5 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.5rem;
+}
+
+@media (max-width: 1400px) {
+  .mes-grid5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mes-grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+@media (max-width: 1200px) {
+  .mes-grid4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mes-panel {
+  border-radius: 8px;
+  border: 1px solid rgba(34, 211, 238, 0.15);
+  background: rgba(10, 18, 31, 0.9);
+  padding: 0.5rem;
+}
+
+.mes-panel-h {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  margin-bottom: 0.35rem;
+}
+
+.mes-scroll {
+  overflow: auto;
+  max-height: 200px;
+  font-size: 11px;
+}
+
+.mes-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.mes-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  padding: 0.2rem 0.35rem 0.35rem;
+}
+
+.mes-table td {
+  padding: 0.25rem 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mes-table tr.row-al {
+  background: rgba(80, 20, 30, 0.45);
+}
+
+.mes-grid2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+@media (max-width: 1200px) {
+  .mes-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mes-footer {
+  margin-top: auto;
+  padding: 0.45rem 1rem;
+  border-top: 1px solid rgba(30, 41, 59, 0.8);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.mes-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 0.35rem;
+  animation: mes-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes mes-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.mes-muted {
+  color: #64748b;
+}
+
+.mes-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.mes-tr {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.mes-legend {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.mes-nav-ic {
+  font-size: 12px;
+  opacity: 0.85;
+  width: 1rem;
+  text-align: center;
+}
+
+.mes-inv-st {
+  color: #86efac;
+  font-weight: 800;
+}
+
+.mes-grid-r1 {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.5rem;
+}
+
+@media (max-width: 1400px) {
+  .mes-grid-r1 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mes-r1-trend {
+  min-width: 0;
+}
+
+.mes-panel-wide {
+  grid-column: span 2;
+}
+
+.mes-span-2 {
+  grid-column: span 2;
+}

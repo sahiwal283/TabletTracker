@@ -27,6 +27,7 @@ from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
 from app.services.ops_flow_intel import compute_production_flow_intel
 from app.services.pill_command_center_board import build_pill_command_center_board_payload
+from app.services.mes_dashboard import build_mes_dashboard
 
 _LOGGER_ADMIN = logging.getLogger(__name__)
 
@@ -1035,6 +1036,22 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
     except Exception:
         _LOGGER_ADMIN.exception("build_ops_tv_snapshot pill_board")
 
+    mes_board: dict = {}
+    try:
+        mes_board = build_mes_dashboard(
+            conn,
+            machines,
+            flow_intel,
+            kpis_out,
+            hourly,
+            cumulative_hourly,
+            activity,
+            pill_board,
+            now_ms,
+        )
+    except Exception:
+        _LOGGER_ADMIN.exception("build_ops_tv_snapshot mes")
+
     return {
         "generated_at_ms": now_ms,
         "date_label": date_label,
@@ -1055,6 +1072,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         "flavor_breakdown": flavor_breakdown,
         "max_bar_output": max_out,
         "pill_board": pill_board,
+        "mes": mes_board,
     }
 
 
@@ -1642,12 +1660,31 @@ def ops_tv_dashboard():
     except Exception:
         current_app.logger.exception("ops_tv_dashboard bootstrap snapshot")
 
+    wf = url_for("admin.workflow_qr_management")
+    mes_nav_boot = {
+        "nav": [
+            {"label": "Overview", "href": url_for("admin.ops_tv_dashboard"), "icon": "◇"},
+            {"label": "Blister Line", "href": wf + "#blister", "icon": "▭"},
+            {"label": "Bottle Line", "href": wf + "#bottle", "icon": "▭"},
+            {"label": "Card Line", "href": wf + "#card", "icon": "▭"},
+            {"label": "Machines", "href": wf, "icon": "⚙"},
+            {"label": "Bags / Inventory", "href": url_for("receiving.receiving_list"), "icon": "▣"},
+            {"label": "Staging", "href": wf + "#staging", "icon": "▤"},
+            {"label": "Alerts", "href": url_for("admin.ops_tv_dashboard") + "#alerts", "icon": "!"},
+            {"label": "Reports", "href": url_for("reports.reports_view"), "icon": "▦"},
+            {"label": "Analytics", "href": url_for("reports.reports_view"), "icon": "▧"},
+            {"label": "Users", "href": url_for("admin.manage_employees"), "icon": "◎"},
+            {"label": "Settings", "href": url_for("admin.product_config"), "icon": "☰"},
+        ]
+    }
+
     html = render_template(
         "ops_tv_dashboard.html",
         snapshot_api_url=url_for("admin.ops_tv_snapshot_api"),
         command_center_url=url_for("admin.workflow_qr_management"),
         app_version=ver,
         initial_snapshot=initial_snapshot,
+        mes_nav_boot=mes_nav_boot,
     )
     resp = make_response(html)
     # Wall uses renamed static assets — avoid HTML cached while CSS/JS 404 at old paths behind proxies stripping ?v=
