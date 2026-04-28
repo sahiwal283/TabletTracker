@@ -92,6 +92,29 @@ def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: int
     return f"{po_num}-{int(row['shipment_number'])}-{row['box_number']}-{row['bag_number']}"
 
 
+def _format_elapsed_hms_from_delta_ms(delta_ms: int) -> str:
+    """HH:MM:SS for a fixed duration (e.g. run time up to pause); no live ticking."""
+    total_sec = max(0, int(delta_ms)) // 1000
+    h = total_sec // 3600
+    m = (total_sec % 3600) // 60
+    s = total_sec % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _paused_run_elapsed_label(occ: dict) -> str | None:
+    if str(occ.get("status") or "").lower() != "paused":
+        return None
+    start = occ.get("occupancy_started_at_ms")
+    pause_at = occ.get("paused_at_ms")
+    if start is None or pause_at is None:
+        return None
+    try:
+        delta = max(0, int(pause_at) - int(start))
+    except (TypeError, ValueError):
+        return None
+    return _format_elapsed_hms_from_delta_ms(delta)
+
+
 def _ny_today_bounds_ms() -> tuple[int, int, str]:
     """Factory-local day bounds in America/New_York for workflow floor stats."""
     from datetime import datetime, timedelta
@@ -560,6 +583,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             "workflow_bag_id": None,
             "card_token": None,
             "occupancy_started_at": None,
+            "paused_run_elapsed_label": None,
             "product_name": None,
             "receipt_number": None,
             "bag_name": None,
@@ -586,6 +610,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             "card_token": occ.get("card_token"),
             "occupancy_started_at": occ.get("occupancy_started_at_ms"),
             "paused_at_ms": occ.get("paused_at_ms"),
+            "paused_run_elapsed_label": _paused_run_elapsed_label(occ),
             "product_name": bd.get("product_name"),
             "flavor": bd.get("product_name"),
             "receipt_number": bd.get("receipt_number"),
@@ -1530,6 +1555,7 @@ def workflow_qr_management():
                     "workflow_bag_id": None,
                     "card_token": None,
                     "occupancy_started_at": None,
+                    "paused_run_elapsed_label": None,
                     "product_name": None,
                     "receipt_number": None,
                     "bag_name": None,
@@ -1557,6 +1583,7 @@ def workflow_qr_management():
                     "card_token": occ.get("card_token"),
                     "occupancy_started_at": occ.get("occupancy_started_at_ms"),
                     "paused_at_ms": occ.get("paused_at_ms"),
+                    "paused_run_elapsed_label": _paused_run_elapsed_label(occ),
                     "product_name": bd.get("product_name"),
                     "flavor": bd.get("product_name"),
                     "receipt_number": bd.get("receipt_number"),

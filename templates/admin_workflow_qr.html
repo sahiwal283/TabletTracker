@@ -119,8 +119,10 @@
               {% endif %}
             </td>
             <td class="px-3 py-2.5 font-mono text-xs text-slate-200 whitespace-nowrap">
-              {% if live_here and live.occupancy_started_at %}
+              {% if live.status == 'occupied' and live.occupancy_started_at %}
               <span class="cc-elapsed" data-start-ms="{{ live.occupancy_started_at }}">00:00:00</span>
+              {% elif live.status == 'paused' and live.paused_run_elapsed_label %}
+              <span class="text-slate-400" title="Run time when paused">{{ live.paused_run_elapsed_label }}</span>
               {% else %}
               <span class="text-slate-600">—</span>
               {% endif %}
