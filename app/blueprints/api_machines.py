@@ -125,6 +125,47 @@ def _resolve_machine_id_from_station(conn, station_id):
         return None
 
 
+def _roll_history_stats(conn, machine_id: int) -> dict:
+    """Per-material aggregates from completed rolls (same machine)."""
+    out: dict[str, dict] = {}
+    if machine_id < 1:
+        for mt in ('pvc', 'foil'):
+            out[mt] = {
+                'avg_blisters_per_completed_roll': None,
+                'last_completed_blisters': None,
+                'prior_completed_blisters': None,
+                'sample_size': 0,
+            }
+        return out
+    for mt in ('pvc', 'foil'):
+        try:
+            rows = conn.execute(
+                '''
+                SELECT total_blisters
+                FROM blister_material_rolls
+                WHERE machine_id = ? AND lower(material_type) = ? AND status = 'closed'
+                  AND total_blisters IS NOT NULL
+                ORDER BY COALESCE(ended_at_ms, started_at_ms) DESC
+                LIMIT 40
+                ''',
+                (machine_id, mt),
+            ).fetchall()
+        except Exception:
+            rows = []
+        totals = [float(r['total_blisters']) for r in rows if r['total_blisters'] is not None]
+        n = len(totals)
+        avg = round(sum(totals) / n, 1) if n else None
+        last = round(totals[0], 1) if n else None
+        prior = round(totals[1], 1) if n > 1 else None
+        out[mt] = {
+            'avg_blisters_per_completed_roll': avg,
+            'last_completed_blisters': last,
+            'prior_completed_blisters': prior,
+            'sample_size': n,
+        }
+    return out
+
+
 def _blister_press_count_for_station(conn, station_id):
     sid = _coerce_positive_int(station_id, 0)
     if sid < 1:
@@ -528,6 +569,7 @@ def get_blister_roll_summary():
                 used = max(0.0, (press_count - float(d.get('start_press_count') or 0.0)) * float(d.get('blisters_per_press') or 1.0))
                 d['blisters_used_live'] = used
                 active[str(d.get('material_type') or '').lower()] = d
+            roll_stats = _roll_history_stats(conn, machine_id)
             return jsonify(
                 {
                     'success': True,
@@ -535,6 +577,7 @@ def get_blister_roll_summary():
                     'station_id': station_id if station_id > 0 else None,
                     'current_press_count': press_count,
                     'active_rolls': active,
+                    'roll_stats': roll_stats,
                 }
             )
     except Exception as e:

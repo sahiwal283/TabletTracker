@@ -341,6 +341,17 @@ def _due_time_ms(conn: sqlite3.Connection, day_start_ms: int) -> int | None:
     return int(day_start_ms + ((h * 60 + m) * 60_000))
 
 
+def _first_blister_station_id(machines: list[dict]) -> int | None:
+    """Workflow station id for the primary blister line (material roll APIs)."""
+    for m in machines:
+        if str(m.get("station_kind") or "").lower() == "blister":
+            try:
+                return int(m["id"])
+            except (TypeError, ValueError, KeyError):
+                continue
+    return None
+
+
 def build_metrics_inputs_bundle(
     conn: sqlite3.Connection,
     machines: list[dict],
@@ -356,6 +367,7 @@ def build_metrics_inputs_bundle(
     demo_mode = os.environ.get("MES_COMMAND_CENTER_DEMO_MODE", "").lower() in ("1", "true", "yes")
 
     slots = build_slot_map(machines)
+    blister_station_id = _first_blister_station_id(machines)
 
     def _ms_row(m: dict) -> dict[str, Any]:
         sid = int(m["id"])
@@ -421,6 +433,7 @@ def build_metrics_inputs_bundle(
         "machines": mrows,
         "bags": bags,
         "slots": slots,
+        "blisterStationId": blister_station_id,
         "shiftConfig": shift_cfg,
         "genealogySelectedBagId": default_bag,
     }

@@ -57,6 +57,20 @@
     return n == null ? "Insufficient data" : n.toFixed(1) + "%";
   }
 
+  function pctVsRef(current, ref) {
+    var c = asNum(current);
+    var r = asNum(ref);
+    if (c == null || r == null || r <= 0) return null;
+    return (100.0 * (c - r)) / r;
+  }
+
+  function fmtVsRef(current, ref, refLabel) {
+    var p = pctVsRef(current, ref);
+    if (p == null) return "—";
+    var adj = refLabel ? " vs " + refLabel : "";
+    return (p >= 0 ? "+" : "") + p.toFixed(0) + "%" + adj;
+  }
+
   function fmtTime(ms, seconds) {
     var n = asNum(ms);
     if (n == null) return "N/A";
@@ -360,34 +374,92 @@
     </section>`;
   }
 
+  function MaterialRollHistoryTable(props) {
+    var summary = props.summary || {};
+    var stats = summary.roll_stats || {};
+    var active = summary.active_rolls || {};
+    function row(mt, label) {
+      var s = stats[mt] || {};
+      var a = active[mt] || null;
+      var live = a && a.blisters_used_live != null ? Number(a.blisters_used_live) : null;
+      var avg = s.avg_blisters_per_completed_roll;
+      var last = s.last_completed_blisters;
+      var n = s.sample_size != null ? s.sample_size : 0;
+      return html`<tr key=${mt}>
+        <td>${label}</td>
+        <td>${avg != null ? fmtNumber(avg) : "—"}</td>
+        <td>${live != null && avg != null ? fmtVsRef(live, avg, "avg") : "—"}</td>
+        <td>${live != null && last != null ? fmtVsRef(live, last, "last") : "—"}</td>
+        <td title="Rolls in sample for average">${n > 0 ? String(n) : "—"}</td>
+      </tr>`;
+    }
+    var sp = stats.pvc && stats.pvc.sample_size;
+    var sf = stats.foil && stats.foil.sample_size;
+    var sampleNote = Math.max(sp || 0, sf || 0);
+    return html`<section className="wall-panel mes-material-kpi-wrap">
+      <h3>ROLL USAGE vs HISTORY</h3>
+      <p className="muted" style=${{ marginBottom: "8px" }}>
+        Averages use up to 40 completed rolls per material. Current use is live from the active roll (press count × blisters-per-press).
+        ${sampleNote > 0 ? " Sample size (max): " + sampleNote + " rolls." : " No completed rolls yet — change a roll to start history."}
+      </p>
+      <div className="mini-table-wrap">
+        <table className="occ-table">
+          <thead><tr><th>Material</th><th>Avg / roll</th><th>Current vs avg</th><th>Current vs last</th><th title="Rolls used for average">N</th></tr></thead>
+          <tbody>
+            ${row("pvc", "PVC")}
+            ${row("foil", "Foil")}
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+  }
+
   function BlisterMaterialPanel(props) {
     var summary = props.summary || {};
     var active = summary.active_rolls || {};
     var pvc = active.pvc || null;
     var foil = active.foil || null;
     var disabled = !props.stationId || props.busy;
+    var msg = props.rollMessage || null;
     function rollStatus(row) {
       return row ? "In use" : "None";
     }
-    return html`<section className="wall-panel">
-      <h3>BLISTER MATERIAL TRACKING</h3>
-      <div className="mini-table-wrap">
-        <table className="occ-table">
-          <thead><tr><th>Material</th><th>Current roll</th><th>Blisters used (est.)</th></tr></thead>
-          <tbody>
-            <tr><td>PVC</td><td>${rollStatus(pvc)}</td><td>${pvc ? fmtNumber(pvc.blisters_used_live) : "N/A"}</td></tr>
-            <tr><td>Foil</td><td>${rollStatus(foil)}</td><td>${foil ? fmtNumber(foil.blisters_used_live) : "N/A"}</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div className="trace-meta mes-material-roll-actions" style=${{ marginTop: "10px" }}>
-        <button type="button" disabled=${disabled} onClick=${function () { props.onChangeRoll("pvc"); }}>Change PVC roll</button>
-        <button type="button" disabled=${disabled} onClick=${function () { props.onChangeRoll("foil"); }}>Change foil roll</button>
-      </div>
-      <p className="muted" style=${{ marginTop: "8px" }}>
-        When you swap material on the blister line, tap the matching button. Roll IDs are assigned automatically for traceability; usage is estimated from press count × blisters-per-press.
-      </p>
-    </section>`;
+    return html`<div className="mes-material-stack">
+      ${msg
+        ? html`<div
+            className=${"mes-roll-flash " + (msg.kind === "ok" ? "mes-roll-flash--ok" : "mes-roll-flash--err")}
+            role="status"
+          >${msg.text}</div>`
+        : null}
+      ${!props.stationId
+        ? html`<section className="wall-panel mes-material-kpi-wrap">
+            <h3>BLISTER STATION</h3>
+            <p className="mes-roll-flash mes-roll-flash--err" style=${{ display: "block" }}>
+              No blister workflow station is configured, or it is not in today’s line map. Add a machine with role <b>blister</b> and a workflow station with kind <b>blister</b> in Machine Settings, then refresh.
+            </p>
+          </section>`
+        : null}
+      <${MaterialRollHistoryTable} summary=${summary} />
+      <section className="wall-panel">
+        <h3>BLISTER MATERIAL TRACKING</h3>
+        <div className="mini-table-wrap">
+          <table className="occ-table">
+            <thead><tr><th>Material</th><th>Current roll</th><th>Blisters used (est.)</th></tr></thead>
+            <tbody>
+              <tr><td>PVC</td><td>${rollStatus(pvc)}</td><td>${pvc ? fmtNumber(pvc.blisters_used_live) : "N/A"}</td></tr>
+              <tr><td>Foil</td><td>${rollStatus(foil)}</td><td>${foil ? fmtNumber(foil.blisters_used_live) : "N/A"}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="trace-meta mes-material-roll-actions" style=${{ marginTop: "10px" }}>
+          <button type="button" disabled=${disabled} onClick=${function () { props.onChangeRoll("pvc"); }}>Change PVC roll</button>
+          <button type="button" disabled=${disabled} onClick=${function () { props.onChangeRoll("foil"); }}>Change foil roll</button>
+        </div>
+        <p className="muted" style=${{ marginTop: "8px" }}>
+          When you swap material on the blister line, tap the matching button. Roll IDs are assigned automatically for traceability; usage is estimated from press count × blisters-per-press.
+        </p>
+      </section>
+    </div>`;
   }
 
   function App(props) {
@@ -403,6 +475,9 @@
     var matBusyState = useState(false);
     var materialBusy = matBusyState[0];
     var setMaterialBusy = matBusyState[1];
+    var rollMsgState = useState(null);
+    var rollMessage = rollMsgState[0];
+    var setRollMessage = rollMsgState[1];
     var compressorsState = useState([]);
     var compressors = compressorsState[0];
     var setCompressors = compressorsState[1];
@@ -411,6 +486,12 @@
       var t = setInterval(function () { setNow(new Date()); }, 1000);
       return function () { clearInterval(t); };
     }, []);
+
+    useEffect(function () {
+      if (!rollMessage) return undefined;
+      var timer = setTimeout(function () { setRollMessage(null); }, 8000);
+      return function () { clearTimeout(timer); };
+    }, [rollMessage]);
 
     useEffect(function () {
       var n = document.getElementById("ops-tv-initial-data");
@@ -599,7 +680,10 @@
     }
     var bottleLineMachines = bottleIntegrated ? rawBottleFlowMachines : rawBottleFlowMachines.map(offlineCopy);
     var oeeTargetNote = inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "configured" ? "Target configured" : (inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "historical" ? "Historical pace estimate" : "No target set");
-    var blisterStationId = blisterMachines[0] && blisterMachines[0].stationId ? blisterMachines[0].stationId : null;
+    var blisterStationId =
+      asNum(inp.blisterStationId) ||
+      (blisterMachines[0] && asNum(blisterMachines[0].stationId)) ||
+      null;
 
     function loadMaterialSummary(stationId) {
       if (!stationId) return;
@@ -612,8 +696,17 @@
     }
 
     function changeRoll(materialType) {
-      if (!blisterStationId || materialBusy) return;
+      if (materialBusy) return;
+      if (!blisterStationId) {
+        setRollMessage({
+          kind: "err",
+          text: "No blister workflow station ID — add a blister station in Machine Settings and reload.",
+        });
+        return;
+      }
       setMaterialBusy(true);
+      setRollMessage(null);
+      var label = materialType === "pvc" ? "PVC" : "Foil";
       fetch("/api/blister-material-rolls/change", {
         method: "POST",
         credentials: "same-origin",
@@ -624,11 +717,33 @@
           roll_code: null,
         }),
       })
-        .then(function (r) { return r.json(); })
-        .then(function () {
-          loadMaterialSummary(blisterStationId);
+        .then(function (r) {
+          return r.json().then(function (body) {
+            return { ok: r.ok, status: r.status, body: body };
+          });
         })
-        .catch(function () {})
+        .then(function (x) {
+          var body = x.body || {};
+          if (x.ok && body.success) {
+            setRollMessage({
+              kind: "ok",
+              text:
+                label +
+                " roll change saved. Active roll " +
+                String(body.roll_code || "") +
+                " at press count " +
+                fmtNumber(body.current_press_count) +
+                ".",
+            });
+            loadMaterialSummary(blisterStationId);
+          } else {
+            var err = body.error || "HTTP " + (x.status || "?");
+            setRollMessage({ kind: "err", text: label + " roll change failed: " + err });
+          }
+        })
+        .catch(function () {
+          setRollMessage({ kind: "err", text: label + " roll change failed: network error." });
+        })
         .finally(function () { setMaterialBusy(false); });
     }
 
@@ -685,7 +800,7 @@
       if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
       if (activeTab === "team") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
-      if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} onChangeRoll=${changeRoll} /></section>`;
+      if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} rollMessage=${rollMessage} onChangeRoll=${changeRoll} /></section>`;
       return null;
     }
     var generated = snap && snap.generated_at_ms;
