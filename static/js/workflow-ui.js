@@ -288,6 +288,7 @@
     var verifyPan = document.getElementById('wf-verify-panel');
     var pauseB = document.getElementById('wf-gate-pause');
     var endB = document.getElementById('wf-gate-end');
+    var materialB = document.getElementById('wf-gate-material');
     var resumeB = document.getElementById('wf-gate-resume');
     var takenG = document.getElementById('wf-gate-taken');
 
@@ -308,11 +309,17 @@
         if (occupancyIsPaused) {
           pauseB.classList.add('hidden');
           endB.classList.add('hidden');
+          if (materialB) materialB.classList.add('hidden');
           if (takenG) takenG.classList.add('hidden');
           resumeB.classList.remove('hidden');
         } else {
           pauseB.classList.remove('hidden');
           endB.classList.remove('hidden');
+          if (materialB) {
+            var showMaterialGate =
+              stationKind() === 'blister' || stationKind() === 'combined';
+            materialB.classList.toggle('hidden', !showMaterialGate);
+          }
           resumeB.classList.add('hidden');
           if (takenG) {
             var showTakenGate = stationKind() === 'packaging';
@@ -346,6 +353,9 @@
       } else if (mode === 'taken') {
         inst.textContent =
           'Scan the bag card QR to verify before recording taken-for-delivery displays.';
+      } else if (mode === 'material') {
+        inst.textContent =
+          'Scan the bag card QR to verify before recording material change.';
       } else if (mode === 'resume') {
         inst.textContent = 'Scan the bag card QR to verify, then the station will resume.';
       } else {
@@ -406,6 +416,9 @@
     } else {
       if (intentEndRun) {
         occupancyGateIntentEndRun = true;
+      }
+      if (gateMode === 'material') {
+        openMaterialChangePanel();
       }
     }
     configureStationActions();
@@ -1791,6 +1804,8 @@
     if (gp) gp.addEventListener('click', () => openOccupancyVerify('pause'));
     const ge = document.getElementById('wf-gate-end');
     if (ge) ge.addEventListener('click', () => openOccupancyVerify('end'));
+    const gm = document.getElementById('wf-gate-material');
+    if (gm) gm.addEventListener('click', () => openOccupancyVerify('material'));
     const gt = document.getElementById('wf-gate-taken');
     if (gt) gt.addEventListener('click', () => openOccupancyVerify('taken'));
     const ie = document.getElementById('wf-intent-end');
