@@ -6,6 +6,39 @@
 
     var charts = { trends: null, flavors: null, flavorDaily: null, throughput: null, rippedCards: null };
     var pollTimer = null;
+
+    var CHART_GRID = {
+        color: 'rgba(148, 163, 184, 0.14)',
+    };
+    var CHART_TICK = '#94a3b8';
+    var CHART_BORDER = 'rgba(56, 189, 248, 0.14)';
+
+    function chartTooltipTheme() {
+        return {
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            titleColor: '#f8fafc',
+            bodyColor: '#e2e8f0',
+            borderColor: 'rgba(34, 211, 238, 0.4)',
+            borderWidth: 1,
+            padding: 10,
+        };
+    }
+
+    function chartLegendBottom() {
+        return {
+            position: 'bottom',
+            labels: {
+                color: '#cbd5e1',
+                boxWidth: 12,
+                padding: 12,
+                font: { size: 11 },
+            },
+        };
+    }
+
+    function scaleLineCommon() {
+        return { color: CHART_BORDER };
+    }
     var lastVersion = null;
     var filtersCache = null;
     var includeClosedPos = false;
@@ -169,9 +202,9 @@
         tbody.innerHTML = '';
         (payload.rows || []).forEach(function (row) {
             var tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50';
+            tr.className = 'hover:bg-cyan-500/5';
             tr.innerHTML =
-                '<td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-elevated)] text-gray-800">' +
+                '<td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--surface-elevated)] text-slate-100">' +
                 escapeHtml(row.flavor) +
                 '</span></td>' +
                 '<td class="px-3 py-2 text-right tabular-nums">' + fmt(row.ordered) + '</td>' +
@@ -213,9 +246,10 @@
         }
         list.forEach(function (sh) {
             var details = document.createElement('details');
-            details.className = 'group border border-gray-200 rounded-lg bg-white overflow-hidden';
+            details.className = 'tt-reports-accordion group rounded-lg overflow-hidden';
             var sum = document.createElement('summary');
-            sum.className = 'px-4 py-3 cursor-pointer text-sm font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100 list-none flex justify-between items-center';
+            sum.className =
+                'px-4 py-3 cursor-pointer text-sm font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100 flex justify-between items-center';
             var tot = sh.totals || {};
             sum.innerHTML =
                 '<span>' + escapeHtml(sh.label || 'Shipment') + '</span>' +
@@ -327,7 +361,7 @@
         var med = (block && block.median != null) ? (100 * Number(block.median)).toFixed(2) + '%' : '—';
         var p9 = (block && block.p90 != null) ? (100 * Number(block.p90)).toFixed(2) + '%' : '—';
         tr.innerHTML =
-            '<td class="px-2 py-1.5 text-gray-800">' +
+            '<td class="px-2 py-1.5 text-slate-200">' +
             String(label) +
             '</td><td class="px-2 py-1.5 text-right font-mono">' +
             n +
@@ -402,16 +436,16 @@
                     {
                         label: 'Packed (display equiv.)',
                         data: packed,
-                        borderColor: 'rgb(79, 124, 130)',
-                        backgroundColor: 'rgba(79, 124, 130, 0.12)',
+                        borderColor: 'rgb(34, 211, 238)',
+                        backgroundColor: 'rgba(34, 211, 238, 0.12)',
                         tension: 0.2,
                         fill: true,
                     },
                     {
                         label: 'Received (bag labels)',
                         data: received,
-                        borderColor: 'rgb(147, 177, 181)',
-                        backgroundColor: 'rgba(147, 177, 181, 0.1)',
+                        borderColor: 'rgb(148, 163, 184)',
+                        backgroundColor: 'rgba(148, 163, 184, 0.1)',
                         tension: 0.2,
                         fill: true,
                     },
@@ -421,9 +455,22 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { position: 'bottom' } },
+                plugins: {
+                    legend: chartLegendBottom(),
+                    tooltip: chartTooltipTheme(),
+                },
                 scales: {
-                    y: { beginAtZero: true },
+                    x: {
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
                 },
             },
         });
@@ -452,7 +499,7 @@
                     {
                         label: 'Packed displays',
                         data: data,
-                        backgroundColor: 'rgba(11, 46, 51, 0.75)',
+                        backgroundColor: 'rgba(34, 211, 238, 0.72)',
                     },
                 ],
             },
@@ -460,9 +507,22 @@
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: chartTooltipTheme(),
+                },
                 scales: {
-                    x: { beginAtZero: true },
+                    x: {
+                        beginAtZero: true,
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
+                    y: {
+                        ticks: { color: CHART_TICK },
+                        grid: { display: false },
+                        border: scaleLineCommon(),
+                    },
                 },
             },
         });
@@ -498,15 +558,30 @@
                         data: s.map(function (x) {
                             return x.packed_displays != null ? x.packed_displays : (x.packed || 0);
                         }),
-                        backgroundColor: 'rgba(79, 124, 130, 0.85)',
+                        backgroundColor: 'rgba(34, 211, 238, 0.65)',
                     },
                 ],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: chartTooltipTheme(),
+                },
+                scales: {
+                    x: {
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
+                },
             },
         });
     }
@@ -537,8 +612,8 @@
                     {
                         label: 'Avg cycle (minutes)',
                         data: s.map(function (x) { return x.avg_minutes || 0; }),
-                        borderColor: 'rgb(11, 46, 51)',
-                        backgroundColor: 'rgba(11, 46, 51, 0.12)',
+                        borderColor: 'rgb(34, 211, 238)',
+                        backgroundColor: 'rgba(34, 211, 238, 0.12)',
                         yAxisID: 'y',
                         tension: 0.2,
                         fill: true
@@ -546,8 +621,8 @@
                     {
                         label: 'Avg tablets / hour',
                         data: s.map(function (x) { return x.avg_tablets_per_hour || 0; }),
-                        borderColor: 'rgb(79, 124, 130)',
-                        backgroundColor: 'rgba(79, 124, 130, 0.12)',
+                        borderColor: 'rgb(148, 163, 184)',
+                        backgroundColor: 'rgba(148, 163, 184, 0.12)',
                         yAxisID: 'y1',
                         tension: 0.2,
                         fill: true
@@ -558,10 +633,31 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { position: 'bottom' } },
+                plugins: {
+                    legend: chartLegendBottom(),
+                    tooltip: chartTooltipTheme(),
+                },
                 scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Minutes' } },
-                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Tablets/hour' } }
+                    x: {
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                        title: { display: true, text: 'Minutes', color: CHART_TICK },
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: CHART_TICK },
+                        border: scaleLineCommon(),
+                        title: { display: true, text: 'Tablets/hour', color: CHART_TICK },
+                    }
                 }
             }
         });
@@ -607,10 +703,11 @@
         if (hint) hint.classList.add('hidden');
         rows.forEach(function (row) {
             var line = document.createElement('div');
-            line.className = 'flex items-center justify-between rounded-md border border-gray-200 px-3 py-2';
+            line.className =
+                'tt-reports-flavor-row flex items-center justify-between rounded-md px-3 py-2';
             line.innerHTML =
-                '<span class="text-gray-700">' + escapeHtml(row.flavor || 'Unknown') + '</span>' +
-                '<span class="font-semibold text-gray-800 tabular-nums">' + fmt(row.ripped_cards || 0) + '</span>';
+                '<span class="text-slate-200">' + escapeHtml(row.flavor || 'Unknown') + '</span>' +
+                '<span class="font-semibold text-slate-100 tabular-nums">' + fmt(row.ripped_cards || 0) + '</span>';
             host.appendChild(line);
         });
     }
@@ -621,11 +718,11 @@
         el.classList.remove('text-emerald-700', 'text-amber-700', 'text-red-700');
         if (cardsPerDisplay == null || Number.isNaN(Number(cardsPerDisplay))) {
             el.textContent = '—';
-            el.classList.add('text-gray-800');
+            el.classList.add('text-slate-200');
             return;
         }
         var rate = Number(cardsPerDisplay);
-        el.classList.remove('text-gray-800');
+        el.classList.remove('text-slate-200');
         // cards/display thresholds:
         // <= 0.03 healthy, <= 0.07 watch, > 0.07 elevated loss
         if (rate <= 0.03) {
@@ -658,8 +755,8 @@
                     {
                         label: 'Ripped cards',
                         data: s.map(function (x) { return x.ripped_cards || 0; }),
-                        borderColor: 'rgb(147, 92, 43)',
-                        backgroundColor: 'rgba(147, 92, 43, 0.14)',
+                        borderColor: 'rgb(251, 146, 60)',
+                        backgroundColor: 'rgba(251, 146, 60, 0.14)',
                         tension: 0.2,
                         fill: true
                     }
@@ -668,9 +765,23 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } },
+                plugins: {
+                    legend: chartLegendBottom(),
+                    tooltip: chartTooltipTheme(),
+                },
                 scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Cards' } }
+                    x: {
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: CHART_TICK },
+                        grid: CHART_GRID,
+                        border: scaleLineCommon(),
+                        title: { display: true, text: 'Cards', color: CHART_TICK },
+                    }
                 }
             }
         });

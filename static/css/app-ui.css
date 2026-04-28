@@ -188,6 +188,32 @@ main.tt-app-main .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
   border-color: rgba(148, 163, 184, 0.12) !important;
 }
 
+/* Reports & Analytics — chart/counter nested panels (avoid Tailwind bg-white/80 light sheets
+   that clash with Command Center text remaps). */
+main.tt-app-main .tt-reports-subpanel {
+  background: rgba(17, 24, 38, 0.78);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+main.tt-app-main .tt-reports-accordion {
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+}
+
+main.tt-app-main .tt-reports-accordion > summary {
+  list-style: none;
+}
+
+main.tt-app-main .tt-reports-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+main.tt-app-main .tt-reports-flavor-row {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.35);
+}
+
 /* Inline flash boxes in auth templates (bg-red-100 / bg-green-100) */
 main.tt-app-main .bg-red-100 {
   background: rgba(127, 29, 29, 0.35) !important;

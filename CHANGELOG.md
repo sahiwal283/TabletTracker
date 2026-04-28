@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.36] - 2026-04-28
+
+### Fixed
+- **Reports & Analytics:** Chart and counter-error blocks used semi-transparent white panels (`bg-white/80`) while global Command Center typography remaps expect dark surfaces—titles, axes, and prose were nearly unreadable. Replaced chart/counter wrappers with `tt-reports-subpanel` (navy/cyan inset panels), taught Chart.js legends/ticks/grids/tooltips light colors on dark backgrounds, brightened dataset colors, and aligned PO shipment accordions plus ripped-card rows with the same dark theme.
+
+---
+
 ## [4.16.34] - 2026-04-28
 
 ### Fixed
