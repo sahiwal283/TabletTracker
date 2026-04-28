@@ -130,8 +130,8 @@
             <p class="text-sm text-gray-600">Compressors: ${listToCsv(m.compressor) || '—'}</p>
           </div>
           <div class="flex items-center gap-2">
-            <button data-edit-id="${m.id}" class="text-sm text-cyan-700 font-semibold hover:underline">Edit</button>
-            <button data-delete-id="${m.id}" class="text-sm text-red-600 font-semibold hover:underline">Delete</button>
+            <button type="button" data-edit-id="${m.id}" class="text-sm text-cyan-700 font-semibold hover:underline">Edit</button>
+            <button type="button" data-delete-id="${m.id}" class="text-sm text-red-600 font-semibold hover:underline">Delete</button>
           </div>
         </div>
       </div>`;
@@ -170,7 +170,15 @@
   }
 
   function openEditor() {
-    document.getElementById('editor').classList.remove('hidden');
+    const editor = document.getElementById('editor');
+    if (!editor) return;
+    editor.classList.remove('hidden');
+    // Keep behavior obvious when editing from deep in the list.
+    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const nameEl = document.getElementById('name');
+    if (nameEl) {
+      setTimeout(function () { nameEl.focus(); }, 120);
+    }
   }
 
   function closeEditor() {

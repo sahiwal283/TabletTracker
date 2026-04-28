@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Threshold alerts:** live stations flash when their current elapsed timer exceeds the real historical average for that station.
 - **Blister material tracking:** PVC/Foil roll usage now uses the same real counter-delta logic as the dashboard.
 
+### Fixed
+- **Machine Settings edit UX:** `Edit`/`Delete` row actions now use explicit button types, and opening the editor now scrolls/focuses the form so edit clicks are immediately visible and no longer appear unresponsive.
+
 ---
 
 ## [4.16.6] - 2026-04-28
