@@ -1050,6 +1050,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             now_ms,
             start_ms,
             stations,
+            benchmark_uh_hint=targets_out.get("benchmark_displays_pace_per_hour"),
         )
     except Exception:
         _LOGGER_ADMIN.exception("build_ops_tv_snapshot mes")

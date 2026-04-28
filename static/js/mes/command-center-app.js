@@ -67,8 +67,11 @@
 
   function fmtKpiVal(row) {
     var rid = row.id;
-    if (rid === "bags" || rid === "units" || rid === "cycles")
-      return row.value != null ? Number(row.value).toLocaleString() : "—";
+    if (row.value != null && typeof row.value === "string") return row.value;
+    if (rid === "bags" || rid === "units" || rid === "cycles") {
+      if (row.value == null) return "—";
+      return typeof row.value === "number" ? Number(row.value).toLocaleString() : String(row.value);
+    }
     if (rid === "avg_cycle") return row.value != null ? String(row.value) : "—";
     if (rid === "on_time" || rid === "rework" || rid === "oee") {
       if (row.value_pct == null && row.value == null) return "—";
@@ -110,14 +113,40 @@
     return s.length > 14 ? s.slice(0, 13) + "…" : s;
   }
 
+  function renderFlowMiniIllustration(st) {
+    var Ill = window.MesMachineIllustrations;
+    if (!Ill) return null;
+    var key = String(st.key || "");
+    var wip = Number(st.wip || 0) + Number(st.queue_depth || st.bags || 0);
+    var run = wip > 0;
+    var wrap = function (inner) {
+      return React.createElement("div", { className: "mes-fn-mini-svg" }, inner);
+    };
+    if (key === "m1") return wrap(React.createElement(Ill.DPP115BlisterMachine, { running: run }));
+    if (key === "m2") return wrap(React.createElement(Ill.HeatPressMachine, { running: run, variant: "M2" }));
+    if (key === "m3") return wrap(React.createElement(Ill.HeatPressMachine, { running: run, variant: "M3" }));
+    if (key === "m4") return wrap(React.createElement(Ill.StickeringMachine, { running: run }));
+    if (key === "m5")
+      return wrap(
+        React.createElement(Ill.BottleSealingMachine, {
+          running: run,
+          dimmed: !st.bottleSealIntegrated,
+        }),
+      );
+    if (key === "pkg" || key === "cpk") return wrap(React.createElement(Ill.PackagingStation, { running: run }));
+    return null;
+  }
+
   function FlowNode({ st }) {
     var sl = st.status_level || (st.alert === "crit" ? "crit" : st.alert === "warn" ? "warn" : "ok");
     var cp = st.congestion_pulse != null ? Number(st.congestion_pulse) : null;
     var cg =
       cp != null ? html`<div className="mes-fn-cong" style=${{ opacity: 0.12 + cp * 0.78 }} />` : null;
+    var mini = renderFlowMiniIllustration(st);
     return html`
       <div className=${"mes-fn mes-fn-" + sl + (cp != null ? " mes-fn-live" : "")}>
         ${cg}
+        ${mini}
         <div className="mes-fn-t">${st.title}</div>
         <div className="mes-fn-r">
           <span>WIP</span><span>${st.wip != null ? st.wip : "—"}</span>
@@ -230,50 +259,19 @@
     return mm + ":" + (s2 < 10 ? "0" : "") + s2;
   }
 
-  function twinVisualClass(light) {
-    if (light === "run") return "mes-twin-svg mes-twin-svg--run";
-    if (light === "wait") return "mes-twin-svg mes-twin-svg--wait";
-    if (light === "fault") return "mes-twin-svg mes-twin-svg--fault";
-    return "mes-twin-svg mes-twin-svg--idle";
-  }
-
-  function MachineTwinGraphic({ slot, light }) {
-    var vc = twinVisualClass(light);
+  function renderMachineIllustration(slot, running, notIntegrated) {
+    var Ill = window.MesMachineIllustrations;
     var s = Number(slot || 1);
-    if (s === 1) {
-      return html`<svg className=${vc} viewBox="0 0 128 44" aria-hidden="true">
-        <rect x="4" y="16" width="92" height="12" rx="1" fill="none" stroke="#38bdf8" stroke-width="0.9" />
-        <circle className="mes-twin-roll" cx="22" cy="22" r="5" fill="none" stroke="#67e8f9" stroke-width="1" />
-        <circle className="mes-twin-roll" cx="40" cy="22" r="5" fill="none" stroke="#67e8f9" stroke-width="1" />
-        <path d="M 56 26 L118 26" stroke="#22d3ee" stroke-width="0.9" stroke-dasharray="3 2" />
-        <text x="8" y="11" fill="#64748b" font-size="7" font-family="system-ui">DPP115 · blister form</text>
-      </svg>`;
-    }
-    if (s === 2 || s === 3) {
-      return html`<svg className=${vc} viewBox="0 0 128 44" aria-hidden="true">
-        <rect x="18" y="10" width="92" height="18" rx="2" fill="none" stroke="#38bdf8" stroke-width="0.9" />
-        <path d="M 28 28 L100 28" stroke="#fb923c" stroke-width="1.2" />
-        <path d="M 64 10 L64 46" stroke="#22d3ee" stroke-width="0.75" opacity="0.65" />
-        <text x="8" y="11" fill="#64748b" font-size="7" font-family="system-ui">${s === 2 ? "M2 seal" : "M3 seal"}</text>
-      </svg>`;
-    }
-    if (s === 4) {
-      return html`<svg className=${vc} viewBox="0 0 128 44" aria-hidden="true">
-        <circle cx="64" cy="22" r="14" fill="none" stroke="#67e8f9" stroke-width="0.9" />
-        <rect x="50" y="18" width="28" height="8" rx="1" fill="none" stroke="#a78bfa" stroke-width="0.85" />
-        <path d="M 30 36 L98 36" stroke="#475569" stroke-width="0.8" opacity="0.7" />
-        <text x="8" y="11" fill="#64748b" font-size="7" font-family="system-ui">Card / sticker</text>
-      </svg>`;
-    }
-    return html`<svg className=${vc} viewBox="0 0 128 44" aria-hidden="true">
-      <ellipse cx="64" cy="22" rx="28" ry="14" fill="none" stroke="#67e8f9" stroke-width="0.9" />
-      <rect x="70" y="12" width="12" height="20" rx="1" fill="none" stroke="#94a3b8" stroke-width="0.8" />
-      <text x="8" y="11" fill="#64748b" font-size="7" font-family="system-ui">Bottle seal</text>
-    </svg>`;
+    if (!Ill) return null;
+    if (s === 1) return React.createElement(Ill.DPP115BlisterMachine, { running: !!running });
+    if (s === 2) return React.createElement(Ill.HeatPressMachine, { running: !!running, variant: "M2" });
+    if (s === 3) return React.createElement(Ill.HeatPressMachine, { running: !!running, variant: "M3" });
+    if (s === 4) return React.createElement(Ill.StickeringMachine, { running: !!running });
+    return React.createElement(Ill.BottleSealingMachine, { running: !!running, dimmed: !!notIntegrated });
   }
 
   function ScadaTwinCard({ m }) {
-    var light = m.status_light || "idle";
+    var light = String(m.statusLight || m.status_light || "idle").toLowerCase();
     var dot =
       light === "run"
         ? "mes-scada-dot-run"
@@ -282,223 +280,136 @@
           : light === "fault"
             ? "mes-scada-dot-fault"
             : "mes-scada-dot-idle";
-    var idle = m.raw_status === "idle";
-    var stCls =
-      m.status === "RUNNING" ? "mes-run" : m.status === "WAITING" ? "mes-wait" : "mes-idle";
+    var rawStatus = String(m.rawStatus || m.raw_status || "idle").toLowerCase();
+    var idleUi = rawStatus === "idle" || String(m.statusUi || m.status || "").indexOf("NOT") >= 0;
+    var ds = String(m.dataSourceStatus || m.data_source_status || "");
+    var blocked = ds === "NOT_INTEGRATED";
     var slo = Number(m.slot || m.twin_slot || 1);
-    var bag = m.bag_id != null ? String(m.bag_id) : "—";
-    var ctr = m.counter_current != null ? String(m.counter_current) : "—";
-    var th = m.throughput_uh != null ? Number(m.throughput_uh).toFixed(1) : "—";
+    var runFx = String(m.statusUi || m.status || "").toUpperCase() === "RUNNING";
+    var stTxt = m.statusUi != null ? m.statusUi : m.status != null ? m.status : "—";
+    var stCls = /WAIT/.test(stTxt) ? "mes-wait" : /RUN|ING/.test(stTxt) ? "mes-run" : "mes-idle";
+    var bag = m.bagId != null ? String(m.bagId) : m.bag_id != null ? String(m.bag_id) : "—";
+    var ctr = m.counterDisplay != null ? String(m.counterDisplay) : m.counter_current != null ? String(m.counter_current) : "—";
+    var thru = m.throughputUh != null ? String(m.throughputUh) : m.throughput_uh != null ? Number(m.throughput_uh).toFixed(1) : "—";
+    var util = m.utilizationPct != null ? String(m.utilizationPct) : m.utilization_pct != null ? m.utilization_pct + "%" : "—";
+    var oees = m.oeePct != null ? String(m.oeePct) : m.oee_pct != null ? m.oee_pct + "%" : "—";
+    var opLab = m.operatorLabel != null ? String(m.operatorLabel) : m.operator != null ? String(m.operator) : "—";
+    var cyc =
+      m.cycleElapsedMin != null
+        ? String(m.cycleElapsedMin)
+        : m.cycle_elapsed_min != null
+          ? m.cycle_elapsed_min + "m"
+          : "—";
+    var ls = m.lastScan != null ? String(m.lastScan) : m.last_scan_ms ? new Date(m.last_scan_ms).toLocaleTimeString() : "—";
+    var tms = m.timerMs != null ? m.timerMs : m.timer_ms;
     return html`
-      <div className=${"mes-scada mes-scada-twin" + (idle ? " mes-scada-idle" : "")}>
-        <div className="mes-twin-shell">
-          <${MachineTwinGraphic} slot=${slo} light=${light} />
-          <div className="mes-twin-overlay">
-            <span className="mes-twin-beacon"><span className=${"mes-scada-dot sm " + dot}></span>${m.status}</span>
-            <span className="mes-twin-ovl">Bag <strong>${bag}</strong></span>
-            <span className="mes-twin-ovl">Tmr ${fmtTimerMs(m.timer_ms)}</span>
-            <span className="mes-twin-ovl">Ctr ${ctr}</span>
-            <span className="mes-twin-ovl">Out ${th} u/h</span>
+      <div className=${"mes-scada mes-scada-twin" + (idleUi ? " mes-scada-idle" : "") + (blocked ? " mes-scada-locked" : "")}>
+        <div className="mes-twin-shell mes-mac-stage">
+          <div aria-hidden>${renderMachineIllustration(slo, runFx && !blocked, blocked)}</div>
+          <div className="mes-twin-overlay mes-twin-overlay--narrow">
+            <span className="mes-twin-beacon"
+              ><span className=${"mes-scada-dot sm " + dot} title="Beacon"></span>${stTxt}</span
+            >
+            <span className="mes-twin-ovl"
+              ><span className="mes-muted">Data</span> ${String(m.dataSourceLine || "")}</span
+            >
+            ${m.integrationMessage
+              ? html`<span className="mes-twin-note">${String(m.integrationMessage)}</span>`
+              : null}
           </div>
+          <span className="mes-twin-corner-dot ${dot}" title=${String(m.dataSourceStatus || "")} />
         </div>
         <div className="mes-scada-top mes-twin-caption">
           <span className={"mes-scada-dot md " + dot} title="status" />
           <div style=${{ minWidth: 0 }}>
-            <div className="mes-scada-name">${m.short_label || m.canonical}</div>
+            <div className="mes-scada-name">${m.short_label || m.shortLabel || m.canonical}</div>
             <div className="mes-scada-can">${m.label}</div>
           </div>
-          <div className=${"mes-scada-st " + stCls}>${m.status}</div>
+          <div className=${"mes-scada-st " + stCls}>${stTxt}</div>
         </div>
         <div className="mes-scada-grid2">
-          <span className="mes-muted">Timer</span><span className="mes-num rt">${fmtTimerMs(m.timer_ms)}</span>
-          <span className="mes-muted">Bag</span><span className="mes-num rt">${bag}</span>
-          <span className="mes-muted">Counter</span
-          ><span className="mes-num rt">${ctr}</span>
-          <span className="mes-muted">Thru · u/h</span
-          ><span className="mes-num rt mes-c-util">${th}</span>
-          <span className="mes-muted">Util%</span><span className="mes-num rt mes-c-util">${m.utilization_pct}%</span>
-          <span className="mes-muted">OEE</span><span className="mes-num rt mes-c-oee">${m.oee_pct}%</span>
-          <span className="mes-muted">Operator</span><span className="mes-ell rt">${m.operator || "—"}</span>
-          <span className="mes-muted">Cycle</span
-          ><span className="mes-num rt">${m.cycle_elapsed_min != null ? m.cycle_elapsed_min + "m" : "—"}</span>
-          <span className="mes-muted">Scan</span
-          ><span className="mes-num rt">${m.last_scan_ms ? new Date(m.last_scan_ms).toLocaleTimeString() : "—"}</span>
+          <span className="mes-muted">Timer</span><span className="mes-num rt">${blocked ? "N/A" : fmtTimerMs(tms)}</span>
+          <span className="mes-muted">Bag</span><span className="mes-num rt">${blocked ? "N/A" : bag}</span>
+          <span className="mes-muted">Counter</span><span className="mes-num rt">${ctr}</span>
+          <span className="mes-muted">Thru · u/h</span><span className="mes-num rt mes-c-util">${thru}</span>
+          <span className="mes-muted">Util%</span><span className="mes-num rt mes-c-util">${util}</span>
+          <span className="mes-muted">OEE</span><span className="mes-num rt mes-c-oee">${oees}</span>
+          <span className="mes-muted">Operator</span><span className="mes-ell rt">${opLab}</span>
+          <span className="mes-muted">Cycle</span><span className="mes-num rt">${blocked ? "N/A" : cyc}</span>
+          <span className="mes-muted">Last scan</span><span className="mes-num rt">${blocked ? "N/A" : ls}</span>
+          <span className="mes-muted">Source</span><span className="mes-ell rt mes-num">${String(ds)}</span>
         </div>
       </div>
     `;
   }
 
-  function BagGenealogyPanel({ geo }) {
-    geo = geo || {};
-    var steps = geo.steps || [];
-    var hdr = geo.bag_id ? "Bag " + String(geo.bag_id) + " · " + (geo.sku || "") : "Bag trace · live";
-    var ph = geo.bag_id ? String(geo.bag_id) : "";
+  function MetricsNotesStrip({ notes }) {
+    var n = notes || [];
+    if (!n.length) return null;
+    return html`<div className="mes-pharma-strip mes-metrics-notes">${n.join(" · ")}</div>`;
+  }
+
+  function BagGenealogyLive({ metricInputs }) {
+    var qi = useState("");
+    var q = qi[0];
+    var setQ = qi[1];
+    var inp = metricInputs || {};
+    var Mes = window.MesMetrics;
+    var defBid = inp.genealogySelectedBagId;
+    var eb = parseInt(String(q || "").trim(), 10);
+    var bagId = !isNaN(eb) ? eb : defBid || null;
+    var geo =
+      Mes && Mes.deriveBagGenealogy && inp.events && inp.bags && bagId != null
+        ? Mes.deriveBagGenealogy(bagId, inp.events, inp.bags)
+        : { traceLines: [], sku: "—", receivedQtyDisplay: "—", totals: { message: "Insufficient data" } };
+    var steps = geo.traceLines || [];
+    var hdr =
+      geo.bagId != null ? "Lot trace · Bag " + String(geo.bagId) + " · " + (geo.sku || "") : "Live bag genealogy";
     return html`<div className="mes-panel mes-gene">
-      <div className="mes-panel-h">Genealogy · lot trace (${hdr})</div>
+      <div className="mes-panel-h">${hdr}</div>
       <div className="mes-gene-trace">
-        <span className="mes-muted">Trace any bag</span>
-        <input className="mes-gene-inp" type="search" placeholder=${ph || "Bag id"} aria-label="Trace bag id" />
+        <label className="mes-muted" for="mes-trace-q">Trace bag ID</label>
+        <input
+          id="mes-trace-q"
+          className="mes-gene-inp"
+          type="search"
+          value=${q}
+          placeholder=${defBid ? String(defBid) : "Enter bag"}
+          aria-label="Trace bag id"
+          onInput=${function (ev) {
+            setQ(ev.target.value);
+          }}
+        />
+      </div>
+      <div className="mes-gene-sum">
+        <span>SKU <strong>${geo.sku}</strong></span><span>Rcvd qty <strong>${geo.receivedQtyDisplay}</strong></span
+        ><span>Elapsed <strong>${geo.totals && geo.totals.elapsedMinutes != null ? geo.totals.elapsedMinutes.toFixed(1) + "m" : "—"}</strong></span
+        ><span>Dwell Δ <strong>${geo.totals && geo.totals.dwellMinutes != null ? geo.totals.dwellMinutes.toFixed(1) + "m" : "—"}</strong></span>
       </div>
       <div className="mes-gene-scroll">
         ${steps.length
           ? steps.map(function (st, ix) {
-              var tm = st.at_ms ? new Date(st.at_ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
-              var dw = st.dwell_from_prev_min != null ? st.dwell_from_prev_min + "m Δ" : "—";
-              return html`<div key=${ix} className="mes-gene-row">
-                <span className="mes-gene-dot">●</span>
-                <span className="mes-gene-time">${tm}</span>
+              var tm = st.pending || !st.atMs ? "" : new Date(st.atMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              var dw = st.dwellFromPrevMinutes != null ? st.dwellFromPrevMinutes.toFixed(1) + "m Δ" : "—";
+              var pend = !!st.pending;
+              return html`<div key=${ix} className=${"mes-gene-row" + (pend ? " mes-gene-row--pending" : "")}>
+                <span className="mes-gene-dot">${pend ? "○" : "●"}</span>
+                <span className="mes-gene-time">${tm || "—"}</span>
                 <span className="mes-gene-main">
-                  ${st.label} · ${st.station_label}
-                  ${st.counter != null ? html`<span className="mes-gene-ctr"> ctr ${String(st.counter)}</span>` : null}
-                  <span className="mes-gene-sub"> · ${st.operator || "?"} · dwell ${dw}</span>
+                  ${st.label}${st.machineLabel ? " · " + st.machineLabel : ""}
+                  ${st.counterReading
+                    ? html`<span className="mes-gene-ctr"> · ctr ${String(st.counterReading)}</span>`
+                    : null}
+                  <span className="mes-gene-sub"
+                    >${st.operatorLabel ? " · op " + st.operatorLabel : ""} · dwell ${dw}
+                    · <span className="mes-gene-badge">${st.statusBadge || ""}</span></span
+                  >
                 </span>
               </div>`;
             })
-          : html`<div className="mes-muted" style=${{ fontSize: "10px", padding: "0.35rem" }}>No lineage rows yet.</div>`}
-        <div className="mes-gene-foot">${geo.ebr_hint || ""}</div>
+          : html`<div className="mes-muted" style=${{ fontSize: "10px", padding: "0.35rem" }}>${(geo.totals && geo.totals.message) || "No lineage rows"}</div>`}
+        <div className="mes-gene-foot mes-muted">Electronic batch-record mode (future): tie exceptions · release signatures here.</div>
       </div>
-    </div>`;
-  }
-
-  function BottleneckHeat({ hm }) {
-    hm = hm || {};
-    var zs = hm.stages || [];
-    return html`<div className="mes-panel mes-hm">
-      <div className="mes-panel-h">Constraint heatmap</div>
-      <div className="mes-hm-grid">
-        ${zs.map(function (z, ix) {
-          var hx = Math.round((z.heat || 0) * 230);
-          var bg = "rgba(" + hx + "," + Math.max(80, 210 - hx) + ",72,0.55)";
-          var mk = z.is_constraint ? " mes-hm-cell--hot" : "";
-          return html`<div
-            key=${ix}
-            title=${hm.hint || ""}
-            style=${{ background: bg }}
-            className=${"mes-hm-cell" + mk}
-          >
-            ${z.label}
-          </div>`;
-        })}
-      </div>
-    </div>`;
-  }
-
-  function QueueAgingHeat({ q }) {
-    q = q || {};
-    var zs = q.zones || [];
-    var pal = q.palette || { ok: "#22c55e", warn: "#eab308", crit: "#ef4444" };
-    return html`<div className="mes-panel mes-qage">
-      <div className="mes-panel-h">Staging queue aging</div>
-      <div className="mes-q-list">
-        ${zs.map(function (z, ix) {
-          var bg = pal[z.tier] || "#475569";
-          var w = Math.round((z.heat || 0) * 100);
-          var lab = [z.line, z.area].filter(Boolean).join(" · ") || "staging";
-          return html`<div key=${ix} className="mes-q-row">
-            <span>${lab}</span>
-            <span className="mes-q-bar-wrap"
-              ><span className="mes-q-bar" style=${{ width: w + "%", background: bg }}
-                >${String(z.age_minutes)}m</span
-              ></span
-            >
-          </div>`;
-        })}
-      </div>
-    </div>`;
-  }
-
-  function PharmaIntelStrip({ phi }) {
-    phi = phi || {};
-    var f = phi.intel_footer || {};
-    var qc = f.quality_reconcile || {};
-    var sh = f.shift_eta || {};
-    var eta = sh.predicted_finish_ms ? new Date(sh.predicted_finish_ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
-    var gu = typeof phi.gauge_util_pct === "number" ? phi.gauge_util_pct + "%" : "—";
-    return html`<div className="mes-pharma-strip">
-      <span
-        ><strong>OEE</strong>
-        ${typeof phi.oee_pct === "number"
-          ? phi.oee_pct.toFixed(1)
-          : "—"}% (${typeof phi.availability_pct === "number" ? phi.availability_pct.toFixed(0) : "?"} A ×
-        ${typeof phi.performance_pct === "number" ? phi.performance_pct.toFixed(0) : "?"} P ×
-        ${typeof phi.quality_pct === "number" ? phi.quality_pct.toFixed(1) : "?"} Q)</span
-      >
-      <span><strong>Thru</strong> ${typeof phi.throughput_units_hr === "number" ? phi.throughput_units_hr.toFixed(1) : "—"} u/h</span>
-      <span
-        ><strong>Takt / median cycle</strong>
-        ${phi.takt_target_min != null ? phi.takt_target_min + "m tgt" : "—"}
-        ${phi.median_cycle_claim_to_finish_min != null
-          ? " · " + phi.median_cycle_claim_to_finish_min + "m observed"
-          : ""}</span
-      >
-      <span
-        ><strong>Yield</strong>
-        ${qc.yield_pct != null
-          ? qc.yield_pct.toFixed(2) + "%"
-          : typeof phi.quality_pct === "number"
-            ? phi.quality_pct.toFixed(2) + "%"
-            : "—"}</span
-      >
-      <span><strong>Reject</strong> ~${qc.reject_approx_pct != null ? qc.reject_approx_pct.toFixed(2) + "%" : "?"}</span>
-      <span><strong>Pred end</strong> ${eta}</span>
-      <span><strong>Util tgt</strong> ${gu}</span>
-      <span className="mes-pharma-ebr">${f.ebr_future || ""}</span>
-    </div>`;
-  }
-
-  function AlarmPriorityBoard({ footer }) {
-    footer = footer || {};
-    var al = footer.alarm_priority || [];
-    return html`<div className="mes-panel mes-alprio">
-      <div className="mes-panel-h">Alarm priority board</div>
-      <div className="mes-alprio-list">
-        ${al.length
-          ? al.map(function (a, i) {
-              return html`<div key=${i} className=${"mes-alprio-row " + (a.sev === "warn" ? "mes-alprio-row--w" : "")}
-                >${a.txt || ""}</div
-              >`;
-            })
-          : html`<div className="mes-muted" style=${{ fontSize: "9px" }}>Flow nominal</div>`}
-      </div>
-    </div>`;
-  }
-
-  function UtilizationGaugePanel({ pct }) {
-    var p = typeof pct === "number" ? Math.min(100, Math.max(0, pct)) : null;
-    return html`<div className="mes-panel mes-ugauge">
-      <div className="mes-panel-h">Fleet utilization gauge</div>
-      <div className="mes-ug-track">${p != null ? html`<div className="mes-ug-fill" style=${{ width: p + "%" }} />` : null}<span className="mes-ug-lbl">${p != null ? p.toFixed(1) + "%" : "—"}</span></div>
-    </div>`;
-  }
-
-  function QualityReconcileMini({ qc }) {
-    qc = qc || {};
-    return html`<div className="mes-panel mes-qcrec">
-      <div className="mes-panel-h">Quality · yield reconcile</div>
-      <div className="mes-qcrec-body">
-        <div>
-          <span className="mes-muted">Yield</span> <strong>${qc.yield_pct != null ? qc.yield_pct.toFixed(3) + "%" : "—"}</strong>
-        </div>
-        <div>
-          <span className="mes-muted">Reject est.</span>
-          ${qc.reject_approx_pct != null ? "~" + qc.reject_approx_pct.toFixed(2) + "%" : "—"}
-        </div>
-        ${qc.formula_text ? html`<div className="mes-qcrec-formula" title=${qc.formula_text}>${qc.formula_text}</div>` : null}
-      </div>
-    </div>`;
-  }
-
-  function ShiftEtaPanel({ eta, pharma }) {
-    eta = eta || {};
-    var fin = eta.predicted_finish_ms
-      ? new Date(Number(eta.predicted_finish_ms)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-      : "—";
-    var bk = pharma && pharma.bottleneck_station ? String(pharma.bottleneck_station) : "—";
-    return html`<div className="mes-panel mes-shift-eta">
-      <div className="mes-panel-h">Predicted shift completion</div>
-      <div className="mes-shift-eta-val">${fin}</div>
-      <div className="mes-shift-eta-sub mes-muted">${eta.method || ""}</div>
-      <div className="mes-shift-eta-bot">Constraint · <strong>${bk}</strong></div>
     </div>`;
   }
 
@@ -570,12 +481,23 @@
 
   function SvgDonut({ oee }) {
     var o = oee || {};
-    var parts = [
-      { k: "Avail", v: o.availability || 0, c: "#22d3ee" },
-      { k: "Perf", v: o.performance || 0, c: "#fb923c" },
-      { k: "Qual", v: o.quality || 0, c: "#4ade80" },
-    ];
-    var tot = o.total || 0;
+    function rowDn(label, primary, fallback, color) {
+      var src = primary != null && primary !== "" ? primary : fallback;
+      var vn = donutTotalNum(src);
+      var txt = !isNaN(vn)
+        ? vn.toFixed(2) + "%"
+        : src != null
+          ? String(src)
+          : "—";
+      if (/insufficient/i.test(String(txt).toLowerCase())) txt = "Insufficient data";
+      return html`<div key=${label} style=${{ display: "flex", justifyContent: "space-between" }}
+        ><span style=${{ color: color }}>${label}</span
+        ><span>${txt}</span></div
+      >`;
+    }
+    var totSrc = o.total_raw != null && o.total_raw !== "" ? o.total_raw : o.total != null ? o.total : NaN;
+    var totDn = donutTotalNum(totSrc);
+    var totalTop = !isNaN(totDn) ? totDn.toFixed(2) + "%" : totSrc !== undefined && totSrc !== null ? String(totSrc) : "—";
     return html`
       <div style=${{
         display: "flex",
@@ -586,9 +508,7 @@
         flex: 1,
         minHeight: 0,
       }}>
-        <div style=${{ fontSize: "1.35rem", fontWeight: 900, color: "#e0f2fe" }}>
-          ${tot.toFixed ? tot.toFixed(1) : tot}%
-        </div>
+        <div style=${{ fontSize: "1.12rem", fontWeight: 900, color: "#e0f2fe", textAlign: "center" }}>${totalTop}</div>
         <div className="mes-muted" style=${{ fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.1em" }}>
           OEE
         </div>
@@ -602,11 +522,9 @@
             gap: "0.12rem",
           }}
         >
-          ${parts.map(function (p) {
-            return html`<div key=${p.k} style=${{ display: "flex", justifyContent: "space-between" }}
-              ><span style=${{ color: p.c }}>${p.k}</span><span>${p.v}%</span></div
-            >`;
-          })}
+          ${rowDn("Avail", o.avail_raw, o.availability, "#22d3ee")}
+          ${rowDn("Perf", o.perf_raw, o.performance, "#fb923c")}
+          ${rowDn("Qual", o.qual_raw, o.quality, "#4ade80")}
         </div>
       </div>
     `;
@@ -619,6 +537,13 @@
     } catch (e) {
       return null;
     }
+  }
+
+  function donutTotalNum(raw) {
+    if (typeof raw === "number" && !isNaN(raw)) return Math.min(100, Math.max(0, raw));
+    if (typeof raw === "string" && /^insufficient/i.test(raw.trim())) return NaN;
+    var m = /([0-9]+(?:\.[0-9]+)?)/.exec(String(raw || ""));
+    return m ? Math.min(100, Math.max(0, parseFloat(m[1]))) : NaN;
   }
 
   function App({ snapshotUrl }) {
@@ -676,33 +601,53 @@
 
     var mes = (snap && snap.mes) || {};
     void tick;
+    var derived =
+      typeof window.MesMetrics !== "undefined" && mes.metrics_inputs
+        ? window.MesMetrics.deriveDashboardMetrics(mes.metrics_inputs)
+        : null;
     var kpis = mes.kpis || [];
+    if (derived && derived.kpis) {
+      var bydk = {};
+      for (var di = 0; di < derived.kpis.length; di++) bydk[derived.kpis[di].id] = derived.kpis[di];
+      kpis = kpis.map(function (row) {
+        var dk = bydk[row.id];
+        if (!dk) return row;
+        var o = Object.assign({}, row);
+        if (dk.value !== undefined && dk.value !== null) o.value = dk.value;
+        if (dk.valuePct != null) o.value_pct = dk.valuePct;
+        if (dk.formulaNote) o.formula_note = dk.formulaNote;
+        if (dk.displayLabel) o.display_label = dk.displayLabel;
+        if (dk.sparkline !== undefined) o.sparkline = dk.sparkline;
+        return o;
+      });
+    }
     var lanes = mes.lanes || [];
     var alerts = mes.alerts || (snap && snap.activity) || [];
-    var scada = mes.scada_machines || [];
+    var mergedAlerts = alerts;
+    var scada =
+      derived && derived.machines && derived.machines.length ? derived.machines : mes.scada_machines || [];
     var trend = mes.trend || {};
     var cyc = mes.cycle_analysis || {};
-    var oee = mes.oee_donut || {};
+    var donut = derived ? derived.oeeDonut || {} : mes.oee_donut || {};
+    var oee =
+      derived && donut
+        ? {
+            total_raw: donut.total,
+            avail_raw: donut.availability,
+            perf_raw: donut.performance,
+            qual_raw: donut.quality,
+            total_num: donutTotalNum(donut.total),
+            avail_num: donutTotalNum(donut.availability),
+            perf_num: donutTotalNum(donut.performance),
+            qual_num: donutTotalNum(donut.quality),
+          }
+        : mes.oee_donut || {};
     var inv = mes.inventory || [];
     var skuT = mes.sku_table || [];
     var stg = mes.staging || [];
     var tl = mes.timeline || [];
     var team = mes.team || [];
     var down = mes.downtime || [];
-    var pharma = mes.pharma_intel || {};
-    var intelAl = [];
-    try {
-      var ap = pharma.intel_footer && pharma.intel_footer.alarm_priority;
-      if (ap && ap.length)
-        intelAl = ap.map(function (a) {
-          return {
-            at_ms: a.until_ms,
-            severity: a.sev === "warn" ? "warn" : "info",
-            message: (a.txt || "").trim(),
-          };
-        });
-    } catch (e2) {}
-    var mergedAlerts = intelAl.concat(Array.isArray(alerts) ? alerts : []);
     var accents = ["#22d3ee", "#4ade80", "#fbbf24", "#a78bfa", "#f472b6", "#38bdf8", "#94a3b8"];
     var genAt = mes.generated_at_ms != null ? mes.generated_at_ms : snap != null ? snap.generated_at_ms : null;
     var lastUp = fmtSnapTime(genAt) || (snap ? new Date().toLocaleTimeString() : "—");
@@ -790,11 +735,15 @@
                 <div className="mes-panel">
                   <div className="mes-panel-h">Production trend · units</div>
                   <div className="mes-scroll" style=${{ overflow: "hidden" }}>
-                    <${SvgLine} labels=${trend.labels} series=${{
-                      Blister: trend.blister,
-                      Bottle: trend.bottle,
-                      Card: trend.card,
-                    }} />
+                    ${trend.series_valid === false
+                      ? html`<div className="mes-muted" style=${{ fontSize: "10px", padding: "0.35rem" }}
+                          >Insufficient data · no plotted production series yet today.</div
+                        >`
+                      : html`<${SvgLine} labels=${trend.labels} series=${{
+                          Blister: trend.blister,
+                          Bottle: trend.bottle,
+                          Card: trend.card,
+                        }} />`}
                   </div>
                 </div>
                 <div className="mes-panel">
@@ -914,18 +863,10 @@
                 </div>
               </div>
               <div className="mes-pharma-wrap">
-                <${PharmaIntelStrip} phi=${pharma} />
+                <${MetricsNotesStrip} notes=${derived ? derived.notes : []} />
               </div>
               <div className="mes-b4-row mes-b4-row-d">
-                <${BagGenealogyPanel} geo=${pharma.genealogy || {}} />
-                <${BottleneckHeat} hm=${pharma.bottleneck_heatmap || {}} />
-                <${QueueAgingHeat} q=${pharma.queue_aging_map || {}} />
-                <div className="mes-b4-mini-col">
-                  <${AlarmPriorityBoard} footer=${pharma.intel_footer || {}} />
-                  <${UtilizationGaugePanel} pct=${pharma.gauge_util_pct} />
-                  <${QualityReconcileMini} qc=${(pharma.intel_footer || {}).quality_reconcile || {}} />
-                  <${ShiftEtaPanel} eta=${(pharma.intel_footer || {}).shift_eta} pharma=${pharma} />
-                </div>
+                <${BagGenealogyLive} metricInputs=${mes.metrics_inputs || {}} />
               </div>
             </div>
           </div>

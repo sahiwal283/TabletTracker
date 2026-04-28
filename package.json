@@ -1,0 +1,11 @@
+{
+  "name": "tablettracker-command-center",
+  "private": true,
+  "scripts": {
+    "build:mes": "esbuild src/lib/command-center/metrics-index.ts --bundle --platform=browser --format=iife --global-name=MesMetrics --alias:react=./shims/react-global.js --outfile=static/js/mes/metrics.bundle.js && esbuild src/command-center/register-illustrations.tsx --bundle --platform=browser --format=iife --global-name=MesMachineIllustrations --alias:react=./shims/react-global.js --loader:.tsx=tsx --outfile=static/js/mes/machine-illustrations.bundle.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.2",
+    "typescript": "~5.4.5"
+  }
+}
