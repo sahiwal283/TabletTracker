@@ -45,20 +45,6 @@ body {
   overflow: hidden;
 }
 
-.ops-tv-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(var(--line-soft) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
-  background-size: 48px 48px;
-  background-position: -1px -1px;
-  opacity: 0.55;
-  z-index: 0;
-}
-
 .ops-root {
   position: relative;
   z-index: 1;

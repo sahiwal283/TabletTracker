@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.4] - 2026-04-27
+
+### Removed
+- **Purchase Orders** list page and sidebar tab; **`/purchase-orders`** (and legacy path) redirect to **Reports**. Removed `templates/purchase_orders.html` and `purchase-orders-ui.js`.
+
+### Changed
+- **Command Center / app chrome:** Removed the full-page **cyan grid hatch** overlays from `body.tt-app-body::before` (**`app-ui.css`**) and **`.ops-tv-shell::before`** (**`ops-command-center-wall.css`**); backgrounds stay gradient-only.
+
+---
+
 ## [4.15.3] - 2026-04-27
 
 ### Changed
