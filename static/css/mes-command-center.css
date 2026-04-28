@@ -979,6 +979,12 @@ input {
   opacity: 0.5;
 }
 
+.trace-meta.mes-material-roll-actions {
+  grid-template-columns: 1fr 1fr;
+  max-width: 520px;
+  align-items: stretch;
+}
+
 .muted {
   color: #b8c9dc;
   font-size: 11px;

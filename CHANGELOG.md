@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.26] - 2026-04-28
+
+### Changed
+- **Materials / blister roll tracking:** roll changes are recorded with **silent auto-generated roll IDs** only—operators use **Change PVC roll** / **Change foil roll** with no manual codes; the table shows **In use** / **None** instead of internal IDs.
+
+---
+
 ## [4.16.25] - 2026-04-28
 
 ### Fixed

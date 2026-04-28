@@ -366,25 +366,26 @@
     var pvc = active.pvc || null;
     var foil = active.foil || null;
     var disabled = !props.stationId || props.busy;
+    function rollStatus(row) {
+      return row ? "In use" : "None";
+    }
     return html`<section className="wall-panel">
       <h3>BLISTER MATERIAL TRACKING</h3>
       <div className="mini-table-wrap">
         <table className="occ-table">
-          <thead><tr><th>Material</th><th>Active Roll</th><th>Blisters Used</th></tr></thead>
+          <thead><tr><th>Material</th><th>Current roll</th><th>Blisters used (est.)</th></tr></thead>
           <tbody>
-            <tr><td>PVC</td><td>${pvc ? pvc.roll_code : "None"}</td><td>${pvc ? fmtNumber(pvc.blisters_used_live) : "N/A"}</td></tr>
-            <tr><td>Foil</td><td>${foil ? foil.roll_code : "None"}</td><td>${foil ? fmtNumber(foil.blisters_used_live) : "N/A"}</td></tr>
+            <tr><td>PVC</td><td>${rollStatus(pvc)}</td><td>${pvc ? fmtNumber(pvc.blisters_used_live) : "N/A"}</td></tr>
+            <tr><td>Foil</td><td>${rollStatus(foil)}</td><td>${foil ? fmtNumber(foil.blisters_used_live) : "N/A"}</td></tr>
           </tbody>
         </table>
       </div>
-      <div className="trace-meta" style=${{ marginTop: "8px" }}>
-        <input aria-label="PVC roll code" value=${props.pvcCode} placeholder="New PVC roll code" onInput=${function (e) { props.setPvcCode(e.target.value); }} />
-        <button disabled=${disabled} onClick=${function () { props.onChangeRoll("pvc", props.pvcCode); }}>Change PVC Roll</button>
-        <input aria-label="Foil roll code" value=${props.foilCode} placeholder="New foil roll code" onInput=${function (e) { props.setFoilCode(e.target.value); }} />
-        <button disabled=${disabled} onClick=${function () { props.onChangeRoll("foil", props.foilCode); }}>Change Foil Roll</button>
+      <div className="trace-meta mes-material-roll-actions" style=${{ marginTop: "10px" }}>
+        <button type="button" disabled=${disabled} onClick=${function () { props.onChangeRoll("pvc"); }}>Change PVC roll</button>
+        <button type="button" disabled=${disabled} onClick=${function () { props.onChangeRoll("foil"); }}>Change foil roll</button>
       </div>
-      <p className="muted" style=${{ marginTop: "6px" }}>
-        Tracks blisters by roll using press count × blisters-per-press.
+      <p className="muted" style=${{ marginTop: "8px" }}>
+        When you swap material on the blister line, tap the matching button. Roll IDs are assigned automatically for traceability; usage is estimated from press count × blisters-per-press.
       </p>
     </section>`;
   }
@@ -402,12 +403,6 @@
     var matBusyState = useState(false);
     var materialBusy = matBusyState[0];
     var setMaterialBusy = matBusyState[1];
-    var pvcCodeState = useState("");
-    var pvcCode = pvcCodeState[0];
-    var setPvcCode = pvcCodeState[1];
-    var foilCodeState = useState("");
-    var foilCode = foilCodeState[0];
-    var setFoilCode = foilCodeState[1];
     var compressorsState = useState([]);
     var compressors = compressorsState[0];
     var setCompressors = compressorsState[1];
@@ -616,7 +611,7 @@
         .catch(function () {});
     }
 
-    function changeRoll(materialType, rollCode) {
+    function changeRoll(materialType) {
       if (!blisterStationId || materialBusy) return;
       setMaterialBusy(true);
       fetch("/api/blister-material-rolls/change", {
@@ -626,13 +621,11 @@
         body: JSON.stringify({
           station_id: blisterStationId,
           material_type: materialType,
-          roll_code: (rollCode || "").trim() || null,
+          roll_code: null,
         }),
       })
         .then(function (r) { return r.json(); })
         .then(function () {
-          if (materialType === "pvc") setPvcCode("");
-          if (materialType === "foil") setFoilCode("");
           loadMaterialSummary(blisterStationId);
         })
         .catch(function () {})
@@ -692,7 +685,7 @@
       if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
       if (activeTab === "team") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
-      if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} pvcCode=${pvcCode} foilCode=${foilCode} setPvcCode=${setPvcCode} setFoilCode=${setFoilCode} onChangeRoll=${changeRoll} /></section>`;
+      if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} onChangeRoll=${changeRoll} /></section>`;
       return null;
     }
     var generated = snap && snap.generated_at_ms;
@@ -758,10 +751,6 @@
             summary=${materialSummary}
             stationId=${blisterStationId}
             busy=${materialBusy}
-            pvcCode=${pvcCode}
-            foilCode=${foilCode}
-            setPvcCode=${setPvcCode}
-            setFoilCode=${setFoilCode}
             onChangeRoll=${changeRoll}
           />
           <${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} />
