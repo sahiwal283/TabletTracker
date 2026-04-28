@@ -120,6 +120,12 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("BOTTLE LINE MACHINES", source)
         self.assertIn("CARD LINE MACHINES", source)
 
+    def test_blister_material_roll_tracking_panel_wired(self):
+        source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
+        self.assertIn("BLISTER MATERIAL TRACKING", source)
+        self.assertIn("/api/blister-material-rolls/change", source)
+        self.assertIn("/api/blister-material-rolls/summary", source)
+
     def test_staging_panel_shows_idle_bag_details(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
         self.assertIn("STAGING AREA STATUS", source)

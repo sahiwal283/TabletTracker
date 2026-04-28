@@ -66,6 +66,23 @@
   </div>
 
   <div id="list" class="space-y-4"></div>
+
+  <div class="card p-6 mt-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">Compressor Tracking</h2>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+      <input id="compressor-name" class="form-input" placeholder="Compressor name" />
+      <select id="compressor-status" class="form-input">
+        <option value="working">Working</option>
+        <option value="maintenance">Maintenance</option>
+        <option value="down">Down</option>
+      </select>
+      <select id="compressor-machine" class="form-input">
+        <option value="">Unassigned</option>
+      </select>
+      <button id="add-compressor-btn" class="btn-success py-2.5 px-4 text-sm font-semibold">Add Compressor</button>
+    </div>
+    <div id="compressor-list" class="space-y-3"></div>
+  </div>
 </div>
 
 <script>
@@ -120,16 +137,28 @@
       </div>`;
   }
 
+  let machinesCache = [];
+
+  function renderMachineSelectOptions(targetEl, selected) {
+    if (!targetEl) return;
+    const selectedVal = selected == null ? '' : String(selected);
+    targetEl.innerHTML = '<option value="">Unassigned</option>' + machinesCache.map((m) =>
+      `<option value="${m.id}" ${selectedVal === String(m.id) ? 'selected' : ''}>${m.machine_name}</option>`
+    ).join('');
+  }
+
   async function load() {
     const res = await fetch('/api/machines');
     const data = await res.json();
     const list = document.getElementById('list');
-    const machines = data.machines || [];
-    if (!machines.length) {
+    machinesCache = data.machines || [];
+    if (!machinesCache.length) {
       list.innerHTML = '<div class="card p-4 text-sm text-gray-600">No machines configured.</div>';
-      return;
+    } else {
+      list.innerHTML = machinesCache.map(machineCardHtml).join('');
     }
-    list.innerHTML = machines.map(machineCardHtml).join('');
+    renderMachineSelectOptions(document.getElementById('compressor-machine'), null);
+    loadCompressors();
   }
 
   async function loadOpsDataset() {
@@ -224,6 +253,92 @@
     load();
   }
 
+  function compressorCardHtml(c) {
+    const tone = c.status === 'working' ? 'text-emerald-600' : (c.status === 'maintenance' ? 'text-amber-600' : 'text-red-600');
+    const machineName = c.machine_name || 'Unassigned';
+    return `
+      <div class="card p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="font-semibold text-gray-900">${c.compressor_name}</p>
+            <p class="text-sm text-gray-600">Assigned machine: ${machineName}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <select class="form-input !py-2 compressor-status-select" data-compressor-id="${c.id}">
+              <option value="working" ${c.status === 'working' ? 'selected' : ''}>Working</option>
+              <option value="maintenance" ${c.status === 'maintenance' ? 'selected' : ''}>Maintenance</option>
+              <option value="down" ${c.status === 'down' ? 'selected' : ''}>Down</option>
+            </select>
+            <select class="form-input !py-2 compressor-machine-select" data-compressor-id="${c.id}"></select>
+            <button class="btn-primary py-2 px-3 text-xs" data-compressor-save-id="${c.id}">Save</button>
+          </div>
+        </div>
+        <p class="text-xs mt-2 ${tone}">Status: ${c.status}</p>
+      </div>`;
+  }
+
+  async function loadCompressors() {
+    const res = await fetch('/api/compressors');
+    const out = await res.json();
+    const rows = out.compressors || [];
+    const wrap = document.getElementById('compressor-list');
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="text-sm text-gray-600">No compressors tracked yet.</div>';
+      return;
+    }
+    wrap.innerHTML = rows.map(compressorCardHtml).join('');
+    wrap.querySelectorAll('.compressor-machine-select').forEach((sel) => {
+      const cid = parseInt(sel.dataset.compressorId, 10);
+      const row = rows.find((r) => r.id === cid);
+      renderMachineSelectOptions(sel, row ? row.machine_id : null);
+    });
+  }
+
+  async function addCompressor() {
+    const nameEl = document.getElementById('compressor-name');
+    const statusEl = document.getElementById('compressor-status');
+    const machineEl = document.getElementById('compressor-machine');
+    if (!nameEl || !statusEl || !machineEl) return;
+    const payload = {
+      compressor_name: nameEl.value.trim(),
+      status: statusEl.value,
+      machine_id: machineEl.value ? parseInt(machineEl.value, 10) : null,
+    };
+    const res = await csrfFetch('/api/compressors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const out = await res.json();
+    if (!out.success) {
+      if (typeof showError === 'function') showError(out.error || 'Failed to add compressor');
+      return;
+    }
+    nameEl.value = '';
+    loadCompressors();
+  }
+
+  async function saveCompressor(compressorId) {
+    const statusEl = document.querySelector(`.compressor-status-select[data-compressor-id="${compressorId}"]`);
+    const machineEl = document.querySelector(`.compressor-machine-select[data-compressor-id="${compressorId}"]`);
+    if (!statusEl || !machineEl) return;
+    const payload = {
+      status: statusEl.value,
+      machine_id: machineEl.value ? parseInt(machineEl.value, 10) : null,
+    };
+    const res = await csrfFetch('/api/compressors/' + compressorId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const out = await res.json();
+    if (!out.success) {
+      if (typeof showError === 'function') showError(out.error || 'Failed to update compressor');
+      return;
+    }
+    loadCompressors();
+  }
+
   async function saveOpsDataset() {
     const res = await csrfFetch('/api/settings/ops_tv_dataset', {
       method: 'POST',
@@ -248,6 +363,7 @@
   document.getElementById('role').addEventListener('change', refreshCardsFieldCopy);
   document.getElementById('cancelBtn').addEventListener('click', closeEditor);
   document.getElementById('saveBtn').addEventListener('click', save);
+  document.getElementById('add-compressor-btn').addEventListener('click', addCompressor);
   document.getElementById('saveOpsDatasetBtn').addEventListener('click', saveOpsDataset);
 
   document.getElementById('list').addEventListener('click', function (event) {
@@ -260,6 +376,12 @@
     if (deleteBtn) {
       deleteMachine(parseInt(deleteBtn.dataset.deleteId, 10));
     }
+  });
+
+  document.getElementById('compressor-list').addEventListener('click', function (event) {
+    const saveBtn = event.target.closest('[data-compressor-save-id]');
+    if (!saveBtn) return;
+    saveCompressor(parseInt(saveBtn.dataset.compressorSaveId, 10));
   });
 
   refreshCardsFieldCopy();

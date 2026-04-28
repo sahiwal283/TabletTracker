@@ -18,6 +18,17 @@
     }
   }
 
+  function readInitialTab(navItems) {
+    var allowed = {};
+    (navItems || []).forEach(function (item) {
+      var t = String(item.tab || "").toLowerCase();
+      if (t) allowed[t] = 1;
+    });
+    var h = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
+    if (h && allowed[h]) return h;
+    return (navItems && navItems[0] && String(navItems[0].tab || "").toLowerCase()) || "overview";
+  }
+
   function asNum(v) {
     var n = Number(v);
     return Number.isFinite(n) ? n : null;
@@ -152,18 +163,34 @@
   }
 
   function Sidebar(props) {
-    var items = [
-      ["Overview", "grid"], ["Blister Line", "blister"], ["Bottle Line", "bottle"], ["Card Line", "trend"],
-      ["Machines", "machine"], ["Bags / Inventory", "bag"], ["Staging", "grid"], ["Alerts", "warn"],
-      ["Reports", "report"], ["Analytics", "bars"], ["Users", "users"], ["Settings", "settings"]
-    ];
+    var iconByTab = {
+      overview: "grid",
+      blister: "blister",
+      bottle: "bottle",
+      machines: "machine",
+      bags: "bag",
+      staging: "grid",
+      alerts: "warn",
+      analytics: "bars",
+      users: "users",
+      settings: "settings",
+    };
+    var items = props.items || [];
     return html`<aside className="occ-side">
       <div className="occ-logo"><span></span><span></span><span></span></div>
-      ${items.map(function (it, i) {
-        var href = it[0] === "Settings" && props.boot.urls ? props.boot.urls.product_config : "#";
-        return html`<a key=${it[0]} href=${href || "#"} className=${i === 0 ? "active" : ""}>
-          <span className="nav-icon">${miniIcon(it[1])}</span><em>${it[0]}</em>
-        </a>`;
+      ${items.map(function (item) {
+        var tab = String(item.tab || "").toLowerCase();
+        var label = item.label || tab || "Section";
+        return html`<button
+          key=${tab}
+          type="button"
+          className=${props.activeTab === tab ? "active" : ""}
+          onClick=${function () {
+            props.onSelect(tab);
+          }}
+        >
+          <span className="nav-icon">${miniIcon(iconByTab[tab] || "grid")}</span><em>${label}</em>
+        </button>`;
       })}
     </aside>`;
   }
@@ -291,6 +318,35 @@
     </section>`;
   }
 
+  function BlisterMaterialPanel(props) {
+    var summary = props.summary || {};
+    var active = summary.active_rolls || {};
+    var pvc = active.pvc || null;
+    var foil = active.foil || null;
+    var disabled = !props.stationId || props.busy;
+    return html`<section className="wall-panel">
+      <h3>BLISTER MATERIAL TRACKING</h3>
+      <div className="mini-table-wrap">
+        <table className="occ-table">
+          <thead><tr><th>Material</th><th>Active Roll</th><th>Blisters Used</th></tr></thead>
+          <tbody>
+            <tr><td>PVC</td><td>${pvc ? pvc.roll_code : "None"}</td><td>${pvc ? fmtNumber(pvc.blisters_used_live) : "N/A"}</td></tr>
+            <tr><td>Foil</td><td>${foil ? foil.roll_code : "None"}</td><td>${foil ? fmtNumber(foil.blisters_used_live) : "N/A"}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="trace-meta" style=${{ marginTop: "8px" }}>
+        <input aria-label="PVC roll code" value=${props.pvcCode} placeholder="New PVC roll code" onInput=${function (e) { props.setPvcCode(e.target.value); }} />
+        <button disabled=${disabled} onClick=${function () { props.onChangeRoll("pvc", props.pvcCode); }}>Change PVC Roll</button>
+        <input aria-label="Foil roll code" value=${props.foilCode} placeholder="New foil roll code" onInput=${function (e) { props.setFoilCode(e.target.value); }} />
+        <button disabled=${disabled} onClick=${function () { props.onChangeRoll("foil", props.foilCode); }}>Change Foil Roll</button>
+      </div>
+      <p className="muted" style=${{ marginTop: "6px" }}>
+        Tracks blisters by roll using press count × blisters-per-press.
+      </p>
+    </section>`;
+  }
+
   function App(props) {
     var snapState = useState(null);
     var snap = snapState[0];
@@ -298,6 +354,18 @@
     var clockState = useState(new Date());
     var now = clockState[0];
     var setNow = clockState[1];
+    var matSummaryState = useState(null);
+    var materialSummary = matSummaryState[0];
+    var setMaterialSummary = matSummaryState[1];
+    var matBusyState = useState(false);
+    var materialBusy = matBusyState[0];
+    var setMaterialBusy = matBusyState[1];
+    var pvcCodeState = useState("");
+    var pvcCode = pvcCodeState[0];
+    var setPvcCode = pvcCodeState[1];
+    var foilCodeState = useState("");
+    var foilCode = foilCodeState[0];
+    var setFoilCode = foilCodeState[1];
 
     useEffect(function () {
       var t = setInterval(function () { setNow(new Date()); }, 1000);
@@ -387,6 +455,44 @@
     var cardSku = blisterSku;
     var bottleSku = bottleIntegrated && machines[4].sku !== "N/A" ? machines[4].sku : "N/A";
     var oeeTargetNote = inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "configured" ? "Target configured" : (inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "historical" ? "Historical pace estimate" : "No target set");
+    var blisterStationId = machines[0] && machines[0].stationId ? machines[0].stationId : null;
+
+    function loadMaterialSummary(stationId) {
+      if (!stationId) return;
+      fetch("/api/blister-material-rolls/summary?station_id=" + encodeURIComponent(stationId), { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (out) {
+          if (out && out.success) setMaterialSummary(out);
+        })
+        .catch(function () {});
+    }
+
+    function changeRoll(materialType, rollCode) {
+      if (!blisterStationId || materialBusy) return;
+      setMaterialBusy(true);
+      fetch("/api/blister-material-rolls/change", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          station_id: blisterStationId,
+          material_type: materialType,
+          roll_code: (rollCode || "").trim() || null,
+        }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+          if (materialType === "pvc") setPvcCode("");
+          if (materialType === "foil") setFoilCode("");
+          loadMaterialSummary(blisterStationId);
+        })
+        .catch(function () {})
+        .finally(function () { setMaterialBusy(false); });
+    }
+
+    useEffect(function () {
+      if (blisterStationId) loadMaterialSummary(blisterStationId);
+    }, [blisterStationId]);
     var generated = snap && snap.generated_at_ms;
     return html`<div className="occ-app">
       <${Sidebar} boot=${boot} />
@@ -444,6 +550,16 @@
         </section>
         <section className="occ-wall wall-row-b">
           <section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section>
+          <${BlisterMaterialPanel}
+            summary=${materialSummary}
+            stationId=${blisterStationId}
+            busy=${materialBusy}
+            pvcCode=${pvcCode}
+            foilCode=${foilCode}
+            setPvcCode=${setPvcCode}
+            setFoilCode=${setFoilCode}
+            onChangeRoll=${changeRoll}
+          />
           <${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} />
           <section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section>
           <section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section>

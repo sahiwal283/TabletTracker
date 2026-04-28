@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.0] - 2026-04-28
+
+### Added
+- **Compressor asset tracking:** new `compressors` store with status (`working`/`maintenance`/`down`) and live machine assignment via `/api/compressors` (create/update/list).
+- **Blister roll tracking APIs:** new `blister_material_rolls` tracking and endpoints:
+  - `GET /api/blister-material-rolls/summary`
+  - `POST /api/blister-material-rolls/change`
+  Roll changes close the prior active roll and compute usage from real blister press counts.
+
+### Changed
+- **Machine settings UI:** added a compressor tracking section (add compressor, set status, assign to machine).
+- **Fullscreen command center:** added **Blister Material Tracking** panel with `Change PVC Roll` / `Change Foil Roll` actions on the blister station workflow.
+- **Blister output accounting:** roll usage now uses `press_count × blisters_per_press` (machine-configured value).
+
+---
+
 ## [4.15.11] - 2026-04-28
 
 ### Changed
