@@ -1,13 +1,15 @@
 """
 Machines API routes for managing production machines.
 """
+import json
+
 from flask import Blueprint, current_app, jsonify, request
 
 from app.utils.auth_utils import admin_required, employee_required
 from app.utils.db_utils import db_read_only, db_transaction
 
 bp = Blueprint('api_machines', __name__)
-VALID_MACHINE_ROLES = {'sealing', 'blister'}
+VALID_MACHINE_ROLES = {'sealing', 'blister', 'packaging', 'stickering', 'bottle'}
 
 
 def _normalize_machine_role(raw_role, default='sealing'):
@@ -15,6 +17,23 @@ def _normalize_machine_role(raw_role, default='sealing'):
     if role not in VALID_MACHINE_ROLES:
         return None
     return role
+
+
+def _ensure_machine_metadata_columns(conn):
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(machines)").fetchall()}
+    adds = []
+    if 'area_name' not in cols:
+        adds.append("ALTER TABLE machines ADD COLUMN area_name TEXT")
+    if 'machine_category' not in cols:
+        adds.append("ALTER TABLE machines ADD COLUMN machine_category TEXT")
+    if 'raw_materials_json' not in cols:
+        adds.append("ALTER TABLE machines ADD COLUMN raw_materials_json TEXT")
+    if 'components_json' not in cols:
+        adds.append("ALTER TABLE machines ADD COLUMN components_json TEXT")
+    if 'compressor_json' not in cols:
+        adds.append("ALTER TABLE machines ADD COLUMN compressor_json TEXT")
+    for sql in adds:
+        conn.execute(sql)
 
 
 @bp.route('/api/machines', methods=['GET'])
@@ -27,8 +46,9 @@ def get_machines():
         if role is not None and str(role).strip() != '':
             normalized_role = _normalize_machine_role(role, default=None)
             if not normalized_role:
-                return jsonify({'success': False, 'error': 'Invalid role. Use "sealing" or "blister".'}), 400
+                return jsonify({'success': False, 'error': 'Invalid role.'}), 400
         with db_read_only() as conn:
+            _ensure_machine_metadata_columns(conn)
             if normalized_role:
                 machines = conn.execute(
                     '''
@@ -46,7 +66,13 @@ def get_machines():
                 ''').fetchall()
 
             machines_list = [dict(m) for m in machines]
-            current_app.logger.info(f"GET /api/machines - Found {len(machines_list)} active machines")
+            for m in machines_list:
+                for k in ('raw_materials_json', 'components_json', 'compressor_json'):
+                    raw = m.get(k)
+                    try:
+                        m[k.replace('_json', '')] = json.loads(raw) if raw else []
+                    except Exception:
+                        m[k.replace('_json', '')] = []
             return jsonify({'success': True, 'machines': machines_list})
     except Exception as e:
         current_app.logger.error(f"GET /api/machines error: {str(e)}")
@@ -58,7 +84,7 @@ def get_machines():
 def create_machine():
     """Create a new machine"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         machine_name = data.get('machine_name', '').strip()
         cards_per_turn = data.get('cards_per_turn')
         machine_role = _normalize_machine_role(data.get('machine_role'), default='sealing')
@@ -66,7 +92,7 @@ def create_machine():
         if not machine_name:
             return jsonify({'success': False, 'error': 'Machine name is required'}), 400
         if not machine_role:
-            return jsonify({'success': False, 'error': 'Machine role must be "sealing" or "blister"'}), 400
+            return jsonify({'success': False, 'error': 'Machine role is invalid'}), 400
 
         try:
             cards_per_turn = int(cards_per_turn)
@@ -76,14 +102,27 @@ def create_machine():
             return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
 
         with db_transaction() as conn:
+            _ensure_machine_metadata_columns(conn)
             existing = conn.execute('SELECT id FROM machines WHERE machine_name = ?', (machine_name,)).fetchone()
             if existing:
                 return jsonify({'success': False, 'error': 'Machine name already exists'}), 400
 
             conn.execute('''
-                INSERT INTO machines (machine_name, cards_per_turn, machine_role, is_active)
-                VALUES (?, ?, ?, TRUE)
-            ''', (machine_name, cards_per_turn, machine_role))
+                INSERT INTO machines (
+                    machine_name, cards_per_turn, machine_role, area_name, machine_category,
+                    raw_materials_json, components_json, compressor_json, is_active
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)
+            ''', (
+                machine_name,
+                cards_per_turn,
+                machine_role,
+                (data.get('area_name') or '').strip() or None,
+                (data.get('machine_category') or '').strip() or None,
+                json.dumps(data.get('raw_materials') or []),
+                json.dumps(data.get('components') or []),
+                json.dumps(data.get('compressor') or []),
+            ))
 
             return jsonify({'success': True, 'message': f'Machine "{machine_name}" created successfully'})
     except Exception as e:
@@ -96,7 +135,7 @@ def create_machine():
 def update_machine(machine_id):
     """Update a machine's configuration"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         machine_name = data.get('machine_name', '').strip()
         cards_per_turn = data.get('cards_per_turn')
         machine_role = _normalize_machine_role(data.get('machine_role'), default='sealing')
@@ -104,7 +143,7 @@ def update_machine(machine_id):
         if not machine_name:
             return jsonify({'success': False, 'error': 'Machine name is required'}), 400
         if not machine_role:
-            return jsonify({'success': False, 'error': 'Machine role must be "sealing" or "blister"'}), 400
+            return jsonify({'success': False, 'error': 'Machine role is invalid'}), 400
 
         try:
             cards_per_turn = int(cards_per_turn)
@@ -114,6 +153,7 @@ def update_machine(machine_id):
             return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
 
         with db_transaction() as conn:
+            _ensure_machine_metadata_columns(conn)
             machine = conn.execute('SELECT id FROM machines WHERE id = ?', (machine_id,)).fetchone()
             if not machine:
                 return jsonify({'success': False, 'error': 'Machine not found'}), 404
@@ -124,9 +164,21 @@ def update_machine(machine_id):
 
             conn.execute('''
                 UPDATE machines
-                SET machine_name = ?, cards_per_turn = ?, machine_role = ?, updated_at = CURRENT_TIMESTAMP
+                SET machine_name = ?, cards_per_turn = ?, machine_role = ?,
+                    area_name = ?, machine_category = ?, raw_materials_json = ?,
+                    components_json = ?, compressor_json = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (machine_name, cards_per_turn, machine_role, machine_id))
+            ''', (
+                machine_name,
+                cards_per_turn,
+                machine_role,
+                (data.get('area_name') or '').strip() or None,
+                (data.get('machine_category') or '').strip() or None,
+                json.dumps(data.get('raw_materials') or []),
+                json.dumps(data.get('components') or []),
+                json.dumps(data.get('compressor') or []),
+                machine_id,
+            ))
 
             return jsonify({'success': True, 'message': f'Machine "{machine_name}" updated successfully'})
     except Exception as e:
@@ -154,4 +206,3 @@ def delete_machine(machine_id):
     except Exception as e:
         current_app.logger.error(f"Error deleting machine: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
-

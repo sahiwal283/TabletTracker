@@ -1246,6 +1246,13 @@ def tablet_types_config():
     return redirect(url_for('admin.product_config'))
 
 
+
+
+@bp.route('/admin/settings/machines')
+@admin_required
+def machine_settings_page():
+    """Dedicated machine settings page (moved out of product config tabs)."""
+    return render_template('machine_settings.html')
 @bp.route('/admin/config')
 @admin_required
 def product_config():
