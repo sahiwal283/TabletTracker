@@ -1,6 +1,6 @@
 /**
- * TabletTracker design tokens — typography & light shell polish (v4.6).
- * Loads before Tailwind; Winter Chill palette remains in base.html inline block.
+ * TabletTracker design tokens — typography, elevation, semantic color (v4.8).
+ * Winter Chill interaction colors remain in base.html for Tailwind @apply blocks.
  */
 
 :root {
@@ -8,8 +8,23 @@
   --tt-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
 
   --tt-space-section: clamp(1.25rem, 2.8vw, 2rem);
+  --tt-radius-sm: 0.5rem;
+  --tt-radius-md: 0.75rem;
   --tt-radius-lg: 1.25rem;
   --tt-radius-xl: 1.75rem;
+  --tt-radius-2xl: 2rem;
+
+  --tt-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --tt-shadow-md: 0 4px 14px rgba(11, 46, 51, 0.07);
+  --tt-shadow-lg: 0 12px 40px rgba(11, 46, 51, 0.1);
+  --tt-shadow-sidebar: 4px 0 32px rgba(2, 20, 24, 0.35);
+
+  --tt-text: #0f172a;
+  --tt-text-muted: #475569;
+  --tt-text-soft: #64748b;
+  --tt-border: rgba(79, 124, 130, 0.14);
+  --tt-link: #3d6d74;
+  --tt-link-hover: #0b2e33;
 
   --tt-overlay: rgba(15, 23, 42, 0.04);
   --tt-header-h: 3.75rem;
@@ -17,7 +32,12 @@
 
 html {
   font-family: var(--tt-font-sans);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter stylistic tweaks */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+::selection {
+  background: rgba(79, 124, 130, 0.22);
+  color: var(--tt-text);
 }
 
 body.min-h-screen {
@@ -31,7 +51,7 @@ body.min-h-screen {
   font-variant-numeric: tabular-nums;
 }
 
-/* Section / card tables: clearer hierarchy without changing markup */
+/* Section / card tables */
 .card table {
   border-collapse: separate;
   border-spacing: 0;
@@ -42,7 +62,7 @@ body.min-h-screen {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--tt-text-soft);
   background: rgba(15, 23, 42, 0.03);
   padding-top: 0.65rem;
   padding-bottom: 0.65rem;
@@ -52,6 +72,14 @@ body.min-h-screen {
 .card tbody td {
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   vertical-align: middle;
+}
+
+.card tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.card tbody tr:hover td {
+  background: rgba(79, 124, 130, 0.04);
 }
 
 .card tbody tr:last-child td {

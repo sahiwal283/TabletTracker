@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.8.0] - 2026-04-28
+
+### Added
+- **Design system expansion** — [`static/css/tokens.css`](static/css/tokens.css): selection color, typography tokens, semantic text/link vars, deeper table hover in `.card`.
+- **App chrome** — [`static/css/app-ui.css`](static/css/app-ui.css): ambient `body.tt-app-body` mesh background; **sidebar** (`#app-sidebar.tt-sidebar`) layered gradient + nav hover; **top bar** (`tt-topbar`) with glass edge; **flash** alerts (`.tt-flash`, `.tt-flash--success`, `.tt-flash--error`); **footer** (`tt-site-footer`); **production** segmented control polish (`.tt-production-seg`); auth helpers (`tt-auth-page`, `tt-login-surface`).
+
+### Changed
+- **[`templates/base.html`](templates/base.html)** — Body uses `tt-app-body` (no inline gradient); sidebar/header classes; flash markup uses semantic **tt-flash**; footer **tt-site-footer**.
+- **[`templates/production.html`](templates/production.html)** — Form switcher toolbar wrapped in **tt-production-seg** for consistent inactive/active button chrome (JS-added classes unchanged).
+- **[`templates/reports.html`](templates/reports.html)** — Reports hero title solid typographic hierarchy.
+- **[`templates/components/section_title.html`](templates/components/section_title.html)** — **tt-section-title-wrap** + flex-wrap.
+- **[`templates/admin_login.html`](templates/admin_login.html)** / **[`employee_login.html`](templates/employee_login.html)** — Full-screen branded auth layouts aligned with unified login.
+- **[`templates/error.html`](templates/error.html)** — Elevated error card and clearer copy.
+
+---
+
 ## [4.7.0] - 2026-04-28
 
 ### Fixed

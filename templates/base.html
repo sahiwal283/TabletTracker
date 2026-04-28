@@ -228,7 +228,7 @@
     <script src="{{ url_for('static', filename='js/api-client.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal-manager.js') }}"></script>
 </head>
-<body class="min-h-screen flex flex-col" style="background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);">
+<body class="min-h-screen flex flex-col tt-app-body">
 <script>
 window.sessionEmployeeRole = {{ (session.get('employee_role') or '') | tojson }};
 window.canManageSubmissionPO = {{ (session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated')) | tojson }};
@@ -2100,8 +2100,7 @@ async function convertToTwoLevelDropdown(selectElement) {
              aria-hidden="true"></div>
 
         <aside id="app-sidebar"
-               class="fixed md:sticky top-0 left-0 z-50 flex h-screen md:h-auto md:max-h-none md:min-h-screen w-64 max-w-[min(22rem,calc(100vw-2rem))] flex-shrink-0 flex-col overflow-y-auto border-r border-white/10 shadow-2xl transform -translate-x-full transition-transform duration-200 ease-out md:translate-x-0 md:transition-[transform,width,opacity,padding] md:duration-200"
-               style="background-image: linear-gradient(180deg, var(--wc-dark), #082025, var(--wc-primary));"
+               class="tt-sidebar fixed md:sticky top-0 left-0 z-50 flex h-screen md:h-auto md:max-h-none md:min-h-screen w-64 max-w-[min(22rem,calc(100vw-2rem))] flex-shrink-0 flex-col overflow-y-auto shadow-2xl transform -translate-x-full transition-transform duration-200 ease-out md:translate-x-0 md:transition-[transform,width,opacity,padding] md:duration-200"
                role="navigation"
                aria-label="Main navigation">
             <div class="flex flex-col gap-1 p-3 pb-6">
@@ -2146,8 +2145,7 @@ async function convertToTwoLevelDropdown(selectElement) {
         {% endif %}
 
         <div id="app-main-column" class="flex flex-1 flex-col min-w-0 min-h-0">
-            <header class="sticky top-0 z-30 flex flex-wrap items-center gap-2 px-3 md:px-4 py-3 shadow-xl text-white"
-                    style="background-image: linear-gradient(90deg, var(--wc-dark), #082025, var(--wc-primary));">
+            <header class="tt-topbar sticky top-0 z-30 flex flex-wrap items-center gap-2 px-3 md:px-5 py-3.5 text-white min-h-[3.25rem] bg-[var(--wc-dark)]">
                 {% if tt_nav_visible %}
                 <button type="button"
                         id="sidebar-toggle-btn"
@@ -2176,15 +2174,13 @@ async function convertToTwoLevelDropdown(selectElement) {
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="mb-6 p-4 rounded-xl shadow-lg transform transition-all duration-500 hover:scale-105 {% if category == 'error' %}bg-gradient-to-r from-[#0B2E33] to-[#4F7C82] text-white border border-[#93B1B5]{% else %}bg-gradient-to-r from-[#4F7C82] to-[#93B1B5] text-white border border-[#B8E3E9]{% endif %}">
-                        <div class="flex items-center">
+                    <div class="tt-flash {% if category == 'error' %}tt-flash--error{% else %}tt-flash--success{% endif %}" role="alert">
                             {% if category == 'error' %}
-                                <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-exclamation" /></svg>
+                                <svg class="w-6 h-6" aria-hidden="true"><use href="#icon-exclamation" /></svg>
                             {% else %}
-                                <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-check" /></svg>
+                                <svg class="w-6 h-6" aria-hidden="true"><use href="#icon-check" /></svg>
                             {% endif %}
-                            <span class="font-medium">{{ message }}</span>
-                        </div>
+                            <span>{{ message }}</span>
                     </div>
                 {% endfor %}
             {% endif %}
@@ -2195,8 +2191,8 @@ async function convertToTwoLevelDropdown(selectElement) {
 
     {# Full marketing text lives in __version__.py and GET /version JSON — not repeated here (kiosk/mobile). #}
     {% block site_footer %}
-    <footer class="mt-auto py-3 text-center text-gray-500 text-xs">
-        <div class="container mx-auto px-4">
+    <footer class="tt-site-footer mt-auto text-center">
+        <div class="container mx-auto px-4 max-w-6xl">
             {% block app_footer %}
             <p>{{ app_title }} <span class="text-gray-400">v{{ version() }}</span></p>
             {% endblock %}

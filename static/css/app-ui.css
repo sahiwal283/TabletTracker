@@ -1,42 +1,274 @@
 /**
- * TabletTracker unified app chrome — complements Tailwind + tokens (v4.7).
- * Scope: rhythm, elevation, prose; does not replace per-page utilities.
+ * TabletTracker — unified “next level” app chrome (v4.8)
+ * Shell, surfaces, flashes, auth, production segments, main prose.
  */
 
-.tt-app-main {
-  max-width: 92rem;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
-  padding-top: clamp(1.25rem, 2.5vw, 2rem);
-  padding-bottom: clamp(1.25rem, 3vw, 2.75rem);
+/* -------------------------------------------------------------------------- */
+/* App body — ambient mesh (replaces inline body gradient)                    */
+/* -------------------------------------------------------------------------- */
+
+body.tt-app-body {
+  background:
+    radial-gradient(ellipse 100% 80% at 100% 0%, rgba(79, 124, 130, 0.09), transparent 50%),
+    radial-gradient(ellipse 80% 60% at 0% 100%, rgba(184, 227, 233, 0.35), transparent 45%),
+    linear-gradient(175deg, #fbfdfe 0%, #f0f7f8 42%, #e8f2f4 100%) !important;
+  background-attachment: fixed;
 }
 
-@media (min-width: 768px) {
-  .tt-app-main {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+#app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sidebar — depth, nav affordance                                            */
+/* -------------------------------------------------------------------------- */
+
+#app-sidebar.tt-sidebar {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--tt-shadow-sidebar);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%),
+    linear-gradient(180deg, var(--wc-dark, #0b2e33), #061a1d 45%, var(--wc-primary, #4f7c82)) !important;
+}
+
+#app-sidebar .nav-link {
+  border-radius: var(--tt-radius-md);
+  border: 1px solid transparent;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+#app-sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+#app-sidebar .nav-link:active {
+  transform: scale(0.99);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Top bar                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.tt-topbar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+    linear-gradient(90deg, var(--wc-dark, #0b2e33), #06262b, var(--wc-primary, #4f7c82)) !important;
+}
+
+@supports (backdrop-filter: blur(12px)) {
+  .tt-topbar {
+    backdrop-filter: blur(8px);
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Main column & typography rhythm                                              */
+/* -------------------------------------------------------------------------- */
+
+.tt-app-main {
+  max-width: 96rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: clamp(1rem, 2vw, 1.5rem);
+  padding-right: clamp(1rem, 2vw, 1.5rem);
+  padding-top: clamp(1.25rem, 2.5vw, 2.25rem);
+  padding-bottom: clamp(1.5rem, 4vw, 3rem);
+}
+
+.tt-app-main > h1:first-child,
+.tt-app-main > div > h1:first-child {
+  letter-spacing: -0.02em;
+}
+
+main.tt-app-main h1:not([class*="text-"]) {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  font-weight: 700;
+  color: var(--tt-text);
+  letter-spacing: -0.025em;
+}
+
+main.tt-app-main h2:not([class*="text-"]),
+main.tt-app-main .text-2xl.font-bold {
+  letter-spacing: -0.02em;
+}
+
+main.tt-app-main p.text-sm,
+main.tt-app-main .text-gray-600 {
+  line-height: 1.65;
+}
+
+/* Inline links inside content (not buttons) */
+main.tt-app-main a[class*="text-"]:hover,
+main.tt-app-main a.text-blue-600:hover,
+main.tt-app-main a.underline:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Flash / alerts                                                              */
+/* -------------------------------------------------------------------------- */
+
+.tt-flash {
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--tt-radius-lg);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-weight: 500;
+  box-shadow: var(--tt-shadow-md);
+  border: 1px solid transparent;
+  animation: tt-flash-in 0.35s ease-out;
+}
+
+@keyframes tt-flash-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tt-flash--success {
+  background: linear-gradient(135deg, rgba(79, 124, 130, 0.12), rgba(184, 227, 233, 0.35));
+  border-color: rgba(79, 124, 130, 0.25);
+  color: #0b2e33;
+}
+
+.tt-flash--error {
+  background: linear-gradient(135deg, rgba(11, 46, 51, 0.95), rgba(79, 124, 130, 0.88));
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+}
+
+.tt-flash svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Site footer                                                                 */
+/* -------------------------------------------------------------------------- */
+
+.tt-site-footer {
+  border-top: 1px solid var(--tt-border);
+  background: linear-gradient(180deg, transparent, rgba(79, 124, 130, 0.04));
+  padding-top: 1rem;
+  padding-bottom: 1.25rem;
+  color: var(--tt-text-soft);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cards — extra elevation utility                                             */
+/* -------------------------------------------------------------------------- */
+
 .tt-card-elevated {
-  box-shadow:
-    0 1px 2px rgba(11, 46, 51, 0.04),
-    0 4px 24px rgba(11, 46, 51, 0.06);
+  box-shadow: var(--tt-shadow-sm), var(--tt-shadow-lg);
+  border: 1px solid rgba(79, 124, 130, 0.1);
+}
+
+.card:not(.tt-flash) {
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+.card.tt-card-hover:hover,
+.card.hover-lift:hover {
+  box-shadow: var(--tt-shadow-md), 0 20px 50px rgba(11, 46, 51, 0.08);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Section title component                                                     */
+/* -------------------------------------------------------------------------- */
+
+.tt-section-title-wrap {
+  gap: 0.5rem;
 }
 
 .tt-kicker {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--tt-text-soft);
 }
 
-/* Login hero — aligns with Winter Chill */
+/* -------------------------------------------------------------------------- */
+/* Auth / login surfaces                                                       */
+/* -------------------------------------------------------------------------- */
+
 .tt-login-surface {
   min-height: 100vh;
-  background: radial-gradient(ellipse 120% 80% at 50% 0%, rgba(79, 124, 130, 0.12), transparent 55%),
-    linear-gradient(165deg, #f8fbfc 0%, #eef7f8 48%, #e2edf0 100%);
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -10%, rgba(79, 124, 130, 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(184, 227, 233, 0.4), transparent 50%),
+    linear-gradient(165deg, #f8fbfc 0%, #eef6f7 50%, #e2edf0 100%);
+}
+
+.tt-auth-page {
+  min-height: calc(100vh - 8rem);
+  min-height: calc(100dvh - 8rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Production form segment buttons (inactive / active via existing classes)    */
+/* -------------------------------------------------------------------------- */
+
+.tt-production-seg {
+  padding: 0.35rem;
+  border-radius: var(--tt-radius-xl);
+  background: rgba(79, 124, 130, 0.06);
+  border: 1px solid rgba(79, 124, 130, 0.1);
+  gap: 0.35rem !important;
+}
+
+.tt-production-seg button[data-production-form] {
+  border-radius: var(--tt-radius-md) !important;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease !important;
+}
+
+.tt-production-seg button[data-production-form].bg-gray-200 {
+  background: linear-gradient(180deg, #ffffff, #f1f5f9) !important;
+  border: 1px solid rgba(79, 124, 130, 0.12) !important;
+  color: #334155 !important;
+  box-shadow: var(--tt-shadow-sm) !important;
+}
+
+.tt-production-seg button[data-production-form].bg-gray-200:hover {
+  border-color: rgba(79, 124, 130, 0.28) !important;
+  transform: translateY(-1px);
+}
+
+.tt-production-seg button[data-production-form].bg-gradient-to-r {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 6px 20px rgba(11, 46, 51, 0.2) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Error page                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.tt-error-hero svg {
+  filter: drop-shadow(0 4px 12px rgba(239, 68, 68, 0.2));
 }

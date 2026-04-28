@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.7.0** (unified app shell + workflow resume fix after pause)
+Current: **v4.8.0** (full-app visual system: shell, flashes, auth, production segments)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
