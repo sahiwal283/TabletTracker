@@ -139,6 +139,19 @@ main.tt-app-main .text-slate-800 {
   color: #e2e8f0 !important;
 }
 
+main.tt-app-main table thead th.text-gray-500,
+main.tt-app-main table thead .text-xs.font-medium.text-gray-500 {
+  color: #b8c5d6 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em;
+}
+
+.tt-inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 main.tt-app-main .text-slate-500,
 main.tt-app-main .text-slate-600 {
   color: #94a3b8 !important;

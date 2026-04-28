@@ -1,7 +1,22 @@
 /*
  * TV operations board — dense 16:9 wall (Command Center aesthetic).
- * Load static/css/tokens.css before this sheet for --bg/--panel/--accent, etc.
+ * Load static/css/tokens.css before this sheet for shared fonts; scopes below override palette.
  */
+
+/* Exact wall reference (#0a0e14 canvas, neon #00e5ff) — html.ops-tv-wall on ops_tv_dashboard.html */
+html.ops-tv-wall {
+  --bg: #0a0e14;
+  --bg-deep: #05080f;
+  --panel: #0f1724;
+  --panel-elevated: #172033;
+  --accent: #00e5ff;
+  --accent-dim: rgba(0, 229, 255, 0.88);
+  --text: #f4f8fc;
+  --muted: #94a3b8;
+  --line: rgba(0, 229, 255, 0.18);
+  --line-soft: rgba(148, 163, 184, 0.1);
+  --glow: 0 0 40px rgba(0, 229, 255, 0.16);
+}
 
 *,
 *::before,
@@ -39,8 +54,9 @@ body {
   background-image:
     linear-gradient(var(--line-soft) 1px, transparent 1px),
     linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: 0.35;
+  background-size: 44px 44px;
+  background-position: -1px -1px;
+  opacity: 0.42;
   z-index: 0;
 }
 

@@ -2,6 +2,12 @@
  * TV operations board — polls snapshot API, renders tiles + Chart.js (no tables).
  */
 (function () {
+  /** Matches html.ops-tv-wall / wall screen (#00e5ff accent) */
+  var ACCENT = "#00e5ff";
+  var ACCENT_SOFT = "rgba(0, 229, 255, 0.12)";
+  var ACCENT_FILL = "rgba(0, 229, 255, 0.08)";
+  var GRID_LINE = "rgba(0, 229, 255, 0.07)";
+
   var POLL_MS = 8000;
   var root = document.getElementById("ops-root");
   if (!root) return;
@@ -61,7 +67,7 @@
     ctx.clearRect(0, 0, W, H);
     var max = Math.max.apply(null, values.concat([1]));
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(34, 211, 238, 0.9)";
+    ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 2;
     values.forEach(function (v, i) {
       var x = (i / (values.length - 1 || 1)) * (W - 4) + 2;
@@ -72,7 +78,7 @@
     ctx.stroke();
     ctx.lineTo(W - 2, H - 2);
     ctx.lineTo(2, H - 2);
-    ctx.fillStyle = "rgba(34, 211, 238, 0.1)";
+    ctx.fillStyle = ACCENT_SOFT;
     ctx.fill();
   }
 
@@ -368,11 +374,11 @@
           maxTicksLimit: 8,
           font: tickFont,
         },
-        grid: { color: "rgba(56, 189, 248, 0.08)" },
+        grid: { color: GRID_LINE },
       },
       y: {
         ticks: { color: "#94a3b8", font: tickFont },
-        grid: { color: "rgba(56, 189, 248, 0.08)" },
+        grid: { color: GRID_LINE },
       },
     };
 
@@ -421,7 +427,7 @@
             scales: {
               x: {
                 ticks: { color: "#94a3b8", font: tickFont },
-                grid: { color: "rgba(56, 189, 248, 0.08)" },
+                grid: { color: GRID_LINE },
               },
               y: {
                 ticks: { color: "#cbd5e1", font: tickFont },
@@ -449,7 +455,7 @@
                   font: tickFont,
                   callback: function (v) { return v + "%"; },
                 },
-                grid: { color: "rgba(56, 189, 248, 0.08)" },
+                grid: { color: GRID_LINE },
               },
               y: {
                 stacked: true,
@@ -485,7 +491,7 @@
   }
 
   var palette = [
-    "#22d3ee",
+    ACCENT,
     "#34d399",
     "#fbbf24",
     "#fb923c",
@@ -506,8 +512,8 @@
         {
           label: "Cumulative displays",
           data: data.chart_cumulative_output || [],
-          borderColor: "#22d3ee",
-          backgroundColor: "rgba(34, 211, 238, 0.08)",
+          borderColor: ACCENT,
+          backgroundColor: ACCENT_FILL,
           fill: true,
           tension: 0.25,
           borderWidth: 3,

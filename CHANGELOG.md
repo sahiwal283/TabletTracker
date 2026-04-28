@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.10.0] - 2026-04-28
+
+### Added
+- **Favicon** — [`static/img/favicon.svg`](static/img/favicon.svg) (bars on midnight field); linked from [`templates/base.html`](templates/base.html) and [`templates/ops_tv_dashboard.html`](templates/ops_tv_dashboard.html).
+
+### Changed
+- **Iconography** — Replaced emoji in high-traffic **Submissions** and **Production** UI with monochrome **SVG sprites** (`#icon-*` in base): tabs, filters, status badges, admin-notes control, deletes, machinery labels, toast alerts. Alerts and dialogs use plain wording where emojis were decorative.
+- **Readability** — Stronger **`table thead`** contrast in [`static/css/app-ui.css`](static/css/app-ui.css); `.tt-inline-icon` helper for sprite sizing.
+- **Operations TV wall** — [`templates/ops_tv_dashboard.html`](templates/ops_tv_dashboard.html): `html.ops-tv-wall` + [`static/css/ops-tv.css`](static/css/ops-tv.css) scopes **#0a0e14 / #00e5ff** reference palette, finer grid overlay. [`static/js/ops-tv.js`](static/js/ops-tv.js): sparkline and primary chart series use matching neon accent.
+
+---
+
 ## [4.9.0] - 2026-04-28
 
 ### Changed

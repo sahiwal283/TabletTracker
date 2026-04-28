@@ -8,8 +8,9 @@
 <div class="mb-8">
     <div class="flex justify-between items-center">
         <div>
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                📝 Submissions
+            <h1 class="text-4xl font-bold flex items-center gap-3">
+                <svg class="tt-inline-icon w-9 h-9 text-cyan-400" aria-hidden="true" width="36" height="36"><use href="#icon-clipboard"/></svg>
+                <span class="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Submissions</span>
             </h1>
             <p class="text-gray-600 mt-2">
                 {% if page_view == 'workflow' %}
@@ -24,9 +25,11 @@
             <a href="/submissions{% if active_tab != 'packaged_machine' %}?tab={{ active_tab }}{% endif %}{% if show_archived %}?{% if active_tab != 'packaged_machine' %}tab={{ active_tab }}&{% endif %}show_archived=false{% else %}?{% if active_tab != 'packaged_machine' %}tab={{ active_tab }}&{% endif %}show_archived=true{% endif %}" 
                class="btn-secondary px-4 py-2 text-sm flex items-center gap-2">
                 {% if show_archived %}
-                    <span>✓</span> Show Active ({{ pagination.total }} archived)
+                    <svg class="tt-inline-icon w-4 h-4 text-emerald-400" aria-hidden="true" width="16" height="16"><use href="#icon-check"/></svg>
+                    <span>Show Active ({{ pagination.total }} archived)</span>
                 {% else %}
-                    <span>📦</span> Show Archived ({{ archived_count }})
+                    <svg class="tt-inline-icon w-4 h-4 text-cyan-400" aria-hidden="true" width="16" height="16"><use href="#icon-box"/></svg>
+                    <span>Show Archived ({{ archived_count }})</span>
                 {% endif %}
             </a>
             {% endif %}
@@ -230,20 +233,23 @@
                             <div class="flex items-center gap-2">
                                 <span class="font-medium {% if sub.po_closed %}text-gray-500{% else %}text-blue-600{% endif %}">{{ sub.receive_name }}</span>
                                 {% if sub.po_closed %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
-                                        🔒 Closed
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm font-medium bg-gray-100 text-gray-700">
+                                        <svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-lock"/></svg>
+                                        Closed
                                     </span>
                                 {% else %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-medium bg-green-100 text-green-700">
-                                        ✓ Open
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm font-medium bg-green-100 text-green-700">
+                                        <svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-check"/></svg>
+                                        Open
                                     </span>
                                 {% endif %}
                                 {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}
                                     {% if not sub.po_closed %}
                                     <button type="button" data-delete-submission-id="{{ sub.id }}"
-                                            class="text-sm text-red-600 hover:text-red-800 underline ml-2"
+                                            class="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-800 underline ml-2"
                                             title="Delete submission (Admin only)">
-                                        🗑️ Delete
+                                        <svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-trash"/></svg>
+                                        Delete
                                     </button>
                                     {% endif %}
                                 {% endif %}
@@ -252,16 +258,17 @@
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-400 italic">Unassigned</span>
                                 <button type="button" data-open-reassign-submission-id="{{ sub.id }}" data-product-name="{{ sub.product_name|e }}" data-needs-review="{{ sub.needs_review|default(0)|int }}"
-                                        class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                                        class="inline-flex items-center gap-1 text-sm bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
                                         title="{% if sub.needs_review %}Assign to Receive{% else %}Assign to PO{% endif %}">
-                                    {% if sub.needs_review %}📦 Assign Receive{% else %}📋 Assign{% endif %}
+                                    {% if sub.needs_review %}<svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-truck"/></svg> Assign Receive{% else %}<svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-clipboard"/></svg> Assign{% endif %}
                                 </button>
                                 {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}
                                     {% if not sub.po_closed %}
                                     <button type="button" data-delete-submission-id="{{ sub.id }}"
-                                            class="text-sm text-red-600 hover:text-red-800 underline ml-2"
+                                            class="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-800 underline ml-2"
                                             title="Delete submission (Admin only)">
-                                        🗑️ Delete
+                                        <svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-trash"/></svg>
+                                        Delete
                                     </button>
                                     {% endif %}
                                 {% endif %}
@@ -288,16 +295,19 @@
             {% set query_string = '?' + query_params|join('&') if query_params else '' %}
             
             <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=packaged_machine" 
-               class="{% if active_tab == 'packaged_machine' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-                📦 Packaged & Machine
+               class="{% if active_tab == 'packaged_machine' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                <svg class="tt-inline-icon w-4 h-4 opacity-90" aria-hidden="true" width="16" height="16"><use href="#icon-box"/></svg>
+                Packaged &amp; Machine
             </a>
             <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=bottles" 
-               class="{% if active_tab == 'bottles' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-                🍶 Bottles
+               class="{% if active_tab == 'bottles' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                <svg class="tt-inline-icon w-4 h-4 opacity-90" aria-hidden="true" width="16" height="16"><use href="#icon-bottle"/></svg>
+                Bottles
             </a>
             <a href="{{ base_url }}{{ query_string }}{% if query_string %}&{% else %}?{% endif %}tab=bag" 
-               class="{% if active_tab == 'bag' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-                📋 Bag Count
+               class="{% if active_tab == 'bag' %}border-green-500 text-green-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %} inline-flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                <svg class="tt-inline-icon w-4 h-4 opacity-90" aria-hidden="true" width="16" height="16"><use href="#icon-clipboard"/></svg>
+                Bag Count
             </a>
         </nav>
     </div>
@@ -306,8 +316,8 @@
 <!-- Filters Section -->
 <div class="mb-6 card">
     <div class="px-6 py-4 border-b border-gray-200">
-        <h3 class="text-lg font-semibold text-gray-800 flex items-center">
-            <span class="mr-2">🔍</span>
+        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <svg class="tt-inline-icon w-5 h-5 text-cyan-400 shrink-0" aria-hidden="true" width="20" height="20"><use href="#icon-search"/></svg>
             Filter Submissions
         </h3>
     </div>
@@ -414,50 +424,58 @@
 <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow-md">
     <div class="flex items-center justify-between">
         <div class="flex items-center">
-            <span class="text-2xl mr-3">🔍</span>
+            <svg class="tt-inline-icon w-8 h-8 shrink-0 text-cyan-400 mr-3" aria-hidden="true" width="32" height="32"><use href="#icon-search"/></svg>
             <div>
                 <h3 class="font-bold text-blue-900 text-lg">Active Filters</h3>
                 <div class="flex gap-3 mt-2 flex-wrap">
                     {% if filter_info.po_number %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                            📦 PO: {{ filter_info.po_number }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-box"/></svg>
+                            PO: {{ filter_info.po_number }}
                         </span>
                     {% endif %}
                     {% if filter_info.item_name %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                            💊 {{ filter_info.item_name }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-lab"/></svg>
+                            {{ filter_info.item_name }}
                         </span>
                     {% endif %}
                     {% if filter_info.date_from %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                            📅 From: {{ filter_info.date_from }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-clock"/></svg>
+                            From: {{ filter_info.date_from }}
                         </span>
                     {% endif %}
                     {% if filter_info.date_to %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                            📅 To: {{ filter_info.date_to }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-clock"/></svg>
+                            To: {{ filter_info.date_to }}
                         </span>
                     {% endif %}
                     {% if filter_info.tablet_type_name %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
-                            💊 Type: {{ filter_info.tablet_type_name }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-lab"/></svg>
+                            Type: {{ filter_info.tablet_type_name }}
                         </span>
                     {% endif %}
                     {% if filter_info.submission_type %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800">
-                            📋 {{ filter_info.submission_type|title }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-clipboard"/></svg>
+                            {{ filter_info.submission_type|title }}
                         </span>
                     {% endif %}
                     {% if filter_info.receipt_number %}
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                            🧾 Receipt: {{ filter_info.receipt_number }}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                            <svg class="tt-inline-icon w-3.5 h-3.5 shrink-0" aria-hidden="true" width="14" height="14"><use href="#icon-document"/></svg>
+                            Receipt: {{ filter_info.receipt_number }}
                         </span>
                     {% endif %}
                 </div>
             </div>
         </div>
-        <a href="/submissions{% if sort_by %}?sort_by={{ sort_by }}&sort_order={{ sort_order }}{% endif %}" class="btn-secondary px-4 py-2 text-sm">
-            ✖️ Clear All Filters
+        <a href="/submissions{% if sort_by %}?sort_by={{ sort_by }}&sort_order={{ sort_order }}{% endif %}" class="btn-secondary px-4 py-2 text-sm inline-flex items-center gap-2">
+            <svg class="tt-inline-icon w-4 h-4 shrink-0" aria-hidden="true" width="16" height="16"><use href="#icon-x"/></svg>
+            Clear All Filters
         </a>
     </div>
 </div>
@@ -468,7 +486,7 @@
     <div class="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
         <div class="flex justify-between items-center">
             <div class="flex items-center">
-                <span class="text-3xl mr-4">📋</span>
+                <svg class="tt-inline-icon w-8 h-8 shrink-0 text-cyan-400 mr-4" aria-hidden="true" width="32" height="32"><use href="#icon-list"/></svg>
                 <div>
                     <h3 class="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Submissions History</h3>
                     <div class="flex items-center gap-2 mt-1">
@@ -633,12 +651,12 @@
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap">
                                                             <span class="inline-flex items-center gap-1.5 max-w-[14rem] px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800" title="{% if sub.machine_display_name %}{{ sub.machine_display_name|e }}{% elif sub.machine_id %}Machine id {{ sub.machine_id }}{% else %}Machine{% endif %}">
-                                                                <span class="shrink-0" aria-hidden="true">⚙️</span>
+                                                                <span class="shrink-0 inline-flex text-cyan-700" aria-hidden="true"><svg class="w-3 h-3" fill="currentColor"><use href="#icon-gear"/></svg></span>
                                                                 {% if sub.machine_display_name %}<span class="font-semibold truncate">{{ sub.machine_display_name }}</span>{% else %}<span>Machine</span>{% endif %}
                                                             </span>
                                                         </td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-900">
-                                                            <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
+                                                            <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');"><svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-document"/></svg><span class="sr-only">Notes</span></button>{% endif %}</div>
                                                         </td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ (sub.displays_made or 0) * 2 }}</td>
@@ -672,12 +690,12 @@
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap">
                                                             <span class="inline-flex items-center gap-1.5 max-w-[14rem] px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" title="{% if sub.machine_display_name %}{{ sub.machine_display_name|e }}{% elif sub.machine_id %}Machine id {{ sub.machine_id }}{% else %}Machine{% endif %}">
-                                                                <span class="shrink-0" aria-hidden="true">⚙️</span>
+                                                                <span class="shrink-0 inline-flex text-cyan-700" aria-hidden="true"><svg class="w-3 h-3" fill="currentColor"><use href="#icon-gear"/></svg></span>
                                                                 {% if sub.machine_display_name %}<span class="font-semibold truncate">{{ sub.machine_display_name }}</span>{% else %}<span>Machine</span>{% endif %}
                                                             </span>
                                                         </td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-900">
-                                                            <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
+                                                            <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');"><svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-document"/></svg><span class="sr-only">Notes</span></button>{% endif %}</div>
                                                         </td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining is not none else '' }}</td>
@@ -712,13 +730,13 @@
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.created_at|to_est if sub.created_at else 'N/A' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap">
                                                             {% if sub.submission_type == 'repack' %}
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900">📦 Repack</span>
+                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900"><svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor"><use href="#icon-box"/></svg> Repack</span>
                                                             {% else %}
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>
+                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor"><use href="#icon-box"/></svg> Packaged</span>
                                                             {% endif %}
                                                         </td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-900">
-                                                            <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>{% endif %}</div>
+                                                            <div class="flex items-center gap-1">{{ sub.employee_name }}{% if sub.admin_notes %}<button type="button" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-pointer hover:bg-purple-200 border-0 align-middle js-admin-notes-trigger" title="Click to view admin notes" data-notes-submission-id="{{ sub.id }}" data-admin-notes="{{ (sub.admin_notes or '') | e }}" onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');"><svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-document"/></svg><span class="sr-only">Notes</span></button>{% endif %}</div>
                                                         </td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.displays_made if sub.displays_made is not none else '' }}</td>
                                                         <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ sub.packs_remaining if sub.packs_remaining is not none else '' }}</td>
@@ -758,7 +776,7 @@
                                             <td class="px-3 py-2 whitespace-nowrap">
                                                 {% if sub.submission_type == 'machine' %}
                                                     <span class="inline-flex items-center gap-1.5 max-w-[14rem] px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" title="{% if sub.machine_display_name %}{{ sub.machine_display_name|e }}{% elif sub.machine_id %}Machine id {{ sub.machine_id }}{% else %}Machine{% endif %}">
-                                                        <span class="shrink-0" aria-hidden="true">⚙️</span>
+                                                        <span class="shrink-0 inline-flex text-cyan-700" aria-hidden="true"><svg class="w-3 h-3" fill="currentColor"><use href="#icon-gear"/></svg></span>
                                                         {% if sub.machine_display_name %}
                                                             <span class="font-semibold truncate">{{ sub.machine_display_name }}</span>
                                                         {% else %}
@@ -766,13 +784,13 @@
                                                         {% endif %}
                                                     </span>
                                                 {% elif sub.submission_type == 'bag' %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor"><use href="#icon-clipboard"/></svg> Bag Count</span>
                                                 {% elif sub.submission_type == 'bottle' %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">🍶 Bottles</span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800"><svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor"><use href="#icon-bottle"/></svg> Bottles</span>
                                                 {% elif sub.submission_type == 'repack' %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900">📦 Repack</span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-900"><svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor"><use href="#icon-box"/></svg> Repack</span>
                                                 {% else %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor"><use href="#icon-box"/></svg> Packaged</span>
                                                 {% endif %}
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-gray-900">
@@ -784,7 +802,7 @@
                                                           title="Click to view admin notes"
                                                           data-notes-submission-id="{{ sub.id }}"
                                                           data-admin-notes="{{ (sub.admin_notes or '') | e }}"
-                                                          onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');">📝</button>
+                                                          onclick="event.stopPropagation(); event.preventDefault(); if (typeof showAdminNotes === 'function') showAdminNotes(this.dataset.adminNotes || '');"><svg class="tt-inline-icon w-3.5 h-3.5" aria-hidden="true" width="14" height="14"><use href="#icon-document"/></svg><span class="sr-only">Notes</span></button>
                                                     {% endif %}
                                                 </div>
                                             </td>
@@ -894,7 +912,7 @@
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
             <div class="flex justify-between items-center">
                 <div>
-                    <h3 class="text-xl font-bold">🔄 Reassign Submission to PO</h3>
+                    <h3 class="text-xl font-bold">Reassign submission to PO</h3>
                     <p class="text-sm text-blue-100 mt-1" id="reassign-modal-subtitle"></p>
                 </div>
                 <button data-close-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold">
@@ -907,7 +925,7 @@
         <div class="p-6">
             <div class="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                 <p class="text-sm text-yellow-800">
-                    <strong>⚠️ Manager Verification:</strong> Select the correct receive for this submission. 
+                    <strong>Manager verification:</strong> Select the correct receive for this submission. 
                     Only receives containing this product are shown. Counts will be automatically updated.
                 </p>
             </div>
@@ -964,7 +982,7 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
         const data = await response.json();
         
         // Set modal title and warning for receives (always receives, never POs)
-        document.querySelector('#reassign-modal h3').textContent = '🔄 Assign Submission to Receive';
+        document.querySelector('#reassign-modal h3').textContent = 'Assign submission to receive';
         
         if (!data.success) {
             document.querySelector('#reassign-modal .text-sm').textContent = 'Error loading possible receives.';
@@ -973,7 +991,7 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
                     <p>Error loading possible receives: ${data.error || 'Unknown error'}</p>
                     ${data.error && data.error.includes('bag_number') ? `
                         <p class="text-xs mt-2 text-orange-600">
-                            ⚠️ This submission is missing a bag number. 
+                            This submission is missing a bag number. 
                             This usually happens when the bag number wasn't entered during submission.
                         </p>
                     ` : ''}
@@ -985,7 +1003,7 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
         // AUTO-ASSIGN: If server auto-assigned because only 1 match, show success and close
         if (data.auto_assigned) {
             document.getElementById('reassign-modal').classList.add('hidden');
-            alert(`✅ ${data.message}`);
+            alert(data.message);
             location.reload();
             return;
         }
@@ -1023,8 +1041,9 @@ async function openReassignModal(submissionId, currentPO, productName, needsRevi
                         <div class="flex-1">
                             <div class="flex items-center gap-2 mb-2">
                                 <span class="font-bold text-lg text-gray-900">${receive.receive_name}</span>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                                    📦 Receive
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                    <svg class="w-3 h-3 shrink-0" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M21 8.5V17a2 2 0 0 1-1.106 1.789l-7 3.5a2 2 0 0 1-1.788 0l-7-3.5A2 2 0 0 1 3 17V8.5l8.106 4.053a2 2 0 0 0 1.788 0L21 8.5Z"/></svg>
+                                    Receive
                                 </span>
                             </div>
                             <div class="text-sm text-gray-600 mb-2">
@@ -1158,7 +1177,7 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
                 <div class="p-6">
                     <div class="mb-4 bg-red-50 border-l-4 border-red-400 p-4 rounded">
                         <p class="text-sm text-red-800">
-                            <strong>⚠️ ADMIN OVERRIDE WARNING:</strong> This submission has been verified and locked. 
+                            <strong>Admin override:</strong> This submission has been verified and locked. 
                             Changing the PO assignment requires admin override confirmation.
                         </p>
                         <p class="text-sm text-red-700 mt-2">
@@ -1241,7 +1260,7 @@ async function loadAdminReassignPOs(submissionId, productName) {
         data.available_pos.forEach(po => {
             const isCurrent = po.id === data.current_po_id;
             const statusColor = po.closed ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-700';
-            const statusLabel = po.closed ? '🔒 Closed' : '✓ Open';
+            const statusLabel = po.closed ? 'Closed' : 'Open';
             
             const poDiv = document.createElement('div');
             poDiv.className = `border rounded-lg p-4 hover:bg-orange-50 cursor-pointer transition-colors ${isCurrent ? 'border-orange-500 bg-orange-50' : 'border-gray-300'}`;
@@ -1302,7 +1321,7 @@ function closeAdminReassignModal(event) {
 }
 
 async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
-    if (!confirm(`⚠️ ADMIN OVERRIDE CONFIRMATION\n\nAre you sure you want to change this VERIFIED submission from its current PO to ${newPoNumber}?\n\nThis will:\n- Update counts on both POs\n- Keep the submission verified\n- Require admin override confirmation\n\nThis action cannot be easily undone.`)) {
+    if (!confirm(`ADMIN OVERRIDE CONFIRMATION\n\nAre you sure you want to change this VERIFIED submission from its current PO to ${newPoNumber}?\n\nThis will:\n- Update counts on both POs\n- Keep the submission verified\n- Require admin override confirmation\n\nThis action cannot be easily undone.`)) {
         return;
     }
     
@@ -1339,7 +1358,7 @@ async function adminReassignSubmission(submissionId, newPoId, newPoNumber) {
 
 // Delete submission function
 async function deleteSubmission(submissionId) {
-    if (!confirm('⚠️ WARNING: This will permanently delete this submission and remove its counts from the PO.\n\nAre you sure you want to delete this submission?')) {
+    if (!confirm('WARNING: This will permanently delete this submission and remove its counts from the PO.\n\nAre you sure you want to delete this submission?')) {
         return;
     }
     

@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.9.0** (Command Center dark theme + Ops TV token parity)
+Current: **v4.10.0** (favicon, SVG icons, Ops TV neon wall refinement)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
