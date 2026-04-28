@@ -97,9 +97,9 @@ def create_machine():
         try:
             cards_per_turn = int(cards_per_turn)
             if cards_per_turn < 1:
-                return jsonify({'success': False, 'error': 'Cards per turn must be at least 1'}), 400
+                return jsonify({'success': False, 'error': 'Output units per cycle must be at least 1'}), 400
         except (ValueError, TypeError):
-            return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
+            return jsonify({'success': False, 'error': 'Invalid output-units value'}), 400
 
         with db_transaction() as conn:
             _ensure_machine_metadata_columns(conn)
@@ -148,9 +148,9 @@ def update_machine(machine_id):
         try:
             cards_per_turn = int(cards_per_turn)
             if cards_per_turn < 1:
-                return jsonify({'success': False, 'error': 'Cards per turn must be at least 1'}), 400
+                return jsonify({'success': False, 'error': 'Output units per cycle must be at least 1'}), 400
         except (ValueError, TypeError):
-            return jsonify({'success': False, 'error': 'Invalid cards per turn value'}), 400
+            return jsonify({'success': False, 'error': 'Invalid output-units value'}), 400
 
         with db_transaction() as conn:
             _ensure_machine_metadata_columns(conn)

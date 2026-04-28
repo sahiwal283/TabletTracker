@@ -50,7 +50,10 @@
         <option value="stickering">Stickering</option>
         <option value="bottle">Bottle</option>
       </select>
-      <input id="cards" class="form-input" type="number" min="1" value="1" placeholder="Cards/turn" />
+      <div class="flex flex-col gap-1">
+        <input id="cards" class="form-input" type="number" min="1" value="1" placeholder="Cards/turn" />
+        <p id="cards-help" class="text-xs text-gray-500">Cards per turn</p>
+      </div>
       <input id="area" class="form-input" placeholder="Area (e.g. Post-Blister)" />
       <input id="category" class="form-input" placeholder="Category (Primary/Secondary)" />
       <textarea id="raw" class="form-input md:col-span-2" placeholder="Raw materials (comma separated)"></textarea>
@@ -76,13 +79,34 @@
     return Array.isArray(v) ? v.join(', ') : '';
   }
 
+  function unitLabelForRole(role) {
+    return String(role || '').toLowerCase() === 'blister' ? 'blisters/press' : 'cards/turn';
+  }
+
+  function refreshCardsFieldCopy() {
+    const roleEl = document.getElementById('role');
+    const cardsEl = document.getElementById('cards');
+    const cardsHelpEl = document.getElementById('cards-help');
+    if (!roleEl || !cardsEl) return;
+    const isBlister = String(roleEl.value || '').toLowerCase() === 'blister';
+    cardsEl.placeholder = isBlister ? 'Blisters per press' : 'Cards/turn';
+    cardsEl.title = isBlister
+      ? 'Each press seals multiple blisters; set how many blisters are sealed per press'
+      : 'Cards per turn';
+    if (cardsHelpEl) {
+      cardsHelpEl.textContent = isBlister
+        ? 'For blister machines: blisters sealed per single press'
+        : 'For non-blister machines: cards produced per turn';
+    }
+  }
+
   function machineCardHtml(m) {
     return `
       <div class="card p-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 class="text-lg font-semibold text-gray-900">${m.machine_name}</h3>
-            <p class="text-sm text-gray-600 mt-1">Role: ${m.machine_role || 'sealing'} · ${m.cards_per_turn} cards/turn</p>
+            <p class="text-sm text-gray-600 mt-1">Role: ${m.machine_role || 'sealing'} · ${m.cards_per_turn} ${unitLabelForRole(m.machine_role)}</p>
             <p class="text-sm text-gray-600">Area: ${m.area_name || '—'} · Category: ${m.machine_category || '—'}</p>
             <p class="text-sm text-gray-600">Raw materials: ${listToCsv(m.raw_materials) || '—'}</p>
             <p class="text-sm text-gray-600">Components: ${listToCsv(m.components) || '—'}</p>
@@ -131,6 +155,7 @@
     });
     document.getElementById('cards').value = '1';
     document.getElementById('role').value = 'sealing';
+    refreshCardsFieldCopy();
   }
 
   async function editMachine(id) {
@@ -143,6 +168,7 @@
     document.getElementById('name').value = m.machine_name || '';
     document.getElementById('cards').value = m.cards_per_turn || 1;
     document.getElementById('role').value = m.machine_role || 'sealing';
+    refreshCardsFieldCopy();
     document.getElementById('area').value = m.area_name || '';
     document.getElementById('category').value = m.machine_category || '';
     document.getElementById('raw').value = listToCsv(m.raw_materials);
@@ -207,6 +233,7 @@
     clearEditor();
     openEditor();
   });
+  document.getElementById('role').addEventListener('change', refreshCardsFieldCopy);
   document.getElementById('cancelBtn').addEventListener('click', closeEditor);
   document.getElementById('saveBtn').addEventListener('click', save);
   document.getElementById('saveOpsDatasetBtn').addEventListener('click', saveOpsDataset);
@@ -223,6 +250,7 @@
     }
   });
 
+  refreshCardsFieldCopy();
   load();
   loadOpsDataset();
 </script>

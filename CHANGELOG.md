@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.9] - 2026-04-28
+
+### Changed
+- **Machine settings semantics:** For `blister` role, the UI now captures **blisters per press** (not cards/turn wording), including contextual placeholder/help text and list labels.
+- **Metrics correctness:** `ops-metrics` now converts blister completed-unit counters as `press_count × blisters_per_press` using each machine's configured value, so blister output reflects actual sealed blisters.
+- **API validation copy:** machine create/update errors now use neutral **output units per cycle** language.
+
+---
+
 ## [4.15.8] - 2026-04-28
 
 ### Changed

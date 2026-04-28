@@ -77,7 +77,7 @@
     return hasToday ? "LIVE_QR" : "NO_ACTIVITY_TODAY";
   }
 
-  function deriveMachineMetrics(machineId, events, shiftConfig) {
+  function deriveMachineMetrics(machineId, events, shiftConfig, machineConfig) {
     var win = todayWindow(shiftConfig);
     var ms = (events || []).filter(function (e) {
       return eventMachineId(e) === asNum(machineId) && asNum(e.atMs) != null && asNum(e.atMs) >= win.dayStart;
@@ -91,6 +91,9 @@
     var rejects = 0;
     var startByBag = {};
 
+    var role = String(machineConfig && machineConfig.machine_role || "").toLowerCase();
+    var blistersPerPress = asNum(machineConfig && machineConfig.cards_per_turn) || 1;
+
     ms.forEach(function (e) {
       var et = String(e.eventType || "").toUpperCase();
       var at = asNum(e.atMs);
@@ -103,7 +106,13 @@
         if (bid != null) startByBag[String(bid)] = at;
       }
       if (isCompletedEvent(e)) {
-        completedUnits += counterDelta(e);
+        // For blister machines, counters represent press counts.
+        // Convert to blister units using configured blisters-per-press.
+        var eventUnits = counterDelta(e);
+        if (role === "blister") {
+          eventUnits = eventUnits * blistersPerPress;
+        }
+        completedUnits += eventUnits;
         if (bid != null) {
           var st = startByBag[String(bid)];
           if (st != null && at != null && at > st) {
@@ -309,7 +318,7 @@
     });
 
     (machines || []).forEach(function (m) {
-      var mm = deriveMachineMetrics(m.id, todays, shiftConfig);
+      var mm = deriveMachineMetrics(m.id, todays, shiftConfig, m);
       if (mm.avgCycleMinutes != null) cycles.push(mm.avgCycleMinutes);
     });
 
@@ -318,7 +327,7 @@
     var bottleneck = deriveBottleneck(todays);
 
     var machineMetrics = (machines || []).map(function (m) {
-      var mm = deriveMachineMetrics(m.id, todays, shiftConfig);
+      var mm = deriveMachineMetrics(m.id, todays, shiftConfig, m);
       var status = getMachineIntegrationStatus(m.id, todays, {
         dayStartMs: win.dayStart,
         configuredMachineIds: (machines || []).map(function (x) { return x.id; }),
