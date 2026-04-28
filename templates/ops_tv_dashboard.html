@@ -15,6 +15,10 @@
   <script type="application/json" id="mes-nav-boot">{{ mes_nav_boot | tojson }}</script>
   <div id="mes-root" data-snapshot-url="{{ snapshot_api_url }}" role="application" aria-label="Pill packing command center"></div>
   <script type="application/json" id="ops-tv-initial-data">{{ initial_snapshot | tojson }}</script>
-  <script type="module" src="{{ url_for('static', filename='js/mes/command-center-app.js') }}?v={{ app_version }}"></script>
+  {# Self-hosted UMD — esm.sh / external module CDNs are blocked under strict CSP (e.g. PythonAnywhere). #}
+  <script defer src="{{ url_for('static', filename='js/mes/vendor/react.production.min.js') }}?v={{ app_version }}"></script>
+  <script defer src="{{ url_for('static', filename='js/mes/vendor/react-dom.production.min.js') }}?v={{ app_version }}"></script>
+  <script defer src="{{ url_for('static', filename='js/mes/vendor/htm.umd.js') }}?v={{ app_version }}"></script>
+  <script defer src="{{ url_for('static', filename='js/mes/command-center-app.js') }}?v={{ app_version }}"></script>
 </body>
 </html>

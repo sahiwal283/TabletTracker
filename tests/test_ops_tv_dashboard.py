@@ -48,6 +48,8 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn(b"id=\"mes-root\"", r.data)
         self.assertIn(b"mes-command-center.css", r.data)
+        self.assertIn(b"js/mes/vendor/react.production.min.js", r.data)
+        self.assertIn(b"js/mes/vendor/htm.umd.js", r.data)
         self.assertIn(b"command-center-app.js", r.data)
         self.assertIn(b"command-center/ops-tv/api/snapshot", r.data)
         self.assertIn(b"ops-tv-initial-data", r.data)

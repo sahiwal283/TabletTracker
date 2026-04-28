@@ -1,14 +1,26 @@
 /**
- * MES Command Center — React + htm (ES modules, no bundle).
- * Styled with static/css/mes-command-center.css. Data: snapshot JSON `.mes`.
+ * MES Command Center — React + htm via self-hosted UMD scripts (CSP / PythonAnywhere safe).
+ * Do not use esm.sh CDN here; third-party module loads are often blocked.
+ * Vendors: js/mes/vendor/react.production.min.js, react-dom.production.min.js, htm.umd.js
+ * Styled with css/mes-command-center.css. Data: snapshot JSON `.mes`.
  */
-import React, { useEffect, useState } from "https://esm.sh/react@18.2.0";
-import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
-import htm from "https://esm.sh/htm@3.1.1";
+(function () {
+  var React = window.React;
+  var ReactDOM = window.ReactDOM;
+  var htmVendor = window.htm;
+  if (!React || !ReactDOM || !htmVendor) {
+    var miss = document.getElementById("mes-root");
+    if (miss) {
+      miss.innerHTML =
+        '<p style="color:#fecaca;padding:1.25rem;font:13px system-ui,Segoe UI,sans-serif;line-height:1.5;max-width:36rem">MES command center libraries did not load from this site. Reload the page or clear cache. If this persists, verify <code>/static/js/mes/vendor/</code> React + htm scripts are deployed.</p>';
+    }
+    return;
+  }
+  var html = htmVendor.bind(React.createElement);
+  var useState = React.useState;
+  var useEffect = React.useEffect;
 
-const html = htm.bind(React.createElement);
-
-const NAV_DEFAULT = [
+var NAV_DEFAULT = [
   { label: "Overview", href: "/command-center/ops-tv", icon: "◇" },
   { label: "Blister Line", href: "/command-center#blister", icon: "▭" },
   { label: "Bottle Line", href: "/command-center#bottle", icon: "▭" },
@@ -539,7 +551,8 @@ tickClock();
 setInterval(tickClock, 1000);
 
 var rootEl = document.getElementById("mes-root");
-if (rootEl) {
+if (rootEl && window.React && window.ReactDOM) {
   var u = rootEl.getAttribute("data-snapshot-url") || "";
-  createRoot(rootEl).render(html`<${App} snapshotUrl=${u} />`);
+  window.ReactDOM.createRoot(rootEl).render(html`<${App} snapshotUrl=${u} />`);
 }
+})();
