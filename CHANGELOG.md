@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.7.0] - 2026-04-28
+
+### Fixed
+- **Workflow station (blister / all lanes):** After pausing, **Resume** scanned the bag card but immediately returned to the paused screen. The client now emits **`STATION_RESUMED`** automatically after a successful resume verification (same scan flow as before), instead of only reloading bag state.
+
+### Changed
+- **App shell:** New [`static/css/app-ui.css`](static/css/app-ui.css) — page rhythm (`.tt-app-main`), elevated cards; **login** uses aligned Winter Chill hero (`.tt-login-surface`) and solid title treatment.
+- **`static/css/tokens.css`:** Expanded spacing/radius tokens.
+
+---
+
 ## [4.6.0] - 2026-04-28
 
 ### Added

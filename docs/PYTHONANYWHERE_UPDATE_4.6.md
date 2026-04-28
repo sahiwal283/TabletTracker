@@ -1,4 +1,6 @@
-# PythonAnywhere: deploy TabletTracker v4.6.0 (UI refresh)
+# PythonAnywhere: deploy TabletTracker v4.6+ / v4.7 (UI refresh)
+
+> For **v4.7.0**, use the same steps; version is informational only unless migrations are noted in [CHANGELOG.md](../../CHANGELOG.md).
 
 Replace `YOUR_USER` with your PythonAnywhere username and adjust the virtualenv path if yours differs (`venv`, `.venv`, or a named virtualenv).
 

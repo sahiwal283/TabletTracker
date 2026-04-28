@@ -346,6 +346,8 @@
       } else if (mode === 'taken') {
         inst.textContent =
           'Scan the bag card QR to verify before recording taken-for-delivery displays.';
+      } else if (mode === 'resume') {
+        inst.textContent = 'Scan the bag card QR to verify, then the station will resume.';
       } else {
         inst.textContent = 'Scan the bag card QR to verify before continuing.';
       }
@@ -408,6 +410,15 @@
     }
     configureStationActions();
     applyOccupancyGateUi();
+    /* After verify for Resume, server is still paused until STATION_RESUMED — emit it now or UI loops back to paused screen. */
+    if (gateMode === 'resume') {
+      try {
+        await resumeBag();
+      } catch (e) {
+        statusLine(String(e), 'error');
+      }
+      return;
+    }
     refreshStationOccupancy().catch(function () {});
   }
 

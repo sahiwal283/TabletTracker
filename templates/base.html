@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}?v={{ version() }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app-ui.css') }}?v={{ version() }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style type="text/tailwindcss">
@@ -145,9 +146,10 @@
         /* Cards */
         .card {
             @apply bg-white shadow-xl border border-gray-100;
-            border-radius: 28px !important;
+            border-radius: var(--tt-radius-xl, 28px) !important;
             background: linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%);
             border-color: rgba(var(--neutral-shadow), 0.08) !important;
+            box-shadow: 0 1px 2px rgba(var(--neutral-shadow), 0.04), 0 12px 32px rgba(var(--neutral-shadow), 0.06) !important;
         }
 
         /* Improve contrast for descriptive text inside light cards */
@@ -2170,7 +2172,7 @@ async function convertToTwoLevelDropdown(selectElement) {
             </header>
 
     <!-- Enhanced main content area -->
-    <main class="flex-1 container mx-auto px-4 py-8">
+    <main class="flex-1 container mx-auto tt-app-main">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
