@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.6] - 2026-04-27
+
+### Changed
+- Merged **`codex/rebuild-ops-tv-command-center-dashboard-wg3gx7`**: client **`OpsMetrics`** (`static/js/ops-metrics.js`) with **`deriveStagingBags`**, dashboard wiring, and tests.
+- **Fullscreen command center:** staging idle-bag panel, machine settings panel, split MES alerts vs activity feed; bottle-tab copy when M5 is not integrated; trace label **Trace bag ID**; dark-theme **mini-table** / feed styles.
+- Resolved conflicts favoring existing hash-tab navigation, exit control, and dark wallboard styling.
+
+---
+
 ## [4.15.5] - 2026-04-27
 
 ### Changed

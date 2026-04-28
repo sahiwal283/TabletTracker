@@ -1,4 +1,5 @@
 (function () {
+  // Conflict-resolved metrics layer: event-derived values only.
   function asNum(v) {
     var n = Number(v);
     return Number.isFinite(n) ? n : null;
@@ -166,6 +167,41 @@
     return queues.sort(function (a, b) { return b.ageMinutes - a.ageMinutes; });
   }
 
+
+  function deriveStagingBags(events) {
+    var now = Date.now();
+    var byBag = {};
+    (events || []).forEach(function (e) {
+      var bagId = eventBagId(e);
+      if (bagId == null) return;
+      var et = String(e.eventType || "").toUpperCase();
+      var at = asNum(e.atMs);
+      var row = byBag[String(bagId)] || { bagId: bagId, enteredAtMs: null, lastStationId: null, lastEventType: null };
+      row.lastStationId = eventMachineId(e);
+      row.lastEventType = et;
+      if (et === "BLISTER_COMPLETE" || et === "SEALING_COMPLETE" || et.indexOf("STAGING") >= 0) {
+        row.enteredAtMs = at;
+      }
+      if (et === "BAG_CLAIMED" || et === "PACKAGING_SNAPSHOT" || et === "BAG_FINALIZED") {
+        row.enteredAtMs = null;
+      }
+      byBag[String(bagId)] = row;
+    });
+    return Object.keys(byBag)
+      .map(function (k) { return byBag[k]; })
+      .filter(function (r) { return r.enteredAtMs != null; })
+      .map(function (r) {
+        return {
+          bagId: r.bagId,
+          enteredAtMs: r.enteredAtMs,
+          idleMinutes: Math.max(0, (now - r.enteredAtMs) / 60000),
+          lastStationId: r.lastStationId,
+          lastStationLabel: r.lastStationId != null ? "Station " + r.lastStationId : "—",
+          lastEventType: r.lastEventType || "—",
+        };
+      })
+      .sort(function (a, b) { return a.enteredAtMs - b.enteredAtMs; });
+  }
   function deriveBottleneck(events) {
     var q = deriveQueueAging(events);
     if (!q.length) return { station: "No bottleneck", reason: "No active staged queue" };
@@ -281,6 +317,7 @@
       machines: machineMetrics,
       queues: q,
       bottleneck: bottleneck,
+      stagingBags: deriveStagingBags(todays),
       genealogySelectedBagId: Object.keys(bagSet).length ? Number(Object.keys(bagSet).pop()) : null,
       oeeDonut: {
         total: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data",
@@ -298,6 +335,7 @@
     deriveBagGenealogy: deriveBagGenealogy,
     deriveQueueAging: deriveQueueAging,
     deriveBottleneck: deriveBottleneck,
+    deriveStagingBags: deriveStagingBags,
     getMachineIntegrationStatus: getMachineIntegrationStatus,
   };
   window.MesMetrics = window.OpsMetrics;

@@ -43,6 +43,10 @@
     return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
   }
 
+  function shortClock(ms) {
+    return ms ? new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+  }
+
   function statusClass(status) {
     if (status === "LIVE_QR") return "is-run";
     if (status === "NO_ACTIVITY_TODAY") return "is-warn";
@@ -211,7 +215,7 @@
     var geo = window.OpsMetrics.deriveBagGenealogy(bagId, props.events, props.bags);
     return html`<section className="mes-panel trace" id="lot-trace-panel">
       <div className="panel-title">Live Bag Genealogy / Lot Trace</div>
-      <label for="trace-bag">Trace workflow bag ID</label>
+      <label for="trace-bag">Trace bag ID</label>
       <input id="trace-bag" value=${q} placeholder=${String(props.defaultBagId || "Enter bag ID")} onInput=${function (e) { setQ(e.target.value); }} />
       <div className="trace-summary">Bag <strong>${geo.bagId || "—"}</strong> · SKU <strong>${geo.sku || "—"}</strong> · received <strong>${geo.receivedQtyDisplay || "—"}</strong></div>
       <div className="trace-lines">${(geo.traceLines || []).map(function (r, idx) {
@@ -226,6 +230,61 @@
         </div>`;
       })}</div>
     </section>`;
+  }
+
+  function StagingPanel(props) {
+    var rows = props.rows || [];
+    return html`<section className="mes-panel">
+      <div className="panel-title">Staging / WIP (idle bags between stations)</div>
+      <table className="mini-table">
+        <thead><tr><th>Order</th><th>Bag</th><th>Idle</th><th>Entered</th><th>Last station</th><th>Last event</th></tr></thead>
+        <tbody>
+          ${rows.length
+            ? rows.map(function (r, i) {
+                return html`<tr key=${i}><td>#${i + 1}</td><td>${r.bagId}</td><td>${r.idleMinutes.toFixed(1)}m</td><td>${shortClock(r.enteredAtMs)}</td><td>${r.lastStationLabel || "—"}</td><td>${r.lastEventType}</td></tr>`;
+              })
+            : html`<tr><td colspan="6" className="muted">No staged idle bags.</td></tr>`}
+        </tbody>
+      </table>
+    </section>`;
+  }
+
+  function MachineSettingsPanel(props) {
+    var slots = props.slots || [];
+    return html`<section className="mes-panel">
+      <div className="panel-title">Machine settings / configuration</div>
+      <table className="mini-table">
+        <thead><tr><th>Slot</th><th>Label</th><th>Station ID</th><th>Kind</th><th>Status</th></tr></thead>
+        <tbody>${slots.map(function (s, i) {
+          return html`<tr key=${i}><td>${s.slot}</td><td>${s.label}</td><td>${s.stationId != null ? s.stationId : "Unmapped"}</td><td>${s.stationKind || "—"}</td><td>${s.stationId != null ? "Mapped" : "Needs mapping"}</td></tr>`;
+        })}</tbody>
+      </table>
+      <p className="muted">Edit station mapping in workflow QR admin.</p>
+    </section>`;
+  }
+
+  function AlertsPanels(props) {
+    var alerts = (props.alerts || []).slice(0, 10);
+    var activity = (props.activity || []).slice(0, 10);
+    return html`<div className="mes-alerts-pair">
+      <section className="mes-panel">
+        <div className="panel-title">MES Alerts</div>
+        <div className="feed-list">${alerts.length
+          ? alerts.map(function (a, i) {
+              var sev = String(a.severity || "info").toLowerCase();
+              return html`<div key=${i} className=${"feed-row " + sev}><span>${shortClock(a.at_ms || a.atMs)}</span><span>${a.message}</span></div>`;
+            })
+          : html`<div className="muted">No active alerts.</div>`}</div>
+      </section>
+      <section className="mes-panel">
+        <div className="panel-title">Activity feed</div>
+        <div className="feed-list">${activity.length
+          ? activity.map(function (a, i) {
+              return html`<div key=${i} className="feed-row"><span>${shortClock(a.at_ms || a.atMs)}</span><span>${a.event || a.message || "—"}</span></div>`;
+            })
+          : html`<div className="muted">No recent activity.</div>`}</div>
+      </section>
+    </div>`;
   }
 
   function MesSectionTitle(props) {
@@ -305,7 +364,7 @@
     var inp = mes.metrics_inputs || {};
     var derived = useMemo(function () {
       if (!window.OpsMetrics || !window.OpsMetrics.deriveDashboardMetrics) {
-        return { kpis: [], machines: [], queues: [] };
+        return { kpis: [], machines: [], queues: [], stagingBags: [] };
       }
       return window.OpsMetrics.deriveDashboardMetrics(inp.events || [], inp.machines || [], inp.bags || [], inp.shiftConfig || {});
     }, [snap]);
@@ -361,6 +420,17 @@
     } catch (e) {}
 
     var traceBagId = derived.genealogySelectedBagId || inp.genealogySelectedBagId;
+    var alertsOnly = (mes.alerts || []).filter(function (a) {
+      var s = String(a.severity || "").toLowerCase();
+      return s === "alert" || s === "warn";
+    });
+    var activityFeed = (mes.timeline || []).map(function (t) {
+      return {
+        at_ms: t.at_ms,
+        atMs: t.at_ms,
+        event: [t.event, t.machine, t.bag_id].filter(Boolean).join(" · "),
+      };
+    });
 
     function alertRows(items, limit) {
       var xs = items || [];
@@ -505,6 +575,11 @@
                   })
                 : html`<p className="mes-muted">No team roll-up in snapshot — open Users tab for app link.</p>`}
             </div>
+            <${MachineSettingsPanel} slots=${inp.slots || []} />
+            <${StagingPanel} rows=${derived.stagingBags || []} />
+            <div className="mes-panel mes-alerts-pair-wrap">
+              <${AlertsPanels} alerts=${alertsOnly} activity=${activityFeed} />
+            </div>
             <${TracePanel} events=${inp.events || []} bags=${inp.bags || []} defaultBagId=${traceBagId} />
           </div>
         </section>
@@ -521,7 +596,13 @@
         return slots.indexOf(m.slot) >= 0;
       });
       var timeline = filterTimelineByLine(mes.timeline || [], lineKey);
+      var m5c = lineKey === "bottle" ? machineCards.find(function (m) { return m.slot === 5; }) : null;
+      var bottleBanner =
+        m5c && m5c.integrationStatus === "NOT_INTEGRATED"
+          ? html`<p className="mes-muted">Bottle line not integrated yet — no sealing workflow events at mapped M5 today.</p>`
+          : null;
       return html`<div className="mes-tab-panel-inner">
+        ${bottleBanner}
         <${MesSectionTitle} title=${title} sub=${lane.subtitle || "Live data from workflow snapshot (America/New_York day)."} />
         <${ProcessLane} lane=${lane} />
         <h3 className="mes-h3">Machines</h3>
@@ -573,6 +654,7 @@
           <button type="button" className="mes-btn-disabled" disabled title="Not available in this release">
             Edit machines (coming soon)
           </button>
+          <${MachineSettingsPanel} slots=${inp.slots || []} />
         </div>`;
       }
       if (activeTab === "bags") {
@@ -613,6 +695,7 @@
         var pipe = (snap && snap.flow && snap.flow.pipeline) || [];
         return html`<div className="mes-tab-panel-inner">
           <${MesSectionTitle} title="Staging / WIP" sub="Between-stage queues from flow intelligence and pill board payloads." />
+          <${StagingPanel} rows=${derived.stagingBags || []} />
           <h3 className="mes-h3">Staging table</h3>
           ${MesDataTable({
             columns: ["Line", "Area", "Bags", "Oldest", "Minutes"],
@@ -640,9 +723,10 @@
         var act = (snap && snap.activity) || [];
         return html`<div className="mes-tab-panel-inner">
           <${MesSectionTitle} title="Alerts" sub="Smart alerts and activity feed (same source as ops snapshot)." />
-          <h3 className="mes-h3">Mes alerts</h3>
+          <${AlertsPanels} alerts=${alertsOnly} activity=${activityFeed} />
+          <h3 className="mes-h3">Mes alerts (full list)</h3>
           ${alertRows(mes.alerts, 40)}
-          <h3 className="mes-h3">Activity feed</h3>
+          <h3 className="mes-h3">Activity feed (server)</h3>
           ${alertRows(act, 60)}
         </div>`;
       }
