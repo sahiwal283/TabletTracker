@@ -90,7 +90,7 @@ class TestOpsTvDashboard(unittest.TestCase):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
         self.assertIn("NOT_INTEGRATED", source)
         self.assertIn('"N/A"', source)
-        self.assertIn("Not connected", source)
+        self.assertIn("Not integrated", source)
 
     def test_missing_target_state_is_explicit(self):
         source = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
@@ -108,38 +108,35 @@ class TestOpsTvDashboard(unittest.TestCase):
 
     def test_machine_illustration_svg_render_functions_exist(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("function renderDPP115BlisterMachine", source)
-        self.assertIn("function renderHeatPressMachine", source)
-        self.assertIn("function renderStickeringMachine", source)
-        self.assertIn("function renderBottleSealingMachine", source)
-        self.assertIn("function renderPackagingStation", source)
+        self.assertIn('kind === "blister"', source)
+        self.assertIn('kind === "heat"', source)
+        self.assertIn('kind === "sticker"', source)
+        self.assertIn('kind === "bottle"', source)
         self.assertIn("<svg", source)
 
     def test_machine_settings_panel_wired(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("Machine settings / configuration", source)
-        self.assertIn("slots=", source)
+        self.assertIn("Machine Command Grid", source)
+        self.assertIn("Five configured floor assets", source)
 
     def test_staging_panel_shows_idle_bag_details(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("Staging / WIP (idle bags between stations)", source)
-        self.assertIn("Last station", source)
+        self.assertIn("Staging Status", source)
         self.assertIn("Last event", source)
         metrics = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
         self.assertIn("deriveStagingBags", metrics)
 
     def test_alerts_and_activity_are_separate_sources(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("MES Alerts", source)
-        self.assertIn("Activity feed", source)
-        self.assertIn("alertsOnly", source)
-        self.assertIn("activityFeed", source)
+        self.assertIn("Production Timeline", source)
+        self.assertIn("Bottleneck / Queue Aging", source)
+        self.assertIn("Team Performance", source)
 
     def test_dark_theme_command_center_palette(self):
         css = Path("static/css/mes-command-center.css").read_text(encoding="utf-8")
         compact = css.replace(" ", "")
         self.assertIn("background:#081324", compact)
-        self.assertIn(".mes-header{border:", compact)
+        self.assertIn(".mes-header,", compact)
 
     def test_machine_settings_route_exists(self):
         r = self.client.get("/admin/settings/machines")

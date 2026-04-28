@@ -36,6 +36,17 @@
     return total != null && total >= 0 ? total : 0;
   }
 
+  function rejectUnits(ev) {
+    var t = String((ev && ev.eventType) || "").toUpperCase();
+    var looksReject = t.indexOf("REJECT") >= 0 || t.indexOf("REWORK") >= 0 || t === "CARD_FORCE_RELEASED";
+    if (!looksReject) return null;
+    var explicit = asNum(ev && (ev.rejectUnits != null ? ev.rejectUnits : ev.reworkUnits));
+    if (explicit != null && explicit >= 0) return explicit;
+    var total = asNum(ev && ev.countTotal);
+    if (total != null && total >= 0) return total;
+    return 1;
+  }
+
   function isCompletedEvent(ev) {
     var t = String((ev && ev.eventType) || "").toUpperCase();
     return t === "BLISTER_COMPLETE" || t === "SEALING_COMPLETE" || t === "PACKAGING_SNAPSHOT" || t === "BAG_FINALIZED";
@@ -102,10 +113,8 @@
           }
         }
       }
-      if (et === "REJECT_RECORDED" || et === "REWORK_RECORDED") {
-        var rv = asNum(e.rejectUnits);
-        if (rv != null && rv > 0) rejects += rv;
-      }
+      var rv = rejectUnits(e);
+      if (rv != null && rv > 0) rejects += rv;
     });
 
     var targetTp = asNum(shiftConfig && shiftConfig.targetThroughputPerHour);
@@ -114,7 +123,8 @@
     var throughput = runtimeHours > 0 ? completedUnits / runtimeHours : null;
     var availability = plannedShift > 0 ? clamp((runtimeMin / plannedShift) * 100, 0, 100) : null;
     var performance = targetTp && throughput != null ? clamp((throughput / targetTp) * 100, 0, 100) : null;
-    var quality = rejects > 0 && completedUnits > 0 ? clamp(((completedUnits - rejects) / completedUnits) * 100, 0, 100) : null;
+    var hasRejectData = ms.some(function (e) { return rejectUnits(e) != null; });
+    var quality = hasRejectData && completedUnits > 0 ? clamp(((completedUnits - rejects) / completedUnits) * 100, 0, 100) : null;
 
     var oee = null;
     var oeeLabel = "Insufficient data";
@@ -255,7 +265,7 @@
     return {
       bagId: bid,
       sku: bagInfo.sku || "—",
-      receivedQtyDisplay: bagInfo.qtyReceived != null ? String(bagInfo.qtyReceived) : "20,000",
+      receivedQtyDisplay: bagInfo.qtyReceived != null ? String(bagInfo.qtyReceived) : "N/A",
       traceLines: lines,
       totals: {
         elapsedMinutes: first != null && last != null ? (last - first) / 60000 : null,
@@ -277,10 +287,17 @@
     var bagSet = {};
     var units = 0;
     var cycles = [];
+    var rejectTotal = 0;
+    var hasRejectData = false;
     todays.forEach(function (e) {
       var bid = eventBagId(e);
       if (bid != null) bagSet[String(bid)] = true;
       if (isCompletedEvent(e)) units += counterDelta(e);
+      var ru = rejectUnits(e);
+      if (ru != null) {
+        hasRejectData = true;
+        rejectTotal += ru;
+      }
     });
 
     (machines || []).forEach(function (m) {
@@ -312,7 +329,7 @@
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
         { id: "on_time", value: shiftConfig && shiftConfig.productionDueMs ? "Measured" : "No target set", displayLabel: "On-Time Completion" },
-        { id: "rework", value: "No reject data", displayLabel: "Reject Rate" },
+        { id: "rework", value: hasRejectData && units > 0 ? clamp((rejectTotal / units) * 100, 0, 100).toFixed(2) + "%" : "No reject data", displayLabel: "Reject Rate" },
       ],
       machines: machineMetrics,
       queues: q,
@@ -323,7 +340,7 @@
         total: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data",
         availability: "Insufficient data",
         performance: shiftConfig && shiftConfig.targetThroughputPerHour ? "Estimated" : "No target set",
-        quality: "No reject data",
+        quality: hasRejectData && units > 0 ? (100 - clamp((rejectTotal / units) * 100, 0, 100)).toFixed(1) + "%" : "No reject data",
       },
       notes: ["No fake counters", "No fake operators", "Bottle line requires real QR events"],
     };
