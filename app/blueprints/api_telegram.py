@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from config import Config
 from flask import Blueprint, current_app, jsonify, request
 
@@ -11,14 +13,31 @@ from app.utils.db_utils import db_read_only
 
 bp = Blueprint("api_telegram", __name__)
 
+# Telegram Bot API 6.x sends this when setWebhook includes secret_token.
+_WEBHOOK_SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token"
 
-@bp.route("/api/telegram/webhook/<token>", methods=["POST"])
-def telegram_webhook(token: str):
-    if not Config.TELEGRAM_BOT_TOKEN:
-        return jsonify({"ok": False, "error": "telegram_not_configured"}), 503
-    if token != Config.TELEGRAM_BOT_TOKEN:
-        return jsonify({"ok": False, "error": "invalid_token"}), 403
 
+def _timing_safe_str_eq(a: str, b: str) -> bool:
+    if not a or not b or len(a) != len(b):
+        return False
+    return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+
+
+def _webhook_identity_ok(path_token: str | None) -> bool:
+    """Validate webhook URL (header secret, optional path secret, or legacy bot token in path)."""
+    cfg_secret = (getattr(Config, "TELEGRAM_WEBHOOK_SECRET", None) or "").strip()
+    if cfg_secret:
+        got = request.headers.get(_WEBHOOK_SECRET_HEADER, "")
+        return _timing_safe_str_eq(got, cfg_secret)
+
+    if not path_token:
+        return False
+    path_secret = (getattr(Config, "TELEGRAM_WEBHOOK_PATH_SECRET", None) or "").strip()
+    expected = path_secret if path_secret else Config.TELEGRAM_BOT_TOKEN
+    return _timing_safe_str_eq(path_token, expected)
+
+
+def _telegram_handle_update():
     payload = request.get_json(silent=True) or {}
     message = bot.extract_message(payload)
     if not message:
@@ -66,3 +85,13 @@ def telegram_webhook(token: str):
         return jsonify({"ok": False, "error": "command_failed"}), 500
 
     return jsonify({"ok": True})
+
+
+@bp.route("/api/telegram/webhook", methods=["POST"])
+@bp.route("/api/telegram/webhook/<path_token>", methods=["POST"])
+def telegram_webhook(path_token: str | None = None):
+    if not Config.TELEGRAM_BOT_TOKEN:
+        return jsonify({"ok": False, "error": "telegram_not_configured"}), 503
+    if not _webhook_identity_ok(path_token):
+        return jsonify({"ok": False, "error": "invalid_token"}), 403
+    return _telegram_handle_update()

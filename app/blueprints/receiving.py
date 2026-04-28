@@ -5,7 +5,7 @@ import traceback
 
 from flask import Blueprint, current_app, flash, redirect, render_template, session, url_for
 
-from app.utils.auth_utils import admin_required, role_required
+from app.utils.auth_utils import admin_required, employee_required, role_required
 from app.utils.db_utils import db_read_only
 
 bp = Blueprint('receiving', __name__)
@@ -240,8 +240,9 @@ def receiving_management_v2():
 
 
 @bp.route('/shipments')
+@employee_required
 def public_shipments():
-    """Read-only shipment status page for staff (no login required)."""
+    """Read-only shipment status — requires employee or admin login."""
     try:
         with db_read_only() as conn:
             rows = conn.execute('''

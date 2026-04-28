@@ -97,6 +97,10 @@ class Config:
     TELEGRAM_ALLOWED_CHAT_IDS = _parse_int_list_env("TELEGRAM_ALLOWED_CHAT_IDS")
     TELEGRAM_ALLOWED_USER_IDS = _parse_int_list_env("TELEGRAM_ALLOWED_USER_IDS")
     TELEGRAM_DAILY_REPORT_TIME = os.environ.get("TELEGRAM_DAILY_REPORT_TIME", "18:30").strip() or "18:30"
+    # Webhook auth: prefer TELEGRAM_WEBHOOK_SECRET + setWebhook(secret_token=...) so the bot token is not in the URL.
+    # Optional TELEGRAM_WEBHOOK_PATH_SECRET: random path segment instead of putting TELEGRAM_BOT_TOKEN in the URL.
+    TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
+    TELEGRAM_WEBHOOK_PATH_SECRET = os.environ.get("TELEGRAM_WEBHOOK_PATH_SECRET", "").strip()
     
     # Database (set DATABASE_PATH in Docker to a mounted volume, e.g. /data/tablet_counter.db)
     _config_dir = os.path.dirname(os.path.abspath(__file__))

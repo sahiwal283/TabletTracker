@@ -157,6 +157,7 @@ def count_form():
     return redirect(url_for('production.production_form'))
 
 @bp.route('/submit_count', methods=['POST'])
+@employee_required
 def submit_count():
     """Process manual count submission for PO close-outs - RECEIVE-BASED TRACKING"""
     try:

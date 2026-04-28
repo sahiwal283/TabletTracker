@@ -182,8 +182,9 @@ Summary:
 6. **Verify**: `GET /health` returns `{"status":"ok"}`; exercise Zoho flows from `docs/ZOHO_INTEGRATION_ROUTES.md`.
 7. **Telegram webhook (optional)**:
    - Create your bot via BotFather.
-   - Point Telegram webhook to your public endpoint:
-     `https://<your-domain>/api/telegram/webhook/<TELEGRAM_BOT_TOKEN>`.
+   - **Prefer** `TELEGRAM_WEBHOOK_SECRET` (long random string): set webhook to `https://<your-domain>/api/telegram/webhook` (no token in the URL) and pass the same value to Telegram’s `setWebhook` as `secret_token`; the app checks the `X-Telegram-Bot-Api-Secret-Token` header.
+   - **Or** use `TELEGRAM_WEBHOOK_PATH_SECRET` so the path is `/api/telegram/webhook/<random>` instead of embedding `TELEGRAM_BOT_TOKEN`.
+   - **Legacy:** `/api/telegram/webhook/<TELEGRAM_BOT_TOKEN>` still works if neither secret env is set (not recommended; visible in logs).
    - Add allowed chat IDs in `TELEGRAM_ALLOWED_CHAT_IDS`.
    - **Daily summary (America/New_York)**: set `TELEGRAM_DAILY_REPORT_TIME=18:30` (or your preferred `HH:MM`). This value is used by `telegram_daily_report.py --if-due` only.
    - **PythonAnywhere: only one scheduled task?** You cannot run `--if-due` every minute on a single daily slot. Instead:
@@ -196,6 +197,6 @@ Summary:
 
 ---
 
-**Deployment completed!** 🎉
+**Deployment completed!**
 
 Your TabletTracker is now live and ready for production use.

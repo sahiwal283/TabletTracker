@@ -11,6 +11,7 @@ from flask import current_app, jsonify
 from app.services.zoho_service import zoho_api
 from app.utils.auth_utils import (
     admin_required,
+    role_required,
 )
 from app.utils.db_utils import db_read_only, db_transaction
 
@@ -18,6 +19,7 @@ from . import bp
 
 
 @bp.route('/api/po_tracking/<int:po_id>')
+@role_required('shipping')
 def get_po_tracking(po_id):
     """Get all tracking information for a PO (supports multiple shipments)"""
     try:
@@ -59,6 +61,7 @@ def get_po_tracking(po_id):
 
 
 @bp.route('/api/find_org_id')
+@admin_required
 def find_organization_id():
     """Help find the correct Zoho Organization ID"""
     try:
@@ -169,6 +172,7 @@ def server_debug_info():
     """Debug route to check server state - admin only"""
     import time
 
+    conn = None
     try:
         # Check file timestamps
         app_py_time = os.path.getmtime('app.py')
