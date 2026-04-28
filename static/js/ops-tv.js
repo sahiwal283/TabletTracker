@@ -17,11 +17,11 @@
     }
   }
 
-  /** Matches html.ops-tv-wall / wall screen (#00e5ff accent) */
-  var ACCENT = "#00e5ff";
-  var ACCENT_SOFT = "rgba(0, 229, 255, 0.12)";
-  var ACCENT_FILL = "rgba(0, 229, 255, 0.08)";
-  var GRID_LINE = "rgba(0, 229, 255, 0.07)";
+  /** Matches ops-tv.css electric cyan */
+  var ACCENT = "#00f2ff";
+  var ACCENT_SOFT = "rgba(0, 242, 255, 0.14)";
+  var ACCENT_FILL = "rgba(0, 242, 255, 0.09)";
+  var GRID_LINE = "rgba(0, 242, 255, 0.09)";
 
   var POLL_MS = 8000;
   var root = document.getElementById("ops-root");
@@ -49,7 +49,7 @@
     plugins: {
       legend: {
         display: true,
-        labels: { color: "#cbd5e1", font: { size: 11, family: "'Inter', sans-serif" }, boxWidth: 14 },
+        labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 14 },
       },
     },
     scales: {},
@@ -380,11 +380,11 @@
   function ensureCharts(labels) {
     if (typeof Chart === "undefined") return;
 
-    var tickFont = { size: 12, family: "'IBM Plex Mono', ui-monospace, monospace" };
+    var tickFont = { size: 13, family: "'IBM Plex Mono', ui-monospace, monospace" };
     var darkScales = {
       x: {
         ticks: {
-          color: "#94a3b8",
+          color: "#cbd5e1",
           maxRotation: 0,
           autoSkip: true,
           maxTicksLimit: 8,
@@ -393,7 +393,7 @@
         grid: { color: GRID_LINE },
       },
       y: {
-        ticks: { color: "#94a3b8", font: tickFont },
+        ticks: { color: "#cbd5e1", font: tickFont },
         grid: { color: GRID_LINE },
       },
     };
@@ -408,7 +408,7 @@
             scales: darkScales,
             plugins: {
               legend: {
-                labels: { color: "#cbd5e1", font: { size: 11, family: "'Inter', sans-serif" }, boxWidth: 14 },
+                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 14 },
               },
             },
           }),
@@ -426,7 +426,7 @@
               legend: {
                 display: true,
                 position: "bottom",
-                labels: { color: "#cbd5e1", font: { size: 10, family: "'Inter', sans-serif" }, boxWidth: 12 },
+                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 12 },
               },
             },
           }),
@@ -442,7 +442,7 @@
             indexAxis: "y",
             scales: {
               x: {
-                ticks: { color: "#94a3b8", font: tickFont },
+                ticks: { color: "#cbd5e1", font: tickFont },
                 grid: { color: GRID_LINE },
               },
               y: {
@@ -467,7 +467,7 @@
                 stacked: true,
                 max: 100,
                 ticks: {
-                  color: "#94a3b8",
+                  color: "#cbd5e1",
                   font: tickFont,
                   callback: function (v) { return v + "%"; },
                 },
@@ -481,7 +481,7 @@
             },
             plugins: {
               legend: {
-                labels: { color: "#cbd5e1", font: { size: 10, family: "'Inter', sans-serif" }, boxWidth: 12 },
+                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 12 },
               },
             },
           }),
@@ -498,7 +498,7 @@
             plugins: {
               legend: {
                 position: "bottom",
-                labels: { color: "#cbd5e1", font: { size: 10, family: "'Inter', sans-serif" }, boxWidth: 12 },
+                labels: { color: "#cbd5e1", font: { size: 12, family: "'Inter', sans-serif" }, boxWidth: 12 },
               },
             },
           }),

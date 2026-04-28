@@ -7,26 +7,14 @@
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ app_version }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-tv.css') }}?v={{ app_version }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
-  <!-- Pill-packing command center frame: monochrome rail + main wall (no emoji) -->
-  <div class="ops-app-frame">
-    <aside class="ops-nav-rail" aria-hidden="true">
-      <span class="ops-nav-mark" title="Overview">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 13h6V4H4v9zm0 7h6v-6H4v6zm8 0h10V11H12v9zm0-18v9h10V4H12z"/></svg>
-      </span>
-      <span class="ops-nav-mark"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zm9 15H3v2h18v-2z"/></svg></span>
-      <span class="ops-nav-mark"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M20 8h-3V6c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v8h18v-8c0-1.1-.9-2-2-2zm-8 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span>
-      <span class="ops-nav-mark"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>
-      <span class="ops-nav-mark"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 2C8.48 2 8 6.56 8 8c0 .68.06 2.33.51 4.14A4.71 4.71 0 0 1 11 21h2a4.71 4.71 0 0 1 2.49-8.86C15.93 10.34 16 9.71 16 9v-.05C16 6 15.53 2 12 2z"/></svg></span>
-      <span class="ops-nav-mark"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg></span>
-      <span class="ops-nav-mark"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.488.488 0 0 0 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></span>
-    </aside>
-    <div class="ops-root-main">
+  <!-- Full-bleed command center wall (no decorative rail — matches floor TV reference) -->
+  <div class="ops-tv-shell">
     <div
       id="ops-root"
       class="ops-root"
@@ -37,20 +25,29 @@
       <header class="ops-top">
         <div class="ops-brand-strip">
           <div class="ops-brand-left">
-            <p class="ops-cc-eyebrow">Pill packing command center</p>
-            <div class="ops-title-line">
-              <span class="ops-cc-title">TabletTracker</span>
-              <span class="ops-live" aria-live="polite"><span class="ops-live-dot" aria-hidden="true"></span>LIVE</span>
+            <div class="ops-brand-hero" aria-label="Pill packing command center, TabletTracker live">
+              <span class="ops-hero-line1">Pill packing command center</span>
+              <span class="ops-hero-sep" aria-hidden="true">|</span>
+              <span class="ops-hero-product">TabletTracker</span>
+              <span class="ops-live" aria-live="polite">
+                <svg class="ops-live-waves" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                  <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6.34 6.34a8 8 0 0111.31 0M3.52 3.52a12 12 0 0116.97 0"/>
+                </svg>
+                LIVE
+              </span>
             </div>
-            <p class="ops-cc-subtitle">Real-time production monitoring · operations telemetry</p>
+            <p class="ops-cc-subtitle">Real-time production monitoring — operations floor telemetry</p>
           </div>
           <div class="ops-brand-right">
             <span id="ops-clock" class="ops-clock"></span>
             <span id="ops-last-refresh" class="ops-last-refresh"></span>
-            <a class="ops-exit" href="{{ command_center_url }}">Command Center</a>
+            <a class="ops-exit" href="{{ command_center_url }}">Command center</a>
           </div>
         </div>
-        <div class="ops-head" id="ops-head"></div>
+        <div class="ops-kpi-band">
+          <div class="ops-head" id="ops-head"></div>
+        </div>
       </header>
 
       <div class="ops-mid">
@@ -70,18 +67,18 @@
       <footer class="ops-charts">
         <div class="ops-chart-row-main">
           <div class="ops-chart-panel panel-cum">
-            <h3>Displays cumulative · vs 30d pace</h3>
+            <h3>Displays cumulative — vs 30d pace</h3>
             <canvas id="c-chart-line"></canvas>
           </div>
           <div class="ops-chart-panel panel-multi">
-            <h3>Displays per hour · top packaging stations</h3>
+            <h3>Displays per hour — top packaging stations</h3>
             <canvas id="c-chart-multi"></canvas>
           </div>
         </div>
         <div class="ops-chart-row-sub">
           <div class="ops-chart-panel panel-bar">
             <h3>Output by station (today)</h3>
-            <p class="ops-chart-note">Packaging = displays finalized · Blister / sealing = tablets</p>
+            <p class="ops-chart-note">Packaging = displays finalized — Blister / sealing = tablets</p>
             <canvas id="c-chart-bar"></canvas>
           </div>
           <div class="ops-chart-stack">
@@ -101,7 +98,6 @@
         <span class="ops-status-bar-left">Floor data refreshes automatically</span>
         <span id="ops-footer-strip" class="ops-status-bar-right"></span>
       </div>
-    </div>
     </div>
   </div>
   <script src="{{ url_for('static', filename='js/ops-tv.js') }}?v={{ app_version }}" defer></script>
