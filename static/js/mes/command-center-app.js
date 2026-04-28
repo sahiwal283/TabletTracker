@@ -119,6 +119,7 @@
 
   function statusText(status) {
     if (status === "LIVE_QR") return "RUNNING";
+    if (status === "LIVE_PAUSED") return "PAUSED";
     if (status === "NO_ACTIVITY_TODAY") return "IDLE";
     if (status === "NOT_INTEGRATED") return "NOT INTEGRATED";
     return String(status || "N/A").toUpperCase();
@@ -126,9 +127,21 @@
 
   function statusTone(status) {
     if (status === "LIVE_QR") return "run";
+    if (status === "LIVE_PAUSED") return "idle";
     if (status === "NO_ACTIVITY_TODAY") return "idle";
     if (status === "NOT_INTEGRATED") return "off";
     return "idle";
+  }
+
+  /** Prefer workflow occupancy from server over event-only integration guess. */
+  function resolveIntegrationBadge(liveRow, stationId, events, cfg) {
+    var live = String((liveRow && liveRow.status) || "").toLowerCase();
+    var base = window.OpsMetrics.getMachineIntegrationStatus(stationId, events, cfg);
+    if (!live) return base;
+    if (live === "paused") return "LIVE_PAUSED";
+    if (live === "running") return "LIVE_QR";
+    if (live === "idle") return "NO_ACTIVITY_TODAY";
+    return base;
   }
 
   function liveElapsedMinutes(ms, nowMs) {
@@ -146,7 +159,9 @@
   }
 
   function overAverage(machine, shiftConfig, nowMs) {
-    if (!machine || machine.integrationStatus !== "LIVE_QR" || machine.workflowBagId == null) return false;
+    if (!machine || machine.integrationStatus === "LIVE_PAUSED") return false;
+    if (String(machine.occupancyStatus || "").toLowerCase() === "paused") return false;
+    if (machine.integrationStatus !== "LIVE_QR" || machine.workflowBagId == null) return false;
     var avg = stationAverageFor(machine, shiftConfig);
     var elapsed = liveElapsedMinutes(machine.occupancyStartedAtMs || machine.lastScanMs, nowMs);
     return !!(avg && elapsed != null && elapsed > avg.avgMinutes);
@@ -274,8 +289,19 @@
     var done = m.counterEvent || {};
     var start = done.counterStart != null ? done.counterStart : latest.counterStart;
     var end = done.counterEnd != null ? done.counterEnd : latest.counterEnd;
-    var counter = notIntegrated ? "N/A" : (start != null || end != null ? String(start != null ? start : "N/A") + " / " + String(end != null ? end : "N/A") : "Insufficient data");
+    var countTotal = asNum(done.countTotal != null ? done.countTotal : latest.countTotal);
+    var counter = "Insufficient data";
+    if (notIntegrated) {
+      counter = "N/A";
+    } else if (start != null || end != null) {
+      counter = String(start != null ? start : "N/A") + " / " + String(end != null ? end : "N/A");
+    } else if (countTotal != null) {
+      counter = fmtNumber(countTotal);
+    }
     var bagLabel = notIntegrated ? "N/A" : ((m.workflowBagId != null || m.currentBagId != null) ? (m.currentBagLabel || ("BAG-" + (m.workflowBagId != null ? m.workflowBagId : m.currentBagId))) : "No activity today");
+    var isPackaging = String(m.stationKind || "").toLowerCase() === "packaging";
+    var serverOut = isPackaging ? m.displaysToday : m.tabletsToday;
+    var unitsTodayVal = serverOut != null && serverOut !== undefined ? serverOut : m.completedUnits;
     return html`<article className=${"occ-machine " + statusTone(m.integrationStatus) + (props.attention ? " attention" : "")}>
       <header><div><h3>${m.shortLabel}</h3><p>${m.label}</p></div><${Badge} tone=${statusTone(m.integrationStatus)}>${statusText(m.integrationStatus)}</${Badge}></header>
       <div className="machine-mid">${machineIcon(m.kind, m.integrationStatus)}<dl>
@@ -288,7 +314,7 @@
         <div><span>Counter</span><b>${counter}</b></div>
         <div><span>Last Scan</span><b>${notIntegrated ? "N/A" : fmtTime(m.lastScanMs)}</b></div>
         <div><span>Throughput</span><b>${notIntegrated ? "N/A" : (m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data")}</b></div>
-        <div><span>Units Today</span><b>${notIntegrated ? "N/A" : fmtNumber(m.completedUnits)}</b></div>
+        <div><span>Units Today</span><b>${notIntegrated ? "N/A" : fmtNumber(unitsTodayVal)}</b></div>
         <div><span>7D Avg Cycle</span><b>${notIntegrated ? "N/A" : (avg ? avg.avgMinutes.toFixed(1) + " min" : "Insufficient data")}</b></div>
       </div>
     </article>`;
@@ -571,20 +597,34 @@
       return "BAG-" + bagId;
     }
     var machines = defs.map(function (d) {
+      var liveRow = (inp.machines || []).find(function (r) { return r.id === d.stationId; }) || {};
       var metrics = (derived.machines || []).find(function (m) { return m.id === d.stationId; }) || {};
+      var merged = Object.assign({}, metrics, {
+        workflowBagId: liveRow.workflowBagId != null ? liveRow.workflowBagId : metrics.workflowBagId,
+        currentBagId: liveRow.workflowBagId != null ? liveRow.workflowBagId : metrics.currentBagId,
+        occupancyStartedAtMs: liveRow.occupancyStartedAtMs != null ? liveRow.occupancyStartedAtMs : metrics.occupancyStartedAtMs,
+        pausedAtMs: liveRow.pausedAtMs != null ? liveRow.pausedAtMs : metrics.pausedAtMs,
+        tabletsToday: liveRow.tabletsToday != null ? liveRow.tabletsToday : metrics.tabletsToday,
+        displaysToday: liveRow.displaysToday != null ? liveRow.displaysToday : metrics.displaysToday,
+        stationKind: liveRow.stationKind || metrics.stationKind || d.stationKind,
+        machineRole: liveRow.machineRole || metrics.machineRole || d.machineRole,
+        cardsPerTurn: liveRow.cardsPerTurn != null ? liveRow.cardsPerTurn : metrics.cardsPerTurn,
+        occupancyStatus: liveRow.status || null,
+      });
       var isBottleFlow = d.flow === "bottle";
       var hasBottleEvents = !isBottleFlow || events.some(function (e) { return eventMachineId(e) === asNum(d.stationId); });
-      var status = d.stationId == null ? "NOT_INTEGRATED" : window.OpsMetrics.getMachineIntegrationStatus(d.stationId, events, {
+      var status = d.stationId == null ? "NOT_INTEGRATED" : resolveIntegrationBadge(liveRow, d.stationId, events, {
         dayStartMs: inp.shiftConfig && inp.shiftConfig.dayStartMs,
         configuredMachineIds: configured,
         forceNotIntegratedMachineIds: isBottleFlow && !hasBottleEvents ? [d.stationId] : [],
       });
-      return Object.assign({}, d, metrics, {
+      var wid = merged.workflowBagId != null ? merged.workflowBagId : merged.currentBagId;
+      return Object.assign({}, d, merged, {
         integrationStatus: status,
         latestEvent: latestByMachine(events, d.stationId),
         counterEvent: completedCounterEvent(events, d.stationId),
-        sku: skuForBag(metrics.workflowBagId != null ? metrics.workflowBagId : metrics.currentBagId),
-        currentBagLabel: bagDisplayLabel(metrics.workflowBagId != null ? metrics.workflowBagId : metrics.currentBagId),
+        sku: skuForBag(wid),
+        currentBagLabel: bagDisplayLabel(wid),
       });
     });
 

@@ -831,6 +831,8 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
                 "display_name": display_name,
                 "station_label": str(s.get("label") or ""),
                 "station_kind": str(s.get("station_kind") or ""),
+                "machine_role": str(s.get("machine_role") or ""),
+                "cards_per_turn": float(s.get("cards_per_turn") or 1),
                 "status": vis,
                 "product": str(product)[:80],
                 "bag_id": live.get("workflow_bag_id"),

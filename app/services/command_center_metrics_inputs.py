@@ -395,6 +395,14 @@ def build_metrics_inputs_bundle(
         live_occ = (m.get("occupancy_started_at_ms") if m else None)
         paused = (m.get("paused_at_ms") if m else None)
         wf_bag = m.get("bag_id")
+        try:
+            tablets_today = int(m.get("tablets_today") or 0)
+        except (TypeError, ValueError):
+            tablets_today = 0
+        try:
+            displays_today = int(m.get("displays_today") or 0)
+        except (TypeError, ValueError):
+            displays_today = 0
         return {
             "id": sid,
             "displayName": str(m.get("display_name") or ""),
@@ -406,6 +414,8 @@ def build_metrics_inputs_bundle(
             "occupancyStartedAtMs": int(live_occ) if live_occ is not None else None,
             "pausedAtMs": int(paused) if paused is not None else None,
             "workflowBagId": int(wf_bag) if wf_bag is not None else None,
+            "tabletsToday": tablets_today,
+            "displaysToday": displays_today,
             "manualEntrySignal": False,
         }
 
