@@ -46,10 +46,11 @@ class TestOpsTvDashboard(unittest.TestCase):
     def test_ops_tv_page_loads(self):
         r = self.client.get("/command-center/ops-tv")
         self.assertEqual(r.status_code, 200)
-        self.assertIn(b"ops-root", r.data)
+        self.assertIn(b"pcb-root", r.data)
         self.assertIn(b"command-center/ops-tv/api/snapshot", r.data)
         self.assertIn(b"ops-tv-initial-data", r.data)
         self.assertIn(b'"kpis"', r.data)
+        self.assertIn(b'"pill_board"', r.data)
 
     def test_ops_tv_snapshot_json(self):
         r = self.client.get("/command-center/ops-tv/api/snapshot")
@@ -62,6 +63,7 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("flow", data)
         self.assertIn("pipeline", data["flow"])
         self.assertIn("bottleneck", data["flow"])
+        self.assertIn("pill_board", data)
         for m in data.get("machines") or []:
             self.assertIn("rate_hist_uh", m)
             self.assertIn("perf_tier", m)

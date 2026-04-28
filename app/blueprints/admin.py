@@ -1,6 +1,7 @@
 """
 Admin routes
 """
+import logging
 import json
 import re
 import secrets
@@ -25,6 +26,9 @@ from app.utils.db_utils import db_read_only, db_transaction, get_db
 from app.utils.route_helpers import ensure_app_settings_table
 from app.utils.version_display import read_version_constants
 from app.services.ops_flow_intel import compute_production_flow_intel
+from app.services.pill_command_center_board import build_pill_command_center_board_payload
+
+_LOGGER_ADMIN = logging.getLogger(__name__)
 
 bp = Blueprint('admin', __name__)
 
@@ -1008,6 +1012,29 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
     )
     activity = activity[:48]
 
+    pill_board: dict = {}
+    try:
+        pill_board = build_pill_command_center_board_payload(
+            conn,
+            now_ms,
+            start_ms,
+            end_ms,
+            date_label,
+            stations,
+            machines,
+            kpis_out,
+            flow_intel,
+            activity,
+            cumulative_hourly,
+            hourly,
+            labels_h,
+            chart_target_cumulative,
+            station_hourly,
+            station_hourly_tablets,
+        )
+    except Exception:
+        _LOGGER_ADMIN.exception("build_ops_tv_snapshot pill_board")
+
     return {
         "generated_at_ms": now_ms,
         "date_label": date_label,
@@ -1027,6 +1054,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         "idle_pct_by_station": idle_pct_by_station,
         "flavor_breakdown": flavor_breakdown,
         "max_bar_output": max_out,
+        "pill_board": pill_board,
     }
 
 

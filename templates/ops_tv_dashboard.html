@@ -1,115 +1,188 @@
 <!DOCTYPE html>
-<html lang="en" class="ops-tv-wall">
+<html lang="en" class="pcb-html">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
   <title>Pill packing command center · TabletTracker</title>
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ app_version }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-command-center-wall.css') }}?v={{ app_version }}" id="ops-wall-styles">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pill-command-center-board.css') }}?v={{ app_version }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
-<body>
-  <div class="ops-tv-shell">
-    <div
-      id="ops-root"
-      class="ops-root occ-dashboard"
-      data-snapshot-url="{{ snapshot_api_url }}"
-      role="application"
-      aria-label="Pill packing command center"
-    >
-      <header class="occ-brand">
-        <div class="ops-brand-strip">
-          <div class="ops-brand-left">
-            <div class="ops-brand-hero">
-              <span class="ops-hero-line1">Pill packing command center</span>
-              <span class="ops-hero-sep" aria-hidden="true">|</span>
-              <span class="ops-hero-product">TabletTracker</span>
-              <span class="ops-live" aria-live="polite">
-                <svg class="ops-live-waves" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <circle cx="12" cy="12" r="3" fill="currentColor"/>
-                  <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6.34 6.34a8 8 0 0111.31 0M3.52 3.52a12 12 0 0116.97 0"/>
-                </svg>
-                LIVE
-              </span>
-            </div>
-            <p class="ops-cc-subtitle">Real-time production monitoring — operations floor telemetry</p>
-          </div>
-          <div class="ops-brand-right">
-            <span id="ops-clock" class="ops-clock"></span>
-            <span id="ops-last-refresh" class="ops-last-refresh"></span>
-            <a class="ops-exit" href="{{ command_center_url }}">Command&nbsp;Center</a>
-          </div>
+<body class="pcb-body">
+  <div id="pcb-root" class="pcb-app" data-snapshot-url="{{ snapshot_api_url }}" role="application">
+    <nav class="pcb-nav" aria-label="Command center">
+      <a class="pcb-nav-item pcb-nav-item--active" href="{{ url_for('admin.ops_tv_dashboard') }}"><span class="pcb-nav-ic">◇</span> Overview</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.workflow_qr_management') }}#blister"><span class="pcb-nav-ic">▭</span> Blister Line</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.workflow_qr_management') }}#bottle"><span class="pcb-nav-ic">▭</span> Bottle Line</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.workflow_qr_management') }}#card"><span class="pcb-nav-ic">▭</span> Card Line</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.workflow_qr_management') }}"><span class="pcb-nav-ic">⚙</span> Machines</a>
+      <a class="pcb-nav-item" href="{{ url_for('receiving.receiving_list') }}"><span class="pcb-nav-ic">▣</span> Bags / Inventory</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.workflow_qr_management') }}"><span class="pcb-nav-ic">▤</span> Staging</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.ops_tv_dashboard') }}#alerts"><span class="pcb-nav-ic">!</span> Alerts</a>
+      <a class="pcb-nav-item" href="{{ url_for('reports.reports_view') }}"><span class="pcb-nav-ic">▦</span> Reports</a>
+      <a class="pcb-nav-item" href="{{ url_for('reports.reports_view') }}"><span class="pcb-nav-ic">▧</span> Analytics</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.manage_employees') }}"><span class="pcb-nav-ic">◎</span> Users</a>
+      <a class="pcb-nav-item" href="{{ url_for('admin.product_config') }}"><span class="pcb-nav-ic">☰</span> Settings</a>
+    </nav>
+
+    <div class="pcb-main">
+      <header class="pcb-topbar">
+        <div class="pcb-title-block">
+          <h1>Pill packing command center</h1>
+          <p class="pcb-sub">Real-time production monitoring — LIVE</p>
+        </div>
+        <div class="pcb-topbar-right">
+          <span id="pcb-top-clock" class="pcb-clock"></span>
+          <select class="pcb-filter" aria-label="Production line"><option>All Lines</option></select>
+          <select class="pcb-filter" aria-label="SKU filter"><option>All SKUs</option></select>
         </div>
       </header>
 
-      <section class="occ-kpi" aria-label="Shift KPI">
-        <div class="occ-kpi-inner ops-kpi-band">
-          <div class="ops-head" id="ops-head"></div>
+      <section id="pcb-kpi-row" class="pcb-kpis" aria-label="Production KPI"></section>
+
+      <section class="pcb-row2" aria-label="Line lifecycles and alerts">
+        <div id="pcb-lifelines" class="pcb-lifelines-host"></div>
+        <div id="pcb-alerts" class="pcb-alerts-panel">
+          <h3>Active Alerts</h3>
+          <div id="pcb-alert-list" class="pcb-alerts-list"></div>
         </div>
       </section>
 
-      <section class="occ-highlights-strip" id="ops-highlights" aria-label="Shift highlights"></section>
+      <section class="pcb-row3" aria-label="Machine status">
+        <div id="pcb-machine-groups"></div>
+      </section>
 
-      <section class="occ-flow-pane" aria-label="Production flow">
-        <div class="ops-flow-wrap occ-flow-board">
-          <div id="ops-bottleneck" class="ops-bottleneck occ-bottleneck-band"></div>
-          <div id="ops-flow" class="ops-flow"></div>
+      <section class="pcb-row4" aria-label="Inventory and trends">
+        <div class="pcb-panel">
+          <h3>Bag inventory (in stock)</h3>
+          <div class="pcb-table-wrap">
+            <table class="pcb-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Bag ID</th>
+                  <th>Units</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="pcb-inv-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pcb-panel">
+          <h3>Production trend (units)</h3>
+          <canvas id="pcb-chart-trend" width="400" height="180"></canvas>
+        </div>
+        <div class="pcb-panel">
+          <h3>Cycle time analysis (avg)</h3>
+          <canvas id="pcb-chart-cycle" width="400" height="180"></canvas>
+        </div>
+        <div class="pcb-panel">
+          <h3>Top SKUs (today)</h3>
+          <div class="pcb-table-wrap">
+            <table class="pcb-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Line</th>
+                  <th>Units</th>
+                  <th>Bags</th>
+                  <th>Cycles</th>
+                </tr>
+              </thead>
+              <tbody id="pcb-sku-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pcb-panel">
+          <h3>Staging area status</h3>
+          <div class="pcb-table-wrap">
+            <table class="pcb-table">
+              <thead>
+                <tr>
+                  <th>Line</th>
+                  <th>Staging</th>
+                  <th>Bags</th>
+                  <th>Oldest</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="pcb-staging-body"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <footer class="ops-charts occ-charts occ-charts--primary" aria-label="Performance charts">
-        <div class="ops-chart-row-main occ-chart-major">
-          <div class="ops-chart-panel panel-cum occ-chart-el">
-            <h3>Displays cumulative — vs 30d pace</h3>
-            <canvas id="c-chart-line"></canvas>
-          </div>
-          <div class="ops-chart-panel panel-multi occ-chart-el">
-            <h3>Displays per hour — top packaging stations</h3>
-            <canvas id="c-chart-multi"></canvas>
+      <section class="pcb-row5" aria-label="Timeline and breakdown">
+        <div class="pcb-panel">
+          <h3>Production timeline (latest activity)</h3>
+          <div class="pcb-table-wrap">
+            <table class="pcb-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Line</th>
+                  <th>Machine</th>
+                  <th>Event</th>
+                  <th>Bag</th>
+                  <th>SKU</th>
+                  <th>Employee</th>
+                </tr>
+              </thead>
+              <tbody id="pcb-timeline-body"></tbody>
+            </table>
           </div>
         </div>
+        <div class="pcb-panel">
+          <h3>OEE breakdown (overall)</h3>
+          <canvas id="pcb-chart-oee" width="320" height="220"></canvas>
+        </div>
+        <div class="pcb-panel">
+          <h3>Downtime summary (today)</h3>
+          <div class="pcb-table-wrap">
+            <table class="pcb-table">
+              <thead>
+                <tr>
+                  <th>Line</th>
+                  <th>Downtime</th>
+                  <th>Reason</th>
+                  <th>Impact</th>
+                </tr>
+              </thead>
+              <tbody id="pcb-downtime-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pcb-panel">
+          <h3>Team performance (today)</h3>
+          <div class="pcb-table-wrap">
+            <table class="pcb-table">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Line</th>
+                  <th>Cycles</th>
+                  <th>Units</th>
+                </tr>
+              </thead>
+              <tbody id="pcb-team-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer class="pcb-footer">
+        <span>All data is real-time and updates automatically.</span>
+        <span><span class="pcb-pulse" aria-hidden="true"></span>Last updated: <strong id="pcb-footer-ts">—</strong></span>
       </footer>
-
-      <div class="occ-split occ-split--secondary">
-        <section class="occ-machines-pane" aria-label="Machines">
-          <h3 class="occ-pane-title">Machine status</h3>
-          <div id="ops-cards" class="ops-cards occ-cards"></div>
-        </section>
-        <aside class="occ-alerts-pane ops-feed" aria-label="Alerts">
-          <h2 class="ops-feed-title">Alerts</h2>
-          <div class="ops-feed-list" id="ops-feed-list"></div>
-        </aside>
-      </div>
-
-      <section class="occ-events" aria-label="Latest workflow events">
-        <h3 class="occ-pane-title">Latest workflow events</h3>
-        <div class="occ-table-scroll">
-          <table class="occ-table" role="grid">
-            <thead>
-              <tr>
-                <th scope="col">Time (ET)</th>
-                <th scope="col">Class</th>
-                <th scope="col">Detail</th>
-              </tr>
-            </thead>
-            <tbody id="ops-activity-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <div class="ops-status-bar occ-footer-strip">
-        <span class="ops-status-bar-left">TabletTracker · live floor telemetry</span>
-        <span id="ops-footer-strip" class="ops-status-bar-right"></span>
-      </div>
     </div>
   </div>
   <script type="application/json" id="ops-tv-initial-data">{{ initial_snapshot | tojson }}</script>
-  <script src="{{ url_for('static', filename='js/ops-command-center-wall.js') }}?v={{ app_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/pill-command-center-board.js') }}?v={{ app_version }}" defer></script>
 </body>
 </html>
