@@ -192,6 +192,17 @@
     })[0] || null;
   }
 
+  function unitsTodayLabelForMachine(m) {
+    var stationKind = String(m && m.stationKind || "").toLowerCase();
+    var role = String(m && m.machineRole || "").toLowerCase();
+    var kind = String(m && m.kind || "").toLowerCase();
+    if (stationKind === "blister" || role === "blister" || kind === "blister") return "Blisters Today";
+    if (stationKind === "sealing" || role === "sealing" || kind === "heat") return "Cards Today";
+    if (stationKind === "packaging" || role === "packaging" || kind === "pack") return "Displays Today";
+    if (role === "bottle" || kind === "bottle" || role === "stickering" || kind === "sticker") return "Bottles Today";
+    return "Units Today";
+  }
+
   function machineIcon(kind, status) {
     var tone = statusTone(status);
     var body;
@@ -320,7 +331,7 @@
         <div><span>Counter</span><b>${counter}</b></div>
         <div><span>Last Scan</span><b>${notIntegrated ? "N/A" : fmtTime(m.lastScanMs)}</b></div>
         <div><span>Throughput</span><b>${notIntegrated ? "N/A" : (m.throughputPerHour != null ? m.throughputPerHour.toFixed(1) + " u/h" : "Insufficient data")}</b></div>
-        <div><span>Units Today</span><b>${notIntegrated ? "N/A" : fmtNumber(unitsTodayVal)}</b></div>
+        <div><span>${unitsTodayLabelForMachine(m)}</span><b>${notIntegrated ? "N/A" : fmtNumber(unitsTodayVal)}</b></div>
         <div><span>7D Avg Cycle</span><b>${notIntegrated ? "N/A" : (avg ? avg.avgMinutes.toFixed(1) + " min" : "Insufficient data")}</b></div>
       </div>
     </article>`;
