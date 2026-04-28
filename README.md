@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.10.0** (favicon, SVG icons, Ops TV neon wall refinement)
+Current: **v4.15.10** (Ops TV reference command center, scan-driven flow, and asset cache bump)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
@@ -138,4 +138,3 @@ Internal tool - contact development team for changes.
 ---
 
 Built with ❤️ for Haute Nutrition
-

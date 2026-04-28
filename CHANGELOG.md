@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.15.10] - 2026-04-28
+
+### Changed
+- **Ops TV command center:** bumped asset version after the reference-dashboard rebuild and clipping fixes so PythonAnywhere reloads fresh `mes-command-center.css`, `command-center-app.js`, and `ops-metrics.js`.
+- **Process model:** lifecycle wall now reflects the scan-driven operation: blister staging buffers plus bottle hand-counting, staging, stickering, sealing, and packing flow.
+- **Settings:** machine settings includes the optional **Ops TV Data Set** for real target units/hour and due time values; missing data continues to show honest states.
+
+---
+
 ## [4.15.9] - 2026-04-28
 
 ### Changed
