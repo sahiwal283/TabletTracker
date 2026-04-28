@@ -179,6 +179,47 @@ def pick_default_bag_id(conn: sqlite3.Connection, start_ms: int, end_ms: int) ->
     return None
 
 
+def _app_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    try:
+        row = conn.execute(
+            "SELECT setting_value FROM app_settings WHERE setting_key = ?",
+            (key,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row:
+        return None
+    raw = row["setting_value"] if hasattr(row, "keys") else row[0]
+    value = str(raw or "").strip()
+    return value or None
+
+
+def _float_setting(conn: sqlite3.Connection, key: str) -> float | None:
+    raw = _app_setting(conn, key)
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _due_time_ms(conn: sqlite3.Connection, day_start_ms: int) -> int | None:
+    raw = _app_setting(conn, "ops_tv_production_due_time")
+    if not raw or ":" not in raw:
+        return None
+    try:
+        hh, mm = raw.split(":", 1)
+        h = int(hh)
+        m = int(mm)
+    except (TypeError, ValueError):
+        return None
+    if h < 0 or h > 23 or m < 0 or m > 59:
+        return None
+    return int(day_start_ms + ((h * 60 + m) * 60_000))
+
+
 def build_metrics_inputs_bundle(
     conn: sqlite3.Connection,
     machines: list[dict],
@@ -219,7 +260,8 @@ def build_metrics_inputs_bundle(
     if default_bag is not None:
         bags = gather_bags_for_trace(conn, [default_bag])
 
-    bm = kpis_benchmark_uh if kpis_benchmark_uh and kpis_benchmark_uh > 0.5 else None
+    configured_target = _float_setting(conn, "ops_tv_target_units_per_hour")
+    bm = configured_target if configured_target is not None else (kpis_benchmark_uh if kpis_benchmark_uh and kpis_benchmark_uh > 0.5 else None)
     planned_min = max(1.0, (now_ms - day_start_ms) / 60000.0)
 
     shift_cfg = {
@@ -227,7 +269,7 @@ def build_metrics_inputs_bundle(
         "nowMs": int(now_ms),
         "plannedShiftMinutes": planned_min,
         "targetThroughputPerHour": bm,
-        "productionDueMs": None,
+        "productionDueMs": _due_time_ms(conn, day_start_ms),
     }
 
     return {
@@ -239,4 +281,3 @@ def build_metrics_inputs_bundle(
         "shiftConfig": shift_cfg,
         "genealogySelectedBagId": default_bag,
     }
-

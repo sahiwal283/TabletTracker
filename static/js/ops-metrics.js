@@ -289,10 +289,18 @@
     var cycles = [];
     var rejectTotal = 0;
     var hasRejectData = false;
+    var completeTotal = 0;
+    var onTimeTotal = 0;
     todays.forEach(function (e) {
       var bid = eventBagId(e);
       if (bid != null) bagSet[String(bid)] = true;
-      if (isCompletedEvent(e)) units += counterDelta(e);
+      if (isCompletedEvent(e)) {
+        units += counterDelta(e);
+        completeTotal += 1;
+        if (shiftConfig && shiftConfig.productionDueMs && asNum(e.atMs) != null && asNum(e.atMs) <= asNum(shiftConfig.productionDueMs)) {
+          onTimeTotal += 1;
+        }
+      }
       var ru = rejectUnits(e);
       if (ru != null) {
         hasRejectData = true;
@@ -328,7 +336,7 @@
         { id: "cycles", value: q.length, displayLabel: "Active Bags / WIP", formulaNote: "Unique active staged bags" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
-        { id: "on_time", value: shiftConfig && shiftConfig.productionDueMs ? "Measured" : "No target set", displayLabel: "On-Time Completion" },
+        { id: "on_time", value: shiftConfig && shiftConfig.productionDueMs ? (completeTotal ? clamp((onTimeTotal / completeTotal) * 100, 0, 100).toFixed(1) + "%" : "Insufficient data") : "No target set", displayLabel: "On-Time Completion" },
         { id: "rework", value: hasRejectData && units > 0 ? clamp((rejectTotal / units) * 100, 0, 100).toFixed(2) + "%" : "No reject data", displayLabel: "Reject Rate" },
       ],
       machines: machineMetrics,

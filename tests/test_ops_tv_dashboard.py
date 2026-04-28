@@ -103,7 +103,7 @@ class TestOpsTvDashboard(unittest.TestCase):
 
     def test_lot_trace_panel_exists(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("Live Bag Genealogy / Lot Trace", source)
+        self.assertIn("LIVE BAG GENEALOGY / LOT TRACE", source)
         self.assertIn("Trace bag ID", source)
 
     def test_machine_illustration_svg_render_functions_exist(self):
@@ -116,27 +116,28 @@ class TestOpsTvDashboard(unittest.TestCase):
 
     def test_machine_settings_panel_wired(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("Machine Command Grid", source)
-        self.assertIn("Five configured floor assets", source)
+        self.assertIn("BLISTER LINE MACHINES", source)
+        self.assertIn("BOTTLE LINE MACHINES", source)
+        self.assertIn("CARD LINE MACHINES", source)
 
     def test_staging_panel_shows_idle_bag_details(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("Staging Status", source)
-        self.assertIn("Last event", source)
+        self.assertIn("STAGING AREA STATUS", source)
+        self.assertIn("TIME IN AREA", source)
         metrics = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
         self.assertIn("deriveStagingBags", metrics)
 
     def test_alerts_and_activity_are_separate_sources(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
-        self.assertIn("Production Timeline", source)
-        self.assertIn("Bottleneck / Queue Aging", source)
-        self.assertIn("Team Performance", source)
+        self.assertIn("PRODUCTION TIMELINE", source)
+        self.assertIn("ACTIVE ALERTS", source)
+        self.assertIn("TEAM PERFORMANCE", source)
 
     def test_dark_theme_command_center_palette(self):
         css = Path("static/css/mes-command-center.css").read_text(encoding="utf-8")
         compact = css.replace(" ", "")
-        self.assertIn("background:#081324", compact)
-        self.assertIn(".mes-header,", compact)
+        self.assertIn("background:#061422", compact)
+        self.assertIn(".occ-header", compact)
 
     def test_machine_settings_route_exists(self):
         r = self.client.get("/admin/settings/machines")

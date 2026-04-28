@@ -146,6 +146,82 @@ def manage_cards_per_turn():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/api/settings/ops_tv_dataset', methods=['GET', 'POST'])
+@admin_required
+def manage_ops_tv_dataset():
+    """Configure optional ops-TV targets. Values are user-entered, never inferred."""
+    keys = {
+        'target_units_per_hour': (
+            'ops_tv_target_units_per_hour',
+            'Target units per runtime hour for estimated OEE performance.',
+        ),
+        'production_due_time': (
+            'ops_tv_production_due_time',
+            'Local HH:MM due time for on-time completion calculation.',
+        ),
+    }
+    try:
+        ensure_app_settings_table()
+        with db_transaction() as conn:
+            if request.method == 'GET':
+                out = {}
+                for public_key, (setting_key, _) in keys.items():
+                    row = conn.execute(
+                        'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+                        (setting_key,),
+                    ).fetchone()
+                    out[public_key] = row['setting_value'] if row else ''
+                return jsonify({'success': True, 'settings': out})
+
+            data = request.get_json() or {}
+            target = str(data.get('target_units_per_hour') or '').strip()
+            due = str(data.get('production_due_time') or '').strip()
+
+            if target:
+                try:
+                    target_value = float(target)
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'error': 'Target units/hour must be a number.'}), 400
+                if target_value <= 0:
+                    return jsonify({'success': False, 'error': 'Target units/hour must be greater than zero.'}), 400
+                target = str(target_value).rstrip('0').rstrip('.') if '.' in str(target_value) else str(target_value)
+
+            if due:
+                try:
+                    hh, mm = due.split(':', 1)
+                    h = int(hh)
+                    m = int(mm)
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'error': 'Due time must use HH:MM format.'}), 400
+                if h < 0 or h > 23 or m < 0 or m > 59:
+                    return jsonify({'success': False, 'error': 'Due time must use HH:MM format.'}), 400
+                due = f'{h:02d}:{m:02d}'
+
+            values = {
+                'target_units_per_hour': target,
+                'production_due_time': due,
+            }
+            for public_key, value in values.items():
+                setting_key, description = keys[public_key]
+                conn.execute(
+                    '''
+                    INSERT INTO app_settings (setting_key, setting_value, description)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(setting_key) DO UPDATE SET
+                        setting_value = excluded.setting_value,
+                        description = excluded.description,
+                        updated_at = CURRENT_TIMESTAMP
+                    ''',
+                    (setting_key, value, description),
+                )
+
+            return jsonify({'success': True, 'settings': values})
+    except Exception as e:
+        current_app.logger.error(f"Error managing ops TV dataset: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 WAREHOUSE_SUBMISSION_EDIT_PASSWORD_KEY = 'warehouse_submission_edit_password_hash'
 
 
@@ -745,4 +821,3 @@ def fix_bag_assignments():
         current_app.logger.error(f"Error fixing bag assignments: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
