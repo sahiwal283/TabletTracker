@@ -23,21 +23,21 @@
 
     <!-- Tab Navigation -->
     <div class="flex border-b border-gray-200 mb-6 overflow-x-auto">
-        <button data-config-tab="tablet-types" id="tab-tablet-types" 
-                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-blue-500 text-blue-600 whitespace-nowrap">
-            🧪 Tablet Types
+        <button data-config-tab="tablet-types" id="tab-tablet-types" type="button"
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-blue-500 text-blue-600 whitespace-nowrap inline-flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-lab"/></svg> Tablet Types
         </button>
-        <button data-config-tab="products" id="tab-products" 
-                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
-            📦 Products
+        <button data-config-tab="products" id="tab-products" type="button"
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap inline-flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-box"/></svg> Products
         </button>
-        <button data-config-tab="categories" id="tab-categories" 
-                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
-            🏷️ Categories
+        <button data-config-tab="categories" id="tab-categories" type="button"
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap inline-flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-list"/></svg> Categories
         </button>
-        <button data-config-tab="machines" id="tab-machines" 
-                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
-            ⚙️ Machines
+        <button data-config-tab="machines" id="tab-machines" type="button"
+                class="px-4 sm:px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap inline-flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-gear"/></svg> Machines
         </button>
     </div>
 
@@ -45,7 +45,7 @@
     <div id="content-tablet-types" class="tab-content">
         <!-- Info Box -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 class="font-semibold text-blue-900 mb-1">🧪 What are Tablet Types?</h3>
+            <h3 class="font-semibold text-blue-900 mb-1 inline-flex items-center gap-2 flex-wrap"><svg class="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true"><use href="#icon-lab"/></svg> What are Tablet Types?</h3>
             <p class="text-sm text-blue-800">Tablet types are the individual tablet flavors/formulations you receive from suppliers (e.g., "MIT Pineapple", "MIT Spearmint"). Each bag you receive contains one tablet type.</p>
         </div>
         
@@ -138,7 +138,7 @@
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-tt-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">⚠️ Uncategorized</span>
+                    <span class="font-semibold text-gray-700 inline-flex items-center gap-1.5"><svg class="w-4 h-4 shrink-0 text-amber-600" aria-hidden="true"><use href="#icon-exclamation"/></svg> Uncategorized</span>
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-600 text-white">{{ uncategorized_types | length }}</span>
                 </button>
                 <div id="section-tt-uncategorized" class="section-content hidden">
@@ -187,18 +187,18 @@
     <div id="content-products" class="tab-content hidden">
         <!-- Product Types Info -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 class="text-lg font-semibold text-blue-900 mb-2">📊 Product Types</h3>
+            <h3 class="text-lg font-semibold text-blue-900 mb-2 inline-flex items-center gap-2 flex-wrap"><svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-chart"/></svg> Product Types</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div class="bg-white p-3 rounded border">
-                    <div class="font-medium text-gray-900">📦 Card Products</div>
+                    <div class="font-medium text-gray-900">Card products</div>
                     <div class="text-gray-600 text-xs mt-1">Tablets on blister cards/packs in displays</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
-                    <div class="font-medium text-gray-900">🍾 Bottle Products</div>
+                    <div class="font-medium text-gray-900">Bottle products</div>
                     <div class="text-gray-600 text-xs mt-1">Single flavor sold in bottles</div>
                 </div>
                 <div class="bg-white p-3 rounded border">
-                    <div class="font-medium text-gray-900">🎨 Variety Packs</div>
+                    <div class="font-medium text-gray-900">Variety packs</div>
                     <div class="text-gray-600 text-xs mt-1">Multiple flavors combined in bottles</div>
                 </div>
             </div>
@@ -217,15 +217,15 @@
                 <div class="flex gap-4">
                     <label class="flex items-center">
                         <input type="radio" name="product-type" value="card" checked class="form-radio js-product-type-radio">
-                        <span class="ml-2 text-sm">📦 Card Product</span>
+                        <span class="ml-2 text-sm">Card product</span>
                     </label>
                     <label class="flex items-center">
                         <input type="radio" name="product-type" value="bottle" class="form-radio js-product-type-radio">
-                        <span class="ml-2 text-sm">🍾 Bottle Product</span>
+                        <span class="ml-2 text-sm">Bottle product</span>
                     </label>
                     <label class="flex items-center">
                         <input type="radio" name="product-type" value="variety" class="form-radio js-product-type-radio">
-                        <span class="ml-2 text-sm">🎨 Variety Pack</span>
+                        <span class="ml-2 text-sm">Variety pack</span>
                     </label>
                 </div>
             </div>
@@ -319,20 +319,20 @@
                         <div class="p-4 hover:bg-gray-50" id="product-row-{{ product.id }}">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-3">
-                                    <span class="text-lg">
-                                        {% if product.is_variety_pack %}🎨
-                                        {% elif product.is_bottle_product %}🍶
-                                        {% else %}📦{% endif %}
+                                    <span class="text-lg inline-flex shrink-0" aria-hidden="true">
+                                        {% if product.is_variety_pack %}<svg class="w-5 h-5 text-purple-600"><use href="#icon-chart"/></svg>
+                                        {% elif product.is_bottle_product %}<svg class="w-5 h-5 text-amber-700"><use href="#icon-bottle"/></svg>
+                                        {% else %}<svg class="w-5 h-5 text-slate-600"><use href="#icon-box"/></svg>{% endif %}
                                     </span>
                                     <div>
                                         <div class="font-medium text-gray-900">{{ product.product_name }}</div>
                                         <div class="text-xs text-gray-500">
                                             {% if product.is_variety_pack %}
-                                                🎨 Variety Pack: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                                Variety pack: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
                                             {% elif product.is_bottle_product %}
-                                                🍶 Bottle: {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                                Bottle: {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
                                             {% else %}
-                                                📦 Card: {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
+                                                Card: {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
                                             {% endif %}
                                         </div>
                                     </div>
@@ -360,7 +360,7 @@
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">📋 Uncategorized Products</span>
+                    <span class="font-semibold text-gray-700">Uncategorized products</span>
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-600 text-white">{{ uncategorized_products | length }}</span>
                 </button>
                 <div id="section-prod-uncategorized" class="section-content hidden">
@@ -369,16 +369,16 @@
                         <div class="p-4 hover:bg-gray-50" id="product-row-{{ product.id }}">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-3">
-                                    <span class="text-lg">
-                                        {% if product.is_bottle_product %}🍶{% else %}📦{% endif %}
+                                    <span class="text-lg inline-flex shrink-0" aria-hidden="true">
+                                        {% if product.is_bottle_product %}<svg class="w-5 h-5 text-amber-700"><use href="#icon-bottle"/></svg>{% else %}<svg class="w-5 h-5 text-slate-600"><use href="#icon-box"/></svg>{% endif %}
                                     </span>
                                     <div>
                                         <div class="font-medium text-gray-900">{{ product.product_name }}</div>
                                         <div class="text-xs text-gray-500">
                                             {% if product.is_bottle_product %}
-                                                🍶 Bottle: {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
+                                                Bottle: {{ product.tablet_type_name }}: {{ product.tablets_per_bottle }} tabs/bottle, {{ product.bottles_per_display }} bottles/display
                                             {% else %}
-                                                📦 Card: {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
+                                                Card: {{ product.tablet_type_name }}: {{ product.packages_per_display }} pkg × {{ product.tablets_per_package }} tabs = {{ product.packages_per_display * product.tablets_per_package }} tabs/display
                                             {% endif %}
                                         </div>
                                     </div>
@@ -405,7 +405,7 @@
                     <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-variety-packs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">🎨 Variety Packs</span>
+                    <span class="font-semibold text-gray-700">Variety packs</span>
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-600 text-white">{{ variety_packs | length }}</span>
                 </button>
                 <div id="section-prod-variety-packs" class="section-content hidden">
@@ -439,7 +439,7 @@
         <!-- Tablet Types Missing Products -->
         {% if tablet_types_without_products %}
         <div class="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4 mt-6">
-            <h4 class="font-medium text-orange-900">⚠️ Tablet Types Missing Products</h4>
+            <h4 class="font-medium text-orange-900">Tablet types missing products</h4>
             <ul class="mt-2 text-sm text-orange-800 list-disc list-inside">
                 {% for tt in tablet_types_without_products %}
                 <li>{{ tt.tablet_type_name }} {% if tt.category %}<span class="text-xs bg-orange-200 px-1 rounded">{{ tt.category }}</span>{% endif %}</li>
@@ -454,8 +454,8 @@
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Category Management</h3>
-                <button data-open-add-category-modal class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
-                    ➕ Add Category
+                <button data-open-add-category-modal type="button" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4 shrink-0" aria-hidden="true"><use href="#icon-plus"/></svg> Add Category
                 </button>
             </div>
             
@@ -465,8 +465,8 @@
                     <div class="flex justify-between items-center mb-3">
                         <h4 class="font-medium text-gray-900">{{ category }}</h4>
                         <div class="flex gap-2">
-                            <button data-open-edit-category-modal="{{ category }}" class="text-blue-600 hover:text-blue-800 text-sm">✏️ Rename</button>
-                            <button data-delete-category="{{ category }}" class="text-red-600 hover:text-red-800 text-sm">🗑️ Delete</button>
+                            <button type="button" data-open-edit-category-modal="{{ category }}" class="text-blue-600 hover:text-blue-800 text-sm">Rename</button>
+                            <button type="button" data-delete-category="{{ category }}" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -492,7 +492,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                         </svg>
                         <div>
-                            <h4 class="font-bold text-xl text-orange-900">⚠️ Unassigned Tablet Types</h4>
+                            <h4 class="font-bold text-xl text-orange-900">Unassigned tablet types</h4>
                             <p class="text-sm text-orange-700 mt-1">These tablet types need to be assigned to a category. Select a category for each one below.</p>
                         </div>
                     </div>
@@ -502,7 +502,7 @@
                         <div class="bg-white border border-orange-200 rounded-lg p-4 hover:shadow-md transition-shadow" id="unassigned-row-{{ tt.id }}">
                             <div class="flex items-center justify-between flex-wrap gap-3">
                                 <div class="flex items-center gap-3 flex-1 min-w-0">
-                                    <span class="text-2xl">🏷️</span>
+                                    <span class="text-2xl inline-flex shrink-0 text-orange-700" aria-hidden="true"><svg class="w-7 h-7"><use href="#icon-list"/></svg></span>
                                     <div class="flex-1 min-w-0">
                                         <div class="font-semibold text-gray-900 truncate">{{ tt.tablet_type_name }}</div>
                                         <div class="text-xs text-gray-500">Not categorized yet</div>
@@ -532,15 +532,15 @@
     <!-- ===== MACHINES TAB ===== -->
     <div id="content-machines" class="tab-content hidden">
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 class="font-semibold text-blue-900 mb-1">⚙️ What are Machines?</h3>
+            <h3 class="font-semibold text-blue-900 mb-1 inline-flex items-center gap-2 flex-wrap"><svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-gear"/></svg> What are Machines?</h3>
             <p class="text-sm text-blue-800">Machines are used for production counting. Set each machine as Sealing or Blister so forms show the right counters for each production stage.</p>
         </div>
 
         <div class="bg-white rounded-lg shadow p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900">Machine Configuration</h3>
-                <button data-open-add-machine-modal class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm">
-                    ➕ Add Machine
+                <button data-open-add-machine-modal type="button" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4 shrink-0" aria-hidden="true"><use href="#icon-plus"/></svg> Add Machine
                 </button>
             </div>
 
@@ -943,7 +943,7 @@ async function assignCategory(tabletTypeId, tabletTypeName) {
         
         if (result.success) {
             // Show success message
-            showSuccess(`✅ "${tabletTypeName}" assigned to "${category}"`);
+            showSuccess(`"${tabletTypeName}" assigned to "${category}".`);
             
             // Fade out the row
             const row = document.getElementById(`unassigned-row-${tabletTypeId}`);
@@ -983,7 +983,7 @@ function showError(msg) { showToast(msg, 'red'); }
 function showToast(msg, color) {
     const toast = document.createElement('div');
     toast.className = `fixed top-4 right-4 bg-${color}-100 border-l-4 border-${color}-500 text-${color}-700 p-4 rounded shadow-lg z-50 max-w-sm`;
-    toast.innerHTML = `<div class="flex"><span class="text-lg mr-2">${color === 'green' ? '✅' : '❌'}</span><p class="text-sm">${msg}</p></div>`;
+    toast.innerHTML = `<div class="flex items-start gap-2"><span class="shrink-0 mt-0.5">${color === 'green' ? '<svg class="w-5 h-5 text-green-600" aria-hidden="true"><use href="#icon-check"/></svg>' : '<svg class="w-5 h-5 text-red-600" aria-hidden="true"><use href="#icon-x"/></svg>'}</span><p class="text-sm">${msg}</p></div>`;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 5000);
 }
@@ -1126,10 +1126,10 @@ function renderMachinesList() {
                     <div class="text-sm text-gray-500">${machine.cards_per_turn} cards per turn</div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <button data-open-edit-machine-id="${machine.id}" 
-                            class="text-blue-600 hover:text-blue-800 text-sm font-medium">✏️ Edit</button>
-                    <button data-delete-machine-id="${machine.id}" data-delete-machine-name="${machine.machine_name}" 
-                            class="text-red-600 hover:text-red-800 text-sm font-medium">🗑️</button>
+                    <button data-open-edit-machine-id="${machine.id}" type="button"
+                            class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+                    <button data-delete-machine-id="${machine.id}" data-delete-machine-name="${machine.machine_name}" type="button"
+                            class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
                 </div>
             </div>
         </div>
@@ -1473,11 +1473,11 @@ async function saveEditProduct() {
                 <div class="flex gap-4">
                     <label class="flex items-center">
                         <input type="radio" name="edit-prod-type" id="edit-prod-type-card" value="card" data-toggle-edit-product-type checked class="mr-2">
-                        📦 Card Product
+                        Card product
                     </label>
                     <label class="flex items-center">
                         <input type="radio" name="edit-prod-type" id="edit-prod-type-bottle" value="bottle" data-toggle-edit-product-type class="mr-2">
-                        🍶 Bottle Product
+                        Bottle product
                     </label>
                 </div>
             </div>
@@ -1514,7 +1514,7 @@ async function saveEditProduct() {
     <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-lg">
             <div class="flex justify-between items-center">
-                <h3 class="text-xl font-bold">🎨 Edit Variety Pack</h3>
+                <h3 class="text-xl font-bold">Edit variety pack</h3>
                 <button data-close-edit-variety-pack-modal class="text-white hover:text-gray-200 text-2xl font-bold">×</button>
             </div>
         </div>

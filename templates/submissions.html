@@ -915,8 +915,8 @@
                     <h3 class="text-xl font-bold">Reassign submission to PO</h3>
                     <p class="text-sm text-blue-100 mt-1" id="reassign-modal-subtitle"></p>
                 </div>
-                <button data-close-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                    ✕
+                <button type="button" data-close-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold leading-none" aria-label="Close">
+                    &times;
                 </button>
             </div>
         </div>
@@ -1164,11 +1164,11 @@ async function openAdminReassignModal(submissionId, currentPO, productName) {
                 <div class="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-4">
                     <div class="flex justify-between items-center">
                         <div>
-                            <h3 class="text-xl font-bold">🔧 Admin: Change PO Assignment</h3>
+                            <h3 class="text-xl font-bold">Admin: Change PO assignment</h3>
                             <p class="text-sm text-orange-100 mt-1" id="admin-reassign-modal-subtitle"></p>
                         </div>
-                        <button data-close-admin-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                            ✕
+                        <button type="button" data-close-admin-reassign-modal class="text-white hover:text-gray-200 text-2xl font-bold leading-none" aria-label="Close">
+                            &times;
                         </button>
                     </div>
                 </div>

@@ -5,8 +5,9 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <div class="mb-8">
-        <h1 class="text-4xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
-            🔧 Fix Bag Assignments
+        <h1 class="text-4xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent flex items-center gap-3 flex-wrap">
+            <svg class="w-10 h-10 text-red-600 shrink-0" aria-hidden="true"><use href="#icon-gear"/></svg>
+            <span>Fix Bag Assignments</span>
         </h1>
         <p class="text-gray-600 mt-2">Fix submissions that are assigned to the wrong bags</p>
     </div>
@@ -21,7 +22,7 @@
                 </p>
                 <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
                     <p class="text-sm text-yellow-800">
-                        ⚠️ <strong>Admin Only:</strong> This operation will update the database. Make sure you know what you're doing.
+                        <strong>Admin only:</strong> This operation will update the database. Make sure you know what you're doing.
                     </p>
                 </div>
             </div>
@@ -29,7 +30,7 @@
             <button data-fix-bag-assignments
                     id="fixButton"
                     class="btn-primary px-6 py-3 text-lg font-semibold">
-                🔧 Fix All Bag Assignments
+                Fix All Bag Assignments
             </button>
 
             <div id="results" class="mt-6 hidden"></div>
@@ -43,7 +44,7 @@ async function fixBagAssignments() {
     const resultsDiv = document.getElementById('results');
     
     button.disabled = true;
-    button.textContent = '⏳ Fixing...';
+    button.textContent = 'Fixing…';
     resultsDiv.classList.add('hidden');
     
     try {
@@ -71,9 +72,9 @@ async function fixBagAssignments() {
                             <div class="mt-2 text-sm text-green-700">
                                 <p class="font-semibold">${data.message}</p>
                                 <ul class="list-disc pl-5 mt-2">
-                                    <li>✓ Updated: ${data.updated} submissions</li>
-                                    <li>⊘ Skipped (already correct): ${data.skipped} submissions</li>
-                                    <li>⚠ No bag found: ${data.no_bag_found} submissions</li>
+                                    <li>Updated: ${data.updated} submissions</li>
+                                    <li>Skipped (already correct): ${data.skipped} submissions</li>
+                                    <li>No bag found: ${data.no_bag_found} submissions</li>
                                 </ul>
                             </div>
                             ${data.updates && data.updates.length > 0 ? `
@@ -116,7 +117,7 @@ async function fixBagAssignments() {
         `;
     } finally {
         button.disabled = false;
-        button.textContent = '🔧 Fix All Bag Assignments';
+        button.textContent = 'Fix All Bag Assignments';
     }
 }
 

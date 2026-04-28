@@ -5,14 +5,14 @@
 
 /* Exact wall reference (#0a0e14 canvas, neon #00e5ff) — html.ops-tv-wall on ops_tv_dashboard.html */
 html.ops-tv-wall {
-  --bg: #0a0e14;
+  --bg: #0a111a;
   --bg-deep: #05080f;
-  --panel: #0f1724;
-  --panel-elevated: #172033;
+  --panel: #111d29;
+  --panel-elevated: #152232;
   --accent: #00e5ff;
   --accent-dim: rgba(0, 229, 255, 0.88);
   --text: #f4f8fc;
-  --muted: #94a3b8;
+  --muted: #aab8c9;
   --line: rgba(0, 229, 255, 0.18);
   --line-soft: rgba(148, 163, 184, 0.1);
   --glow: 0 0 40px rgba(0, 229, 255, 0.16);
@@ -36,17 +36,66 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.ops-root {
+.ops-app-frame {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   height: 100vh;
   width: 100vw;
-  padding: 0.12rem 0.26rem 0.14rem;
+  min-height: 0;
+}
+
+.ops-nav-rail {
+  flex: 0 0 auto;
+  width: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.85rem 0.35rem;
+  border-right: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(8, 12, 18, 0.96));
+  box-shadow: 8px 0 36px rgba(0, 0, 0, 0.35);
+}
+
+.ops-nav-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 12px;
+  color: rgba(203, 213, 225, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.ops-nav-mark svg {
+  display: block;
+  opacity: 0.92;
+}
+
+.ops-root-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.12rem 0.28rem 0.06rem;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ops-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, min(30vh, 300px)) minmax(340px, 1fr);
+  grid-template-rows: auto minmax(0, min(30vh, 300px)) minmax(340px, 1fr) auto;
   gap: 0.1rem;
   position: relative;
 }
 
-.ops-root::before {
+.ops-root-main::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -60,9 +109,18 @@ body {
   z-index: 0;
 }
 
-.ops-root > * {
+.ops-root-main > * {
   position: relative;
   z-index: 1;
+}
+
+.ops-cc-eyebrow {
+  margin: 0 0 0.12rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.88);
 }
 
 .ops-top {
@@ -104,10 +162,11 @@ body {
 
 .ops-cc-subtitle {
   margin: 0.12rem 0 0;
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 500;
   color: var(--muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.025em;
+  max-width: 52rem;
 }
 
 .ops-live {
@@ -399,9 +458,11 @@ body {
 }
 
 .ops-kpi-sub {
-  font-size: 0.58rem;
-  color: var(--muted);
-  margin-top: 0.1rem;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: rgba(203, 213, 225, 0.92);
+  margin-top: 0.12rem;
+  line-height: 1.35;
 }
 
 .ops-kpi-value--run {
@@ -592,8 +653,8 @@ body {
 
 .ops-feed-title {
   margin: 0;
-  padding: 0.28rem 0.38rem;
-  font-size: 0.56rem;
+  padding: 0.32rem 0.42rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--muted);
@@ -613,8 +674,9 @@ body {
 }
 
 .ops-feed-item {
-  font-size: 0.52rem;
-  padding: 0.2rem 0.32rem;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 0.26rem 0.38rem;
   border-radius: 5px;
   border-left: 3px solid rgba(0, 212, 255, 0.4);
   background: rgba(0, 0, 0, 0.22);
@@ -650,10 +712,11 @@ body {
 
 .ops-feed-time {
   display: block;
-  color: var(--muted);
+  color: rgba(148, 163, 184, 0.95);
   font-variant-numeric: tabular-nums;
-  font-size: 0.48rem;
-  margin-bottom: 0.06rem;
+  font-size: 0.54rem;
+  font-weight: 600;
+  margin-bottom: 0.08rem;
 }
 
 /* Bottom charts — fixed vertical share, no flex squish */
@@ -695,21 +758,46 @@ body {
 
 .ops-chart-panel h3 {
   margin: 0 0 0.06rem;
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: rgba(226, 232, 240, 0.9);
   flex-shrink: 0;
 }
 
 .ops-chart-note {
   margin: 0 0 0.08rem;
-  font-size: 0.5rem;
-  line-height: 1.2;
-  color: var(--muted);
-  opacity: 0.92;
+  font-size: 0.54rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: rgba(203, 213, 225, 0.88);
   flex-shrink: 0;
+}
+
+.ops-status-bar {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.28rem 0.42rem;
+  margin-top: 0.06rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(165deg, rgba(17, 24, 39, 0.95), rgba(8, 11, 18, 0.98));
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.ops-status-bar-right {
+  font-variant-numeric: tabular-nums;
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.ops-status-bar-left {
+  color: rgba(203, 213, 225, 0.82);
 }
 
 .ops-chart-panel canvas {

@@ -167,12 +167,14 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             {% if bag.status == 'Closed' %}
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                    🔒 {{ gettext('Closed') }}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                    <svg class="w-3.5 h-3.5 shrink-0 opacity-80" aria-hidden="true"><use href="#icon-lock"/></svg>
+                                    {{ gettext('Closed') }}
                                 </span>
                             {% elif bag.reserved_for_bottles %}
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" id="status-{{ bag.id }}">
-                                    🍾 {{ gettext('Reserved for Bottles') }}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" id="status-{{ bag.id }}">
+                                    <svg class="w-3.5 h-3.5 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-bottle"/></svg>
+                                    {{ gettext('Reserved for Bottles') }}
                                 </span>
                             {% else %}
                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" id="status-{{ bag.id }}">
@@ -372,7 +374,7 @@ async function toggleReservation(bagId) {
             const statusEl = document.getElementById(`status-${bagId}`);
             if (statusEl) {
                 if (result.reserved_for_bottles) {
-                    statusEl.outerHTML = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" id="status-${bagId}">🍾 {{ gettext('Reserved for Bottles') }}</span>`;
+                    statusEl.outerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" id="status-${bagId}"><svg class="w-3.5 h-3.5 shrink-0 opacity-90" aria-hidden="true"><use href="#icon-bottle"/></svg> {{ gettext('Reserved for Bottles') }}</span>`;
                 } else {
                     statusEl.outerHTML = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" id="status-${bagId}">{{ gettext('Available') }}</span>`;
                 }

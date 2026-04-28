@@ -72,7 +72,7 @@
 
     <!-- System Tools -->
     <div class="card p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center">🔧 System Tools</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-4 text-center flex items-center justify-center gap-2"><svg class="w-5 h-5 text-slate-500 shrink-0" aria-hidden="true"><use href="#icon-gear"/></svg> System Tools</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
             <button id="test-zoho-connection-btn" 
                     class="btn-primary flex items-center justify-center py-2.5">
@@ -81,8 +81,8 @@
             </button>
             <button id="sync-pos-btn" 
                     class="btn-success py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105">
-                <span class="flex items-center justify-center">
-                    <span class="text-lg mr-2">🔄</span>
+                <span class="flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5 shrink-0" aria-hidden="true"><use href="#icon-spinner"/></svg>
                     SYNC ZOHO POs
                 </span>
             </button>
@@ -90,8 +90,8 @@
             <button id="clear-po-data-btn" 
                     class="btn-warning py-2.5 text-sm font-semibold transform transition-all duration-300 hover:scale-105"
                     title="Deletes all synced PO data and resets counts to zero. Use this to start fresh or fix sync issues.">
-                <span class="flex items-center justify-center">
-                    <span class="text-base mr-1">🗑️</span>
+                <span class="flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4 shrink-0" aria-hidden="true"><use href="#icon-trash"/></svg>
                     Clear PO Data
                 </span>
             </button>
@@ -114,15 +114,15 @@ async function testZohoConnection(button) {
     
     try {
         button.disabled = true;
-        button.textContent = '🔌 Testing Connection...';
+        button.textContent = 'Testing connection…';
         
         const response = await fetch('/api/test_zoho_connection');
         const result = await response.json();
         
         if (result.success) {
-            showSuccess('✅ Connection successful!');
+            showSuccess('Connection successful.');
         } else {
-            showError('❌ Connection failed: ' + result.error);
+            showError('Connection failed: ' + result.error);
         }
         
         button.disabled = false;
@@ -145,7 +145,7 @@ async function syncZohoPOs() {
     try {
         button.disabled = true;
         button.style.opacity = '0.7';
-        button.textContent = '🔄 SYNCING...';
+        button.textContent = 'SYNCING…';
         
         const response = await csrfFetch('/api/sync_zoho_pos', {
             method: 'POST',
@@ -155,9 +155,9 @@ async function syncZohoPOs() {
         const result = await response.json();
         
         if (result.success) {
-            showSuccess(result.message || '✅ PO sync completed successfully!');
+            showSuccess(result.message || 'PO sync completed successfully.');
         } else {
-            showError('❌ Sync failed: ' + (result.error || 'Unknown error'));
+            showError('Sync failed: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         showError('Sync failed: ' + error.message);
@@ -182,7 +182,7 @@ async function clearPOData(button) {
     try {
         button.disabled = true;
         button.style.opacity = '0.6';
-        button.textContent = '🗑️ Clearing...';
+        button.textContent = 'Clearing…';
         
         const response = await csrfFetch('/api/clear_po_data', {
             method: 'POST',
@@ -192,9 +192,9 @@ async function clearPOData(button) {
         const result = await response.json();
         
         if (result.success) {
-            showSuccess(result.message || '✅ PO data cleared successfully!');
+            showSuccess(result.message || 'PO data cleared successfully.');
         } else {
-            showError('❌ Clear failed: ' + (result.error || 'Unknown error'));
+            showError('Clear failed: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
         showError('Clear failed: ' + error.message);
@@ -246,7 +246,7 @@ function showMessage(message, type) {
     alert.innerHTML = `
         <div class="flex">
             <div class="flex-shrink-0">
-                <span class="text-lg">${type === 'success' ? '✅' : '❌'}</span>
+                <span class="text-lg">${type === 'success' ? '<svg class="w-5 h-5 text-green-600" aria-hidden="true"><use href="#icon-check"/></svg>' : '<svg class="w-5 h-5 text-red-600" aria-hidden="true"><use href="#icon-x"/></svg>'}</span>
             </div>
             <div class="ml-3">
                 <p class="text-sm">${message}</p>

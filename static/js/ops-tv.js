@@ -2,6 +2,21 @@
  * TV operations board — polls snapshot API, renders tiles + Chart.js (no tables).
  */
 (function () {
+  /** Remove emoji / pictographs from API strings (chart labels, SKU names, feed). */
+  function stripEmoji(input) {
+    if (input == null || input === "") return typeof input === "string" ? input : "";
+    var s = String(input);
+    try {
+      return s
+        .replace(/\p{Extended_Pictographic}/gu, "")
+        .replace(/\ufe0f/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    } catch (e) {
+      return s;
+    }
+  }
+
   /** Matches html.ops-tv-wall / wall screen (#00e5ff accent) */
   var ACCENT = "#00e5ff";
   var ACCENT_SOFT = "rgba(0, 229, 255, 0.12)";
@@ -125,13 +140,13 @@
       }
       if (tr === "up" || tr === "down") {
         var trClass = tr === "up" ? "ops-flow-trend--up" : "ops-flow-trend--down";
-        var trLab = tr === "up" ? "▲ Delay rising" : "▼ Delay easing";
+        var trLab = tr === "up" ? "Delay rising (36h)" : "Delay easing (36h)";
         insightHtml +=
           '<div class="ops-flow-insight"><span class="ops-flow-trend ' +
           trClass +
           '">' +
           trLab +
-          " (36h)</span></div>";
+          "</span></div>";
       }
       parts.push(
         '<div class="ops-flow-node' +
@@ -267,6 +282,7 @@
           rateLine += " · " + cyc + "m cycle";
         }
         var hint = (m.perf_hint || "").replace(/</g, "&lt;");
+        var prodLine = stripEmoji(m.product || "");
         var perfBlock =
           '<div class="ops-card-perf ops-card-perf--' +
           tier +
@@ -301,9 +317,9 @@
           st +
           "</div>" +
           '<div class="ops-card-product" title="' +
-          (m.product || "").replace(/"/g, "&quot;") +
+          prodLine.replace(/"/g, "&quot;") +
           '">' +
-          (m.product || "—") +
+          (prodLine || "—") +
           "</div>" +
           timer +
           '<div class="ops-card-out">' +
@@ -354,7 +370,7 @@
           '"><span class="ops-feed-time">' +
           fmtFeedTime(it.at_ms) +
           "</span>" +
-          (it.message || "").replace(/</g, "&lt;") +
+          stripEmoji(it.message || "").replace(/</g, "&lt;") +
           "</div>"
         );
       })
@@ -571,7 +587,7 @@
           { label: "Output", data: [0], backgroundColor: ["rgba(148,163,184,0.4)"] },
         ];
       } else {
-        charts.bar.data.labels = bars.map(function (b) { return b.name; });
+        charts.bar.data.labels = bars.map(function (b) { return stripEmoji(b.name || ""); });
         charts.bar.data.datasets = [
           {
             label: "Output (packaging = displays · blister/seal = tablets)",
@@ -594,7 +610,7 @@
           { label: "Idle / wait", data: [100], backgroundColor: "rgba(251, 191, 36, 0.4)" },
         ];
       } else {
-        charts.idle.data.labels = idles.map(function (r) { return r.name; });
+        charts.idle.data.labels = idles.map(function (r) { return stripEmoji(r.name || ""); });
         charts.idle.data.datasets = [
           {
             label: "Engaged",
@@ -619,7 +635,7 @@
           { data: [1], backgroundColor: ["rgba(148,163,184,0.4)"] },
         ];
       } else {
-        charts.donut.data.labels = fb.map(function (f) { return f.label; });
+        charts.donut.data.labels = fb.map(function (f) { return stripEmoji(f.label || ""); });
         charts.donut.data.datasets = [
           {
             data: fb.map(function (f) { return f.value; }),
@@ -643,6 +659,12 @@
     if (lastRefreshEl) {
       lastRefreshEl.textContent =
         "Snapshot · " +
+        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+    var footerStrip = document.getElementById("ops-footer-strip");
+    if (footerStrip) {
+      footerStrip.textContent =
+        "Last updated " +
         new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     }
   }

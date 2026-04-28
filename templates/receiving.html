@@ -3,13 +3,13 @@
 {% block title %}Shipments Received{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto tt-receiving-shell">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">
-            <svg class="inline w-7 h-7 mr-2 align-[-4px]" aria-hidden="true"><use href="#icon-box" /></svg> 
+        <h1 class="text-2xl font-bold text-slate-50">
+            <svg class="inline w-7 h-7 mr-2 align-[-4px] text-cyan-400/90" aria-hidden="true"><use href="#icon-box" /></svg> 
             Shipments Received
         </h1>
-        <p class="text-gray-600 mt-2">Record shipments that arrive</p>
+        <p class="text-slate-400 mt-2">Record shipments that arrive</p>
     </div>
 
     <!-- Action Button -->
@@ -50,17 +50,18 @@
              tabindex="0"
              aria-label="Show or hide shipments for {{ po_group.po_number | e }}{% if po_group.vendor_name %}, {{ po_group.vendor_name | e }}{% endif %}">
             <div class="flex justify-between items-center gap-3">
-                <div class="flex items-baseline gap-2 flex-wrap min-w-0">
-                    <h2 class="text-xl font-bold text-gray-900">
-                        📋 {{ po_group.po_number }}
-                        <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
+                <div class="flex items-center gap-2 flex-wrap min-w-0">
+                    <h2 class="text-xl font-bold text-slate-50 flex items-center gap-2 flex-wrap">
+                        <span class="tt-po-kicker" aria-hidden="true">PO</span>
+                        <span class="font-mono tracking-tight text-slate-50">{{ po_group.po_number }}</span>
+                        <span class="text-sm font-normal text-slate-400">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
                     </h2>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-end">
                     {% if po_group.vendor_name %}
-                    <span class="text-sm text-gray-600 truncate max-w-[10rem] sm:max-w-md text-right" title="{{ po_group.vendor_name | e }}">{{ po_group.vendor_name }}</span>
+                    <span class="text-sm text-slate-300 truncate max-w-[10rem] sm:max-w-md text-right font-medium" title="{{ po_group.vendor_name | e }}">{{ po_group.vendor_name }}</span>
                     {% endif %}
-                    <span class="text-gray-600 pointer-events-none flex-shrink-0" aria-hidden="true">
+                    <span class="text-slate-400 pointer-events-none flex-shrink-0" aria-hidden="true">
                         <svg id="icon-po-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
@@ -97,15 +98,15 @@
                             </h3>
                             {% if shipment.receiving.status == 'draft' %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-200 text-yellow-800">
-                                📝 DRAFT
+                                Draft
                             </span>
                             {% elif shipment.receiving.closed %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
-                                🔒 CLOSED
+                                CLOSED
                             </span>
                             {% else %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-200 text-green-800">
-                                ✓ LIVE
+                                Live
                             </span>
                             {% endif %}
                         </div>
@@ -131,16 +132,16 @@
                             {% if shipment.receiving.status == 'draft' %}
                             <button data-edit-receive-id="{{ shipment.receiving.id }}" 
                                     class="text-xs text-blue-600 hover:text-blue-800 underline font-semibold">
-                                ✏️ Edit
+                                Edit
                             </button>
                             <button data-publish-receive-id="{{ shipment.receiving.id }}" 
                                     class="text-xs text-green-600 hover:text-green-800 underline font-semibold">
-                                ✓ Publish (Make Live)
+                                Publish (make live)
                             </button>
                             {% elif shipment.receiving.status == 'published' and not shipment.receiving.closed %}
                             <button data-unpublish-receive-id="{{ shipment.receiving.id }}" 
                                     class="text-xs text-yellow-600 hover:text-yellow-800 underline">
-                                📝 Move to Draft
+                                Move to draft
                             </button>
                             {% endif %}
                             <button data-open-assign-po-receiving-id="{{ shipment.receiving.id }}" data-open-assign-po-current-po-id="{{ shipment.receiving.po_id or '' }}" 
@@ -149,7 +150,7 @@
                             </button>
                             <button data-toggle-receive-closed-id="{{ shipment.receiving.id }}" data-toggle-receive-closed-state="{{ 'true' if shipment.receiving.closed else 'false' }}" 
                                     class="text-xs {% if shipment.receiving.closed %}text-green-600 hover:text-green-800{% else %}text-orange-600 hover:text-orange-800{% endif %} underline">
-                                {% if shipment.receiving.closed %}🔓 Reopen{% else %}🔒 Close{% endif %}
+                                {% if shipment.receiving.closed %}Reopen{% else %}Close{% endif %}
                             </button>
                             <button data-open-delete-shipment-id="{{ shipment.receiving.id }}" data-open-delete-shipment-date="{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}" data-open-delete-shipment-po="{{ shipment.receiving.po_number or 'No PO' }}" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
@@ -204,7 +205,7 @@
              aria-label="Show or hide unassigned receives">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-900">
-                    📦 Unassigned Receives
+                    Unassigned receives
                     <span class="text-sm font-normal text-gray-600 ml-2">({{ shipments_without_po|length }} receive{{ 's' if shipments_without_po|length != 1 else '' }})</span>
                 </h2>
                 <span class="text-gray-600 pointer-events-none" aria-hidden="true">
@@ -233,15 +234,15 @@
                             </h3>
                             {% if shipment.receiving.status == 'draft' %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-yellow-200 text-yellow-800">
-                                📝 DRAFT
+                                Draft
                             </span>
                             {% elif shipment.receiving.closed %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gray-200 text-gray-700">
-                                🔒 CLOSED
+                                CLOSED
                             </span>
                             {% else %}
                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-200 text-green-800">
-                                ✓ LIVE
+                                Live
                             </span>
                             {% endif %}
                         </div>
@@ -268,7 +269,7 @@
                             </button>
                             <button data-toggle-receive-closed-id="{{ shipment.receiving.id }}" data-toggle-receive-closed-state="{{ 'true' if shipment.receiving.closed else 'false' }}" 
                                     class="text-xs {% if shipment.receiving.closed %}text-green-600 hover:text-green-800{% else %}text-orange-600 hover:text-orange-800{% endif %} underline">
-                                {% if shipment.receiving.closed %}🔓 Reopen{% else %}🔒 Close{% endif %}
+                                {% if shipment.receiving.closed %}Reopen{% else %}Close{% endif %}
                             </button>
                             <button data-open-delete-shipment-id="{{ shipment.receiving.id }}" data-open-delete-shipment-date="{{ shipment.receiving.received_date[:10] if shipment.receiving.received_date else 'Unknown' }}" data-open-delete-shipment-po="No PO" 
                                     class="text-xs text-red-600 hover:text-red-800 underline">
@@ -325,18 +326,19 @@
              tabindex="0"
              aria-label="Show or hide closed PO {{ po_group.po_number | e }} shipments{% if po_group.vendor_name %}, {{ po_group.vendor_name | e }}{% endif %}">
             <div class="flex justify-between items-center gap-3">
-                <div class="flex items-baseline gap-2 flex-wrap min-w-0">
-                    <h2 class="text-xl font-bold text-gray-900">
-                        📋 {{ po_group.po_number }}
-                        <span class="ml-2 text-xs bg-gray-500 text-white px-2 py-1 rounded">Closed</span>
-                        <span class="text-sm font-normal text-gray-600 ml-2">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
+                <div class="flex items-center gap-2 flex-wrap min-w-0">
+                    <h2 class="text-xl font-bold text-slate-50 flex items-center gap-2 flex-wrap">
+                        <span class="tt-po-kicker" aria-hidden="true">PO</span>
+                        <span class="font-mono tracking-tight">{{ po_group.po_number }}</span>
+                        <span class="ml-1 text-xs bg-slate-600 text-slate-100 px-2 py-1 rounded uppercase tracking-wide">Closed</span>
+                        <span class="text-sm font-normal text-slate-400">({{ po_group.receives|length }} receive{{ 's' if po_group.receives|length != 1 else '' }})</span>
                     </h2>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-end">
                     {% if po_group.vendor_name %}
-                    <span class="text-sm text-gray-600 truncate max-w-[10rem] sm:max-w-md text-right" title="{{ po_group.vendor_name | e }}">{{ po_group.vendor_name }}</span>
+                    <span class="text-sm text-slate-300 truncate max-w-[10rem] sm:max-w-md text-right font-medium" title="{{ po_group.vendor_name | e }}">{{ po_group.vendor_name }}</span>
                     {% endif %}
-                    <span class="text-gray-600 pointer-events-none flex-shrink-0" aria-hidden="true">
+                    <span class="text-slate-400 pointer-events-none flex-shrink-0" aria-hidden="true">
                         <svg id="icon-po-closed-{{ po_group.po_number }}" class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                         </svg>
@@ -461,11 +463,11 @@
         <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4">
             <div class="flex justify-between items-center">
                 <div>
-                    <h3 class="text-xl font-bold">📦 Record Shipment Received</h3>
+                    <h3 class="text-xl font-bold">Record shipment received</h3>
                     <p class="text-sm text-blue-100 mt-1">Enter box and bag details for the received shipment</p>
                 </div>
                 <button data-close-add-receives-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                    ✕
+                    &times;
                 </button>
             </div>
         </div>
@@ -486,7 +488,7 @@
                         <option value="{{ po.id }}">{{ po.po_number }}{% if po.vendor_name %} — {{ po.vendor_name }}{% endif %}</option>
                         {% endfor %}
                     </select>
-                    <p class="text-xs text-red-600 mt-1 font-medium">⚠️ Required: All receives must be linked to a PO (source of truth for submissions)</p>
+                    <p class="text-xs text-red-600 mt-1 font-medium">Required: All receives must be linked to a PO (source of truth for submissions)</p>
                 </div>
                 {% endif %}
 
@@ -520,7 +522,7 @@
                 <div class="mt-6 border-t pt-4">
                     <div class="flex justify-between items-center gap-3 mb-3">
                         <div class="text-sm text-gray-600">
-                            <span class="font-medium">💡 Tip:</span> Save Draft Progress keeps this editor open so you can keep working
+                            <span class="font-medium">Tip:</span> Save Draft Progress keeps this editor open so you can keep working
                         </div>
                     </div>
                     <div class="flex justify-end gap-3">
@@ -530,11 +532,11 @@
                         </button>
                         <button type="button" data-save-receives-draft 
                                 class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
-                            📝 Save Draft Progress
+                            Save draft progress
                         </button>
                         <button type="submit" 
                                 class="btn-primary px-6 py-2">
-                            ✓ Save & Publish
+                            Save & publish
                         </button>
                     </div>
                 </div>
@@ -550,7 +552,7 @@
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Delete Shipment</h3>
                 <button data-close-delete-shipment-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                    ✕
+                    &times;
                 </button>
             </div>
         </div>
@@ -601,7 +603,7 @@
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold">Assign Purchase Order</h3>
                 <button data-close-assign-po-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                    ✕
+                    &times;
                 </button>
             </div>
         </div>
@@ -703,7 +705,7 @@ function resetTwoLevelDropdownForSelect(selectElement) {
 /**
  * After convertToTwoLevelDropdown, keep the category + item selects in sync with a tablet type id.
  * Do not use optgroup labels from the hidden select: two-level groups come from /api/tablet_types/categories
- * (e.g. "Other") while the HTML dropdown may use different labels (e.g. "⚠️ Uncategorized").
+ * (e.g. "Other") while the HTML dropdown may use different labels (e.g. "Uncategorized").
  */
 function syncTwoLevelTabletSelectByValue(baseSelect, tabletTypeId) {
     if (!baseSelect || tabletTypeId === undefined || tabletTypeId === null || tabletTypeId === '') {
@@ -870,7 +872,7 @@ function buildTabletTypeDropdown(boxNumber, bagNumber) {
     // Add uncategorized options
     const uncategorized = allowedTabletTypes.filter(tt => !tt.category || tt.category === '');
     if (uncategorized.length > 0) {
-        html += `<optgroup label="⚠️ Uncategorized">`;
+        html += `<optgroup label="Uncategorized">`;
         uncategorized.forEach(tt => {
             html += `<option value="${tt.id}">${tt.tablet_type_name}</option>`;
         });
@@ -1203,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (hasMeaningfulData && timeDiff < 480) { // Less than 8 hours old
             const restore = confirm(
-                `📦 Found saved draft from ${savedTime.toLocaleString()}\n\n` +
+                `Found saved draft from ${savedTime.toLocaleString()}\n\n` +
                 `Contains ${bagsWithData} bags\n` +
                 `PO: ${savedDraft.po_id || 'Not selected'}\n` +
                 `${savedDraft.editing_receive_id ? '(Editing existing receive)' : '(New receive)'}\n\n` +
@@ -1378,7 +1380,7 @@ async function restoreSavedDraft(savedDraft) {
     
     recomputeFlavorBagNumbers();
     console.log('[Restore] Draft restoration complete');
-    alert(`✅ Restored ${sortedBoxes.length} boxes from saved draft`);
+    alert(`Restored ${sortedBoxes.length} boxes from saved draft.`);
 }
 
 function ensurePOSelectListener() {
@@ -1435,7 +1437,7 @@ function closeAddReceivesModal(event) {
         
         const modalTitle = document.querySelector('#add-receives-modal h3');
         if (modalTitle) {
-            modalTitle.textContent = '📦 Record Shipment Received';
+            modalTitle.textContent = 'Record shipment received';
         }
     }
 }
@@ -1961,12 +1963,12 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
         console.log('[Submit] Boxes being sent to server:', boxesArray.length);
 
         if (boxesArray.length < boxesInDOM) {
-            if (!confirm(`⚠️ WARNING: Potential data loss!\n\nBox rows in form: ${boxesInDOM}\nBoxes being sent to server: ${boxesArray.length}\n\nSome boxes may be missing required data (tablet type, bag count, or flavor bag number).\n\nDo you want to continue anyway?`)) {
+            if (!confirm(`WARNING: Potential data loss.\n\nBox rows in form: ${boxesInDOM}\nBoxes being sent to server: ${boxesArray.length}\n\nSome boxes may be missing required data (tablet type, bag count, or flavor bag number).\n\nContinue anyway?`)) {
                 return;
             }
         }
         if (boxesArray.length > boxesInDOM + 5) {
-            if (!confirm(`⚠️ WARNING: You are saving MORE boxes (${boxesArray.length}) than box rows visible (${boxesInDOM}).\n\nThis usually means a corrupted form. Stop unless you are sure.\n\nContinue anyway?`)) {
+            if (!confirm(`WARNING: You are saving more boxes (${boxesArray.length}) than box rows visible (${boxesInDOM}).\n\nThis usually means a corrupted form. Stop unless you are sure.\n\nContinue anyway?`)) {
                 return;
             }
         }
@@ -1976,7 +1978,7 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
     const poSelect = document.getElementById('po-select');
     const poId = poSelect ? poSelect.value || null : null;
     if (!poId) {
-        alert('⚠️ Purchase Order is required. Please select a PO before submitting.');
+        alert('Purchase order is required. Please select a PO before submitting.');
         if (poSelect) {
             poSelect.focus();
             poSelect.classList.add('border-red-500', 'ring-2', 'ring-red-500');
@@ -2023,7 +2025,7 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
         if (result.success) {
             const isEditing = window.editingReceiveId;
             const action = isEditing ? 'Updated' : 'Saved';
-            const statusMsg = status === 'draft' ? `📝 ${action} as DRAFT` : `✅ ${action} & Published`;
+            const statusMsg = status === 'draft' ? `${action} saved as draft` : `${action} and published`;
 
             // "Save as draft" should persist but keep user in the workflow.
             if (status === 'draft' && keepOpenOnSuccess) {
@@ -2032,7 +2034,7 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
                 }
                 const modalTitle = document.querySelector('#add-receives-modal h3');
                 if (modalTitle) {
-                    modalTitle.textContent = `✏️ Edit Draft Receive #${window.editingReceiveId || ''}`.trim();
+                    modalTitle.textContent = `Edit draft receive #${window.editingReceiveId || ''}`.trim();
                 }
                 queueAutosave(0);
                 if (typeof showSuccess === 'function') {
@@ -2059,7 +2061,7 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
                 location.reload();
             }
         } else {
-            alert('❌ Error: ' + (result.error || 'Failed to save receives'));
+            alert('Error: ' + (result.error || 'Failed to save receives'));
             // Don't clear editingReceiveId on error - user might retry
         }
         
@@ -2072,8 +2074,8 @@ async function submitReceivesWithStatus(event, status = 'published', options = {
         const draftButton = form.querySelector('[data-save-receives-draft]');
         if (publishButton) publishButton.disabled = false;
         if (draftButton) draftButton.disabled = false;
-        if (publishButton) publishButton.textContent = '✓ Save & Publish';
-        if (draftButton) draftButton.textContent = '📝 Save Draft Progress';
+        if (publishButton) publishButton.textContent = 'Save & publish';
+        if (draftButton) draftButton.textContent = 'Save draft progress';
     }
     } finally {
         saveReceivesInFlight = false;
@@ -2117,7 +2119,7 @@ function openDeleteShipmentModal(receivingId, receivedDate, poNumber) {
 }
 
 async function publishReceive(receivingId) {
-    if (!confirm('✓ Publish this receive?\n\nThis will make it LIVE and available for production submissions.')) {
+    if (!confirm('Publish this receive?\n\nThis will make it live and available for production submissions.')) {
         return;
     }
     
@@ -2130,10 +2132,10 @@ async function publishReceive(receivingId) {
         const result = await response.json();
         
         if (result.success) {
-            alert('✅ ' + result.message);
+            alert(result.message);
             location.reload();
         } else {
-            alert('❌ Error: ' + result.error);
+            alert('Error: ' + result.error);
         }
     } catch (error) {
         alert('Error publishing receive: ' + error.message);
@@ -2141,7 +2143,7 @@ async function publishReceive(receivingId) {
 }
 
 async function unpublishReceive(receivingId) {
-    if (!confirm('📝 Move this receive to DRAFT?\n\nIt will be hidden from production until published again.\n\nNote: This only works if no submissions exist for this receive yet.')) {
+    if (!confirm('Move this receive to draft?\n\nIt will be hidden from production until published again.\n\nNote: This only works if no submissions exist for this receive yet.')) {
         return;
     }
     
@@ -2154,10 +2156,10 @@ async function unpublishReceive(receivingId) {
         const result = await response.json();
         
         if (result.success) {
-            alert('📝 ' + result.message);
+            alert(result.message);
             location.reload();
         } else {
-            alert('❌ Error: ' + result.error);
+            alert('Error: ' + result.error);
         }
     } catch (error) {
         alert('Error unpublishing receive: ' + error.message);
@@ -2172,7 +2174,7 @@ async function editReceive(receivingId) {
     editReceiveLoadLock = true;
     try {
         // Show loading message
-        if (!confirm(`📝 Edit Draft Receive\n\nLoading existing boxes and bags...\n\nThis will take a moment. Please wait for the form to fully load before making changes.\n\nClick OK to continue.`)) {
+        if (!confirm(`Edit draft receive\n\nLoading existing boxes and bags.\n\nThis may take a moment. Wait for the form to fully load before making changes.\n\nClick OK to continue.`)) {
             return;
         }
 
@@ -2180,7 +2182,7 @@ async function editReceive(receivingId) {
         const data = await response.json();
         
         if (!data.success) {
-            alert('❌ Error loading receive: ' + data.error);
+            alert('Error loading receive: ' + data.error);
             return;
         }
         
@@ -2192,7 +2194,7 @@ async function editReceive(receivingId) {
         // Update modal title with box count
         const modalTitle = document.querySelector('#add-receives-modal h3');
         if (modalTitle) {
-            modalTitle.textContent = `✏️ Edit Draft Receive - Loading ${data.boxes.length} Existing Boxes...`;
+            modalTitle.textContent = `Edit draft receive — loading ${data.boxes.length} existing boxes…`;
         }
         
         // Store editing ID globally
@@ -2249,7 +2251,7 @@ async function editReceive(receivingId) {
             
             // Update progress in modal title
             if (modalTitle) {
-                modalTitle.textContent = `✏️ Loading Box ${i + 1}/${totalBoxes}...`;
+                modalTitle.textContent = `Loading box ${i + 1} of ${totalBoxes}…`;
             }
             
             const currentBoxNumber = await addBox();
@@ -2267,7 +2269,7 @@ async function editReceive(receivingId) {
             const boxDiv = document.getElementById(`box-${currentBoxNumber}`);
             if (!boxDiv) {
                 console.error(`[Edit] ERROR: Box ${currentBoxNumber} not added to DOM!`);
-                alert(`❌ ERROR: Failed to create box ${currentBoxNumber}. Please refresh and try again.`);
+                alert(`Error: Failed to create box ${currentBoxNumber}. Please refresh and try again.`);
                 return;
             }
             
@@ -2348,12 +2350,12 @@ async function editReceive(receivingId) {
         
         // Update modal title to indicate ready
         if (modalTitle) {
-            modalTitle.textContent = `✏️ Edit Draft Receive - ${loadedBoxCount} Boxes Loaded (${loadedBagCount} Bags)`;
+            modalTitle.textContent = `Edit draft receive — ${loadedBoxCount} boxes loaded (${loadedBagCount} bags)`;
         }
         
         // Verify data was loaded before allowing edits
         if (loadedBoxCount !== data.boxes.length) {
-            alert(`⚠️ WARNING: Only loaded ${loadedBoxCount} of ${data.boxes.length} boxes!\n\nSomething went wrong during loading. Please close and try again.\n\nDO NOT SAVE or you will lose data!`);
+            alert(`WARNING: Only loaded ${loadedBoxCount} of ${data.boxes.length} boxes.\n\nSomething went wrong during loading. Please close and try again.\n\nDo not save or you will lose data.`);
             // Keep buttons disabled
             return;
         }
@@ -2364,10 +2366,10 @@ async function editReceive(receivingId) {
         refreshShipmentBatchDefaultTabletOptions();
         
         // Show success message with verification
-        alert(`✅ Successfully Loaded:\n• ${loadedBoxCount} boxes\n• ${loadedBagCount} bags\n\nYou can now add more boxes.\n\n⚠️ IMPORTANT: When you save, ALL ${loadedBoxCount} existing boxes + any new boxes will be saved.`);
+        alert(`Successfully loaded:\n• ${loadedBoxCount} boxes\n• ${loadedBagCount} bags\n\nYou can now add more boxes.\n\nImportant: When you save, all ${loadedBoxCount} existing boxes plus any new boxes will be saved.`);
         
     } catch (error) {
-        alert('❌ Error loading receive for editing: ' + error.message);
+        alert('Error loading receive for editing: ' + error.message);
         console.error(error);
         
         // Re-enable buttons on error
@@ -2461,11 +2463,11 @@ async function confirmDeleteShipment() {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            alert('✅ Shipment deleted successfully!');
+            alert('Shipment deleted successfully.');
             closeDeleteShipmentModal();
             location.reload();
         } else {
-            alert('❌ Error: ' + (result.error || 'Failed to delete shipment'));
+            alert('Error: ' + (result.error || 'Failed to delete shipment'));
             deleteBtn.disabled = false;
             deleteBtn.textContent = originalText;
         }
@@ -2490,7 +2492,7 @@ async function savePOAssignment() {
     const newPoIdStr = newPoId ? String(newPoId) : '';
     
     if (currentPoIdStr === newPoIdStr) {
-        alert('⚠️ No changes detected. The selected PO is already assigned to this receive.');
+        alert('No changes detected. The selected PO is already assigned to this receive.');
         return;
     }
     
@@ -2498,7 +2500,7 @@ async function savePOAssignment() {
     const currentPoText = currentPoId ? `PO-${select.options[select.selectedIndex]?.text?.split('-')[1]?.trim() || currentPoId}` : 'No PO';
     const newPoText = newPoId ? select.options[select.selectedIndex]?.text || 'Unknown PO' : 'No PO';
     
-    if (!confirm(`⚠️ Change PO Assignment?\n\nFrom: ${currentPoText === 'No PO' ? 'Unassigned' : currentPoText}\nTo: ${newPoText === 'No PO' ? 'Unassigned' : newPoText}\n\nThis may affect submission linking. Continue?`)) {
+    if (!confirm(`Change PO assignment?\n\nFrom: ${currentPoText === 'No PO' ? 'Unassigned' : currentPoText}\nTo: ${newPoText === 'No PO' ? 'Unassigned' : newPoText}\n\nThis may affect submission linking. Continue?`)) {
         return;
     }
     
@@ -2516,11 +2518,11 @@ async function savePOAssignment() {
         const result = await response.json();
         
         if (result.success) {
-            alert('✅ PO assignment updated successfully!');
+            alert('PO assignment updated successfully.');
             closeAssignPOModal();
             location.reload();
         } else {
-            alert('❌ Error: ' + (result.error || 'Failed to update PO assignment'));
+            alert('Error: ' + (result.error || 'Failed to update PO assignment'));
         }
     } catch (error) {
         alert('Error updating PO assignment: ' + error.message);
@@ -2615,15 +2617,15 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                 ${(() => {
                                     if (bagId !== null && boxNumber !== null && bagNumber !== null && receiveName) {
                                         const bagReceiveName = `${receiveName}-${boxNumber}-${bagNumber}`;
-                                        return `<h3 class="text-xl font-bold">🎒 Bag overview · ${bagReceiveName}</h3><p class="text-sm text-blue-200/90 mt-0.5 font-normal">Verification, totals, and submissions for this bag</p>`;
+                                        return `<h3 class="text-xl font-bold">Bag overview — ${bagReceiveName}</h3><p class="text-sm text-blue-200/90 mt-0.5 font-normal">Verification, totals, and submissions for this bag</p>`;
                                     }
-                                    return `<h3 class="text-xl font-bold">📋 Submissions for ${receiveId ? receiveName : poName}</h3>`;
+                                    return `<h3 class="text-xl font-bold">Submissions for ${receiveId ? receiveName : poName}</h3>`;
                                 })()}
-                                ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">📦 Product: ${displayProductName}</p>` : ''}
-                                ${boxNumber !== null && bagNumber !== null && !(bagId !== null && receiveName) ? `<p class="text-sm text-blue-100 mt-1">📦 Box ${boxNumber}, Bag ${bagNumber}</p>` : ''}
+                                ${displayProductName ? `<p class="text-sm text-blue-100 mt-1">Product: ${displayProductName}</p>` : ''}
+                                ${boxNumber !== null && bagNumber !== null && !(bagId !== null && receiveName) ? `<p class="text-sm text-blue-100 mt-1">Box ${boxNumber}, bag ${bagNumber}</p>` : ''}
                                 <p class="text-sm text-blue-100 mt-1">${filteredSubmissions.length} submission(s) total</p>
                             </div>
-                            <button data-close-submissions-modal class="text-white hover:text-gray-200 text-2xl font-bold">✕</button>
+                            <button data-close-submissions-modal class="text-white hover:text-gray-200 text-2xl font-bold">&times;</button>
                         </div>
                     </div>
                     <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
@@ -2631,23 +2633,23 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
         `;
         
         if (filteredSubmissions.length === 0) {
-            modalContent += `<div class="text-center py-12 text-gray-500"><div class="text-6xl mb-4">📭</div><p class="text-lg">No submissions found</p></div>`;
+            modalContent += `<div class="text-center py-12 text-gray-500"><div class="tt-empty-state-icon mb-4"><svg aria-hidden="true"><use href="#icon-box"/></svg></div><p class="text-lg">No submissions found</p></div>`;
         } else {
             modalContent += '<div class="space-y-4">';
             
             filteredSubmissions.forEach(sub => {
                 const submissionType = sub.submission_type || 'packaged';
                 let typeBadge = submissionType === 'machine' ? 
-                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + '</span>' :
+                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Machine' + machineIdBadgeSuffix(sub) + '</span>' :
                     submissionType === 'bag' ?
-                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>' :
+                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Bag count</span>' :
                     submissionType === 'bottle' ?
-                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">🍾 Bottle</span>' :
-                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Bottle</span>' :
+                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Packaged</span>';
                 
                 // Add variety pack indicator if applicable
                 if (sub.is_variety_pack_deduction) {
-                    typeBadge += ' <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">🎨 Variety Pack</span>';
+                    typeBadge += ' <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Variety pack</span>';
                 }
                 
                 modalContent += `
@@ -2658,10 +2660,10 @@ async function viewPOSubmissions(poId, poName, inventoryItemId = null, receiveId
                                     <h4 class="font-medium text-gray-900">${sub.product_name}</h4>
                                     ${typeBadge}
                                 </div>
-                                <p class="text-sm text-gray-600">👤 ${sub.employee_name || 'Unknown'} • 📦 Bag: ${sub.bag_number || ''}${sub.box_number ? ' (Box ' + sub.box_number + ')' : ''}</p>
+                                <p class="text-sm text-gray-600">${sub.employee_name || 'Unknown'} · Bag: ${sub.bag_number || ''}${sub.box_number ? ' (Box ' + sub.box_number + ')' : ''}</p>
                             </div>
                             <div class="text-right text-sm">
-                                <div class="text-gray-600">📅 ${sub.submission_date || sub.created_at || 'N/A'}</div>
+                                <div class="text-gray-600">${sub.submission_date || sub.created_at || 'N/A'}</div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 bg-gray-50 p-3 rounded">
@@ -2798,8 +2800,8 @@ function togglePOCollapse(poId) {
             const shipmentCard = shipmentDiv.closest('.card');
             if (shipmentCard) {
                 // Check if shipment has CLOSED badge by looking for span with CLOSED text
-                const hasClosedBadge = Array.from(shipmentCard.querySelectorAll('span')).some(span => 
-                    span.textContent.includes('🔒 CLOSED') || span.textContent.includes('CLOSED')
+                const hasClosedBadge = Array.from(shipmentCard.querySelectorAll('span')).some(span =>
+                    span.textContent.includes('CLOSED')
                 );
                 
                 // If shipment is closed, ensure it stays collapsed

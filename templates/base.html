@@ -707,11 +707,11 @@ function bagSubmissionsModalFooterHtml(bagMeta, ctx) {
         parts.push(`<button type="button" data-toggle-bag-reservation-id="${bagId}" data-toggle-bag-reservation-state="${isReserved}" data-toggle-bag-reservation-name="${safeName}" data-toggle-bag-reservation-bag-number="${bn}" data-toggle-bag-reservation-box-number="${bx}" data-toggle-bag-reservation-receive-id="${effReceiveId}" data-toggle-bag-reservation-receive-name="${safeRecv}" class="text-xs ${isReserved ? 'text-purple-600 hover:text-purple-800' : 'text-slate-600 hover:text-slate-800'} underline whitespace-nowrap">${isReserved ? 'Unreserve' : 'Reserve'}</button>`);
     }
     if (canBagOps) {
-        parts.push(`<button type="button" data-open-quick-bag-batch-id="${bagId}" data-open-quick-bag-batch-name="${safeName}" data-open-quick-bag-batch-number="${bn}" data-open-quick-bag-box-number="${bx}" data-open-quick-bag-batch-number-value="${safeBatchNum}" data-open-quick-bag-batch-source="${safeBatchSrc}" data-open-quick-bag-receive-id="${effReceiveId}" data-open-quick-bag-receive-name="${safeRecv}" class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">🧾 Batch</button>`);
+        parts.push(`<button type="button" data-open-quick-bag-batch-id="${bagId}" data-open-quick-bag-batch-name="${safeName}" data-open-quick-bag-batch-number="${bn}" data-open-quick-bag-box-number="${bx}" data-open-quick-bag-batch-number-value="${safeBatchNum}" data-open-quick-bag-batch-source="${safeBatchSrc}" data-open-quick-bag-receive-id="${effReceiveId}" data-open-quick-bag-receive-name="${safeRecv}" class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">Batch</button>`);
         const wcur = bagMeta.bag_weight_kg != null && bagMeta.bag_weight_kg !== ''
             ? escBagAttr(String(bagMeta.bag_weight_kg))
             : '';
-        parts.push(`<button type="button" data-open-bag-weight-id="${bagId}" data-open-bag-weight-current="${wcur}" data-open-bag-weight-name="${safeName}" data-open-bag-weight-bag-number="${bn}" data-open-bag-weight-box-number="${bx}" data-open-bag-weight-receive-id="${effReceiveId}" data-open-bag-weight-receive-name="${safeRecv}" class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">⚖ Weight</button>`);
+        parts.push(`<button type="button" data-open-bag-weight-id="${bagId}" data-open-bag-weight-current="${wcur}" data-open-bag-weight-name="${safeName}" data-open-bag-weight-bag-number="${bn}" data-open-bag-weight-box-number="${bx}" data-open-bag-weight-receive-id="${effReceiveId}" data-open-bag-weight-receive-name="${safeRecv}" class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">Weight</button>`);
         const rcv = Math.round(Number(
             bagMeta.bag_label_count != null ? bagMeta.bag_label_count : bagMeta.received_count
         ) || 0);
@@ -719,9 +719,9 @@ function bagSubmissionsModalFooterHtml(bagMeta, ctx) {
         const pkgTot = Math.round(Number(bagMeta.packaged_count != null ? bagMeta.packaged_count : 0) || 0);
         parts.push(`<button type="button" data-open-bag-label-count-id="${bagId}" data-open-bag-label-count-current="${lblCur}" data-open-bag-label-count-packaged="${escBagAttr(String(pkgTot))}" data-open-bag-label-count-name="${safeName}" data-open-bag-label-count-bag-number="${bn}" data-open-bag-label-count-box-number="${bx}" data-open-bag-label-count-receive-id="${effReceiveId}" data-open-bag-label-count-receive-name="${safeRecv}" class="text-xs text-teal-700 hover:text-teal-900 underline whitespace-nowrap">Label qty</button>`);
         if (isClosed && !zohoPushed) {
-            parts.push(`<button type="button" data-open-push-zoho-bag-id="${bagId}" data-open-push-zoho-name="${safeName}" data-open-push-zoho-bag-number="${bn}" data-open-push-zoho-box-number="${bx}" data-open-push-zoho-received="${bagMeta.received_count || 0}" data-open-push-zoho-packaged="${bagMeta.packaged_count || 0}" data-open-push-zoho-receive-id="${effReceiveId}" data-open-push-zoho-receive-name="${safeRecv}" class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">📤 Push to Zoho</button>`);
+            parts.push(`<button type="button" data-open-push-zoho-bag-id="${bagId}" data-open-push-zoho-name="${safeName}" data-open-push-zoho-bag-number="${bn}" data-open-push-zoho-box-number="${bx}" data-open-push-zoho-received="${bagMeta.received_count || 0}" data-open-push-zoho-packaged="${bagMeta.packaged_count || 0}" data-open-push-zoho-receive-id="${effReceiveId}" data-open-push-zoho-receive-name="${safeRecv}" class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">Push to Zoho</button>`);
         }
-        parts.push(`<button type="button" data-toggle-bag-closed-id="${bagId}" data-toggle-bag-closed-state="${isClosed}" data-toggle-bag-closed-name="${safeName}" data-toggle-bag-closed-bag-number="${bn}" data-toggle-bag-closed-box-number="${bx}" data-toggle-bag-closed-receive-id="${effReceiveId}" data-toggle-bag-closed-receive-name="${safeRecv}" class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">${isClosed ? '🔓 Reopen' : '🔒 Close'}</button>`);
+        parts.push(`<button type="button" data-toggle-bag-closed-id="${bagId}" data-toggle-bag-closed-state="${isClosed}" data-toggle-bag-closed-name="${safeName}" data-toggle-bag-closed-bag-number="${bn}" data-toggle-bag-closed-box-number="${bx}" data-toggle-bag-closed-receive-id="${effReceiveId}" data-toggle-bag-closed-receive-name="${safeRecv}" class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">${isClosed ? 'Reopen' : 'Close'}</button>`);
     }
 
     const actionsRight = parts.length
@@ -2763,7 +2763,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <!-- Product/Flavor Selector -->
                 <div id="product-selector-section" class="border-t pt-4 mt-4">
                     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded mb-3">
-                        <p class="text-sm text-yellow-800 font-semibold">⚠️ Change Product/Flavor (Admin Only)</p>
+                        <p class="text-sm text-yellow-800 font-semibold">Change product or flavor (admin only)</p>
                         <p class="text-xs text-yellow-700 mt-1">Current: <span id="edit-current-product" class="font-semibold"></span></p>
                         <p class="text-xs text-yellow-700 mt-1">Only change this if the submission was entered with the wrong flavor.</p>
                     </div>
@@ -2786,7 +2786,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <!-- Admin Change PO Section (Only for verified submissions) -->
                 <div id="admin-change-po-section" class="mt-4 hidden border-t pt-4">
                     <div class="mb-3 bg-red-50 border-l-4 border-red-400 p-3 rounded">
-                        <p class="text-sm text-red-800 font-semibold mb-1">⚠️ ADMIN OVERRIDE - Change PO</p>
+                        <p class="text-sm text-red-800 font-semibold mb-1">Admin override — change PO</p>
                         <p class="text-sm text-red-700">Use this when the submission is on the <strong>wrong PO</strong>, including when the PO is <strong>closed</strong> or the assignment is <strong>verified</strong>. Counts are moved between PO lines automatically.</p>
                         <p class="text-sm text-red-700 mt-1">After changing PO, confirm box/bag below still match a bag on the new PO; save if you adjust them.</p>
                         <p class="text-sm text-red-700 mt-1"><strong>Current PO:</strong> <span id="edit-current-po-display"></span></p>
@@ -2894,7 +2894,7 @@ async function loadEditAdminPOs(submissionId, productName) {
         data.available_pos.forEach(po => {
             const isCurrent = po.id === data.current_po_id;
             const statusColor = po.closed ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-700';
-            const statusLabel = po.closed ? '🔒 Closed' : '✓ Open';
+            const statusLabel = po.closed ? 'Closed' : 'Open';
             
             const poDiv = document.createElement('div');
             poDiv.className = `border rounded-lg p-4 hover:bg-orange-50 cursor-pointer transition-colors ${isCurrent ? 'border-orange-500 bg-orange-50' : 'border-gray-300'}`;
@@ -2947,7 +2947,7 @@ async function loadEditAdminPOs(submissionId, productName) {
 }
 
 async function adminReassignFromEditModal(submissionId, newPoId, newPoNumber) {
-    if (!confirm(`⚠️ ADMIN OVERRIDE CONFIRMATION\n\nAre you sure you want to change this VERIFIED submission from its current PO to ${newPoNumber}?\n\nThis will:\n- Update counts on both POs\n- Keep the submission verified\n- Require admin override confirmation\n\nThis action cannot be easily undone.`)) {
+    if (!confirm(`ADMIN OVERRIDE CONFIRMATION\n\nAre you sure you want to change this VERIFIED submission from its current PO to ${newPoNumber}?\n\nThis will:\n- Update counts on both POs\n- Keep the submission verified\n- Require admin override confirmation\n\nThis action cannot be easily undone.`)) {
         return;
     }
     
@@ -3572,15 +3572,15 @@ async function viewSubmissionDetails(submissionId) {
         let typeBadge = '';
         if (sub.submission_type === 'machine') {
             const blisterLab = isBlisterMachine ? ' <span class="text-blue-700 font-normal">(blister)</span>' : '';
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">⚙️ Machine' + machineIdBadgeSuffix(sub) + blisterLab + '</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Machine' + machineIdBadgeSuffix(sub) + blisterLab + '</span>';
         } else if (sub.submission_type === 'bag') {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">📋 Bag Count</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Bag count</span>';
         } else if (sub.submission_type === 'repack') {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-900">🔁 Repack</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-900">Repack</span>';
         } else if (isBottleSubmission) {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">🍾 Bottle</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Bottle</span>';
         } else {
-            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">📦 Packaged</span>';
+            typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Packaged</span>';
         }
         
         // Build back button HTML if there's a parent modal
@@ -3602,12 +3602,12 @@ async function viewSubmissionDetails(submissionId) {
                             <div class="flex items-center gap-2">
                                 ${backButtonHTML}
                                 <div>
-                                    <h3 class="text-xl font-bold">📋 Submission Details</h3>
+                                    <h3 class="text-xl font-bold">Submission details</h3>
                                     <p class="text-sm text-indigo-100 mt-1">ID: ${sub.id}</p>
                                 </div>
                             </div>
                             <button data-close-submission-details-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                                ✕
+                                &times;
                             </button>
                         </div>
                     </div>
@@ -3770,7 +3770,7 @@ async function viewSubmissionDetails(submissionId) {
                             ${bagDeductions.length > 0 ? `
                             <!-- Bag Deductions for Variety Pack -->
                             <div class="mt-6">
-                                <h5 class="text-base font-semibold text-gray-700 mb-3">🎨 Bag Deductions (${bagDeductions.length} bags used)</h5>
+                                <h5 class="text-base font-semibold text-gray-700 mb-3">Bag deductions (${bagDeductions.length} bags used)</h5>
                                 <div class="space-y-2 max-h-64 overflow-y-auto">
                                     ${bagDeductions.map(d => `
                                         <div class="flex justify-between items-center bg-pink-50 rounded-lg p-3 border border-pink-100">
@@ -3915,11 +3915,11 @@ async function viewSubmissionDetails(submissionId) {
                                     ${sub.count_status && sub.count_status !== 'no_bag' ? `
                                     <div class="mt-3 pt-3 border-t border-gray-200">
                                         ${sub.count_status === 'match' ? `
-                                            <span class="text-green-600 font-bold text-base">✓ Match</span>
+                                            <span class="text-green-600 font-bold text-base">Match</span>
                                         ` : sub.count_status === 'under' ? `
-                                            <span class="text-yellow-600 font-bold text-base">⚠️ Under (${sub.tablet_difference || ''})</span>
+                                            <span class="text-yellow-600 font-bold text-base">Under (${sub.tablet_difference || ''})</span>
                                         ` : sub.count_status === 'over' ? `
-                                            <span class="text-red-600 font-bold text-base">❌ Over (+${sub.tablet_difference || ''})</span>
+                                            <span class="text-red-600 font-bold text-base">Over (+${sub.tablet_difference || ''})</span>
                                         ` : ''}
                                     </div>
                                     ` : ''}
@@ -3945,7 +3945,7 @@ async function viewSubmissionDetails(submissionId) {
                             <button id="reassign-btn-${sub.id}" 
                                     class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
                                     title="Reassign to different receive">
-                                🔄 Reassign to Receive
+                                Reassign to receive
                             </button>
                             ` : ''}
                         </div>
@@ -3956,7 +3956,7 @@ async function viewSubmissionDetails(submissionId) {
                             ${canOpenSubmissionEdit ? `
                             <button data-open-edit-submission-from-details-id="${sub.id}"
                                     class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-                                ✏️ Edit Submission
+                                Edit submission
                             </button>
                             ` : ''}
                         </div>
@@ -4140,9 +4140,9 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
             const isClosed = bag.status === 'Closed';
             const zohoReceivePushed = bag.zoho_receive_pushed || false;
             const isReserved = bag.reserved_for_bottles === 1 || bag.reserved_for_bottles === true;
-            const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">🔒 CLOSED</span>' : '';
-            const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">✓ Zoho</span>' : '';
-            const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2">🍾 Reserved</span>' : '';
+            const closedBadge = isClosed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700 ml-2">Closed</span>' : '';
+            const zohoPushedBadge = zohoReceivePushed ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 ml-2">Zoho</span>' : '';
+            const reservedBadge = isReserved ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 ml-2">Reserved</span>' : '';
             const safeBatchNumber = String(bag.batch_number || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
             const safeBatchSource = String(bag.batch_source || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
             
@@ -4159,12 +4159,12 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                     <div class="flex justify-between items-center mb-2">
                         <div class="flex items-center gap-2 flex-1 cursor-pointer"
                              data-view-po-submissions-id="${receive.po_id}" data-view-po-submissions-number="${receive.po_number}" data-view-po-submissions-item-id="${inventoryItemId}" data-view-po-submissions-receive-id="${receiveId}" data-view-po-submissions-receive-name="${safeReceiveName}" data-view-po-submissions-bag-id="${bag.bag_id}" data-view-po-submissions-box-number="${boxNumber}" data-view-po-submissions-bag-number="${bag.bag_number}">
-                            <span class="text-sm font-medium text-blue-600">🎒 ${tabletTypeName} Bag ${bag.bag_number}</span>
+                            <span class="text-sm font-medium text-blue-600">${tabletTypeName} bag ${bag.bag_number}</span>
                             <span class="text-xs text-gray-500 font-normal">(Box ${boxNumber})</span>
                             ${closedBadge}
                             ${zohoPushedBadge}
                             ${reservedBadge}
-                            <span class="text-xs text-gray-500">💡 Click for submissions</span>
+                            <span class="text-xs text-gray-500">View submissions</span>
                         </div>
                         <div class="flex items-center gap-2">
                         <div class="text-xs font-medium ${labelColor}">${percentComplete}% Complete</div>
@@ -4178,7 +4178,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                             ${isAdmin || isManager ? `
                                 <button data-open-quick-bag-batch-id="${bag.bag_id}" data-open-quick-bag-batch-name="${safeTabletTypeName}" data-open-quick-bag-batch-number="${bag.bag_number}" data-open-quick-bag-box-number="${boxNumber}" data-open-quick-bag-batch-number-value="${safeBatchNumber}" data-open-quick-bag-batch-source="${safeBatchSource}" data-open-quick-bag-receive-id="${receiveId}" data-open-quick-bag-receive-name="${safeReceiveName}"
                                         class="text-xs text-slate-600 hover:text-slate-800 underline whitespace-nowrap">
-                                    🧾 Batch
+                                    Batch
                                 </button>
                             ` : ''}
                             ${canEditBagWeight ? `
@@ -4190,7 +4190,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                         data-open-bag-weight-receive-id="${receiveId}"
                                         data-open-bag-weight-receive-name="${safeReceiveName}"
                                         class="text-xs text-amber-700 hover:text-amber-900 underline whitespace-nowrap">
-                                    ⚖ Weight
+                                    Weight
                                 </button>
                                 <button type="button" data-open-bag-label-count-id="${bag.bag_id}"
                                         data-open-bag-label-count-current="${Number.isFinite(receivedCount) ? String(Math.round(receivedCount)) : '0'}"
@@ -4207,25 +4207,25 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                             ${(isAdmin || isManager) && isClosed && !zohoReceivePushed ? `
                                 <button data-open-push-zoho-bag-id="${bag.bag_id}" data-open-push-zoho-name="${safeTabletTypeName}" data-open-push-zoho-bag-number="${bag.bag_number}" data-open-push-zoho-box-number="${boxNumber}" data-open-push-zoho-received="${bag.received_count || 0}" data-open-push-zoho-packaged="${bag.packaged_count || 0}" data-open-push-zoho-receive-id="${receiveId}" data-open-push-zoho-receive-name="${safeReceiveName}"
                                         class="text-xs text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap">
-                                    📤 Push to Zoho
+                                    Push to Zoho
                                 </button>
                             ` : ''}
                             ${isAdmin || isManager ? `
                                 <button data-toggle-bag-closed-id="${bag.bag_id}" data-toggle-bag-closed-state="${isClosed}" data-toggle-bag-closed-name="${safeTabletTypeName}" data-toggle-bag-closed-bag-number="${bag.bag_number}" data-toggle-bag-closed-box-number="${boxNumber}" data-toggle-bag-closed-receive-id="${receiveId}" data-toggle-bag-closed-receive-name="${safeReceiveName}"
                                         class="text-xs ${isClosed ? 'text-green-600 hover:text-green-800' : 'text-orange-600 hover:text-orange-800'} underline whitespace-nowrap">
-                                    ${isClosed ? '🔓 Reopen' : '🔒 Close'}
+                                    ${isClosed ? 'Reopen' : 'Close'}
                                 </button>
                             ` : ''}
                         </div>
                     </div>
                     <div class="mb-2 text-xs text-gray-600">
                         ${batchNumber
-                            ? `🧾 Batch: <span class="font-semibold text-gray-800">${batchNumber}</span> <span class="text-gray-500">(${batchSource || 'unknown'})</span>`
-                            : '<span class="text-amber-700">🧾 Batch: Not set</span>'}
+                            ? `Batch: <span class="font-semibold text-gray-800">${batchNumber}</span> <span class="text-gray-500">(${batchSource || 'unknown'})</span>`
+                            : '<span class="text-amber-700">Batch not set</span>'}
                     </div>
                     ${hasWeight ? `
                     <div class="mb-2 text-xs text-gray-600">
-                        ⚖️ Bag weight: <span class="font-semibold text-gray-800">${weightKg.toFixed(3)} kg</span>
+                        Bag weight: <span class="font-semibold text-gray-800">${weightKg.toFixed(3)} kg</span>
                         ${Number.isFinite(estFromWeight)
                             ? ` <span class="text-gray-500">| rough est: ~${estFromWeight.toLocaleString()} tablets</span>`
                             : ''}
@@ -4264,7 +4264,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         if (boxesView.length === 0) {
             boxViewContent = `
                 <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
+                    <div class="tt-empty-state-icon mb-4" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 24 24"><use href="#icon-box"/></svg></div>
                     <p class="text-lg">No bags found in this receive</p>
                 </div>
             `;
@@ -4274,7 +4274,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                 boxViewContent += `
                     <div class="box-section border-2 border-gray-300 rounded-lg p-4" data-box-number="${box.box_number}" id="box-section-${box.box_number}">
                         <div class="flex items-center gap-2 mb-3">
-                            <h3 class="text-lg font-bold text-gray-900">📦 Box ${box.box_number}</h3>
+                            <h3 class="text-lg font-bold text-gray-900">Box ${box.box_number}</h3>
                             <span class="text-sm text-gray-500">(${box.bags.length} bags)</span>
                             <div class="flex-1 border-t border-gray-300"></div>
                         </div>
@@ -4296,7 +4296,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
         if (products.length === 0) {
             flavorViewContent = `
                 <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
+                    <div class="tt-empty-state-icon mb-4" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 24 24"><use href="#icon-box"/></svg></div>
                     <p class="text-lg">No products found in this receive</p>
                 </div>
             `;
@@ -4306,14 +4306,14 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                 flavorViewContent += `
                     <div class="flavor-section border-2 border-gray-300 rounded-lg p-4" data-tablet-type="${product.tablet_type_name.toLowerCase()}">
                         <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">
-                            🧪 ${product.tablet_type_name}
+                            ${product.tablet_type_name}
                         </h3>
                 `;
                 product.boxes.forEach(box => {
                     flavorViewContent += `
                         <div class="mb-4 ml-4 box-subsection" data-box-number="${box.box_number}">
                             <div class="flex items-center gap-2 mb-3">
-                                <h4 class="font-semibold text-gray-700">📦 Box ${box.box_number}</h4>
+                                <h4 class="font-semibold text-gray-700">Box ${box.box_number}</h4>
                                 <div class="flex-1 border-t border-gray-300"></div>
                             </div>
                             <div class="space-y-3 ml-4">
@@ -4340,7 +4340,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         <div class="flex justify-between items-center gap-2">
                             ${backButton}
                             <div class="flex-1 text-center min-w-0">
-                                <h3 class="text-lg font-bold truncate">📦 Receive Details: ${receiveName}</h3>
+                                <h3 class="text-lg font-bold truncate">Receive details: ${receiveName}</h3>
                                 <p class="text-xs text-blue-100 mt-0.5">
                                     Received on ${receive.received_date ? (() => {
                                         const date = new Date(receive.received_date + ' UTC');
@@ -4353,7 +4353,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                                 </p>
                             </div>
                             <button data-close-receive-details-modal class="text-white hover:text-gray-200 text-2xl font-bold">
-                                ✕
+                                &times;
                             </button>
                         </div>
                     </div>
@@ -4364,11 +4364,11 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         <div class="flex items-center bg-white rounded-lg border shadow-sm">
                             <button id="view-box-btn" type="button" data-switch-receive-view="box"
                                     class="px-3 py-1.5 text-sm font-medium rounded-l-lg transition-colors ${savedView === 'box' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
-                                📦 By Box
+                                By box
                             </button>
                             <button id="view-flavor-btn" type="button" data-switch-receive-view="flavor"
                                     class="px-3 py-1.5 text-sm font-medium rounded-r-lg border-l transition-colors ${savedView === 'flavor' ? 'bg-teal-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
-                                🧪 By Flavor
+                                By flavor
                             </button>
                         </div>
                         
@@ -4384,7 +4384,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         
                         <!-- Search Filter -->
                         <div class="flex-1 min-w-[150px] max-w-[300px]">
-                            <input type="text" id="bag-search-filter" placeholder="🔍 Filter by box, bag, or flavor..." 
+                            <input type="text" id="bag-search-filter" placeholder="Filter by box, bag, or flavor…" 
                                    class="w-full px-3 py-1.5 text-sm border rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                         </div>
                         
@@ -4395,7 +4395,7 @@ async function viewReceiveDetails(receiveId, receiveName, targetBoxNumber = null
                         ${(isAdmin || isManager) ? `
                             <button data-open-edit-batch-info-receive-id="${receiveId}" data-open-edit-batch-info-receive-name="${receiveName.replace(/'/g, "\\'").replace(/"/g, '\\"')}"
                                     class="px-2 py-1.5 text-xs border rounded-lg bg-white shadow-sm hover:bg-gray-50 text-indigo-700">
-                                🧾 Edit Batch Info
+                                Edit batch info
                             </button>
                         ` : ''}
                     </div>
@@ -4747,13 +4747,13 @@ async function viewPOReceives(poId, poNumber, returnToReceive = null) {
                         <div class="flex justify-between items-center gap-2">
                             ${backToBagsBtn}
                             <div class="flex-1 text-center min-w-0">
-                                <h3 class="text-xl font-bold">📦 Receives for ${poNumber}</h3>
+                                <h3 class="text-xl font-bold">Receives for ${poNumber}</h3>
                                 <p class="text-sm text-green-100 mt-1">
                                     ${receives.length} shipment${receives.length !== 1 ? 's' : ''} received
                                 </p>
                             </div>
                             <button data-close-receives-modal class="text-white hover:text-gray-200 text-2xl font-bold flex-shrink-0 w-10 text-right">
-                                ✕
+                                &times;
                             </button>
                         </div>
                     </div>
@@ -4768,7 +4768,6 @@ async function viewPOReceives(poId, poNumber, returnToReceive = null) {
                 <!-- Totals Section -->
                 <div class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
                     <h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <span class="mr-2">📊</span>
                         Totals by tablet type
                     </h4>
                     
@@ -4815,7 +4814,7 @@ async function viewPOReceives(poId, poNumber, returnToReceive = null) {
         if (receives.length === 0) {
             modalContent += `
                 <div class="text-center py-12 text-gray-500">
-                    <div class="text-6xl mb-4">📭</div>
+                    <div class="tt-empty-state-icon mb-4" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 24 24"><use href="#icon-box"/></svg></div>
                     <p class="text-lg">No receives found for this PO</p>
                 </div>
             `;
@@ -5031,7 +5030,7 @@ async function openEditBatchInfoModal(receiveId, receiveName) {
             <div id="edit-batch-info-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" data-close-edit-batch-info-overlay>
                 <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                        <h3 class="text-lg font-semibold text-gray-900">🧾 Edit Batch Info - ${safeReceiveName}</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">Edit batch info — ${safeReceiveName}</h3>
                         <button data-close-edit-batch-info-modal class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
                     </div>
                     <div class="p-6 overflow-y-auto max-h-[calc(90vh-130px)] space-y-6">
@@ -5164,7 +5163,7 @@ function openQuickBagBatchModal(bagId, productName, bagNumber, boxNumber, curren
             <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
                 <div class="p-5">
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="text-lg font-semibold text-gray-900">🧾 Quick Batch Update</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">Quick batch update</h3>
                         <button data-close-quick-bag-batch-modal class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
                     </div>
                     <div class="text-sm text-gray-700 mb-3">
@@ -5284,7 +5283,7 @@ function openBagWeightModal(bagId, productName, bagNumber, boxNumber, receiveId,
             <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
                 <div class="p-5">
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="text-lg font-semibold text-gray-900">⚖ Bag weight (kg)</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">Bag weight (kg)</h3>
                         <button type="button" data-close-bag-weight-modal class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
                     </div>
                     <div class="text-sm text-gray-700 mb-3">
@@ -5520,7 +5519,7 @@ function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedC
             <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900">📤 Push to Zoho Receives</h3>
+                        <h3 class="text-lg font-semibold text-gray-900">Push to Zoho receives</h3>
                         <button data-close-push-zoho-modal class="text-gray-400 hover:text-gray-600">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -5568,7 +5567,6 @@ function openPushToZohoModal(bagId, productName, bagNumber, boxNumber, receivedC
                         </button>
                         <button id="push-to-zoho-btn" data-execute-push-zoho-bag-id="${bagId}" data-execute-push-zoho-receive-id="${receiveId}" data-execute-push-zoho-receive-name="${receiveName}"
                                 class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2">
-                            <span>📤</span>
                             <span>Push to Zoho</span>
                         </button>
                     </div>
@@ -5606,7 +5604,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
     
     // Disable button and show loading
     btn.disabled = true;
-    btn.innerHTML = '<span class="animate-spin">⏳</span> <span>Pushing...</span>';
+    btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> <span>Pushing…</span>';
     
     try {
         const response = await csrfFetch(`/api/bag/${bagId}/push_to_zoho`, {
@@ -5639,7 +5637,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             // Show success message (longer so users can read receive IDs)
             const successMsg = document.createElement('div');
             successMsg.className = 'fixed top-4 right-4 max-w-md bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-[200]';
-            successMsg.innerHTML = `<div class="font-semibold">✓ ${data.message}</div>`;
+            successMsg.innerHTML = `<div class="font-semibold">${data.message}</div>`;
             if (data.zoho_receive_id) {
                 successMsg.innerHTML += `<div class="text-sm opacity-90">Main PO receive ID: ${data.zoho_receive_id}</div>`;
             }
@@ -5671,7 +5669,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             }, 100);
 
             const card = document.querySelector(`[data-bag-id="${bagId}"]`);
-            const hasZohoBadge = card && card.textContent && card.textContent.includes('✓ Zoho');
+            const hasZohoBadge = card && card.textContent && /\bZoho\b/.test(card.textContent);
             if (!hasZohoBadge) {
                 if (typeof showErrorPersistent === 'function') {
                     showErrorPersistent(
@@ -5690,7 +5688,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
                 alert(data.error || 'Push did not confirm.');
             }
             btn.disabled = false;
-            btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
+            btn.innerHTML = '<span>Push to Zoho</span>';
         } else {
             const errText = data.error || 'Failed to push to Zoho';
             if (typeof showErrorPersistent === 'function') {
@@ -5699,7 +5697,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
                 alert('Error: ' + errText);
             }
             btn.disabled = false;
-            btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
+            btn.innerHTML = '<span>Push to Zoho</span>';
         }
     } catch (error) {
         console.error('Error pushing to Zoho:', error);
@@ -5710,7 +5708,7 @@ async function executePushToZoho(bagId, receiveId, receiveName) {
             alert('Failed to push to Zoho: ' + errText);
         }
         btn.disabled = false;
-        btn.innerHTML = '<span>📤</span> <span>Push to Zoho</span>';
+        btn.innerHTML = '<span>Push to Zoho</span>';
     }
 }
 
