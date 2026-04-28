@@ -50,6 +50,25 @@ def _find_by_role(machines: list[dict], role: str) -> list[dict]:
     return [m for m in machines if str(m.get("machine_role") or "").lower() == r]
 
 
+def _station_display_name(picked: dict, fallback: str) -> str:
+    """Primary label: machine name from settings (ops snapshot uses display_name)."""
+    s = (
+        picked.get("display_name")
+        or picked.get("machine_name")
+        or picked.get("label")
+        or picked.get("station_label")
+        or ""
+    )
+    s = str(s).strip()
+    return s if s else fallback
+
+
+def _station_subtitle(picked: dict, meta_canonical: str) -> str:
+    """Secondary line under title — workflow station label, then generic role hint."""
+    lab = str(picked.get("station_label") or "").strip()
+    return lab if lab else meta_canonical
+
+
 def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
     blisters = _find_by_kind(machines, "blister")[:1]
     seal_list = _find_by_kind(machines, "sealing")[:3]
@@ -83,7 +102,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
         _append(
             picked,
             {
-                "shortLabel": f"MACHINE {idx}",
+                "shortLabel": _station_display_name(picked, f"Blister · station {idx}"),
                 "canonical": "DPP115 BLISTER MACHINE",
                 "flow": "blister_card",
                 "stepRole": "blister",
@@ -94,7 +113,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
         _append(
             picked,
             {
-                "shortLabel": f"MACHINE {idx}",
+                "shortLabel": _station_display_name(picked, f"Heat seal · station {idx}"),
                 "canonical": "HEAT PRESS MACHINE",
                 "flow": "blister_card",
                 "stepRole": "heat_seal",
@@ -104,7 +123,9 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
         _append(
             picked,
             {
-                "shortLabel": "PACKAGING" if idx == 1 else f"PACKAGING {idx}",
+                "shortLabel": _station_display_name(
+                    picked, "PACKAGING" if idx == 1 else f"PACKAGING {idx}"
+                ),
                 "canonical": "PACKAGING STATION",
                 "flow": "packaging_station",
                 "stepRole": "packaging",
@@ -130,7 +151,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
         slots.append(
             {
                 "slot": slot_idx,
-                "label": meta["canonical"],
+                "label": _station_subtitle(picked, meta["canonical"]),
                 "shortLabel": meta["shortLabel"],
                 "stationId": int(mid) if mid is not None else None,
                 "machineId": int(picked["machine_id"]) if picked.get("machine_id") not in (None, "") else None,
@@ -139,7 +160,7 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
                 "flow": meta["flow"],
                 "stepRole": meta["stepRole"],
                 "stationLabel": str(picked.get("label") or ""),
-                "displayName": str(picked.get("machine_name") or picked.get("label") or meta["canonical"]),
+                "displayName": _station_display_name(picked, meta["canonical"]),
             }
         )
     return slots
