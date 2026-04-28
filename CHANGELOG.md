@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.10] - 2026-04-28
+
+### Changed
+- **Production (QR deprecation):** removed the legacy **Blister**, **Machine**, and **Packaged** forms and their toggles; these workflows are now fully covered by QR.
+
+---
+
 ## [4.16.9] - 2026-04-28
 
 ### Changed
