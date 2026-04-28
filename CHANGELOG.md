@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.16.33] - 2026-04-28
+
+### Changed
+- **Submission details modal:** Restyled to match Command Center (dark panel shell, top bar aligned with app chrome instead of indigo/purple gradient, dimmed overlay with light blur). Body, stat cards, and footer use the same navy/cyan token family as the rest of the app; primary actions use `btn-primary` / `btn-secondary` / `btn-warning`.
+
+---
+
 ## [4.16.31] - 2026-04-28
 
 ### Fixed

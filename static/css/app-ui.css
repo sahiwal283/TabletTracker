@@ -656,170 +656,225 @@ main.tt-app-main .text-green-800 {
 }
 
 /*
- * Submission details modal is appended to document.body (outside main).
- * Global body.tt-app-body surface remaps turn gray/blue panels dark while
- * default Tailwind gray-900 stays dark → unreadable counts/footer.
- * Restore a light “paper” modal theme inside this container only.
+ * Submission details modal — portaled under body; match Command Center dark panels
+ * (replaces prior light “paper” modal overrides).
  */
-body.tt-app-body #submission-details-modal-container .bg-gray-50 {
-  background: #f1f5f9 !important;
+body.tt-app-body #submission-details-modal-container .tt-submission-details-panel {
+  background: linear-gradient(
+    165deg,
+    var(--cmd-panel-elevated, #151d2e) 0%,
+    var(--cmd-panel, #111826) 52%,
+    var(--cmd-bg-deep, #060a12) 100%
+  );
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.55),
+    0 0 42px rgba(34, 211, 238, 0.07);
+  color: var(--cmd-text, #f1f5f9);
 }
 
-body.tt-app-body #submission-details-modal-container .bg-gray-100 {
-  background: #e2e8f0 !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-header {
+  background: linear-gradient(
+    92deg,
+    var(--cmd-bg-deep, #060a12) 0%,
+    var(--cmd-panel, #111826) 42%,
+    #0c4a6e 100%
+  );
+  border-bottom: 1px solid rgba(34, 211, 238, 0.22);
 }
 
-body.tt-app-body #submission-details-modal-container .bg-white {
-  background: #ffffff !important;
-  border-color: rgba(148, 163, 184, 0.35) !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-body {
+  color: #e2e8f0;
 }
 
-body.tt-app-body #submission-details-modal-container .text-gray-900 {
-  color: #0f172a !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-body h4,
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-lg.font-semibold {
+  color: #f8fafc !important;
 }
 
-body.tt-app-body #submission-details-modal-container .text-gray-800 {
-  color: #1e293b !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-gray-900,
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-slate-900 {
+  color: #f1f5f9 !important;
 }
 
-body.tt-app-body #submission-details-modal-container .text-gray-700 {
-  color: #334155 !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-gray-800,
+body.tt-app-body #submission-details-modal-container .tt-sd-body .font-semibold.text-gray-900 {
+  color: #e2e8f0 !important;
 }
 
-body.tt-app-body #submission-details-modal-container .text-gray-600 {
-  color: #475569 !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-gray-700,
+body.tt-app-body #submission-details-modal-container .tt-sd-body h5 {
+  color: #cbd5e1 !important;
 }
 
-body.tt-app-body #submission-details-modal-container .text-gray-500 {
-  color: #64748b !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-gray-400 {
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-gray-600 {
   color: #94a3b8 !important;
 }
 
-body.tt-app-body #submission-details-modal-container .border-gray-200 {
-  border-color: #e2e8f0 !important;
+body.tt-app-body #submission-details-modal-container .tt-sd-body label.text-gray-500,
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-gray-500 {
+  color: #8b9cb0 !important;
 }
 
+body.tt-app-body #submission-details-modal-container .tt-sd-body .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .tt-sd-body .border-gray-200 {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .tt-sd-footer {
+  background: linear-gradient(180deg, rgba(11, 17, 27, 0.92), rgba(6, 10, 18, 0.98));
+  border-top: 1px solid rgba(56, 189, 248, 0.14);
+}
+
+/* Stat / tint cards — dark elevated tiles */
+body.tt-app-body #submission-details-modal-container .bg-gray-50,
+body.tt-app-body #submission-details-modal-container .bg-gray-100 {
+  background: rgba(17, 24, 38, 0.72) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-sky-50,
 body.tt-app-body #submission-details-modal-container .bg-blue-50 {
-  background: #eff6ff !important;
+  background: rgba(8, 47, 73, 0.55) !important;
 }
 
-body.tt-app-body #submission-details-modal-container .bg-purple-50 {
-  background: #faf5ff !important;
+body.tt-app-body #submission-details-modal-container .border-sky-200,
+body.tt-app-body #submission-details-modal-container .border-blue-100 {
+  border-color: rgba(56, 189, 248, 0.28) !important;
 }
 
 body.tt-app-body #submission-details-modal-container .bg-teal-50 {
-  background: #f0fdfa !important;
+  background: rgba(6, 56, 67, 0.5) !important;
 }
 
-body.tt-app-body #submission-details-modal-container .bg-amber-50 {
-  background: #fffbeb !important;
+body.tt-app-body #submission-details-modal-container .border-teal-200,
+body.tt-app-body #submission-details-modal-container .border-teal-100 {
+  border-color: rgba(45, 212, 191, 0.28) !important;
 }
 
-body.tt-app-body #submission-details-modal-container .bg-orange-50 {
-  background: linear-gradient(165deg, #fff7ed, #ffedd5) !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-pink-50 {
-  background: #fdf2f8 !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-red-50 {
-  background: #fef2f2 !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-blue-600 {
-  color: #2563eb !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-blue-700 {
-  color: #1d4ed8 !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-purple-600 {
-  color: #9333ea !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-teal-700 {
-  color: #0f766e !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-amber-900 {
-  color: #78350f !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-blue-100 {
-  background: #dbeafe !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-blue-800 {
-  color: #1e40af !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-green-100 {
-  background: #dcfce7 !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-green-700 {
-  color: #15803d !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-red-100 {
-  background: #fee2e2 !important;
-}
-
-body.tt-app-body #submission-details-modal-container .text-red-700 {
-  color: #b91c1c !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-sky-50 {
-  background: #f0f9ff !important;
-}
-
-body.tt-app-body #submission-details-modal-container .border-sky-200 {
-  border-color: #bae6fd !important;
-}
-
-body.tt-app-body #submission-details-modal-container .bg-violet-50 {
-  background: #f5f3ff !important;
+body.tt-app-body #submission-details-modal-container .bg-violet-50,
+body.tt-app-body #submission-details-modal-container .bg-purple-50 {
+  background: rgba(49, 32, 78, 0.45) !important;
 }
 
 body.tt-app-body #submission-details-modal-container .border-violet-200 {
-  border-color: #ddd6fe !important;
-}
-
-body.tt-app-body #submission-details-modal-container .border-teal-200 {
-  border-color: #99f6e4 !important;
-}
-
-body.tt-app-body #submission-details-modal-container .border-slate-200 {
-  border-color: #e2e8f0 !important;
+  border-color: rgba(167, 139, 250, 0.28) !important;
 }
 
 body.tt-app-body #submission-details-modal-container .bg-slate-50 {
-  background: #f8fafc !important;
+  background: rgba(15, 23, 42, 0.65) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-slate-200 {
+  border-color: rgba(148, 163, 184, 0.2) !important;
 }
 
 body.tt-app-body #submission-details-modal-container .text-slate-900 {
-  color: #0f172a !important;
+  color: #f8fafc !important;
 }
 
 body.tt-app-body #submission-details-modal-container .text-slate-800 {
-  color: #1e293b !important;
+  color: #e2e8f0 !important;
 }
 
 body.tt-app-body #submission-details-modal-container .text-slate-700 {
-  color: #334155 !important;
+  color: #cbd5e1 !important;
 }
 
 body.tt-app-body #submission-details-modal-container .text-slate-600 {
-  color: #475569 !important;
+  color: #94a3b8 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-orange-50,
+body.tt-app-body #submission-details-modal-container .bg-amber-50 {
+  background: rgba(69, 47, 12, 0.45) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-amber-200 {
+  border-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-orange-700,
+body.tt-app-body #submission-details-modal-container .text-amber-600,
+body.tt-app-body #submission-details-modal-container .text-amber-800,
+body.tt-app-body #submission-details-modal-container .text-amber-900 {
+  color: #fde68a !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-purple-800 {
+  color: #e9d5ff !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-teal-700 {
+  color: #5eead4 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-pink-50 {
+  background: rgba(75, 28, 58, 0.4) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .border-pink-100 {
+  border-color: rgba(244, 114, 182, 0.25) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-pink-600 {
+  color: #f9a8d4 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-red-50 {
+  background: rgba(88, 28, 28, 0.35) !important;
 }
 
 body.tt-app-body #submission-details-modal-container .border-red-200 {
-  border-color: #fecaca !important;
+  border-color: rgba(248, 113, 113, 0.35) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-red-600 {
+  color: #fca5a5 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-purple-50 {
+  background: rgba(42, 28, 72, 0.42) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-purple-600,
+body.tt-app-body #submission-details-modal-container .text-indigo-600 {
+  color: #c4b5fd !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-cyan-700 {
+  color: #22d3ee !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-green-600,
+body.tt-app-body #submission-details-modal-container .text-yellow-600 {
+  color: #86efac !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-green-100,
+body.tt-app-body #submission-details-modal-container .bg-blue-100 {
+  background: rgba(6, 78, 59, 0.42) !important;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+body.tt-app-body #submission-details-modal-container .text-green-700,
+body.tt-app-body #submission-details-modal-container .text-green-800 {
+  color: #bbf7d0 !important;
+}
+
+body.tt-app-body #submission-details-modal-container .bg-red-100 {
+  background: rgba(88, 28, 28, 0.42) !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-red-700 {
+  color: #fecaca !important;
+}
+
+body.tt-app-body #submission-details-modal-container .text-blue-600,
+body.tt-app-body #submission-details-modal-container .text-blue-700 {
+  color: #67e8f9 !important;
 }
 
 /* Shipments Received — accordion rows + nested cards keep readable hierarchy */
