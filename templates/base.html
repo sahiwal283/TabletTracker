@@ -3811,14 +3811,13 @@ async function viewSubmissionDetails(submissionId) {
                                 <div class="rounded-xl p-4 border border-emerald-200 bg-emerald-50">
                                     <label class="text-xs text-gray-500 uppercase">Cases Made</label>
                                     <div class="mt-1 text-2xl font-bold tabular-nums text-emerald-800">${(() => {
-                                        const totalCases = Number(sub.cases_made_total);
-                                        if (!Number.isNaN(totalCases) && totalCases > 0) {
-                                            return Number.isInteger(totalCases) ? String(totalCases) : totalCases.toFixed(2);
-                                        }
+                                        if (sub.case_count == null || sub.case_count === '') return '—';
                                         const explicitCases = Number(sub.case_count);
-                                        return (!Number.isNaN(explicitCases) && explicitCases >= 0) ? String(explicitCases) : '0';
+                                        return (!Number.isNaN(explicitCases) && explicitCases >= 0)
+                                            ? String(Math.trunc(explicitCases))
+                                            : '—';
                                     })()}</div>
-                                    <p class="text-xs text-gray-500 mt-1">Cases are stakeholder-facing final output.</p>
+                                    <p class="text-xs text-gray-500 mt-1">${sub.case_count == null ? 'Not captured on this legacy submission.' : 'Cases are stakeholder-facing final output.'}</p>
                                 </div>
                                 <div class="rounded-xl p-4 border border-sky-200 bg-sky-50">
                                     <label class="text-xs text-gray-500 uppercase">Displays not in full case</label>

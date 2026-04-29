@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.28] - 2026-04-29
+
+### Fixed
+- **Packaging case display rules:** `Cases Made` now renders as whole units only (no decimals) and legacy submissions with no captured case input no longer get synthetic case conversions.
+- **Submission details fallback:** For legacy packaged rows, the display field now shows the original user-entered display count instead of recomputed “displays not in full case.”
+- **Submissions table (Packaging section):** Added explicit `Cases Made` and `Displays not in full case` columns so all packaging-input fields are visible alongside cards remaining/ripped cards.
+
+---
+
 ## [4.19.27] - 2026-04-29
 
 ### Fixed
