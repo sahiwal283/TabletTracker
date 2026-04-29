@@ -1157,8 +1157,8 @@
     }
     saveBtn.classList.remove('hidden');
     pauseBtn.classList.remove('hidden');
-    applyPauseTone(pauseBtn, false);
-    applyEndTone(saveBtn, false);
+    applyPauseTone(pauseBtn, true);
+    applyEndTone(saveBtn, true);
     if (kind === 'blister') {
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
