@@ -571,6 +571,15 @@ def _normalize_bottle_handpack_sources(
         r = by_token[token]
         if r.get("inventory_bag_id") is None:
             raise ValueError("Source bag QR is not linked to a receiving bag.")
+        locked = _active_variety_parent_for_source_bag(
+            conn,
+            int(r["assigned_workflow_bag_id"]),
+            excluding_parent_workflow_bag_id=workflow_bag_id,
+        )
+        if locked:
+            raise ValueError(
+                f"Source bag QR is already assigned to variety pack {locked.get('parent_label') or locked.get('parent_workflow_bag_id')}."
+            )
         qr_card_ids.append(int(r["qr_card_id"]))
         workflow_ids.append(int(r["assigned_workflow_bag_id"]))
         inventory_ids.append(int(r["inventory_bag_id"]))
@@ -579,6 +588,88 @@ def _normalize_bottle_handpack_sources(
     out["source_workflow_bag_ids"] = workflow_ids
     out["source_inventory_bag_ids"] = inventory_ids
     return out
+
+
+def _active_variety_parent_for_source_bag(
+    conn: sqlite3.Connection,
+    source_workflow_bag_id: int,
+    *,
+    excluding_parent_workflow_bag_id: int | None = None,
+) -> dict | None:
+    """Return the active variety parent that has scanned this source bag, if any."""
+    try:
+        rows = conn.execute(
+            """
+            SELECT we.workflow_bag_id AS parent_workflow_bag_id, we.payload,
+                   wb.receipt_number, pd.product_name, qc.scan_token
+            FROM workflow_events we
+            JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            LEFT JOIN qr_cards qc
+              ON qc.assigned_workflow_bag_id = we.workflow_bag_id
+             AND qc.status = ?
+            WHERE we.event_type = ?
+              AND we.workflow_bag_id != ?
+              AND NOT EXISTS (
+                SELECT 1
+                FROM workflow_events fin
+                WHERE fin.workflow_bag_id = we.workflow_bag_id
+                  AND fin.event_type = ?
+              )
+            ORDER BY we.occurred_at DESC, we.id DESC
+            """,
+            (
+                WC.QR_CARD_STATUS_ASSIGNED,
+                WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+                int(excluding_parent_workflow_bag_id or 0),
+                WC.EVENT_BAG_FINALIZED,
+            ),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    source_id = int(source_workflow_bag_id)
+    for row in rows:
+        try:
+            payload = json.loads(row["payload"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for raw in payload.get("source_workflow_bag_ids") or []:
+            try:
+                child_id = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if child_id != source_id:
+                continue
+            parent = dict(row)
+            label = (
+                parent.get("receipt_number")
+                or parent.get("product_name")
+                or parent.get("scan_token")
+                or f"workflow bag #{parent.get('parent_workflow_bag_id')}"
+            )
+            return {**parent, "parent_label": str(label)}
+    return None
+
+
+def _variety_source_lock_response(conn: sqlite3.Connection, workflow_bag_id: int):
+    locked = _active_variety_parent_for_source_bag(conn, workflow_bag_id)
+    if not locked:
+        return None
+    return workflow_json(
+        "WORKFLOW_VALIDATION",
+        (
+            f"This bag is assigned to variety pack {locked.get('parent_label')}. "
+            "Scan it again after the packaging team finalizes the variety pack count."
+        ),
+        details={
+            "reason": "assigned_to_active_variety_pack",
+            "parent_workflow_bag_id": locked.get("parent_workflow_bag_id"),
+            "parent_label": locked.get("parent_label"),
+        },
+        status=409,
+    )
 
 
 @bp.route("/manual")
@@ -668,6 +759,9 @@ def api_bag_status():
                 details={"status": card["status"]},
             )
         bag_id = int(card["assigned_workflow_bag_id"])
+        locked_response = _variety_source_lock_response(conn, bag_id)
+        if locked_response is not None:
+            return locked_response
         station_id = int(st["id"])
         payload = {
             "ok": True,
@@ -712,6 +806,9 @@ def api_append_event():
         if card["assigned_workflow_bag_id"] is None:
             return workflow_json("WORKFLOW_VALIDATION", "Card not assigned")
         bag_id = int(card["assigned_workflow_bag_id"])
+        locked_response = _variety_source_lock_response(conn, bag_id)
+        if locked_response is not None:
+            return locked_response
         st_dict = dict(st)
         station_kind = (st_dict.get("station_kind") or "sealing").strip().lower()
         if not _is_event_allowed_for_station(station_kind, event_type):

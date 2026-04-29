@@ -319,6 +319,65 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(card["status"], "assigned")
         self.assertEqual(card["assigned_workflow_bag_id"], bag_id)
 
+    def test_active_variety_parent_locks_source_bag_until_finalized(self):
+        from app.blueprints.workflow_floor import _active_variety_parent_for_source_bag
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        self.conn.execute(
+            """
+            INSERT INTO product_details (id, product_name, is_bottle_product, is_variety_pack)
+            VALUES (705, 'Variety Parent', 1, 1), (706, 'Flavor Bag Product', 0, 0)
+            """
+        )
+        self.conn.commit()
+        parent_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=705,
+            box_number=None,
+            bag_number=None,
+            receipt_number="VAR-LOCK",
+            user_id=None,
+        )
+        source_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=706,
+            box_number="1",
+            bag_number="27",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(
+            self.conn,
+            "BOTTLE_HANDPACK_COMPLETE",
+            {
+                "count_total": 100,
+                "qa_checked": True,
+                "source_workflow_bag_ids": [source_id],
+            },
+            parent_id,
+        )
+        self.conn.commit()
+
+        locked = _active_variety_parent_for_source_bag(self.conn, source_id)
+        self.assertIsNotNone(locked)
+        self.assertEqual(locked["parent_workflow_bag_id"], parent_id)
+        self.assertEqual(locked["parent_label"], "VAR-LOCK")
+
+        append_workflow_event(
+            self.conn, "BOTTLE_CAP_SEAL_COMPLETE", {"station_id": 1, "count_total": 96}, parent_id
+        )
+        append_workflow_event(
+            self.conn, "BOTTLE_STICKER_COMPLETE", {"station_id": 1, "count_total": 94}, parent_id
+        )
+        append_workflow_event(
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "x"}, parent_id
+        )
+        self.conn.commit()
+        st, _body = try_finalize(self.conn, parent_id, station_id=1)
+        self.assertEqual(st, "ok")
+        self.assertIsNone(_active_variety_parent_for_source_bag(self.conn, source_id))
+
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card

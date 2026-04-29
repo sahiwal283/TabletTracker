@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.21.1] - 2026-04-29
+
+### Fixed
+- **Active variety source lock:** Bag QR cards scanned into an active variety pack now show a clear station error and cannot be scanned into another line until the packaging team finalizes the variety pack count.
+
+---
+
 ## [4.21.0] - 2026-04-29
 
 ### Added
