@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.22.15] - 2026-04-29
+
+### Fixed
+- **Historical packaged display counts:** When both case fields are zero on a packaged row, `loose_display_count` in API responses is now set to the stored `displays_made` (the pre–case-form entry). Submission details normalization uses the warehouse row `submission_type` so variety/bottle product coercion no longer skips this fix.
+
+---
+
 ## [4.22.11] - 2026-04-29
 
 ### Fixed

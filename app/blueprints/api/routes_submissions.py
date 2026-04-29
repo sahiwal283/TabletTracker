@@ -355,7 +355,12 @@ def get_submission_details(submission_id):
                 )
                 submission_dict['individual_calc'] = calculated_total
                 submission_dict['total_tablets'] = calculated_total
-                normalize_packaged_case_fields_for_ui(submission_dict)
+                normalize_packaged_case_fields_for_ui(
+                    submission_dict,
+                    warehouse_submission_type=(
+                        db_submission_type if db_submission_type is not None else 'packaged'
+                    ),
+                )
                 if submission_dict.get('packaged_legacy_displays_only'):
                     pass
                 elif 'case_count' in ws_columns and 'loose_display_count' in ws_columns:
