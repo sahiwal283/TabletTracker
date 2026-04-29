@@ -422,10 +422,28 @@ input {
 
 .life-lane.blue .step-row {
   --step-count: 7;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(44px, 0.42fr)
+    minmax(0, 1fr)
+    minmax(44px, 0.42fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
 }
 
 .life-lane.green .step-row {
   --step-count: 9;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(44px, 0.42fr)
+    minmax(0, 1fr)
+    minmax(44px, 0.42fr)
+    minmax(0, 1fr)
+    minmax(44px, 0.42fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
 }
 
 .life-lane.purple .step-row {
@@ -529,7 +547,7 @@ input {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-  transform: translateY(9px);
+  transform: translateY(14px);
 }
 
 .step-card.stage-card > b,
@@ -547,13 +565,14 @@ input {
 
 .step-card.stage-card p {
   width: fit-content;
-  max-width: 86%;
+  max-width: 92%;
   margin: 0 auto;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-left: 1px solid rgba(158, 183, 213, 0.45);
   border-right: 1px solid rgba(158, 183, 213, 0.45);
   color: #c8d8eb;
   font-size: 7px;
+  line-height: 1.05;
   font-weight: 900;
   text-transform: uppercase;
   white-space: normal;
@@ -758,7 +777,7 @@ input {
 }
 
 .occ-machine-grid.three-bands {
-  grid-template-columns: minmax(0, 1.18fr) minmax(260px, 0.78fr) minmax(0, 0.9fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(230px, 0.58fr) minmax(0, 1fr);
 }
 
 .occ-machine-grid.station-grid {
@@ -801,6 +820,10 @@ input {
 
 .occ-machine-grid.three-bands .machine-band-row {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.occ-machine-grid.three-bands .machine-band.purple .machine-band-row {
+  grid-template-columns: minmax(190px, 1fr);
 }
 
 .step-card.attention,
@@ -1459,8 +1482,8 @@ input {
   }
 
   .step-card .line-icon {
-    width: 24px;
-    height: 29px;
+    width: 30px;
+    height: 37px;
   }
 }
 
