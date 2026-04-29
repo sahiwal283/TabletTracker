@@ -795,6 +795,15 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
         pass
 
     per_tablets: dict[int, float] = {}
+    station_unit_factor: dict[int, float] = {}
+    for s in stations:
+        sid = int(s["id"])
+        sk = _normalize_station_kind(s.get("station_kind"))
+        role = str(s.get("machine_role") or "").strip().lower()
+        if sk in {"blister", "sealing"} or role in {"blister", "sealing"}:
+            station_unit_factor[sid] = float(s.get("cards_per_turn") or 1)
+        else:
+            station_unit_factor[sid] = 1.0
     try:
         for r in conn.execute(
             f"""
@@ -822,6 +831,11 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
             per_tablets[int(r["sid"])] = float(r["v"] or 0)
     except sqlite3.OperationalError:
         pass
+    for sid, factor in station_unit_factor.items():
+        if factor == 1.0:
+            continue
+        if sid in per_tablets:
+            per_tablets[sid] = per_tablets[sid] * factor
 
     hourly = [0.0] * 24
     station_hourly: dict[int, list[float]] = defaultdict(lambda: [0.0] * 24)
@@ -882,6 +896,9 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
                 station_hourly_tablets[int(r["sid"])][hr] += v
     except sqlite3.OperationalError:
         pass
+    for sid, factor in station_unit_factor.items():
+        if factor != 1.0 and sid in station_hourly_tablets:
+            station_hourly_tablets[sid] = [round(v * factor, 1) for v in station_hourly_tablets[sid]]
 
     cumulative_hourly: list[float] = []
     run = 0.0

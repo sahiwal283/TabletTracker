@@ -105,7 +105,7 @@
 
     var role = String(machineConfig && (machineConfig.machine_role || machineConfig.machineRole) || "").toLowerCase();
     var stationKind = String(machineConfig && (machineConfig.station_kind || machineConfig.stationKind) || "").toLowerCase();
-    var blistersPerPress = asNum(machineConfig && (machineConfig.cards_per_turn != null ? machineConfig.cards_per_turn : machineConfig.cardsPerTurn)) || 1;
+    var unitsPerCycle = asNum(machineConfig && (machineConfig.cards_per_turn != null ? machineConfig.cards_per_turn : machineConfig.cardsPerTurn)) || 1;
 
     ms.forEach(function (e) {
       var et = String(e.eventType || "").toUpperCase();
@@ -119,11 +119,11 @@
         if (bid != null) startByBag[String(bid)] = at;
       }
       if (isCompletedEvent(e)) {
-        // For blister machines, counters represent press counts.
-        // Convert to blister units using configured blisters-per-press.
+        // For blister/sealing stations, counters represent cycles.
+        // Convert to real output using the configured units-per-cycle.
         var eventUnits = counterDelta(e);
-        if (role === "blister" || stationKind === "blister") {
-          eventUnits = eventUnits * blistersPerPress;
+        if (role === "blister" || stationKind === "blister" || role === "sealing" || stationKind === "sealing") {
+          eventUnits = eventUnits * unitsPerCycle;
         }
         completedUnits += eventUnits;
         if (bid != null) {
@@ -316,7 +316,7 @@
       var m = machineById[String(eventMachineId(e))] || {};
       var role = String(m.machine_role || m.machineRole || "").toLowerCase();
       var stationKind = String(m.station_kind || m.stationKind || "").toLowerCase();
-      if (role === "blister" || stationKind === "blister") {
+      if (role === "blister" || stationKind === "blister" || role === "sealing" || stationKind === "sealing") {
         units = units * (asNum(m.cards_per_turn != null ? m.cards_per_turn : m.cardsPerTurn) || 1);
       }
       return units;
