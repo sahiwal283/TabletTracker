@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.22.16] - 2026-04-29
+
+### Changed
+- **Frontend performance:** Replaced the Tailwind Play CDN (in-browser JIT compilation) with a pre-built stylesheet (`static/css/tailwind.compiled.css`). Large pages load much faster in the browser; run `npm run build:css` after changing Tailwind sources or templates that add new utility classes.
+- **CSP:** Removed `cdn.tailwindcss.com` from Content-Security-Policy now that styles are served locally.
+
+---
+
 ## [4.22.15] - 2026-04-29
 
 ### Fixed

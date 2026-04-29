@@ -38,5 +38,8 @@ Thumbs.db
 dist/
 build/
 
+# Node (Tailwind / front-end build tooling)
+node_modules/
+
 # Ruff
 .ruff_cache/

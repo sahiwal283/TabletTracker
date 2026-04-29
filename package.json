@@ -2,10 +2,13 @@
   "name": "tablettracker-command-center",
   "private": true,
   "scripts": {
-    "build:mes": "esbuild src/lib/command-center/metrics-index.ts --bundle --platform=browser --format=iife --global-name=MesMetrics --alias:react=./shims/react-global.js --outfile=static/js/mes/metrics.bundle.js && esbuild src/command-center/register-illustrations.tsx --bundle --platform=browser --format=iife --global-name=MesMachineIllustrations --alias:react=./shims/react-global.js --loader:.tsx=tsx --outfile=static/js/mes/machine-illustrations.bundle.js"
+    "build:css": "tailwindcss -i ./static/css/tailwind.input.css -o ./static/css/tailwind.compiled.css --minify",
+    "build:mes": "esbuild src/lib/command-center/metrics-index.ts --bundle --platform=browser --format=iife --global-name=MesMetrics --alias:react=./shims/react-global.js --outfile=static/js/mes/metrics.bundle.js && esbuild src/command-center/register-illustrations.tsx --bundle --platform=browser --format=iife --global-name=MesMachineIllustrations --alias:react=./shims/react-global.js --loader:.tsx=tsx --outfile=static/js/mes/machine-illustrations.bundle.js",
+    "build": "npm run build:css && npm run build:mes"
   },
   "devDependencies": {
     "esbuild": "^0.20.2",
+    "tailwindcss": "^3.4.17",
     "typescript": "~5.4.5"
   }
 }
