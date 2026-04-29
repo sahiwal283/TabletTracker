@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.21] - 2026-04-29
+
+### Changed
+- **Release bump:** Version increment for the latest Command Center station-settings updates already in `main`.
+
+---
+
 ## [4.19.16] - 2026-04-29
 
 ### Fixed
