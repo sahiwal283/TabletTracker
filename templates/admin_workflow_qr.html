@@ -35,7 +35,10 @@
 
 {% block content %}
 {% set ov = floor_ops_overview %}
+{% set tools_view = (request.args.get('tools') or '').strip() %}
+{% set is_hub = tools_view not in ['assign', 'stations', 'cards'] %}
 <div class="max-w-[1400px] mx-auto px-3 sm:px-4 py-5">
+  {% if is_hub %}
   <div class="rounded-2xl border border-slate-800 bg-slate-950 shadow-xl overflow-hidden mb-6">
     <div class="px-4 sm:px-5 py-4 border-b border-slate-800 flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -226,9 +229,8 @@
       {% endif %}
     </div>
   </div>
+  {% endif %}
 
-  {% set tools_view = (request.args.get('tools') or '').strip() %}
-  {% set is_hub = tools_view not in ['assign', 'stations', 'cards'] %}
   {% set section_meta = [
     ('sealing', 'Sealing stations', 'Link to a machine with role <code class="text-xs">sealing</code> (same as Production Machine / full run).'),
     ('blister', 'Blister stations', 'Link to a machine with role <code class="text-xs">blister</code>. Add blister machines under Product configuration if needed. Any legacy multi-step (combined-type) stations are listed here too.'),

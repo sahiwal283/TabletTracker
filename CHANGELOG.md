@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.9] - 2026-04-29
+
+### Fixed
+- **Command Center staff tools navigation:** Opening **Assign QR cards**, **Station settings**, or **QR card inventory** now behaves like a dedicated page view. When a tools view is selected, the top dashboard and final-output-by-PO panels are hidden so the requested tool opens directly instead of appearing below a full-page reload.
+
+---
+
 ## [4.19.6] - 2026-04-29
 
 ### Fixed
