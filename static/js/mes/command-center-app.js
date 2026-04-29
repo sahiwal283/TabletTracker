@@ -338,10 +338,11 @@
   }
 
   function StepCard(props) {
-    return html`<div className=${"step-card" + (props.attention ? " attention" : "")}>
+    var isStage = String(props.title || "").toLowerCase() === "stage";
+    return html`<div className=${"step-card" + (isStage ? " stage-card" : "") + (props.attention ? " attention" : "")}>
       <b>${props.index}</b>
       <div><strong title=${props.title}>${props.title}</strong><small title=${props.sub || "Insufficient data"}>${props.sub || "Insufficient data"}</small></div>
-      ${machineIcon(props.icon || "bag", props.status || "NO_ACTIVITY_TODAY")}
+      ${isStage ? null : machineIcon(props.icon || "bag", props.status || "NO_ACTIVITY_TODAY")}
       <p title=${props.detail || "Insufficient data"}>${props.attention ? "Over historical avg" : (props.detail || "Insufficient data")}</p>
     </div>`;
   }

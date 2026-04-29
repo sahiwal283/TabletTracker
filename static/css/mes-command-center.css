@@ -521,6 +521,43 @@ input {
   white-space: nowrap;
 }
 
+.step-card.stage-card {
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.step-card.stage-card > b,
+.step-card.stage-card div {
+  display: none;
+}
+
+.step-card.stage-card::before {
+  content: "";
+  width: 1px;
+  height: 18px;
+  margin: 0 auto 3px;
+  background: rgba(158, 183, 213, 0.55);
+}
+
+.step-card.stage-card p {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 2px 6px;
+  border-left: 1px solid rgba(158, 183, 213, 0.45);
+  border-right: 1px solid rgba(158, 183, 213, 0.45);
+  color: #c8d8eb;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
 .life-run-strip {
   display: grid;
   grid-template-columns: minmax(110px, 1.1fr) repeat(5, minmax(0, 1fr));
