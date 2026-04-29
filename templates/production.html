@@ -31,14 +31,14 @@
         </p>
     </div>
 
-    <div id="combined-production-form" class="card hover-lift p-4 sm:p-8 hidden">
+    <div id="combined-production-form" class="card hover-lift p-4 sm:p-8 hidden tt-production-form-surface">
         <div class="text-center mb-6 sm:mb-8">
             <div class="mb-3 sm:mb-4 flex justify-center"><svg class="w-10 h-10 sm:w-12 sm:h-12" aria-hidden="true"><use href="#icon-gear" /></svg></div>
-            <h2 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Full run</h2>
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-100 tracking-tight mb-2">Full run</h2>
             <p class="text-sm sm:text-base text-gray-600">Machine counts and packaged counts for one receipt in a single submit.</p>
             {% if employee %}
-            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 mt-4">
-                <p class="text-green-800 font-semibold flex items-center justify-center text-base sm:text-lg">
+            <div class="tt-production-employee-chip rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 mt-4">
+                <p class="text-slate-200 font-semibold flex items-center justify-center text-base sm:text-lg">
                     <span class="tt-inline-icon text-slate-400 text-xl sm:text-2xl mr-2 sm:mr-3" aria-hidden="true"><svg class="w-6 h-6 sm:w-8 sm:h-8"><use href="#icon-user-helmet"/></svg></span>
                     {{ gettext('Employee') }}: <span id="combined-employee-name-display">{{ employee.full_name }}</span>
                 </p>
@@ -83,8 +83,8 @@
                 <input type="text" id="combined_receipt_number" name="receipt_number" required class="form-input text-base" placeholder="Same receipt for machine + packaging">
             </div>
 
-            <div class="rounded-lg border border-indigo-100 bg-indigo-50/70 p-3 space-y-2">
-                <h3 class="text-sm font-semibold text-indigo-900">Blister machine</h3>
+            <div class="tt-production-subcard rounded-lg p-3 space-y-2">
+                <h3 class="text-sm font-semibold text-slate-100">Blister machine</h3>
                 <label for="combined_blister_machine_count" class="block text-base sm:text-sm font-medium text-gray-700 mb-2">Blister machine count</label>
                 <input type="number" id="combined_blister_machine_count" class="form-input text-base" min="0" step="1" placeholder="Enter blister counter number">
                 <p class="text-xs text-gray-500">Optional when blister step was not run during this full run.</p>
@@ -96,7 +96,7 @@
 
             <h3 class="text-sm font-semibold text-gray-900">Sealing machines</h3>
             <div id="combined-machine-count-rows" class="space-y-4">
-                <div class="machine-count-row rounded-lg border border-gray-200 bg-white/90 p-3 sm:p-4 space-y-3 shadow-sm">
+                <div class="machine-count-row tt-production-subcard tt-production-machine-row rounded-lg p-3 sm:p-4 space-y-3">
                     <div class="flex justify-between items-center gap-2">
                         <span class="machine-row-label text-sm font-medium text-gray-800">Sealing machine</span>
                         <button type="button" class="remove-machine-row text-sm text-red-600 hover:text-red-800 underline underline-offset-2 hidden">Remove</button>
@@ -115,13 +115,13 @@
             </div>
             <div>
                 <button type="button" id="combined-add-machine-count-row"
-                        class="w-full sm:w-auto mt-1 py-2 px-4 text-sm font-medium rounded-lg border border-indigo-300 text-indigo-800 bg-white hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white">
+                        class="btn-secondary w-full sm:w-auto mt-1 py-2 px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     + Add machine count
                 </button>
             </div>
 
-            <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-indigo-100 space-y-4">
-                <h3 class="text-lg font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">Packaging counts</h3>
+            <div class="tt-production-subcard rounded-xl p-6 space-y-4">
+                <h3 class="text-lg font-semibold text-slate-100">Packaging counts</h3>
                 <div>
                     <label for="combined_displays_made" class="block text-sm font-medium text-gray-700 mb-1">{{ gettext('Displays Made') }} *</label>
                     <input type="number" id="combined_displays_made" name="displays_made" required class="form-input" min="0" value="0">
@@ -164,13 +164,13 @@
     </div>
 
     <!-- Bag Count Form (Hidden by default) -->
-    <div id="bag-count-form" class="card hover-lift p-8 hidden">
+    <div id="bag-count-form" class="card hover-lift p-8 hidden tt-production-form-surface">
         <div class="text-center mb-8">
             <div class="mb-4 flex justify-center"><svg class="w-12 h-12" aria-hidden="true"><use href="#icon-clipboard" /></svg></div>
-            <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">Bag Count</h2>
+            <h2 class="text-3xl font-bold text-slate-100 tracking-tight mb-2">Bag Count</h2>
             {% if employee %}
-            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-4 mb-4">
-                <p class="text-green-800 font-semibold flex items-center justify-center">
+            <div class="tt-production-employee-chip rounded-xl p-4 mb-4">
+                <p class="text-slate-200 font-semibold flex items-center justify-center">
                     <span class="tt-inline-icon text-slate-400 text-2xl mr-3" aria-hidden="true"><svg class="w-8 h-8"><use href="#icon-user-helmet"/></svg></span>
                     {{ gettext('Employee') }}: <span id="bag-employee-name-display">{{ employee.full_name }}</span>
                 </p>
@@ -231,10 +231,10 @@
             </div>
             
             <!-- Manual Count -->
-            <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-indigo-100 space-y-4">
+            <div class="tt-production-subcard rounded-xl p-6 space-y-4">
                 <div class="flex items-center mb-4">
                     <svg class="w-6 h-6 mr-3" aria-hidden="true"><use href="#icon-clipboard" /></svg>
-                    <h3 class="text-lg font-semibold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">Manual Count</h3>
+                    <h3 class="text-lg font-semibold text-slate-100">Manual Count</h3>
                 </div>
                 
                 <div>
@@ -257,14 +257,14 @@
             </div>
             
             <!-- Notes (optional) -->
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <label for="count_admin_notes" class="block text-sm font-medium text-purple-800 mb-1">
+            <div class="tt-production-notes rounded-lg p-4">
+                <label for="count_admin_notes" class="block text-sm font-medium text-slate-200 mb-1">
                     Notes (Optional)
                 </label>
                 <textarea id="count_admin_notes" name="admin_notes" rows="3"
                           class="form-input w-full"
                           placeholder="Add internal notes..."></textarea>
-                <p class="text-xs text-purple-600 mt-1">Optional notes saved with this submission.</p>
+                <p class="text-xs text-slate-400 mt-1">Optional notes saved with this submission.</p>
             </div>
             
             <!-- Submit Button -->
@@ -279,13 +279,13 @@
     </div>
 
     <!-- Bottles Form -->
-    <div id="bottles-form" class="card hover-lift p-4 sm:p-8 hidden">
+    <div id="bottles-form" class="card hover-lift p-4 sm:p-8 hidden tt-production-form-surface">
         <div class="text-center mb-6 sm:mb-8">
             <div class="mb-3 sm:mb-4 flex justify-center"><svg class="w-10 h-10 sm:w-12 sm:h-12" aria-hidden="true"><use href="#icon-bottle" /></svg></div>
-            <h2 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Bottle Production</h2>
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-100 tracking-tight mb-2">Bottle Production</h2>
             {% if employee %}
-            <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
-                <p class="text-green-800 font-semibold flex items-center justify-center text-base sm:text-lg">
+            <div class="tt-production-employee-chip rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
+                <p class="text-slate-200 font-semibold flex items-center justify-center text-base sm:text-lg">
                     <span class="tt-inline-icon text-slate-400 text-xl sm:text-2xl mr-2 sm:mr-3" aria-hidden="true"><svg class="w-6 h-6 sm:w-8 sm:h-8"><use href="#icon-user-helmet"/></svg></span>
                     {{ gettext('Employee') }}: <span id="bottles-employee-name-display">{{ employee.full_name }}</span>
                 </p>
@@ -322,8 +322,8 @@
             
             <!-- Bag Selection (for bottle-only products) -->
             <div id="bottle-bag-section" class="hidden">
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                    <h4 class="text-sm font-medium text-blue-800">Specify Bag to Deduct From</h4>
+                <div class="tt-production-subcard rounded-lg p-4 space-y-3">
+                    <h4 class="text-sm font-medium text-slate-100">Specify Bag to Deduct From</h4>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label for="bottles_bag_number" class="block text-xs font-medium text-gray-700 mb-1">
@@ -345,19 +345,19 @@
             
             <!-- Reserved Bags Info (for variety packs) -->
             <div id="variety-pack-section" class="hidden">
-                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
-                    <h4 class="text-sm font-medium text-purple-800">Reserved Bags for Variety Pack</h4>
-                    <div id="variety-pack-reserved-bags" class="text-sm text-purple-700">
+                <div class="tt-production-notes rounded-lg p-4 space-y-3">
+                    <h4 class="text-sm font-medium text-slate-100">Reserved Bags for Variety Pack</h4>
+                    <div id="variety-pack-reserved-bags" class="text-sm text-slate-300">
                         Loading reserved bags...
                     </div>
                 </div>
             </div>
             
             <!-- Production Counts -->
-            <div class="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6 rounded-xl border border-blue-100 space-y-4">
+            <div class="tt-production-subcard rounded-xl p-6 space-y-4">
                 <div class="flex items-center mb-4">
                     <svg class="w-6 h-6 mr-3 text-purple-600" aria-hidden="true"><use href="#icon-bottle" /></svg>
-                    <h3 class="text-lg font-semibold bg-gradient-to-r from-blue-700 to-purple-700 bg-clip-text text-transparent">Bottle Counts</h3>
+                    <h3 class="text-lg font-semibold text-slate-100">Bottle Counts</h3>
                 </div>
                 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -386,10 +386,10 @@
                 </div>
                 
                 <!-- Tablets calculation -->
-                <div id="bottles-calculation" class="bg-white p-3 rounded-lg text-sm hidden">
+                <div id="bottles-calculation" class="tt-production-metric-strip p-3 rounded-lg text-sm hidden">
                     <div class="flex justify-between">
                         <span>Total tablets used:</span>
-                        <span id="bottles-total-tablets" class="font-bold text-blue-600">0</span>
+                        <span id="bottles-total-tablets" class="font-bold text-cyan-300">0</span>
                     </div>
                 </div>
             </div>
@@ -405,13 +405,13 @@
             </div>
             
             <!-- Notes (optional) -->
-            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <label for="bottles_admin_notes" class="block text-sm font-medium text-purple-800 mb-1">
+            <div class="tt-production-notes rounded-lg p-4">
+                <label for="bottles_admin_notes" class="block text-sm font-medium text-slate-200 mb-1">
                     Notes (Optional)
                 </label>
                 <textarea id="bottles_admin_notes" name="admin_notes" rows="3"
                           class="form-input w-full" placeholder="Add internal notes..."></textarea>
-                <p class="text-xs text-purple-600 mt-1">Optional notes saved with this submission.</p>
+                <p class="text-xs text-slate-400 mt-1">Optional notes saved with this submission.</p>
             </div>
             
             <!-- Submit Button -->

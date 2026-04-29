@@ -434,6 +434,34 @@ main.tt-app-main a.underline:hover {
   box-shadow: var(--glow), 0 8px 24px rgba(0, 0, 0, 0.35) !important;
 }
 
+/* Production forms: normalize nested cards/chips for dark Command Center theme. */
+main.tt-app-main .tt-production-form-surface .tt-production-employee-chip {
+  background: linear-gradient(160deg, rgba(8, 47, 73, 0.45), rgba(6, 56, 67, 0.3));
+  border: 1px solid rgba(110, 231, 183, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+main.tt-app-main .tt-production-form-surface .tt-production-subcard {
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.72), rgba(15, 23, 42, 0.88));
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+main.tt-app-main .tt-production-form-surface .tt-production-machine-row {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+main.tt-app-main .tt-production-form-surface .tt-production-metric-strip {
+  background: rgba(6, 10, 18, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+main.tt-app-main .tt-production-form-surface .tt-production-notes {
+  background: linear-gradient(160deg, rgba(37, 22, 64, 0.5), rgba(15, 23, 42, 0.8));
+  border: 1px solid rgba(167, 139, 250, 0.35);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Light Tailwind utilities → Command Center surfaces (dense templates)      */
 /* -------------------------------------------------------------------------- */

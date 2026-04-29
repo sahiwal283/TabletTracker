@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.6] - 2026-04-29
+
+### Fixed
+- **Production forms (Full run, Bag Count, Bottles):** Replaced washed-out white/lavender nested cards with dark ``tt-production-subcard`` surfaces, unified employee chips, and converted machine-row/add-machine controls to Command Center styling for readable contrast. Updated section headings/metric strip and note blocks so labels, counters, and helper text stay legible on mobile.
+
+---
+
 ## [4.19.0] - 2026-04-29
 
 ### Added
