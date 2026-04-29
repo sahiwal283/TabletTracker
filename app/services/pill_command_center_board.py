@@ -94,6 +94,14 @@ def _inventory_po_options_like_receives(conn: sqlite3.Connection) -> list[dict[s
     return out
 
 
+def _table_has_column(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+    try:
+        cols = [str(r["name"]) for r in conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+    except sqlite3.OperationalError:
+        return False
+    return column_name in cols
+
+
 def _count_finalize_events(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> int:
     try:
         r = conn.execute(
@@ -393,12 +401,16 @@ def build_pill_command_center_board_payload(
 
     inventory_rows: list[dict] = []
     try:
+        shipment_expr = "COALESCE(rc.shipment_number, 1)" if _table_has_column(conn, "receiving", "shipment_number") else "1"
+        receiving_closed_filter = "AND COALESCE(rc.closed, 0) = 0" if _table_has_column(conn, "receiving", "closed") else ""
+        receiving_status_filter = "AND COALESCE(rc.status, 'published') = 'published'" if _table_has_column(conn, "receiving", "status") else ""
+        bag_status_filter = "AND COALESCE(bg.status, 'Available') != 'Closed'" if _table_has_column(conn, "bags", "status") else ""
         for r in conn.execute(
-            """
+            f"""
             SELECT COALESCE(pd.product_name, '—') AS sku,
                    wb.id AS workflow_bag_id,
                    wb.receipt_number,
-                   COALESCE(rc.shipment_number, 1) AS shipment_number,
+                   {shipment_expr} AS shipment_number,
                    sb.box_number,
                    bg.bag_number,
                    bg.id AS inventory_bag_id,
@@ -418,6 +430,10 @@ def build_pill_command_center_board_payload(
                   LIMIT 1
               )
             LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE 1=1
+              {receiving_closed_filter}
+              {receiving_status_filter}
+              {bag_status_filter}
             ORDER BY sort_key DESC
             LIMIT 2500
             """
