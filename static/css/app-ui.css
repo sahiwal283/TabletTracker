@@ -776,6 +776,68 @@ main.tt-app-main #repack-form .tt-repack-toolbar-btn {
   color: #e2e8f0 !important;
 }
 
+/* Product & Tablet Configuration — add-tablet row, accordion strips, category trigger */
+main.tt-app-main .tt-product-config .tt-pc-add-tablet-btn {
+  min-height: 0 !important;
+}
+
+main.tt-app-main .tt-product-config .tt-pc-add-tablet .form-input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head {
+  background: rgba(17, 24, 38, 0.72);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head:hover {
+  background: rgba(24, 34, 54, 0.92);
+  border-color: rgba(56, 189, 248, 0.14) !important;
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--warn {
+  background: rgba(55, 38, 12, 0.42);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--warn:hover {
+  background: rgba(70, 48, 16, 0.58);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--products {
+  background: rgba(12, 46, 38, 0.38);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--products:hover {
+  background: rgba(14, 58, 48, 0.52);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--muted {
+  background: rgba(30, 41, 59, 0.55);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--muted:hover {
+  background: rgba(41, 54, 74, 0.72);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--variety {
+  background: rgba(46, 16, 71, 0.38);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-accordion-head--variety:hover {
+  background: rgba(58, 22, 88, 0.52);
+}
+
+main.tt-app-main .tt-product-config .tt-pc-cat-mgmt-trigger {
+  background: rgba(15, 23, 42, 0.65);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+main.tt-app-main .tt-product-config .tt-pc-cat-mgmt-trigger:hover {
+  background: rgba(24, 34, 54, 0.88);
+  border-color: rgba(56, 189, 248, 0.16) !important;
+}
+
 /*
  * Submission details modal — portaled under body; match Command Center dark panels
  * (replaces prior light “paper” modal overrides).

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.17.9] - 2026-04-28
+
+### Fixed
+- **Product & Tablet Configuration:** “Add new tablet” uses a responsive flex layout with wider `min-w` columns, shorter placeholders + `title` hints, and compact primary button height. Extra vertical spacing between blocks and taller accordion/table rows (`py-5`). Replaced light gradient strips on tablet-type accordions, **Category management** trigger, and Products tab accordions with Command Center dark surfaces and readable `text-slate-*` copy; count badges use cyan/emerald/violet rings aligned with primary actions.
+
+---
+
+## [4.17.8] - 2026-04-28
+
+### Changed
+- **Admin → Product & tablet configuration:** Removed the separate **Categories** tab. Category assignment (checkboxes, rename/delete category, unassigned tablets, Add Category) lives in a **collapsed “Category management”** card at the bottom of the **Tablet Types** tab, since category names mirror tablet types. Tab persistence: saved tab `categories` now opens **Tablet Types**.
+
+---
+
 ## [4.17.7] - 2026-04-28
 
 ### Fixed

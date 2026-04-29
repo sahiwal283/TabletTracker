@@ -3,7 +3,7 @@
 {% block title %}Product Configuration{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto">
+<div class="max-w-6xl mx-auto tt-product-config">
     <div class="mb-4">
         <a href="/admin" class="inline-flex items-center text-cyan-300 hover:text-cyan-200 transition-colors">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,42 +42,54 @@
         </div>
         
         <!-- Add new tablet -->
-        <div class="card p-6 mb-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">
+        <div class="card p-6 sm:p-8 mb-8 tt-pc-add-tablet">
+            <h3 class="text-lg font-medium text-gray-900 mb-5">
                 <svg class="inline w-4 h-4 mr-1 align-[-2px]" aria-hidden="true"><use href="#icon-plus" /></svg>
                 Add new tablet
             </h3>
-            <form id="add-tablet-type-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input type="text" id="new-tablet-name" placeholder="Tablet name (e.g. MIT Pineapple)" class="form-input" required>
-                <input type="text" id="new-inventory-id" placeholder="Zoho Inventory Item ID (optional)" class="form-input">
-                <select id="new-tablet-category" class="form-input" aria-label="Tablet type">
-                    <option value="">Select tablet type…</option>
-                    {% for category in categories %}
-                    <option value="{{ category }}">{{ category }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="btn-primary">Add tablet</button>
+            <form id="add-tablet-type-form" class="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end lg:gap-x-5 lg:gap-y-4">
+                <div class="flex-1 min-w-0 lg:min-w-[14rem] xl:min-w-[16rem]">
+                    <input type="text" id="new-tablet-name" placeholder="Tablet / flavor name"
+                           title="e.g. MIT Pineapple — one flavor per tablet row"
+                           class="form-input w-full" required>
+                </div>
+                <div class="flex-1 min-w-0 lg:min-w-[14rem] xl:min-w-[16rem]">
+                    <input type="text" id="new-inventory-id" placeholder="Zoho item ID (optional)"
+                           title="Zoho Inventory Item ID when syncing stock"
+                           class="form-input w-full">
+                </div>
+                <div class="flex-1 min-w-0 lg:min-w-[12rem] xl:w-56 xl:flex-none">
+                    <select id="new-tablet-category" class="form-input w-full" aria-label="Tablet type">
+                        <option value="">Select tablet type…</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex-shrink-0 pt-1 lg:pt-0">
+                    <button type="submit" class="btn-primary w-full lg:w-auto px-6 whitespace-nowrap tt-pc-add-tablet-btn">Add tablet</button>
+                </div>
             </form>
         </div>
 
         <!-- Tablet types (grouped list) -->
         <div class="card overflow-hidden p-0">
-            <div class="px-6 py-4 border-b border-gray-200">
+            <div class="px-6 py-5 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">Tablet types</h3>
-                <p class="text-sm text-gray-500 mt-1">Each heading is a tablet type. Expand it to see the tablets in that type.</p>
+                <p class="text-sm text-gray-500 mt-2">Each heading is a tablet type. Expand it to see the tablets in that type.</p>
             </div>
             
             {% for category in categories %}
             {% set category_types = tablet_types | selectattr('category', 'equalto', category) | list %}
             {% if category_types %}
             <div class="border-b border-gray-200">
-                <button data-toggle-section-id="tt-{{ category | replace(' ', '-') }}" 
-                        class="w-full px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-left flex items-center gap-3">
-                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-tt-{{ category | replace(' ', '-') }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button data-toggle-section-id="tt-{{ category | replace(' ', '-') }}" type="button"
+                        class="tt-pc-accordion-head w-full px-6 py-5 text-left flex items-center gap-3 border-b border-gray-200">
+                    <svg class="w-5 h-5 text-slate-400 section-chevron shrink-0" id="chevron-tt-{{ category | replace(' ', '-') }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">{{ category }}</span>
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-600 text-white">{{ category_types | length }}</span>
+                    <span class="font-semibold text-slate-100">{{ category }}</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-600/90 text-white ring-1 ring-cyan-400/35">{{ category_types | length }}</span>
                 </button>
                 
                 <div id="section-tt-{{ category | replace(' ', '-') }}" class="section-content hidden">
@@ -92,17 +104,17 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             {% for tt in category_types %}
                             <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <td class="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ tt.tablet_type_name }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-500">
                                     <span class="tablet-display" id="id-display-{{ tt.id }}">
                                         {% if tt.inventory_item_id %}<span class="font-mono bg-green-100 px-2 py-1 rounded text-xs">{{ tt.inventory_item_id }}</span>
                                         {% else %}<span class="text-gray-400 italic">Not Set</span>{% endif %}
                                     </span>
                                     <input type="text" class="form-input tablet-edit hidden text-sm" id="id-edit-{{ tt.id }}" value="{{ tt.inventory_item_id or '' }}" placeholder="Enter Zoho Inventory Item ID">
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <td class="px-6 py-5 whitespace-nowrap text-sm">
                                     <div class="tablet-display" id="actions-display-{{ tt.id }}">
                                         <button data-edit-tablet-type-id="{{ tt.id }}" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
                                         <button data-delete-tablet-type-id="{{ tt.id }}" data-tablet-type-name="{{ tt.tablet_type_name }}" class="text-red-600 hover:text-red-900">Delete</button>
@@ -125,13 +137,13 @@
             {% set uncategorized_types = tablet_types | rejectattr('category') | list + tablet_types | selectattr('category', 'equalto', '') | list %}
             {% if uncategorized_types %}
             <div class="border-b border-gray-200">
-                <button data-toggle-section-id="tt-uncategorized" 
-                        class="w-full px-6 py-4 bg-gradient-to-r from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 text-left flex items-center gap-3">
-                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-tt-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button data-toggle-section-id="tt-uncategorized" type="button"
+                        class="tt-pc-accordion-head tt-pc-accordion-head--warn w-full px-6 py-5 text-left flex items-center gap-3 border-b border-gray-200">
+                    <svg class="w-5 h-5 text-slate-400 section-chevron shrink-0" id="chevron-tt-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700 inline-flex items-center gap-1.5"><svg class="w-4 h-4 shrink-0 text-amber-600" aria-hidden="true"><use href="#icon-exclamation"/></svg> Uncategorized</span>
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-600 text-white">{{ uncategorized_types | length }}</span>
+                    <span class="font-semibold text-slate-100 inline-flex items-center gap-1.5"><svg class="w-4 h-4 shrink-0 text-amber-400" aria-hidden="true"><use href="#icon-exclamation"/></svg> Uncategorized</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-600/95 text-white ring-1 ring-amber-400/35">{{ uncategorized_types | length }}</span>
                 </button>
                 <div id="section-tt-uncategorized" class="section-content hidden">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -145,17 +157,17 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             {% for tt in uncategorized_types %}
                             <tr class="hover:bg-gray-50" id="tablet-row-{{ tt.id }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <td class="px-6 py-5 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ tt.tablet_type_name }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-500">
                                     <span class="tablet-display" id="id-display-{{ tt.id }}">
                                         {% if tt.inventory_item_id %}<span class="font-mono bg-green-100 px-2 py-1 rounded text-xs">{{ tt.inventory_item_id }}</span>
                                         {% else %}<span class="text-gray-400 italic">Not Set</span>{% endif %}
                                     </span>
                                     <input type="text" class="form-input tablet-edit hidden text-sm" id="id-edit-{{ tt.id }}" value="{{ tt.inventory_item_id or '' }}" placeholder="Enter Zoho Inventory Item ID">
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <td class="px-6 py-5 whitespace-nowrap text-sm">
                                     <div class="tablet-display" id="actions-display-{{ tt.id }}">
                                         <button data-edit-tablet-type-id="{{ tt.id }}" class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
                                         <button data-delete-tablet-type-id="{{ tt.id }}" data-tablet-type-name="{{ tt.tablet_type_name }}" class="text-red-600 hover:text-red-900">Delete</button>
@@ -175,17 +187,17 @@
         </div>
 
         <!-- Category management (same data as former Categories tab; collapsed by default) -->
-        <div class="card overflow-hidden p-0 mb-6 border border-gray-200">
+        <div class="card overflow-hidden p-0 mb-6 border border-gray-200 tt-pc-category-card">
             <button type="button" data-toggle-section-id="tablet-category-mgmt"
-                    class="w-full px-6 py-4 bg-gradient-to-r from-slate-50 to-gray-50 hover:from-slate-100 hover:to-gray-100 text-left flex flex-wrap items-center gap-3 border-b border-gray-100">
-                <svg class="w-5 h-5 text-gray-600 section-chevron shrink-0" id="chevron-tablet-category-mgmt" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    class="tt-pc-cat-mgmt-trigger w-full px-6 py-5 text-left flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-200">
+                <svg class="w-5 h-5 text-slate-400 section-chevron shrink-0" id="chevron-tablet-category-mgmt" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
-                <span class="font-semibold text-gray-900 inline-flex items-center gap-2">
-                    <svg class="w-5 h-5 text-indigo-600 shrink-0" aria-hidden="true"><use href="#icon-list"/></svg>
+                <span class="font-semibold text-slate-100 inline-flex items-center gap-2">
+                    <svg class="w-5 h-5 text-cyan-400/90 shrink-0" aria-hidden="true"><use href="#icon-list"/></svg>
                     Category management
                 </span>
-                <span class="text-sm text-gray-500 ml-auto max-w-xl text-right">Assign each tablet to a category (checkboxes). Names align with tablet types above.</span>
+                <span class="text-sm text-slate-400 w-full sm:w-auto sm:ml-auto sm:max-w-xl sm:text-right leading-snug">Assign each tablet to a category (checkboxes). Names align with tablet types above.</span>
             </button>
             <div id="section-tablet-category-mgmt" class="section-content hidden">
                 <div class="p-6 border-t border-gray-100">
@@ -388,7 +400,7 @@
 
         <!-- Products List -->
         <div class="card overflow-hidden p-0">
-            <div class="px-6 py-4 border-b border-gray-200">
+            <div class="px-6 py-5 border-b border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900">All Products</h3>
             </div>
             
@@ -396,13 +408,13 @@
             {% set category_products = products | selectattr('category', 'equalto', category) | list %}
             {% if category_products %}
             <div class="border-b border-gray-200">
-                <button data-toggle-section-id="prod-{{ category | replace(' ', '-') }}" 
-                        class="w-full px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-left flex items-center gap-3">
-                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-{{ category | replace(' ', '-') }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button type="button" data-toggle-section-id="prod-{{ category | replace(' ', '-') }}" 
+                        class="tt-pc-accordion-head tt-pc-accordion-head--products w-full px-6 py-5 text-left flex items-center gap-3 border-b border-gray-200">
+                    <svg class="w-5 h-5 text-slate-400 section-chevron shrink-0" id="chevron-prod-{{ category | replace(' ', '-') }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">{{ category }}</span>
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-600 text-white">{{ category_products | length }}</span>
+                    <span class="font-semibold text-slate-100">{{ category }}</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-600/95 text-white ring-1 ring-emerald-400/35">{{ category_products | length }}</span>
                 </button>
                 <div id="section-prod-{{ category | replace(' ', '-') }}" class="section-content hidden">
                     <div class="divide-y divide-gray-200">
@@ -446,13 +458,13 @@
             {% set uncategorized_products = products | rejectattr('is_variety_pack') | rejectattr('category') | list %}
             {% if uncategorized_products %}
             <div class="border-b border-gray-200">
-                <button data-toggle-section-id="prod-uncategorized" 
-                        class="w-full px-6 py-4 bg-gradient-to-r from-gray-50 to-slate-50 hover:from-gray-100 hover:to-slate-100 text-left flex items-center gap-3">
-                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button type="button" data-toggle-section-id="prod-uncategorized" 
+                        class="tt-pc-accordion-head tt-pc-accordion-head--muted w-full px-6 py-5 text-left flex items-center gap-3 border-b border-gray-200">
+                    <svg class="w-5 h-5 text-slate-400 section-chevron shrink-0" id="chevron-prod-uncategorized" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">Uncategorized products</span>
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-600 text-white">{{ uncategorized_products | length }}</span>
+                    <span class="font-semibold text-slate-100">Uncategorized products</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600 text-white ring-1 ring-slate-400/35">{{ uncategorized_products | length }}</span>
                 </button>
                 <div id="section-prod-uncategorized" class="section-content hidden">
                     <div class="divide-y divide-gray-200">
@@ -491,13 +503,13 @@
             {% set variety_packs = products | selectattr('is_variety_pack') | list %}
             {% if variety_packs %}
             <div class="border-b border-gray-200">
-                <button data-toggle-section-id="prod-variety-packs" 
-                        class="w-full px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 text-left flex items-center gap-3">
-                    <svg class="w-5 h-5 text-gray-600 section-chevron" id="chevron-prod-variety-packs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button type="button" data-toggle-section-id="prod-variety-packs" 
+                        class="tt-pc-accordion-head tt-pc-accordion-head--variety w-full px-6 py-5 text-left flex items-center gap-3 border-b border-gray-200">
+                    <svg class="w-5 h-5 text-slate-400 section-chevron shrink-0" id="chevron-prod-variety-packs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
-                    <span class="font-semibold text-gray-700">Variety packs</span>
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-600 text-white">{{ variety_packs | length }}</span>
+                    <span class="font-semibold text-slate-100">Variety packs</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-600/95 text-white ring-1 ring-violet-400/35">{{ variety_packs | length }}</span>
                 </button>
                 <div id="section-prod-variety-packs" class="section-content hidden">
                     <div class="divide-y divide-gray-200">
