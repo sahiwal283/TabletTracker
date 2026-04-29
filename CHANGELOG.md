@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.10] - 2026-04-29
+
+### Fixed
+- **Workflow station scan/claim:** Idle station scans now auto-claim the scanned bag immediately so timer + occupied state start right away (no confusing "enter counts" on an unclaimed bag).
+- **Workflow station permissions:** **Hand pack the rest** is now admin-only in both UI visibility and server-side validation.
+
 ## [4.19.9] - 2026-04-29
 
 ### Fixed

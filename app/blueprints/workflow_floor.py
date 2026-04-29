@@ -7,7 +7,7 @@ import json
 import logging
 import sqlite3
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, session
 
 from app.services import workflow_constants as WC
 from app.services.production_submission_helpers import ProductionSubmissionError
@@ -581,6 +581,10 @@ def station_page(station_token: str):
             station_label=row["label"],
             machine_name=r.get("machine_name"),
             station_kind=r.get("station_kind") or "sealing",
+            is_admin_user=bool(
+                session.get("admin_authenticated")
+                or (session.get("employee_role") == "admin")
+            ),
         )
     finally:
         conn.close()
@@ -779,6 +783,22 @@ def api_append_event():
                     "WORKFLOW_VALIDATION",
                     "displays_taken must be at least 1 for taken-for-order.",
                     status=400,
+                )
+        if event_type == WC.EVENT_BLISTER_COMPLETE:
+            is_handpack_rest = bool(
+                isinstance(payload, dict)
+                and isinstance(payload.get("metadata"), dict)
+                and payload.get("metadata", {}).get("handpack_rest")
+            )
+            if is_handpack_rest and not (
+                session.get("admin_authenticated")
+                or (session.get("employee_role") == "admin")
+            ):
+                return workflow_json(
+                    "WORKFLOW_VALIDATION",
+                    "Hand pack the rest is restricted to admin users.",
+                    details={"reason": "admin_required", "action": "handpack_rest"},
+                    status=403,
                 )
         try:
             event_id = append_workflow_event(

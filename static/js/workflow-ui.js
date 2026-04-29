@@ -28,6 +28,7 @@
   let occupancyGateForcedAction = null;
   /** Packaging: pick = choose End / Pause / Taken; then only fields for that path. */
   let packagingUiPhase = 'pick';
+  const isAdminUser = !!Number(window.WF_IS_ADMIN_USER || 0);
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
   var SUBMIT_PAUSE_COOLDOWN_MS = 90 * 1000;
@@ -1079,7 +1080,7 @@
     if (kind === 'blister') {
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
-      if (handpackBtn) handpackBtn.classList.remove('hidden');
+      if (handpackBtn) handpackBtn.classList.toggle('hidden', !isAdminUser);
       if (materialChangeOpenBtn) materialChangeOpenBtn.classList.remove('hidden');
       if (countLabel) countLabel.textContent = 'Blister machine count total';
       if (hint) {
@@ -1267,7 +1268,7 @@
     } else if (kind === 'combined') {
       saveBtn.classList.add('hidden');
       if (saveBlisterBtn) saveBlisterBtn.classList.remove('hidden');
-      if (handpackBtn) handpackBtn.classList.remove('hidden');
+      if (handpackBtn) handpackBtn.classList.toggle('hidden', !isAdminUser);
       if (saveSealBtn) saveSealBtn.classList.remove('hidden');
       pauseBtn.textContent = 'Pause combined bag';
       if (countLabel) countLabel.textContent = 'Machine count total';
@@ -1591,8 +1592,10 @@
     hasLoadedBag = true;
     applyStationFacts(data);
     var facts = data.facts || {};
-    var needClaim = !!facts.claim_required && !facts.resume_required;
-    if (needClaim) {
+    var shouldAutoClaim =
+      (!facts.resume_required && !!facts.claim_required) ||
+      (!facts.resume_required && !stationHasOccupantApi && !stationClaimed);
+    if (shouldAutoClaim) {
       setBagLoadedUi(true);
       setActionsEnabled(true);
       clearFeedback();
@@ -1826,6 +1829,9 @@
     const kind = stationKind();
     if (kind !== 'blister' && kind !== 'combined') {
       throw new Error('Hand pack rest is only available for blister lanes.');
+    }
+    if (!isAdminUser) {
+      throw new Error('Hand pack the rest is restricted to admin users.');
     }
     assertActionCooldown('handpackRest');
     const countTotal = selectedCountTotal();

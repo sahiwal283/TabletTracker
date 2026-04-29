@@ -181,5 +181,6 @@
   window.WF_STATION_TOKEN = {{ station_token | tojson }};
   window.WF_STATION_ID = {{ station_id | int }};
   window.WF_STATION_KIND = {{ (station_kind or 'sealing') | tojson }};
+  window.WF_IS_ADMIN_USER = {{ 1 if is_admin_user else 0 }};
 </script>
 {% endblock %}
