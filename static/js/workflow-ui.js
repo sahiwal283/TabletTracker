@@ -296,7 +296,9 @@
     var opB = document.getElementById('wf-gate-operator');
     var materialB = document.getElementById('wf-gate-material');
     var takenG = document.getElementById('wf-gate-taken');
-    var isPackaging = stationKind() === 'packaging';
+    var currentKind = stationKind();
+    var isPackaging = currentKind === 'packaging';
+    var isBlister = currentKind === 'blister';
 
     if (verifyPan) {
       verifyPan.classList.toggle('hidden', !occupancyVerifyOpen);
@@ -323,7 +325,7 @@
         } else {
           pauseB.classList.remove('hidden');
           endB.classList.remove('hidden');
-          if (opB) opB.classList.remove('hidden');
+          if (opB) opB.classList.toggle('hidden', !isBlister);
           if (materialB) {
             var showMaterialGate =
               stationKind() === 'blister' || stationKind() === 'combined';
@@ -2022,6 +2024,9 @@
   async function saveOperatorChangeWithCount() {
     ensureLoadedBag();
     const kind = stationKind();
+    if (kind !== 'blister') {
+      throw new Error('Operator change is only available on blister stations.');
+    }
     const countTotal = selectedCountTotal();
     const payload = {
       count_total: countTotal,
@@ -2031,9 +2036,7 @@
         reason: 'operator_change',
       },
     };
-    if (kind === 'sealing' || kind === 'bottle_cap_seal' || kind === 'bottle_stickering') {
-      payload.station_id = window.WF_STATION_ID || 1;
-    }
+    payload.station_id = window.WF_STATION_ID || 1;
     await emitEvent('OPERATOR_CHANGE', payload);
     clearCountField();
     clearEmployeeNameField();
