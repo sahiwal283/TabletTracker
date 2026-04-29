@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.18.0** (QR workflow bottle line: hand pack, cap seal, stickering, packaging)
+Current: **v4.19.0** (QR packaging case counts and case-based final product summaries)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

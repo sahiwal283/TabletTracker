@@ -856,6 +856,16 @@
     }
     return n;
   }
+  function selectedPackagingCaseCount() {
+    var el = countInput();
+    var raw = el ? String(el.value || '').trim() : '';
+    if (!raw) return 0;
+    var n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+      throw new Error('Cases made must be a whole number 0 or greater.');
+    }
+    return n;
+  }
   function selectedMaterialType() {
     var checked = document.querySelector('input[name="wf-material-type"]:checked');
     var value = checked ? String(checked.value || '').trim().toLowerCase() : '';
@@ -889,6 +899,8 @@
     [
       'wf-packs-remaining-label',
       'wf-packs-remaining',
+      'wf-loose-displays-label',
+      'wf-loose-displays',
       'wf-cards-reopened-label',
       'wf-cards-reopened-help',
       'wf-cards-reopened',
@@ -906,6 +918,8 @@
     [
       'wf-packs-remaining-label',
       'wf-packs-remaining',
+      'wf-loose-displays-label',
+      'wf-loose-displays',
       'wf-cards-reopened-label',
       'wf-cards-reopened-help',
       'wf-cards-reopened',
@@ -921,7 +935,7 @@
     });
   }
   function clearPackagingSnapshotFields() {
-    ['wf-packs-remaining', 'wf-cards-reopened', 'wf-taken-displays'].forEach(function (id) {
+    ['wf-packs-remaining', 'wf-loose-displays', 'wf-cards-reopened', 'wf-taken-displays'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -1072,7 +1086,7 @@
       if (takenBtn) takenBtn.classList.add('hidden');
       pauseBtn.textContent = 'Pause packaging bag';
       saveBtn.textContent = 'Submit';
-      if (countLabel) countLabel.textContent = 'Packaging display count';
+      if (countLabel) countLabel.textContent = 'Cases made';
       if (!hasLoadedBag) {
         if (intentPan) intentPan.classList.add('hidden');
         return;
@@ -1156,7 +1170,7 @@
         if (hint) {
           hint.classList.remove('hidden');
           hint.textContent =
-            'End run: enter packaging display count and remaining loose cards or bottles, then tap Submit to finish this bag.';
+            'End run: enter cases, displays not in a full case, and remaining loose cards or bottles, then tap Submit to finish this bag.';
         }
       } else if (packagingUiPhase === 'pause') {
         occupancyGateIntentEndRun = false;
@@ -1166,7 +1180,7 @@
         if (hint) {
           hint.classList.remove('hidden');
           hint.textContent =
-            'Pause: enter current packaging display count and remaining loose cards or bottles, then tap Pause packaging bag.';
+            'Pause: enter current cases, displays not in a full case, and remaining loose cards or bottles, then tap Pause packaging bag.';
         }
       } else {
         packagingUiPhase = 'pick';
@@ -1510,6 +1524,10 @@
     ensureLoadedBag();
     assertActionCooldown('submit');
     const kind = stationKind();
+    if (kind === 'packaging') {
+      await submitPackagingAndFinalize();
+      return;
+    }
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
       await emitEvent('BLISTER_COMPLETE', {
@@ -1587,10 +1605,6 @@
       fullscreenSubmitOk('Bottle sticker count submitted.');
       return;
     }
-    if (kind === 'packaging') {
-      await submitPackagingAndFinalize();
-      return;
-    }
     throw new Error('Unsupported station kind: ' + kind);
   }
   async function saveBlisterCountOnly() {
@@ -1658,6 +1672,27 @@
     occupancyGateIntentEndRun = false;
     assertActionCooldown('pause');
     const kind = stationKind();
+    if (kind === 'packaging') {
+      await emitEvent('PACKAGING_SNAPSHOT', {
+        case_count: selectedPackagingCaseCount(),
+        loose_display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
+        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
+        cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+        reason: 'paused_end_of_day',
+        employee_name: requiredEmployeeName(),
+      });
+      clearCountField();
+      clearEmployeeNameField();
+      clearPackagingSnapshotFields();
+      packagingUiPhase = 'pick';
+      configureStationActions();
+      startCooldownAfterSuccess('pause');
+      statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
+      showFullscreenSuccess('Pause saved. Station is paused.', undefined, function () {
+        refreshStationOccupancy().catch(function () {});
+      });
+      return;
+    }
     const countTotal = selectedCountTotal();
     if (kind === 'blister' || kind === 'combined') {
       await emitEvent('BLISTER_COMPLETE', {
@@ -1721,26 +1756,6 @@
       });
       return;
     }
-    if (kind === 'packaging') {
-      await emitEvent('PACKAGING_SNAPSHOT', {
-        display_count: countTotal,
-        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
-        cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
-        reason: 'paused_end_of_day',
-        employee_name: requiredEmployeeName(),
-      });
-      clearCountField();
-      clearEmployeeNameField();
-      clearPackagingSnapshotFields();
-      packagingUiPhase = 'pick';
-      configureStationActions();
-      startCooldownAfterSuccess('pause');
-      statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
-      showFullscreenSuccess('Pause saved. Station is paused.', undefined, function () {
-        refreshStationOccupancy().catch(function () {});
-      });
-      return;
-    }
     throw new Error('Unsupported station kind: ' + kind);
   }
   async function saveMaterialChangeWithCount() {
@@ -1780,10 +1795,10 @@
   async function submitPackagingAndFinalize() {
     ensureLoadedBag();
     assertActionCooldown('submit');
-    const countTotal = selectedCountTotal();
     await emitEvent('PACKAGING_SNAPSHOT', {
-      display_count: countTotal,
-      packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Cards remaining'),
+      case_count: selectedPackagingCaseCount(),
+      loose_display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
+      packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
       cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
       reason: 'final_submit',
       employee_name: requiredEmployeeName(),

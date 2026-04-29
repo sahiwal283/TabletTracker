@@ -294,10 +294,20 @@ def _floor_ops_overview(
     }
 
 
+def _format_case_qty(value) -> str:
+    try:
+        n = float(value or 0)
+    except (TypeError, ValueError):
+        n = 0.0
+    if abs(n - round(n)) < 0.000001:
+        return str(int(round(n)))
+    return f"{n:.2f}".rstrip("0").rstrip(".")
+
+
 def _command_center_final_product_displays_by_po(
     conn: sqlite3.Connection, selected_po_id: int | None
 ) -> dict:
-    """Packaged-only display totals by product(flavor) for one PO."""
+    """Final product case-equivalent totals by product/flavor for one PO."""
     out: dict = {
         "po_options": [],
         "selected_po_id": None,
@@ -305,16 +315,30 @@ def _command_center_final_product_displays_by_po(
         "selected_vendor_name": "",
         "rows": [],
         "total_displays": 0,
+        "total_cases": 0.0,
+        "total_cases_display": "0",
     }
     try:
         po_rows = conn.execute(
             """
             SELECT po.id, po.po_number,
                    COALESCE(NULLIF(TRIM(po.vendor_name), ''), 'Unknown vendor') AS vendor_name,
-                   COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS total_displays
+                   COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS total_displays,
+                   COALESCE(SUM(
+                     CAST(COALESCE(ws.displays_made, 0) AS REAL) /
+                     CASE
+                       WHEN COALESCE(pd.displays_per_case, 0) > 0 THEN pd.displays_per_case
+                       ELSE 1
+                     END
+                   ), 0) AS total_cases
             FROM purchase_orders po
             JOIN warehouse_submissions ws ON ws.assigned_po_id = po.id
-            WHERE COALESCE(ws.submission_type, 'packaged') = 'packaged'
+            LEFT JOIN (
+                SELECT product_name, MAX(COALESCE(displays_per_case, 0)) AS displays_per_case
+                FROM product_details
+                GROUP BY product_name
+            ) pd ON pd.product_name = ws.product_name
+            WHERE COALESCE(ws.submission_type, 'packaged') IN ('packaged', 'bottle')
             GROUP BY po.id, po.po_number, po.vendor_name
             HAVING COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) > 0
             ORDER BY po.po_number DESC
@@ -339,20 +363,40 @@ def _command_center_final_product_displays_by_po(
         rows = conn.execute(
             """
             SELECT COALESCE(NULLIF(TRIM(ws.product_name), ''), 'Unspecified') AS flavor,
-                   COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS displays_made
+                   COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) AS displays_made,
+                   COALESCE(SUM(
+                     CAST(COALESCE(ws.displays_made, 0) AS REAL) /
+                     CASE
+                       WHEN COALESCE(pd.displays_per_case, 0) > 0 THEN pd.displays_per_case
+                       ELSE 1
+                     END
+                   ), 0) AS cases_made
             FROM warehouse_submissions ws
+            LEFT JOIN (
+                SELECT product_name, MAX(COALESCE(displays_per_case, 0)) AS displays_per_case
+                FROM product_details
+                GROUP BY product_name
+            ) pd ON pd.product_name = ws.product_name
             WHERE ws.assigned_po_id = ?
-              AND COALESCE(ws.submission_type, 'packaged') = 'packaged'
+              AND COALESCE(ws.submission_type, 'packaged') IN ('packaged', 'bottle')
             GROUP BY COALESCE(NULLIF(TRIM(ws.product_name), ''), 'Unspecified')
             HAVING COALESCE(SUM(COALESCE(ws.displays_made, 0)), 0) > 0
-            ORDER BY displays_made DESC, flavor ASC
+            ORDER BY cases_made DESC, flavor ASC
             """,
             (chosen_po_id,),
         ).fetchall()
     except sqlite3.OperationalError:
         return out
-    out["rows"] = [dict(r) for r in rows]
+    out_rows = []
+    for r in rows:
+        rd = dict(r)
+        rd["cases_made"] = float(rd.get("cases_made") or 0)
+        rd["cases_made_display"] = _format_case_qty(rd["cases_made"])
+        out_rows.append(rd)
+    out["rows"] = out_rows
     out["total_displays"] = int(sum(int(r.get("displays_made") or 0) for r in out["rows"]))
+    out["total_cases"] = float(sum(float(r.get("cases_made") or 0) for r in out["rows"]))
+    out["total_cases_display"] = _format_case_qty(out["total_cases"])
     return out
 
 
@@ -1907,6 +1951,8 @@ def workflow_qr_management():
                 "selected_vendor_name": "",
                 "rows": [],
                 "total_displays": 0,
+                "total_cases": 0.0,
+                "total_cases_display": "0",
             },
             bag_assign=build_assign_bag_context(
                 products=[],

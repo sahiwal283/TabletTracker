@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.0] - 2026-04-29
+
+### Added
+- **QR packaging → Cases:** Packaging stations can enter cases made, displays not in a full case, and loose cards/bottles remaining. The workflow derives total displays from each product’s `displays_per_case` for warehouse math, while final-product PO summaries display historic and new packaged output as cases made.
+
+---
+
 ## [4.18.0] - 2026-04-29
 
 ### Added

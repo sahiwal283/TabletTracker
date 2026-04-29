@@ -8,6 +8,7 @@ from unittest.mock import patch
 from app.services import workflow_constants as WC
 from app.services.workflow_warehouse_bridge import (
     _station_session_start_occurred_at_ms,
+    sync_if_packaging_snapshot,
     upsert_bottle_from_workflow_packaging,
     upsert_machine_from_workflow_scan,
     upsert_packaged_from_workflow_packaging,
@@ -30,6 +31,7 @@ CREATE TABLE product_details (
     tablets_per_package INTEGER,
     tablets_per_bottle INTEGER,
     bottles_per_display INTEGER,
+    displays_per_case INTEGER,
     is_bottle_product INTEGER DEFAULT 0,
     is_variety_pack INTEGER DEFAULT 0
 );
@@ -199,6 +201,30 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
             (receipt,),
         ).fetchone()[0]
         self.assertEqual(dm, 4)
+
+    def test_packaging_snapshot_case_fields_sync_total_displays(self):
+        wid = self._wf_bag_id
+        self.conn.execute("UPDATE product_details SET displays_per_case = 12 WHERE id = 1")
+        self.conn.commit()
+        r = sync_if_packaging_snapshot(
+            self.conn,
+            wid,
+            WC.EVENT_PACKAGING_SNAPSHOT,
+            {
+                "case_count": 3,
+                "loose_display_count": 5,
+                "packs_remaining": 2,
+                "reason": "final_submit",
+            },
+            station_row={"id": 1},
+        )
+        self.assertTrue(r.get("ok"))
+        row = self.conn.execute(
+            "SELECT displays_made, packs_remaining FROM warehouse_submissions WHERE id = ?",
+            (r["warehouse_submission_id"],),
+        ).fetchone()
+        self.assertEqual(row["displays_made"], 41)
+        self.assertEqual(row["packs_remaining"], 2)
 
     def test_bottle_packaging_upserts_bottle_submission(self):
         self.conn.execute(

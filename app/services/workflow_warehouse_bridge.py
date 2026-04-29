@@ -126,6 +126,44 @@ def _latest_event_count_total(
         return 0
 
 
+def _display_count_from_packaging_payload(
+    conn: sqlite3.Connection, workflow_bag_id: int, payload: dict[str, Any]
+) -> int:
+    """Total displays from either legacy display_count or new case + loose-display fields."""
+    has_case_fields = "case_count" in payload or "loose_display_count" in payload
+    if has_case_fields:
+        try:
+            cases = max(0, int(payload.get("case_count") or 0))
+        except (TypeError, ValueError):
+            cases = 0
+        try:
+            loose_displays = max(0, int(payload.get("loose_display_count") or 0))
+        except (TypeError, ValueError):
+            loose_displays = 0
+        try:
+            row = conn.execute(
+                """
+                SELECT pd.displays_per_case
+                FROM workflow_bags wb
+                LEFT JOIN product_details pd ON pd.id = wb.product_id
+                WHERE wb.id = ?
+                """,
+                (int(workflow_bag_id),),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            row = None
+        try:
+            dpc = int(dict(row).get("displays_per_case") or 0) if row else 0
+        except (TypeError, ValueError):
+            dpc = 0
+        if dpc > 0:
+            return (cases * dpc) + loose_displays
+    try:
+        return int(payload.get("display_count") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _employee_name_from_payload(payload: dict[str, Any] | None) -> str:
     """Display name for warehouse_submissions.employee_name from floor event payload."""
     if not payload:
@@ -677,10 +715,7 @@ def sync_if_packaging_snapshot(
     """If event is PACKAGING_SNAPSHOT, upsert packaged row. Returns bridge result or None."""
     if event_type != WC.EVENT_PACKAGING_SNAPSHOT:
         return None
-    try:
-        dm = int(payload.get("display_count") or 0)
-    except (TypeError, ValueError):
-        dm = 0
+    dm = _display_count_from_packaging_payload(conn, workflow_bag_id, payload)
     try:
         pr = int(payload.get("packs_remaining") or 0)
     except (TypeError, ValueError):

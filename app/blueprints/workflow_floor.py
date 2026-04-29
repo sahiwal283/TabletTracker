@@ -417,6 +417,56 @@ def _event_flow(event_type: str) -> str | None:
     return None
 
 
+def _coerce_nonnegative_int(raw) -> int:
+    try:
+        n = int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, n)
+
+
+def _packaging_displays_per_case(conn: sqlite3.Connection, workflow_bag_id: int) -> int | None:
+    try:
+        row = conn.execute(
+            """
+            SELECT pd.displays_per_case
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (int(workflow_bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row:
+        return None
+    try:
+        dpc = int(dict(row).get("displays_per_case") or 0)
+    except (TypeError, ValueError):
+        return None
+    return dpc if dpc > 0 else None
+
+
+def _normalize_packaging_snapshot_payload(
+    conn: sqlite3.Connection, workflow_bag_id: int, payload: dict
+) -> dict:
+    """Derive display_count from case fields while keeping legacy display_count payloads valid."""
+    out = dict(payload or {})
+    has_case_fields = "case_count" in out or "loose_display_count" in out
+    if not has_case_fields:
+        return out
+    dpc = _packaging_displays_per_case(conn, workflow_bag_id)
+    cases = _coerce_nonnegative_int(out.get("case_count"))
+    loose_displays = _coerce_nonnegative_int(out.get("loose_display_count"))
+    out["case_count"] = cases
+    out["loose_display_count"] = loose_displays
+    if dpc:
+        out["display_count"] = (cases * dpc) + loose_displays
+    else:
+        out["display_count"] = _coerce_nonnegative_int(out.get("display_count"))
+    return out
+
+
 @bp.route("/manual")
 def manual_station():
     """Paste station / card tokens without scanning."""
@@ -572,6 +622,8 @@ def api_append_event():
                 status=400,
             )
         station_id = int(st["id"])
+        if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
+            payload = _normalize_packaging_snapshot_payload(conn, bag_id, payload)
         station_claimed = _station_has_claimed_bag(conn, bag_id, station_id)
         if event_type != WC.EVENT_BAG_CLAIMED and not station_claimed:
             return workflow_json(

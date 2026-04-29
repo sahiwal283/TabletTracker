@@ -172,7 +172,7 @@
     <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
       <div>
         <h2 class="text-base font-semibold text-gray-900">Final product by PO</h2>
-        <p class="text-sm text-gray-600">Packaged submissions only. Shows displays made per flavor/product.</p>
+        <p class="text-sm text-gray-600">Final product submissions. Shows cases made per flavor/product.</p>
       </div>
       <div class="flex items-end gap-2">
         <label for="po-final-output-select" class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Purchase order</label>
@@ -197,14 +197,14 @@
         <thead>
           <tr class="text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
             <th class="px-3 py-2 text-left font-semibold">Flavor / product</th>
-            <th class="px-3 py-2 text-right font-semibold">Displays made</th>
+            <th class="px-3 py-2 text-right font-semibold">Cases made</th>
           </tr>
         </thead>
         <tbody id="po-final-output-rows">
           {% for r in po_out.rows %}
           <tr class="border-b border-gray-100">
             <td class="px-3 py-2 text-gray-800">{{ r.flavor }}</td>
-            <td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">{{ r.displays_made }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">{{ r.cases_made_display }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -213,16 +213,16 @@
             <td class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
               Total{% if po_out.selected_po_number %} · {{ po_out.selected_po_number }}{% endif %}
             </td>
-            <td class="px-3 py-2 text-right tabular-nums font-bold text-gray-900">{{ po_out.total_displays }}</td>
+            <td class="px-3 py-2 text-right tabular-nums font-bold text-gray-900">{{ po_out.total_cases_display }}</td>
           </tr>
         </tfoot>
       </table>
     </div>
     <div id="po-final-output-empty" class="text-sm text-gray-500 {% if po_out.rows %}hidden{% endif %}">
       {% if po_out.po_options %}
-      No packaged final-product displays found for the selected PO.
+      No final-product cases found for the selected PO.
       {% else %}
-      No final-product packaged output has been recorded yet.
+      No final-product output has been recorded yet.
       {% endif %}
     </div>
   </div>
@@ -574,7 +574,7 @@
       rowsWrap.innerHTML = rows.map(function (r) {
         return '<tr class="border-b border-gray-100">' +
           '<td class="px-3 py-2 text-gray-800">' + escapeHtml(r.flavor || 'Unspecified') + '</td>' +
-          '<td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">' + escapeHtml(r.displays_made || 0) + '</td>' +
+          '<td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">' + escapeHtml(r.cases_made_display || 0) + '</td>' +
           '</tr>';
       }).join('');
     }
@@ -586,11 +586,11 @@
         if (tableWrap) tableWrap.classList.add('hidden');
         empty.classList.remove('hidden');
         empty.textContent = (summary.po_options && summary.po_options.length)
-          ? 'No packaged final-product displays found for the selected PO.'
-          : 'No final-product packaged output has been recorded yet.';
+          ? 'No final-product cases found for the selected PO.'
+          : 'No final-product output has been recorded yet.';
       }
     }
-    if (totalCell) totalCell.textContent = String(summary.total_displays || 0);
+    if (totalCell) totalCell.textContent = String(summary.total_cases_display || 0);
     if (totalLabel) {
       var lbl = 'Total';
       if (summary.selected_po_number) lbl += ' · ' + summary.selected_po_number;
