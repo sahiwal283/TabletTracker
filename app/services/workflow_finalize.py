@@ -108,77 +108,6 @@ def _production_flow_for_workflow_bag(conn: sqlite3.Connection, workflow_bag_id:
     return "card"
 
 
-def _source_workflow_bag_ids_for_variety(events: list, workflow_bag_id: int) -> list[int]:
-    """Source bag workflow ids scanned during bottle hand-pack, excluding the finalizing bag."""
-    seen: set[int] = set()
-    out: list[int] = []
-    for e in events:
-        if e["event_type"] != WC.EVENT_BOTTLE_HANDPACK_COMPLETE:
-            continue
-        payload = e.get("payload") if isinstance(e, dict) else {}
-        if not isinstance(payload, dict):
-            continue
-        for raw in payload.get("source_workflow_bag_ids") or []:
-            try:
-                sid = int(raw)
-            except (TypeError, ValueError):
-                continue
-            if sid == int(workflow_bag_id) or sid in seen:
-                continue
-            seen.add(sid)
-            out.append(sid)
-    return out
-
-
-def _release_variety_source_cards(
-    conn: sqlite3.Connection,
-    *,
-    events: list,
-    workflow_bag_id: int,
-    station_id: int | None,
-    user_id: int | None,
-    device_id: str | None,
-) -> None:
-    """Release scanned source bag cards after the variety workflow completes."""
-    for source_wid in _source_workflow_bag_ids_for_variety(events, workflow_bag_id):
-        row = conn.execute(
-            """
-            SELECT id
-            FROM qr_cards
-            WHERE assigned_workflow_bag_id = ?
-              AND status = ?
-            ORDER BY id ASC
-            LIMIT 1
-            """,
-            (source_wid, WC.QR_CARD_STATUS_ASSIGNED),
-        ).fetchone()
-        if not row:
-            continue
-        qr_card_id = int(row["id"])
-        append_workflow_event(
-            conn,
-            WC.EVENT_CARD_FORCE_RELEASED,
-            {
-                "qr_card_id": qr_card_id,
-                "workflow_bag_id": source_wid,
-                "reason": "variety_pack_source_completed",
-                "released_by_workflow_bag_id": int(workflow_bag_id),
-            },
-            source_wid,
-            station_id=station_id,
-            user_id=user_id,
-            device_id=device_id,
-        )
-        conn.execute(
-            """
-            UPDATE qr_cards
-            SET status = ?, assigned_workflow_bag_id = NULL
-            WHERE id = ? AND assigned_workflow_bag_id = ?
-            """,
-            (WC.QR_CARD_STATUS_IDLE, qr_card_id, source_wid),
-        )
-
-
 def _qr_card_id_for_bag_assignment(events: list) -> int | None:
     for e in reversed(events):
         if e["event_type"] == WC.EVENT_CARD_ASSIGNED:
@@ -252,15 +181,6 @@ def try_finalize(
                         """,
                         (WC.QR_CARD_STATUS_IDLE, qr_card_id, workflow_bag_id),
                     )
-                    if production_flow == "bottle":
-                        _release_variety_source_cards(
-                            conn,
-                            events=events,
-                            workflow_bag_id=workflow_bag_id,
-                            station_id=station_id,
-                            user_id=user_id,
-                            device_id=device_id,
-                        )
             except sqlite3.IntegrityError:
                 LOGGER.info(
                     "workflow_finalize idempotent_duplicate IntegrityError bag_id=%s",
@@ -413,6 +333,63 @@ def _normalize_workflow_receipt(raw: str | None) -> str | None:
     return s[:128]
 
 
+def _selected_idle_qr_card_id(conn: sqlite3.Connection, card_scan_token: str | None) -> int | None:
+    tok = (card_scan_token or "").strip()
+    if not tok:
+        return None
+    card = conn.execute(
+        """
+        SELECT id, status, assigned_workflow_bag_id
+        FROM qr_cards
+        WHERE scan_token = ?
+        """,
+        (tok,),
+    ).fetchone()
+    if card is None:
+        raise RuntimeError("card_token_not_found")
+    if card["status"] != WC.QR_CARD_STATUS_IDLE or card["assigned_workflow_bag_id"] is not None:
+        raise RuntimeError("card_not_idle")
+    return int(card["id"])
+
+
+def assign_variety_pack_run_to_card(
+    conn: sqlite3.Connection,
+    *,
+    product_id: int,
+    user_id: int | None,
+    card_scan_token: str,
+    receipt_number_override: str | None = None,
+) -> tuple[int, int]:
+    """Create a dedicated traveling QR workflow for a variety pack run (no source bag claimed)."""
+    prow = conn.execute(
+        """
+        SELECT id, product_name
+        FROM product_details
+        WHERE id = ? AND COALESCE(is_variety_pack, 0) = 1
+        """,
+        (int(product_id),),
+    ).fetchone()
+    if prow is None:
+        raise RuntimeError("invalid_variety_product")
+    selected_qr_card_id = _selected_idle_qr_card_id(conn, card_scan_token)
+    if selected_qr_card_id is None:
+        raise RuntimeError("card_token_required")
+    receipt_number = _normalize_workflow_receipt(receipt_number_override) or str(
+        dict(prow).get("product_name") or f"Variety-{int(product_id)}"
+    )[:128]
+    return create_workflow_bag_with_card(
+        conn,
+        product_id=int(product_id),
+        box_number=None,
+        bag_number=None,
+        receipt_number=receipt_number,
+        user_id=user_id,
+        hand_packed=False,
+        inventory_bag_id=None,
+        qr_card_id=selected_qr_card_id,
+    )
+
+
 def assign_inventory_bag_to_card(
     conn: sqlite3.Connection,
     *,
@@ -470,22 +447,7 @@ def assign_inventory_bag_to_card(
     else:
         receipt_number = (inv.get("receive_name") or "").strip() or None
 
-    selected_qr_card_id: int | None = None
-    tok = (card_scan_token or "").strip()
-    if tok:
-        card = conn.execute(
-            """
-            SELECT id, status, assigned_workflow_bag_id
-            FROM qr_cards
-            WHERE scan_token = ?
-            """,
-            (tok,),
-        ).fetchone()
-        if card is None:
-            raise RuntimeError("card_token_not_found")
-        if card["status"] != WC.QR_CARD_STATUS_IDLE or card["assigned_workflow_bag_id"] is not None:
-            raise RuntimeError("card_not_idle")
-        selected_qr_card_id = int(card["id"])
+    selected_qr_card_id = _selected_idle_qr_card_id(conn, card_scan_token)
 
     return create_workflow_bag_with_card(
         conn,

@@ -33,7 +33,8 @@ def _bootstrap(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS product_details (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             product_name TEXT,
-            is_bottle_product INTEGER DEFAULT 0
+            is_bottle_product INTEGER DEFAULT 0,
+            is_variety_pack INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS qr_cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -215,7 +216,7 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(st, "reject")
         self.assertIn("missing_bottle_handpack", body["details"]["reasons"])
 
-    def test_finalize_bottle_releases_scanned_source_cards(self):
+    def test_finalize_variety_keeps_scanned_source_cards_with_bags(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
 
@@ -273,7 +274,7 @@ class TestWorkflowCore(unittest.TestCase):
         ).fetchall()
         self.assertEqual(
             [(r["status"], r["assigned_workflow_bag_id"]) for r in rows],
-            [("idle", None), ("idle", None)],
+            [("idle", None), ("assigned", source_id)],
         )
         ev = self.conn.execute(
             """
@@ -283,7 +284,40 @@ class TestWorkflowCore(unittest.TestCase):
             """,
             (source_id,),
         ).fetchone()
-        self.assertIsNotNone(ev)
+        self.assertIsNone(ev)
+
+    def test_assign_variety_pack_run_to_card_without_source_bag(self):
+        from app.services.workflow_finalize import assign_variety_pack_run_to_card
+
+        self.conn.execute(
+            """
+            INSERT INTO product_details (id, product_name, is_bottle_product, is_variety_pack)
+            VALUES (704, 'Variety Bottle Run', 0, 1)
+            """
+        )
+        self.conn.commit()
+
+        bag_id, card_id = assign_variety_pack_run_to_card(
+            self.conn,
+            product_id=704,
+            user_id=None,
+            card_scan_token="tok0",
+            receipt_number_override="VAR-RUN-1",
+        )
+        self.conn.commit()
+        wb = self.conn.execute(
+            "SELECT product_id, inventory_bag_id, receipt_number FROM workflow_bags WHERE id = ?",
+            (bag_id,),
+        ).fetchone()
+        card = self.conn.execute(
+            "SELECT status, assigned_workflow_bag_id FROM qr_cards WHERE id = ?",
+            (card_id,),
+        ).fetchone()
+        self.assertEqual(wb["product_id"], 704)
+        self.assertIsNone(wb["inventory_bag_id"])
+        self.assertEqual(wb["receipt_number"], "VAR-RUN-1")
+        self.assertEqual(card["status"], "assigned")
+        self.assertEqual(card["assigned_workflow_bag_id"], bag_id)
 
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event

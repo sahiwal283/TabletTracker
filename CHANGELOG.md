@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.20.0] - 2026-04-29
+
+### Added
+- **QR variety pack workflow:** A dedicated variety QR can now be assigned without claiming a source bag, carry source-bag QR scans through bottle production, and deduct tablets from the associated bags while those bag QR cards remain with their physical bags.
+
+---
+
 ## [4.19.28] - 2026-04-29
 
 ### Fixed

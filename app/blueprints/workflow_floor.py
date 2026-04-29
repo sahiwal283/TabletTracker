@@ -513,14 +513,14 @@ def _normalize_bottle_handpack_sources(
     out = dict(payload or {})
     tokens: list[str] = []
     seen_tokens: set[str] = set()
-    for token in [main_card_token, *_list_from_payload(out.get("source_card_tokens"))]:
+    for token in _list_from_payload(out.get("source_card_tokens")):
         t = str(token or "").strip()
-        if not t or t in seen_tokens:
+        if not t or t == str(main_card_token or "").strip() or t in seen_tokens:
             continue
         seen_tokens.add(t)
         tokens.append(t)
     if not tokens:
-        return out
+        raise ValueError("Scan at least one source bag QR for this variety pack.")
     qmarks = ",".join("?" for _ in tokens)
     rows = conn.execute(
         f"""
@@ -537,14 +537,11 @@ def _normalize_bottle_handpack_sources(
     missing = [t for t in tokens if t not in by_token]
     if missing:
         raise ValueError(f"Source bag QR not assigned: {missing[0]}")
-    product_id = flags.get("product_id")
     qr_card_ids: list[int] = []
     workflow_ids: list[int] = []
     inventory_ids: list[int] = []
     for token in tokens:
         r = by_token[token]
-        if product_id is not None and r.get("product_id") != product_id:
-            raise ValueError("Source bag QR is assigned to a different product.")
         if r.get("inventory_bag_id") is None:
             raise ValueError("Source bag QR is not linked to a receiving bag.")
         qr_card_ids.append(int(r["qr_card_id"]))

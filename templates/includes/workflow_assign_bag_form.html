@@ -32,6 +32,51 @@
   <p class="mt-4 text-sm"><a class="text-blue-600 underline" href="{{ ba.restart_url }}">Start over</a></p>
 </div>
 {% else %}
+{% set variety_products = [] %}
+{% for p in ba.products %}
+  {% if p.get('is_variety_pack') %}
+    {% set _ = variety_products.append(p) %}
+  {% endif %}
+{% endfor %}
+{% if variety_products %}
+<div class="mb-6 rounded-xl border border-cyan-200 bg-cyan-50/60 p-4">
+  <h3 class="text-sm font-semibold text-slate-900 mb-1">Start variety pack QR run</h3>
+  <p class="text-xs text-slate-600 mb-3">Use this for the dedicated variety QR that travels through bottle production. The individual bag QR cards stay with their bags and are scanned at hand pack as source bags.</p>
+  <form method="post" action="{{ url_for('workflow_staff.new_variety_run') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>
+    <div>
+      <label class="block text-xs font-medium mb-1" for="wv_variety_card_scan_token">Variety QR card token</label>
+      <input
+        type="text"
+        id="wv_variety_card_scan_token"
+        name="card_scan_token"
+        class="form-input font-mono text-sm"
+        maxlength="128"
+        autocomplete="off"
+        placeholder="Type or paste the variety QR token"
+      />
+    </div>
+    <div>
+      <label class="block text-xs font-medium mb-1" for="wv_variety_product">Variety product</label>
+      <select id="wv_variety_product" name="product_id" required class="form-input text-sm">
+        <option value="">Select variety product...</option>
+        {% for p in variety_products %}
+        <option value="{{ p['id'] }}">{{ p['product_name'] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium mb-1" for="wv_variety_receipt_number">Run / receipt label</label>
+      <input id="wv_variety_receipt_number" name="receipt_number" maxlength="128" class="form-input text-sm"
+             placeholder="Optional; defaults to variety product name" autocomplete="off"/>
+    </div>
+    <div class="md:col-span-2">
+      <button type="submit" class="btn-primary text-sm py-2 px-4">Assign variety QR run</button>
+    </div>
+  </form>
+</div>
+{% endif %}
 <form method="post" action="{{ url_for('workflow_staff.new_bag') }}" class="space-y-4">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
   <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>

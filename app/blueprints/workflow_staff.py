@@ -15,7 +15,11 @@ from app.services.workflow_assign_form import (
     parse_nonnegative_int,
 )
 from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_for_product
-from app.services.workflow_finalize import assign_inventory_bag_to_card, force_release_card
+from app.services.workflow_finalize import (
+    assign_inventory_bag_to_card,
+    assign_variety_pack_run_to_card,
+    force_release_card,
+)
 from app.services.workflow_read import production_day_for_event_ms
 from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import employee_required
@@ -72,6 +76,56 @@ def _assign_bag_restart_url_from_form():
     if rt == ASSIGN_BAG_RETURN_COMMAND_CENTER:
         return url_for("admin.workflow_qr_management")
     return url_for("workflow_staff.new_bag")
+
+
+@bp.route("/staff/new-variety-run", methods=["POST"])
+@employee_required
+def new_variety_run():
+    """Assign a dedicated traveling QR card to a variety-pack run."""
+    conn = get_db()
+    try:
+        product_id = request.form.get("product_id", type=int)
+        card_scan_token = (request.form.get("card_scan_token") or "").strip()
+        receipt_number = (request.form.get("receipt_number") or "").strip()
+        uid = session.get("employee_id")
+        if session.get("admin_authenticated"):
+            uid = None
+        if not product_id:
+            flash("Variety product is required.", "error")
+            return assign_bag_redirect_after_post()
+        if not card_scan_token:
+            flash("Scan or enter the variety QR card token before assigning.", "error")
+            return assign_bag_redirect_after_post()
+        try:
+            bag_id, card_id = run_with_busy_retry(
+                lambda: assign_variety_pack_run_to_card(
+                    conn,
+                    product_id=product_id,
+                    user_id=uid,
+                    card_scan_token=card_scan_token,
+                    receipt_number_override=receipt_number,
+                ),
+                op_name="assign_variety_pack_run_to_card",
+            )
+            conn.commit()
+            flash(f"Assigned variety pack QR card #{card_id} to workflow bag #{bag_id}.", "success")
+        except RuntimeError as re:
+            err = str(re)
+            if "invalid_variety_product" in err:
+                flash("Choose a product configured as a variety pack.", "error")
+            elif "card_token_not_found" in err:
+                flash(f"Card token '{card_scan_token}' was not found. Scan the variety QR again.", "error")
+            elif "card_not_idle" in err:
+                flash(f"Card token '{card_scan_token}' is already in use. Release/finalize it first.", "error")
+            elif "card_token_required" in err:
+                flash("A dedicated variety QR card token is required.", "error")
+            else:
+                LOGGER.warning("new_variety_run runtime error: %s", err)
+                flash("Could not assign variety pack QR card. Try again.", "error")
+            conn.rollback()
+        return assign_bag_redirect_after_post()
+    finally:
+        conn.close()
 
 
 @bp.route("/staff/new-bag", methods=["GET", "POST"])

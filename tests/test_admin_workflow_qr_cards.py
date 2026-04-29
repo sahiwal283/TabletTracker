@@ -10,6 +10,9 @@ from app.models import database as database_module
 from app.models.migrations import MigrationRunner
 from config import Config
 
+CARD_TOOLS_PATH = "/admin/workflow-qr?tools=cards"
+STATION_TOOLS_PATH = "/admin/workflow-qr?tools=stations"
+
 
 def _admin_client(app):
     c = app.test_client()
@@ -48,7 +51,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
             os.remove(self._db_path)
 
     def test_add_card_auto_token_and_remove(self):
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/add-card",
             data={"csrf_token": csrf, "label": "Admin test card", "scan_token": ""},
@@ -67,7 +70,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         cid = row["id"]
         conn.close()
 
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r2 = self.client.post(
             "/admin/workflow-qr/remove-card",
             data={"csrf_token": csrf, "qr_card_id": cid},
@@ -80,7 +83,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         self.assertEqual(n, 0)
 
     def test_add_card_custom_token(self):
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/add-card",
             data={
@@ -99,7 +102,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         self.assertEqual(tok, "bag-custom-test-99")
 
     def test_add_card_manual_token_without_bag_prefix(self):
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/add-card",
             data={
@@ -118,7 +121,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         self.assertEqual(tok, "test-card-1")
 
     def test_add_card_normalizes_unicode_hyphen_in_token(self):
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/add-card",
             data={
@@ -138,7 +141,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         self.assertEqual(tok, "test-card-uni")
 
     def test_add_card_invalid_scan_token_shows_error_and_skips_insert(self):
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/add-card",
             data={
@@ -176,7 +179,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         conn.commit()
         conn.close()
 
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, CARD_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/remove-card",
             data={"csrf_token": csrf, "qr_card_id": cid},
@@ -192,7 +195,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         conn = sqlite3.connect(self._db_path)
         sid = conn.execute("SELECT id FROM workflow_stations LIMIT 1").fetchone()[0]
         conn.close()
-        csrf = _form_csrf(self.client, "/admin/workflow-qr")
+        csrf = _form_csrf(self.client, STATION_TOOLS_PATH)
         r = self.client.post(
             "/admin/workflow-qr/edit-station-token",
             data={
@@ -211,7 +214,7 @@ class TestAdminWorkflowQrCards(unittest.TestCase):
         self.assertEqual(tok, "seal-renamed-integration-test")
 
     def test_workflow_qr_page_shows_bag_name_column(self):
-        r = self.client.get("/admin/workflow-qr")
+        r = self.client.get(CARD_TOOLS_PATH)
         self.assertEqual(r.status_code, 200)
         html = r.get_data(as_text=True)
         self.assertIn("Bag name", html)

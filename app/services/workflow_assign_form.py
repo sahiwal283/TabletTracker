@@ -20,7 +20,8 @@ def load_workflow_products(conn) -> list[dict[str, Any]]:
         """
         SELECT pd.id, pd.product_name, pd.tablet_type_id,
                COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category,
-               COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
+               COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+               COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
         FROM product_details pd
         LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
         ORDER BY
