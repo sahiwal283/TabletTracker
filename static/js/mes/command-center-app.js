@@ -252,17 +252,17 @@
     var tone = statusTone(status);
     var body;
     if (kind === "blister") {
-      body = html`<g><rect x="12" y="22" width="30" height="43" rx="4" /><circle cx="20" cy="31" r="3" /><circle cx="32" cy="31" r="3" /><circle cx="20" cy="44" r="3" /><circle cx="32" cy="44" r="3" /><circle cx="20" cy="57" r="3" /><circle cx="32" cy="57" r="3" /></g>`;
+      body = html`<g><path d="M24 15l27 8-9 44-27-8z" /><path d="M16 24l27 8" /><circle cx="28" cy="30" r="3" /><circle cx="40" cy="33" r="3" /><circle cx="25" cy="43" r="3" /><circle cx="37" cy="46" r="3" /><circle cx="22" cy="56" r="3" /><circle cx="34" cy="59" r="3" /></g>`;
     } else if (kind === "heat") {
-      body = html`<g><rect x="8" y="26" width="56" height="11" rx="2" /><rect x="4" y="54" width="64" height="11" rx="2" /><path d="M13 37v17M59 37v17M27 42l8 8 8-8" /></g>`;
+      body = html`<g><rect x="12" y="22" width="48" height="12" rx="2" /><rect x="8" y="58" width="56" height="10" rx="2" /><path d="M18 34v24M54 34v24" /><path d="M28 43l8 8 8-8" /><path d="M19 17h34" /></g>`;
     } else if (kind === "sticker") {
-      body = html`<g><path d="M30 18h13v15h-4v38H26V33h-4V18z" /><path d="M18 71h32" /></g>`;
+      body = html`<g><circle cx="28" cy="18" r="7" /><rect x="24" y="30" width="9" height="39" rx="1.5" /><path d="M15 69h31" /><path d="M33 40h14v9H33" /><path d="M18 32h30" /></g>`;
     } else if (kind === "bag") {
       body = html`<g><path d="M20 24h30l6 47H14z" /><path d="M25 24c0-12 20-12 20 0" /></g>`;
     } else if (kind === "pack") {
-      body = html`<g><rect x="14" y="28" width="44" height="34" rx="3" /><path d="M14 39h44M24 28v34M48 28v34" /><path d="M22 22h28" /></g>`;
+      body = html`<g><rect x="14" y="30" width="44" height="34" rx="3" /><path d="M14 41h44M26 30v34M46 30v34" /><path d="M23 24h26" /><path d="M28 30l8-6 10 6" /></g>`;
     } else if (kind === "bottle") {
-      body = html`<g><path d="M25 69h21l4-30h-8V23H29v16h-8z" /><path d="M24 51h24" /></g>`;
+      body = html`<g><path d="M26 72h20l4-31h-8V25H30v16h-8z" /><path d="M25 54h23" /><path d="M30 19h12" /><path d="M21 13h30" /></g>`;
     } else {
       body = html`<g><circle cx="36" cy="36" r="24" /><path d="M36 16v20l14 9" /></g>`;
     }
@@ -277,9 +277,9 @@
     if (type === "clock") return html`<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><path d="M24 12v13l9 7"/></svg>`;
     if (type === "gauge") return html`<svg viewBox="0 0 48 48"><path d="M8 32a16 16 0 0 1 32 0"/><path d="M24 32l9-13"/><path d="M13 32h4M31 32h4"/></svg>`;
     if (type === "target") return html`<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16"/><circle cx="24" cy="24" r="9"/><circle cx="24" cy="24" r="3"/><path d="M36 12l6-6M35 13h7v7"/></svg>`;
-    if (type === "blister") return html`<svg viewBox="0 0 48 48"><rect x="14" y="8" width="20" height="32" rx="3"/><circle cx="21" cy="17" r="2"/><circle cx="28" cy="17" r="2"/><circle cx="21" cy="25" r="2"/><circle cx="28" cy="25" r="2"/><circle cx="21" cy="33" r="2"/><circle cx="28" cy="33" r="2"/></svg>`;
-    if (type === "machine") return html`<svg viewBox="0 0 48 48"><rect x="8" y="15" width="32" height="8" rx="2"/><rect x="5" y="31" width="38" height="8" rx="2"/><path d="M11 23v8M37 23v8M18 25l6 5 6-5"/></svg>`;
-    if (type === "bottle") return html`<svg viewBox="0 0 48 48"><path d="M19 42h14l3-20h-5V10h-9v12h-5z"/><path d="M19 31h14"/></svg>`;
+    if (type === "blister") return html`<svg viewBox="0 0 48 48"><path d="M17 8l20 6-6 29-20-6z"/><circle cx="22" cy="18" r="2"/><circle cx="30" cy="20" r="2"/><circle cx="20" cy="27" r="2"/><circle cx="28" cy="29" r="2"/><circle cx="18" cy="36" r="2"/><circle cx="26" cy="38" r="2"/></svg>`;
+    if (type === "machine") return html`<svg viewBox="0 0 48 48"><rect x="8" y="13" width="32" height="8" rx="2"/><rect x="5" y="34" width="38" height="8" rx="2"/><path d="M12 21v13M36 21v13M18 25l6 6 6-6"/></svg>`;
+    if (type === "bottle") return html`<svg viewBox="0 0 48 48"><path d="M18 42h14l3-20h-5V11h-9v11h-5z"/><path d="M18 31h15"/><path d="M17 7h18"/></svg>`;
     if (type === "users") return html`<svg viewBox="0 0 48 48"><circle cx="19" cy="18" r="6"/><circle cx="32" cy="20" r="5"/><path d="M8 39c2-8 20-8 22 0"/><path d="M27 38c2-5 10-5 13 0"/></svg>`;
     if (type === "settings") return html`<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="5"/><path d="M24 7v6M24 35v6M7 24h6M35 24h6M12 12l4 4M32 32l4 4M36 12l-4 4M16 32l-4 4"/></svg>`;
     if (type === "warn") return html`<svg viewBox="0 0 48 48"><path d="M24 7l19 34H5z"/><path d="M24 18v10M24 35h.01"/></svg>`;
