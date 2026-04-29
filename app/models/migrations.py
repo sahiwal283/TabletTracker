@@ -107,6 +107,9 @@ class MigrationRunner:
         # Add bottles per display - how many bottles in a display/pack
         self._add_column_if_not_exists('product_details', 'bottles_per_display', 'INTEGER')
 
+        # Displays per case — final sell packaging (optional)
+        self._add_column_if_not_exists('product_details', 'displays_per_case', 'INTEGER')
+
         # Add variety pack contents - JSON array of {tablet_type_id, tablets_per_bottle}
         self._add_column_if_not_exists('product_details', 'variety_pack_contents', 'TEXT')
 

@@ -68,7 +68,7 @@
       <option value="{{ p['id'] }}"
               {% if ba.form_product_id and p['id'] == ba.form_product_id %}selected{% endif %}
               data-tablet-type="{{ p['tablet_type_id'] or '' }}"
-              data-category="{{ p['category'] or p['tablet_category'] or 'Other' }}">
+              data-category="{{ p['category'] or 'Other' }}">
         {{ p['product_name'] }}
       </option>
       {% endfor %}

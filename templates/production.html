@@ -424,11 +424,25 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Track if receipt lookup was successful
     let receiptLookupSuccess = false;
     let autoSelectedTabletTypeId = null;
-    
-    if (warehouseForm && productBaseSelect && productCountSelect && countSelection && productNameHidden
-        && receiptInput && receiptStatus && hiddenBoxField && hiddenBagField && fallbackSection && fallbackBoxInput && fallbackBagInput) {
 
-    // Product data from server
+    /** Legacy packaged form DOM — when missing, repack/bottles still need product catalog init */
+    const warehousePackagedReady = !!(
+        warehouseForm &&
+        productBaseSelect &&
+        productCountSelect &&
+        countSelection &&
+        productNameHidden &&
+        receiptInput &&
+        receiptStatus &&
+        hiddenBoxField &&
+        hiddenBagField &&
+        fallbackSection &&
+        fallbackBoxInput &&
+        fallbackBagInput
+    );
+
+    {
+    // Product data from server (always — repack flavor rows need categoryGroups / productGroups)
     const products = [
         {% for product in products %}
         {
@@ -607,6 +621,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
     
+    if (warehousePackagedReady) {
     // Convert product_base dropdown to two-level system
     const originalProductBase = productBaseSelect;
     originalProductBase.style.display = 'none';
@@ -944,7 +959,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             hiddenBagField.value = this.value;
         });
     }
-    
+    } /* warehousePackagedReady */
+
     // Production Submission Form submission
     if (warehouseForm) warehouseForm.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -1056,7 +1072,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             packagedSubmitting = false;
         }
     });
-    }
 
     // Bag Count Form
     const countForm = document.getElementById('count-form');
@@ -2308,6 +2323,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     }
+
+    } /* shared product catalog + production handlers (repack needs categoryGroups in scope) */
 });
 </script>
 {% endblock %}

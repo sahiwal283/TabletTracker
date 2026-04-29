@@ -377,8 +377,12 @@
   }
 
   function DataTable(props) {
+    var emptyText =
+      props.emptyLabel != null && props.emptyLabel !== ""
+        ? props.emptyLabel
+        : "Insufficient data";
     return html`<table className="occ-table"><thead><tr>${props.headers.map(function (h) { return html`<th key=${h}>${h}</th>`; })}</tr></thead>
-      <tbody>${props.rows.length ? props.rows.map(function (r, i) { return html`<tr key=${i}>${r.map(function (c, j) { return html`<td key=${j}>${c}</td>`; })}</tr>`; }) : html`<tr><td colSpan=${props.headers.length}>Insufficient data</td></tr>`}</tbody></table>`;
+      <tbody>${props.rows.length ? props.rows.map(function (r, i) { return html`<tr key=${i}>${r.map(function (c, j) { return html`<td key=${j}>${c}</td>`; })}</tr>`; }) : html`<tr><td colSpan=${props.headers.length}>${emptyText}</td></tr>`}</tbody></table>`;
   }
 
   function TrendPanel(props) {
@@ -677,7 +681,39 @@
     var timeline = (mes.timeline || []).slice(0, 7);
     var staging = derived.stagingBags || [];
     var inventoryRaw = mes.inventory || [];
-    var inventoryPoOptions = mes.inventory_po_options || [];
+    function inventoryRowPo(r) {
+      if (!r) return "";
+      var pn = r.po_number != null ? r.po_number : r.poNumber;
+      return String(pn || "").trim();
+    }
+    function normPoKey(s) {
+      return String(s || "").trim().toLowerCase();
+    }
+    var poOptsMerged = {};
+    var vendorByPo = {};
+    function mergeInventoryPoEntry(entry) {
+      if (entry == null) return;
+      if (typeof entry === "object" && (entry.po_number != null || entry.poNumber != null)) {
+        var pnum = String(entry.po_number != null ? entry.po_number : entry.poNumber).trim();
+        if (!pnum) return;
+        poOptsMerged[pnum] = 1;
+        var v = String((entry.vendor_name != null ? entry.vendor_name : entry.vendorName) || "").trim();
+        if (v && !vendorByPo[pnum]) vendorByPo[pnum] = v;
+        return;
+      }
+      var ks = String(entry || "").trim();
+      if (ks) poOptsMerged[ks] = 1;
+    }
+    (mes.inventory_po_options || []).forEach(mergeInventoryPoEntry);
+    inventoryRaw.forEach(function (r) {
+      var k = inventoryRowPo(r);
+      if (k) {
+        poOptsMerged[k] = 1;
+        var vn = String((r.vendor_name != null ? r.vendor_name : r.vendorName) || "").trim();
+        if (vn && !vendorByPo[k]) vendorByPo[k] = vn;
+      }
+    });
+    var inventoryPoOptionKeys = Object.keys(poOptsMerged).sort().reverse();
     function inventoryRowCells(r) {
       var label = String((r && (r.bag_id != null ? r.bag_id : r.bagId)) || "").trim();
       if (!label) label = "N/A";
@@ -686,10 +722,12 @@
     var inventoryRows = inventoryRaw.slice(0, 6).map(inventoryRowCells);
     var inventoryFiltered = selectedInventoryPo
       ? inventoryRaw.filter(function (r) {
-          return String((r && r.po_number) || "").trim() === selectedInventoryPo;
+          return normPoKey(inventoryRowPo(r)) === normPoKey(selectedInventoryPo);
         })
       : inventoryRaw;
     var inventoryRowsBagsTab = inventoryFiltered.map(inventoryRowCells);
+    var bagsInventoryEmptyLabel =
+      inventoryRowsBagsTab.length || !selectedInventoryPo ? null : "No bags for this purchase order in the loaded list.";
     var invTableHeaders = ["SKU", "SHIP-BOX-BAG", "UNITS", "QUANTITY", "STATUS"];
     var topSkuRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.units), fmtNumber(r.bags), fmtNumber(r.cycles)];
@@ -889,7 +927,11 @@
       if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /><div className="trace-meta" style=${{ marginTop: "10px", gridTemplateColumns: "max-content" }}><a className="mes-link-btn" href=${machineSettingsUrl}>Open Machine Settings</a></div></section><section className="occ-machine-grid three-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="wall-panel"><h3>COMPRESSORS</h3><${DataTable} headers=${["COMPRESSOR", "STATUS", "CONNECTED MACHINE"]} rows=${compressorRows} /></section></div>`;
       if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags")
-        return html`<section className="occ-wall"><section className="wall-panel"><div className="occ-po-bar"><label className="occ-po-label" htmlFor="occ-po-select">Purchase order</label><select id="occ-po-select" className="occ-po-select" value=${selectedInventoryPo} onChange=${function (e) { setSelectedInventoryPo(e.target.value); }}><option value="">All POs</option>${inventoryPoOptions.map(function (p) { return html`<option key=${p} value=${p}>${p}</option>`; })}</select></div><h3>BAGS / INVENTORY</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRowsBagsTab} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
+        return html`<section className="occ-wall"><section className="wall-panel"><div className="occ-po-bar"><label className="occ-po-label" htmlFor="occ-po-select">Purchase order</label><select id="occ-po-select" className="occ-po-select" value=${selectedInventoryPo} onChange=${function (e) { setSelectedInventoryPo(e.target.value); }}><option value="">All POs</option>${inventoryPoOptionKeys.map(function (p) {
+          var vn = vendorByPo[p];
+          var lab = vn ? p + " — " + vn : p;
+          return html`<option key=${p} value=${p}>${lab}</option>`;
+        })}</select></div><h3>BAGS / INVENTORY</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRowsBagsTab} emptyLabel=${bagsInventoryEmptyLabel} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
       if (activeTab === "card" || activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>FLAVORS / SKUS (TODAY)</h3><${DataTable} headers=${["SKU", "LINE", "UNITS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;

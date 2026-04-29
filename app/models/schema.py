@@ -119,6 +119,7 @@ class SchemaManager:
             is_variety_pack BOOLEAN DEFAULT 0,
             tablets_per_bottle INTEGER,
             bottles_per_display INTEGER,
+            displays_per_case INTEGER,
             variety_pack_contents TEXT,
             category TEXT,
             FOREIGN KEY (tablet_type_id) REFERENCES tablet_types (id)

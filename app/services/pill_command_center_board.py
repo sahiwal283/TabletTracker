@@ -351,27 +351,6 @@ def build_pill_command_center_board_payload(
     except sqlite3.OperationalError:
         pass
 
-    inventory_po_options: list[str] = []
-    try:
-        for r in conn.execute(
-            """
-            SELECT DISTINCT trim(po.po_number) AS po
-            FROM workflow_bags wb
-            JOIN bags bg ON bg.id = wb.inventory_bag_id
-            JOIN small_boxes sb ON bg.small_box_id = sb.id
-            JOIN receiving rc ON sb.receiving_id = rc.id
-            JOIN purchase_orders po ON rc.po_id = po.id
-            WHERE trim(COALESCE(po.po_number, '')) != ''
-            ORDER BY po.po_number DESC
-            LIMIT 80
-            """
-        ).fetchall():
-            p = (r["po"] or "").strip()
-            if p and p not in inventory_po_options:
-                inventory_po_options.append(p)
-    except sqlite3.OperationalError:
-        inventory_po_options = []
-
     inventory_rows: list[dict] = []
     try:
         for r in conn.execute(
@@ -382,7 +361,8 @@ def build_pill_command_center_board_payload(
                    COALESCE(rc.shipment_number, 1) AS shipment_number,
                    sb.box_number,
                    bg.bag_number,
-                   trim(COALESCE(po.po_number, '')) AS po_number
+                   trim(COALESCE(po.po_number, '')) AS po_number,
+                   trim(COALESCE(po.vendor_name, '')) AS vendor_name
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             LEFT JOIN bags bg ON bg.id = wb.inventory_bag_id
@@ -390,7 +370,7 @@ def build_pill_command_center_board_payload(
             LEFT JOIN receiving rc ON sb.receiving_id = rc.id
             LEFT JOIN purchase_orders po ON rc.po_id = po.id
             ORDER BY wb.created_at DESC
-            LIMIT 500
+            LIMIT 2500
             """
         ).fetchall():
             wid = int(r["workflow_bag_id"])
@@ -400,12 +380,14 @@ def build_pill_command_center_board_payload(
             receipt = (r["receipt_number"] or "").strip()
             bag_display = phys or (receipt[:40] if receipt else f"WB-{wid}")
             po = (r["po_number"] or "").strip()
+            vn = (r["vendor_name"] or "").strip()
             inventory_rows.append(
                 {
                     "sku": str(r["sku"] or "")[:42],
                     "bag_id": bag_display[:40],
                     "workflow_bag_id": wid,
                     "po_number": po,
+                    "vendor_name": vn[:120],
                     "units": 0,
                     "quantity": 1,
                     "status": "Available",
@@ -431,6 +413,7 @@ def build_pill_command_center_board_payload(
                         "bag_id": ref[:40],
                         "workflow_bag_id": int(r["wid"]),
                         "po_number": "",
+                        "vendor_name": "",
                         "units": 0,
                         "quantity": 1,
                         "status": "Available",
@@ -438,6 +421,21 @@ def build_pill_command_center_board_payload(
                 )
         except sqlite3.OperationalError:
             pass
+
+    _po_vendor: dict[str, str] = {}
+    for _inv in inventory_rows:
+        _pn = (_inv.get("po_number") or "").strip()
+        if not _pn:
+            continue
+        _vn = (_inv.get("vendor_name") or "").strip()
+        if _pn not in _po_vendor:
+            _po_vendor[_pn] = _vn
+        elif _vn and not (_po_vendor[_pn] or "").strip():
+            _po_vendor[_pn] = _vn
+    inventory_po_options: list[dict[str, str]] = [
+        {"po_number": _pk, "vendor_name": _po_vendor[_pk]}
+        for _pk in sorted(_po_vendor.keys(), reverse=True)
+    ]
 
     staging_rows: list[dict] = []
     pipe = (flow_intel or {}).get("pipeline") or []

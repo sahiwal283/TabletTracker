@@ -769,6 +769,11 @@ main.tt-app-main #repack-form textarea.form-input::placeholder {
 
 main.tt-app-main #repack-form .tt-repack-toolbar-btn {
   min-height: 0 !important;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  /* Some mobile/global remaps left label text invisible on secondary surfaces */
+  color: #e2e8f0 !important;
 }
 
 /*

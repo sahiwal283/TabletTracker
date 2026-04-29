@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.17.7] - 2026-04-28
+
+### Fixed
+- **Assign bag vs Product config:** The staff “Assign bag” product picker used **raw** `product_details.category` *or* `tablet_types.category` for the two-level `data-category` label, while Settings lists products under **`COALESCE(TRIM(product category), tablet category)`**. When a product had a **display override** (e.g. “Hyroxi MIT A”) but the tablet type stayed “MIT A”, the bag form showed **“MIT A”** and Settings showed **“Hyroxi MIT A”** — the same six SKUs looked like different worlds. Assign bag now uses the **same coalesced category** as admin.
+- **Product config SQL:** Replaced `pd.*` plus `AS category` with explicit columns plus `category_override` (raw optional override) and coalesced `category`, avoiding ambiguous sqlite duplicate **`category`** columns that could break grouping.
+
+---
+
+## [4.17.6] - 2026-04-28
+
+### Fixed
+- **Production → Repack:** The legacy packaged (warehouse) form was removed from the page, but its product-catalog script still ran only when that form’s DOM nodes existed. As a result the catalog never initialized, **`+ Add flavor` did not receive a click handler**, and the first flavor row could fail to build. Catalog initialization and downstream handlers (bag count, machines, bottles, repack) now share one scope so repack works without the old form.
+
+---
+
+## [4.17.5] - 2026-04-28
+
+### Added
+- **Product configuration:** Optional **Displays/Case** (`displays_per_case`) is wired through **Edit Product** (card and bottle layouts), **Edit variety pack**, and **Add product** submissions so packaging can record retail displays per shipping case consistently with the API and `product_details` column.
+
+---
+
 ## [4.17.3] - 2026-04-28
 
 ### Fixed

@@ -12,6 +12,21 @@ from app.utils.db_utils import db_read_only, db_transaction
 bp = Blueprint('api_tablet_types', __name__)
 
 
+def _optional_displays_per_case(raw) -> int | None:
+    """Positive integer or None (unset). Empty / 0 / invalid → None."""
+    if raw is None:
+        return None
+    if isinstance(raw, str) and not raw.strip():
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if n < 1:
+        return None
+    return n
+
+
 @bp.route('/api/update_tablet_type_inventory', methods=['POST'])
 @admin_required
 def update_tablet_type_inventory():
@@ -105,6 +120,7 @@ def save_product():
 
         is_bottle_product = data.get('is_bottle_product', False)
         is_variety_pack = data.get('is_variety_pack', False)
+        displays_per_case = _optional_displays_per_case(data.get('displays_per_case'))
 
         # Validate based on product type
         if is_variety_pack:
@@ -184,11 +200,13 @@ def save_product():
                     UPDATE product_details
                     SET product_name = ?, tablet_type_id = ?, packages_per_display = ?, tablets_per_package = ?,
                         is_bottle_product = ?, is_variety_pack = ?, tablets_per_bottle = ?,
-                        bottles_per_display = ?, variety_pack_contents = ?, category = ?
+                        bottles_per_display = ?, variety_pack_contents = ?, category = ?,
+                        displays_per_case = ?
                     WHERE id = ?
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
                       is_bottle_product, is_variety_pack, tablets_per_bottle,
-                      bottles_per_display, variety_pack_contents, category, product_id))
+                      bottles_per_display, variety_pack_contents, category,
+                      displays_per_case, product_id))
                 message = f"Updated {product_name}"
                 if is_variety_pack:
                     sync_product_allowed_tablets(
@@ -211,11 +229,12 @@ def save_product():
             else:
                 cur = conn.execute('''
                     INSERT INTO product_details (product_name, tablet_type_id, packages_per_display, tablets_per_package,
-                        is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents, category)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        is_bottle_product, is_variety_pack, tablets_per_bottle, bottles_per_display, variety_pack_contents, category,
+                        displays_per_case)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (product_name, tablet_type_id, packages_per_display, tablets_per_package,
                       is_bottle_product, is_variety_pack, tablets_per_bottle,
-                      bottles_per_display, variety_pack_contents, category))
+                      bottles_per_display, variety_pack_contents, category, displays_per_case))
                 new_id = int(cur.lastrowid)
                 message = f"Created {product_name}"
                 if is_variety_pack:

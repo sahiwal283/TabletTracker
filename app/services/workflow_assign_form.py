@@ -11,17 +11,20 @@ ASSIGN_BAG_RETURN_COMMAND_CENTER = "command_center"
 
 
 def load_workflow_products(conn) -> list[dict[str, Any]]:
-    """Products eligible for QR workflow bag assignment."""
+    """Products eligible for QR workflow bag assignment.
+
+    Category must match product config / admin: ``COALESCE(TRIM(pd.category), tt.category)``.
+    Using raw ``pd.category`` OR ``tt.category`` alone mislabels groups (e.g. ``MIT A`` vs ``Hyroxi MIT A``).
+    """
     rows = conn.execute(
         """
         SELECT pd.id, pd.product_name, pd.tablet_type_id,
-               pd.category,
-               tt.category AS tablet_category
+               COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category
         FROM product_details pd
         LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
         WHERE COALESCE(pd.is_variety_pack, 0) = 0
         AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
-        ORDER BY COALESCE(pd.category, tt.category, 'ZZZ'), pd.product_name
+        ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name
         LIMIT 500
         """
     ).fetchall()

@@ -1365,10 +1365,16 @@ def product_config():
     """Unified product & tablet type configuration page"""
     try:
         with db_transaction() as conn:
-            # Get all products with their tablet type and calculation details
+            # Explicit columns: avoid ``pd.*`` + ``AS category`` duplicate column names (sqlite Row ``category`` could bind to pd.category instead of the coalesced label).
             products = conn.execute('''
-                SELECT pd.*, tt.tablet_type_name, tt.inventory_item_id,
-                       COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) as category,
+                SELECT pd.id, pd.product_name, pd.tablet_type_id,
+                       pd.packages_per_display, pd.tablets_per_package,
+                       pd.is_bottle_product, pd.is_variety_pack,
+                       pd.tablets_per_bottle, pd.bottles_per_display,
+                       pd.displays_per_case, pd.variety_pack_contents,
+                       tt.tablet_type_name, tt.inventory_item_id,
+                       NULLIF(TRIM(pd.category), '') AS category_override,
+                       COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category,
                        (SELECT GROUP_CONCAT(pat.tablet_type_id)
                         FROM product_allowed_tablet_types pat
                         WHERE pat.product_details_id = pd.id) AS allowed_tablet_type_ids_csv
@@ -1422,6 +1428,25 @@ def product_config():
                         category_set.add(c)
             except Exception as e:
                 current_app.logger.warning("Warning: Could not load product_details categories: %s", e)
+
+            # Coalesced labels (product override + tablet type) so accordion sections exist for every grouping key
+            try:
+                eff_rows = conn.execute(
+                    """
+                    SELECT DISTINCT COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS c
+                    FROM product_details pd
+                    LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+                    WHERE COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) IS NOT NULL
+                      AND TRIM(COALESCE(NULLIF(TRIM(pd.category), ''), tt.category)) != ''
+                    """
+                ).fetchall()
+                for row in eff_rows:
+                    c = row["c"] if isinstance(row, dict) else row[0]
+                    if c and c not in category_set:
+                        category_list.append(c)
+                        category_set.add(c)
+            except Exception as e:
+                current_app.logger.warning("Warning: Could not load effective product categories: %s", e)
 
             # Get created categories from app_settings (may not be in use yet)
             try:

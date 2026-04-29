@@ -786,8 +786,8 @@ input {
 }
 
 .occ-po-select {
-  min-width: 200px;
-  max-width: min(420px, 100%);
+  min-width: 280px;
+  max-width: min(520px, 100%);
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid rgba(65, 121, 157, 0.55);
