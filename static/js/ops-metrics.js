@@ -248,9 +248,9 @@
     var bid = asNum(bagId);
     if (bid == null) return { traceLines: [], totals: { message: "Insufficient data" } };
     var bagInfo = bagMap(bags)[String(bid)] || {};
-    var steps = [
+    var blisterSteps = [
       { key: "RECEIVED", label: "Received", match: ["BAG_RECEIVED", "CARD_ASSIGNED"] },
-      { key: "ASSIGNED", label: "Assigned to M1 DPP115", match: ["BAG_CLAIMED"] },
+      { key: "ASSIGNED", label: "Assigned to Blister Line", match: ["BAG_CLAIMED"] },
       { key: "BLISTER_START", label: "Blister Start", match: ["BAG_CLAIMED"] },
       { key: "BLISTER_COMPLETE", label: "Blister Complete", match: ["BLISTER_COMPLETE"] },
       { key: "POST_BLISTER", label: "Post-Blister Staging", match: ["STAGING_POST_BLISTER"] },
@@ -260,27 +260,64 @@
       { key: "PACK_COMPLETE", label: "Packaging Complete", match: ["PACKAGING_SNAPSHOT"] },
       { key: "FINISHED", label: "Finished Goods", match: ["BAG_FINALIZED"] },
     ];
+    var bottleSteps = [
+      { key: "RECEIVED", label: "Received", match: ["BAG_RECEIVED", "CARD_ASSIGNED"] },
+      { key: "ASSIGNED", label: "Assigned to Bottle Line", match: ["BAG_CLAIMED"] },
+      { key: "HANDPACK_START", label: "Hand Pack Start", match: ["BAG_CLAIMED"] },
+      { key: "HANDPACK_COMPLETE", label: "Hand Pack Complete", match: ["BOTTLE_HANDPACK_COMPLETE"] },
+      { key: "POST_HANDPACK", label: "Post-Handpack Staging", match: ["STAGING_POST_HANDPACK"] },
+      { key: "CAP_SEAL_START", label: "Cap Seal Start", match: ["STATION_RESUMED", "BAG_CLAIMED"] },
+      { key: "CAP_SEAL_COMPLETE", label: "Cap Seal Complete", match: ["BOTTLE_CAP_SEAL_COMPLETE"] },
+      { key: "STICKER_START", label: "Stickering Start", match: ["STATION_RESUMED", "BAG_CLAIMED"] },
+      { key: "STICKER_COMPLETE", label: "Stickering Complete", match: ["BOTTLE_STICKER_COMPLETE"] },
+      { key: "PACK_START", label: "Packaging Start", match: ["PACKAGING_START", "BAG_CLAIMED"] },
+      { key: "PACK_COMPLETE", label: "Packaging Complete", match: ["PACKAGING_SNAPSHOT"] },
+      { key: "FINISHED", label: "Finished Goods", match: ["BAG_FINALIZED"] },
+    ];
 
     var bagEvents = (events || []).filter(function (e) { return eventBagId(e) === bid; }).sort(function (a, b) { return (a.atMs || 0) - (b.atMs || 0); });
-    if (!bagEvents.length) return { bagId: bid, sku: bagInfo.sku || "—", receivedQtyDisplay: "—", traceLines: steps.map(function (s) { return { label: s.label, pending: true, statusBadge: "Pending" }; }), totals: { message: "Insufficient data" } };
-
-    var prevAt = null;
-    var lines = steps.map(function (step) {
-      var found = bagEvents.find(function (e) { return step.match.indexOf(String(e.eventType || "").toUpperCase()) >= 0; });
-      if (!found) return { label: step.label, pending: true, statusBadge: "Pending" };
-      var at = asNum(found.atMs);
-      var dwell = prevAt != null && at != null ? (at - prevAt) / 60000 : null;
-      prevAt = at;
+    function buildLines(steps) {
+      var prevAt = null;
+      return steps.map(function (step) {
+        var found = bagEvents.find(function (e) { return step.match.indexOf(String(e.eventType || "").toUpperCase()) >= 0; });
+        if (!found) return { label: step.label, pending: true, statusBadge: "Pending" };
+        var at = asNum(found.atMs);
+        var dwell = prevAt != null && at != null ? (at - prevAt) / 60000 : null;
+        prevAt = at;
+        return {
+          label: step.label,
+          atMs: at,
+          machineLabel: found.stationId != null ? "M" + found.stationId : null,
+          operatorLabel: found.operatorLabel || null,
+          counterReading: found.counterEnd != null ? found.counterEnd : found.countTotal,
+          dwellFromPrevMinutes: dwell,
+          statusBadge: "Done",
+        };
+      });
+    }
+    if (!bagEvents.length) {
+      var emptyBlister = blisterSteps.map(function (s) { return { label: s.label, pending: true, statusBadge: "Pending" }; });
+      var emptyBottle = bottleSteps.map(function (s) { return { label: s.label, pending: true, statusBadge: "Pending" }; });
       return {
-        label: step.label,
-        atMs: at,
-        machineLabel: found.stationId != null ? "M" + found.stationId : null,
-        operatorLabel: found.operatorLabel || null,
-        counterReading: found.counterEnd != null ? found.counterEnd : found.countTotal,
-        dwellFromPrevMinutes: dwell,
-        statusBadge: "Done",
+        bagId: bid,
+        sku: bagInfo.sku || "—",
+        receivedQtyDisplay: "—",
+        traceLines: emptyBlister,
+        traceGroups: [
+          { key: "blister", label: "Blister/Card Line", lines: emptyBlister },
+          { key: "bottle", label: "Bottle Line", lines: emptyBottle },
+        ],
+        totals: { message: "Insufficient data" },
       };
+    }
+
+    var blisterLines = buildLines(blisterSteps);
+    var bottleLines = buildLines(bottleSteps);
+    var hasBottleEvents = bagEvents.some(function (e) {
+      var et = String(e.eventType || "").toUpperCase();
+      return et.indexOf("BOTTLE_") === 0;
     });
+    var lines = hasBottleEvents ? bottleLines : blisterLines;
 
     var first = asNum(bagEvents[0].atMs);
     var last = asNum(bagEvents[bagEvents.length - 1].atMs);
@@ -289,6 +326,10 @@
       sku: bagInfo.sku || "—",
       receivedQtyDisplay: bagInfo.qtyReceived != null ? String(bagInfo.qtyReceived) : "N/A",
       traceLines: lines,
+      traceGroups: [
+        { key: "blister", label: "Blister/Card Line", lines: blisterLines },
+        { key: "bottle", label: "Bottle Line", lines: bottleLines },
+      ],
       totals: {
         elapsedMinutes: first != null && last != null ? (last - first) / 60000 : null,
         dwellMinutes: lines.reduce(function (a, l) { return a + (l.dwellFromPrevMinutes || 0); }, 0),

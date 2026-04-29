@@ -568,9 +568,20 @@
     var parsed = parseInt(String(q || "").trim(), 10);
     var bagId = Number.isFinite(parsed) ? parsed : props.defaultBagId;
     var geo = window.OpsMetrics.deriveBagGenealogy(bagId, props.events, props.bags);
+    var traceGroups = Array.isArray(geo.traceGroups) && geo.traceGroups.length
+      ? geo.traceGroups
+      : [{ key: "default", label: "Live Trace", lines: geo.traceLines || [] }];
     return html`<section className="wall-panel trace-panel"><h3>LIVE BAG GENEALOGY / LOT TRACE</h3>
       <div className="trace-meta"><input aria-label="Trace bag ID" value=${q} placeholder=${String(props.defaultBagId || "Bag ID")} onInput=${function (e) { setQ(e.target.value); }} /><b>Bag ${geo.bagId || "N/A"}</b><span>SKU ${geo.sku || "N/A"}</span><span>Qty ${geo.receivedQtyDisplay || "N/A"}</span></div>
-      <div className="trace-steps">${(geo.traceLines || []).map(function (r, i) { return html`<div key=${i} className=${r.pending ? "pending" : "done"}><span></span><b>${r.label}</b><em>${r.pending ? "Pending" : fmtTime(r.atMs)}</em></div>`; })}</div>
+      <div className="trace-groups">
+        ${traceGroups.map(function (g, gi) {
+          var lines = g.lines || [];
+          return html`<div className="trace-group" key=${g.key || gi}>
+            <p>${g.label || "Line"}</p>
+            <div className="trace-steps">${lines.map(function (r, i) { return html`<div key=${i} className=${r.pending ? "pending" : "done"}><span></span><b>${r.label}</b><em>${r.pending ? "Pending" : fmtTime(r.atMs)}</em></div>`; })}</div>
+          </div>`;
+        })}
+      </div>
     </section>`;
   }
 
