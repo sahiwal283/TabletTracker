@@ -38,6 +38,10 @@ from app.services.workflow_assign_form import (
     load_workflow_products,
     load_workflow_tablet_types,
 )
+from app.services.command_center_metrics_inputs import (
+    ops_packaging_snapshot_reasons_sql_in,
+    sql_packaging_equiv_displays,
+)
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
 from app.utils.auth_utils import admin_required, role_required, session_has_admin_panel_access
@@ -419,15 +423,19 @@ def _ops_tv_daily_target_tablets(conn: sqlite3.Connection) -> int:
 
 
 def _displays_finalize_sum_range(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> float:
+    """Sum packaging displays for final submit + pause snapshots (cases×DPC+loose)."""
+    eq = sql_packaging_equiv_displays()
+    rin = ops_packaging_snapshot_reasons_sql_in()
     try:
         r = conn.execute(
-            """
-            SELECT COALESCE(SUM(CAST(json_extract(payload, '$.display_count') AS REAL)), 0) AS s
-            FROM workflow_events
-            WHERE occurred_at >= ? AND occurred_at < ?
-              AND event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(payload, '$.reason') = 'final_submit'
-              AND json_extract(payload, '$.display_count') IS NOT NULL
+            f"""
+            SELECT COALESCE(SUM({eq}), 0) AS s
+            FROM workflow_events we
+            JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE we.occurred_at >= ? AND we.occurred_at < ?
+              AND we.event_type = 'PACKAGING_SNAPSHOT'
+              AND json_extract(we.payload, '$.reason') IN ({rin})
             """,
             (start_ms, end_ms),
         ).fetchone()
@@ -501,25 +509,29 @@ def _bag_sealed_awaiting_packaging(conn: sqlite3.Connection, bag_id: int) -> boo
 
 
 def _hist_station_totals_7d(conn: sqlite3.Connection, today_start_ms: int) -> dict[int, float]:
-    """Packaging final-submit displays per station over the 7 NY days before today_start_ms."""
+    """Packaging displays per station over the 7 NY days before today_start_ms (final + pause submits)."""
     hist_start = today_start_ms - 7 * 24 * 3600 * 1000
     out: dict[int, float] = defaultdict(float)
     sid_x = _floor_effective_station_id_expr()
+    eq = sql_packaging_equiv_displays()
+    rin = ops_packaging_snapshot_reasons_sql_in()
     try:
         for r in conn.execute(
             f"""
-            SELECT t.sid,
-                   COALESCE(SUM(CAST(json_extract(t.payload, '$.display_count') AS REAL)), 0) AS d
+            SELECT grp.sid AS sid,
+                   COALESCE(SUM(grp.eq_disp), 0) AS d
             FROM (
-              SELECT we.payload AS payload, {sid_x} AS sid
+              SELECT {sid_x} AS sid,
+                     ({eq}) AS eq_disp
               FROM workflow_events we
+              JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+              LEFT JOIN product_details pd ON pd.id = wb.product_id
               WHERE we.occurred_at >= ? AND we.occurred_at < ?
                 AND we.event_type = 'PACKAGING_SNAPSHOT'
-                AND json_extract(we.payload, '$.reason') = 'final_submit'
-                AND json_extract(we.payload, '$.display_count') IS NOT NULL
-            ) AS t
-            WHERE t.sid IS NOT NULL AND t.sid > 0
-            GROUP BY t.sid
+                AND json_extract(we.payload, '$.reason') IN ({rin})
+            ) AS grp
+            WHERE grp.sid IS NOT NULL AND grp.sid > 0
+            GROUP BY grp.sid
             """,
             (hist_start, today_start_ms),
         ).fetchall():
@@ -584,20 +596,25 @@ def _latest_bag_claim_ms(conn: sqlite3.Connection, workflow_bag_id: int, station
 def _session_tablets_since_claim(
     conn: sqlite3.Connection, workflow_bag_id: int, station_id: int, claim_ms: int
 ) -> float:
+    eq = sql_packaging_equiv_displays()
+    rin = ops_packaging_snapshot_reasons_sql_in()
     try:
         r = conn.execute(
-            """
+            f"""
             SELECT COALESCE(SUM(
               CASE
-                WHEN event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE') THEN
-                  COALESCE(CAST(json_extract(payload, '$.count_total') AS REAL), 0)
-                WHEN event_type = 'PACKAGING_SNAPSHOT' THEN
-                  COALESCE(CAST(json_extract(payload, '$.display_count') AS REAL), 0)
+                WHEN we.event_type IN ('BLISTER_COMPLETE', 'SEALING_COMPLETE') THEN
+                  COALESCE(CAST(json_extract(we.payload, '$.count_total') AS REAL), 0)
+                WHEN we.event_type = 'PACKAGING_SNAPSHOT'
+                     AND json_extract(we.payload, '$.reason') IN ({rin}) THEN
+                  ({eq})
                 ELSE 0
               END
             ), 0) AS s
-            FROM workflow_events
-            WHERE workflow_bag_id = ? AND station_id = ? AND occurred_at >= ?
+            FROM workflow_events we
+            LEFT JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE we.workflow_bag_id = ? AND we.station_id = ? AND we.occurred_at >= ?
             """,
             (workflow_bag_id, station_id, claim_ms),
         ).fetchone()
@@ -771,22 +788,26 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
     )
 
     sid_x = _floor_effective_station_id_expr()
+    eq = sql_packaging_equiv_displays()
+    rin = ops_packaging_snapshot_reasons_sql_in()
     per_out: dict[int, float] = {}
     try:
         for r in conn.execute(
             f"""
-            SELECT t.sid,
-                   COALESCE(SUM(CAST(json_extract(t.payload, '$.display_count') AS REAL)), 0) AS d
+            SELECT grp.sid AS sid,
+                   COALESCE(SUM(grp.eq_disp), 0) AS d
             FROM (
-              SELECT we.payload AS payload, {sid_x} AS sid
+              SELECT {sid_x} AS sid,
+                     ({eq}) AS eq_disp
               FROM workflow_events we
+              JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+              LEFT JOIN product_details pd ON pd.id = wb.product_id
               WHERE we.occurred_at >= ? AND we.occurred_at < ?
                 AND we.event_type = 'PACKAGING_SNAPSHOT'
-                AND json_extract(we.payload, '$.reason') = 'final_submit'
-                AND json_extract(we.payload, '$.display_count') IS NOT NULL
-            ) AS t
-            WHERE t.sid IS NOT NULL AND t.sid > 0
-            GROUP BY t.sid
+                AND json_extract(we.payload, '$.reason') IN ({rin})
+            ) AS grp
+            WHERE grp.sid IS NOT NULL AND grp.sid > 0
+            GROUP BY grp.sid
             """,
             (start_ms, end_ms),
         ).fetchall():
@@ -842,19 +863,22 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
     station_hourly_tablets: dict[int, list[float]] = defaultdict(lambda: [0.0] * 24)
     try:
         q = f"""
-            SELECT t.sid,
-                   CAST((t.occurred_at - ?) / 3600000 AS INTEGER) AS hr,
-                   COALESCE(SUM(CAST(json_extract(t.payload, '$.display_count') AS REAL)), 0) AS v
+            SELECT grp.sid AS sid,
+                   CAST((grp.occurred_at - ?) / 3600000 AS INTEGER) AS hr,
+                   COALESCE(SUM(grp.eq_disp), 0) AS v
             FROM (
-              SELECT we.occurred_at AS occurred_at, we.payload AS payload, {sid_x} AS sid
+              SELECT we.occurred_at AS occurred_at,
+                     {sid_x} AS sid,
+                     ({eq}) AS eq_disp
               FROM workflow_events we
+              JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+              LEFT JOIN product_details pd ON pd.id = wb.product_id
               WHERE we.occurred_at >= ? AND we.occurred_at < ?
                 AND we.event_type = 'PACKAGING_SNAPSHOT'
-                AND json_extract(we.payload, '$.reason') = 'final_submit'
-                AND json_extract(we.payload, '$.display_count') IS NOT NULL
-            ) AS t
-            WHERE t.sid IS NOT NULL AND t.sid > 0
-            GROUP BY t.sid, hr
+                AND json_extract(we.payload, '$.reason') IN ({rin})
+            ) AS grp
+            WHERE grp.sid IS NOT NULL AND grp.sid > 0
+            GROUP BY 1, 2
             """
         for r in conn.execute(q, (start_ms, start_ms, end_ms)).fetchall():
             hr = int(r["hr"])
@@ -1123,18 +1147,23 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
 
     flavor_breakdown: list[dict] = []
     try:
+        p_eq = sql_packaging_equiv_displays()
+        p_rin = ops_packaging_snapshot_reasons_sql_in()
         for r in conn.execute(
-            """
-            SELECT COALESCE(NULLIF(TRIM(pd.product_name), ''), 'Unknown') AS pname,
-                   COALESCE(SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)), 0) AS v
-            FROM workflow_events we
-            JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
-            LEFT JOIN product_details pd ON pd.id = wb.product_id
-            WHERE we.occurred_at >= ? AND we.occurred_at < ?
-              AND we.event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(we.payload, '$.reason') = 'final_submit'
-              AND json_extract(we.payload, '$.display_count') IS NOT NULL
-            GROUP BY pname
+            f"""
+            SELECT fb.pname AS pname,
+                   COALESCE(SUM(fb.eq_disp), 0) AS v
+            FROM (
+              SELECT COALESCE(NULLIF(TRIM(pd.product_name), ''), 'Unknown') AS pname,
+                     ({p_eq}) AS eq_disp
+              FROM workflow_events we
+              JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+              LEFT JOIN product_details pd ON pd.id = wb.product_id
+              WHERE we.occurred_at >= ? AND we.occurred_at < ?
+                AND we.event_type = 'PACKAGING_SNAPSHOT'
+                AND json_extract(we.payload, '$.reason') IN ({p_rin})
+            ) AS fb
+            GROUP BY fb.pname
             ORDER BY v DESC
             LIMIT 8
             """,

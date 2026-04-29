@@ -14,6 +14,8 @@ from datetime import timedelta
 from statistics import median
 from zoneinfo import ZoneInfo
 
+from app.services.command_center_metrics_inputs import ops_packaging_snapshot_reasons_sql_in
+
 _LOGGER = logging.getLogger(__name__)
 
 _DT_CH = ZoneInfo("America/New_York")
@@ -144,9 +146,10 @@ def _sum_tablets_blister_sealing(conn: sqlite3.Connection, start_ms: int, end_ms
 
 def _sum_tablets_packaging_final(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> float:
     """Displays finalized × tablets-per-display from linked product_details."""
+    rin = ops_packaging_snapshot_reasons_sql_in()
     try:
         r = conn.execute(
-            """
+            f"""
             SELECT COALESCE(SUM(
               CAST(json_extract(we.payload, '$.display_count') AS REAL) *
               COALESCE(CAST(pd.tablets_per_package AS REAL), 0) *
@@ -157,7 +160,7 @@ def _sum_tablets_packaging_final(conn: sqlite3.Connection, start_ms: int, end_ms
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(we.payload, '$.reason') = 'final_submit'
+              AND json_extract(we.payload, '$.reason') IN ({rin})
               AND json_extract(we.payload, '$.display_count') IS NOT NULL
             """,
             (start_ms, end_ms),
@@ -368,8 +371,9 @@ def build_pill_command_center_board_payload(
     # Align with Command Center final-displays math: case_count × displays_per_case + loose (or legacy display_count).
     sku_rows: list[dict] = []
     try:
+        _pkg_rin = ops_packaging_snapshot_reasons_sql_in()
         for r in conn.execute(
-            """
+            f"""
             SELECT MAX(COALESCE(pd.product_name, 'Unknown')) AS sku,
                    'Packaging' AS line_hint,
                    MAX(COALESCE(pd.displays_per_case, 0)) AS dpc_max,
@@ -399,7 +403,7 @@ def build_pill_command_center_board_payload(
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.event_type = 'PACKAGING_SNAPSHOT'
-              AND json_extract(we.payload, '$.reason') = 'final_submit'
+              AND json_extract(we.payload, '$.reason') IN ({_pkg_rin})
             GROUP BY wb.product_id
             HAVING SUM(
                      CASE

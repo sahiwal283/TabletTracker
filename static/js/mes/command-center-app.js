@@ -185,6 +185,12 @@
     return eventType(e) === "PACKAGING_SNAPSHOT" && String((e && e.reason) || "").toLowerCase() === "final_submit";
   }
 
+  function isOpsPackagingOutputSnapshot(e) {
+    if (eventType(e) !== "PACKAGING_SNAPSHOT") return false;
+    var r = String((e && e.reason) || "").toLowerCase();
+    return r === "final_submit" || r === "paused_end_of_day";
+  }
+
   function eventDisplayCount(e) {
     var n = asNum(e && (e.displayCount != null ? e.displayCount : e.countTotal));
     return n != null && n >= 0 ? n : null;
@@ -929,7 +935,7 @@
     var topSkuCaseRows = (mes.sku_table || []).slice(0, 10).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.cases != null ? r.cases : (r.case_count != null ? r.case_count : 0)), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
-    var finalPackagingEvents = (events || []).filter(isFinalPackagingSnapshot).sort(function (a, b) {
+    var finalPackagingEvents = (events || []).filter(isOpsPackagingOutputSnapshot).sort(function (a, b) {
       return (eventAt(b) || 0) - (eventAt(a) || 0);
     });
     var recentFinalEvent = finalPackagingEvents[0] || null;
@@ -996,7 +1002,7 @@
         if (sid != null && bid != null && at != null) latestStartByStationBag[key] = at;
         return;
       }
-      if (!(t === "BLISTER_COMPLETE" || t === "SEALING_COMPLETE" || isFinalPackagingSnapshot(e) || t === "BAG_FINALIZED")) return;
+      if (!(t === "BLISTER_COMPLETE" || t === "SEALING_COMPLETE" || isOpsPackagingOutputSnapshot(e) || t === "BAG_FINALIZED")) return;
       var m = machines.find(function (row) { return asNum(row.stationId) === sid; }) || {};
       var role = String(m.machineRole || "").toLowerCase();
       var kind = String(m.stationKind || "").toLowerCase();
@@ -1011,7 +1017,7 @@
           var converted = raw * ((role === "blister" || kind === "blister" || role === "sealing" || kind === "sealing") ? factor : 1);
           qty = fmtNumber(converted) + (factor !== 1 ? " (" + fmtNumber(raw) + " × " + factor + ")" : "");
         }
-      } else if (isFinalPackagingSnapshot(e)) {
+      } else if (isOpsPackagingOutputSnapshot(e)) {
         var packTot = finalSubmitTotalDisplays(e);
         var pcl = finalSubmitCasesLooseCells(e);
         qty =

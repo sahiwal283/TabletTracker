@@ -41,6 +41,14 @@
     return t === "PACKAGING_SNAPSHOT" && String((ev && ev.reason) || "").toLowerCase() === "final_submit";
   }
 
+  /** final_submit or operator pause snapshot (carries case/loose counts for Command Center). */
+  function isOpsPackagingOutputSnapshot(ev) {
+    var t = String((ev && ev.eventType) || "").toUpperCase();
+    if (t !== "PACKAGING_SNAPSHOT") return false;
+    var r = String((ev && ev.reason) || "").toLowerCase();
+    return r === "final_submit" || r === "paused_end_of_day";
+  }
+
   function displayCount(ev) {
     var n = asNum(ev && (ev.displayCount != null ? ev.displayCount : ev.countTotal));
     return n != null && n >= 0 ? n : 0;
@@ -397,7 +405,7 @@
       if ((String(e.eventType || "").toUpperCase() === "BAG_FINALIZED" || isFinalPackagingSnapshot(e)) && bid != null) {
         finalizedBagSet[String(bid)] = true;
       }
-      if (isFinalPackagingSnapshot(e)) {
+      if (isOpsPackagingOutputSnapshot(e)) {
         var dc = finalSubmitDisplayTotal(e, bagsById);
         displays += dc;
         if (dc > 0 && bid != null) {
@@ -458,7 +466,7 @@
     return {
       kpis: [
         { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
-        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit: case_count × product displays_per_case + loose displays", sparkline: displays ? [0, displays] : [] },
+        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit or pause: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [] },
         { id: "cycles", value: Object.keys(flavorsWithDisplays).length, displayLabel: "Flavors Produced", formulaNote: "Flavor/display breakdown shown below" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },

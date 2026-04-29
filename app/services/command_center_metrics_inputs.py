@@ -23,6 +23,32 @@ _PAYLOAD_NUM = (
 _START_EVENTS = {"BAG_CLAIMED", "STATION_RESUMED", "PACKAGING_START"}
 _COMPLETE_EVENTS = {"BLISTER_COMPLETE", "SEALING_COMPLETE", "PACKAGING_SNAPSHOT", "BAG_FINALIZED"}
 
+# PACKAGING_SNAPSHOT reasons that carry operator-entered counts for ops TV / station rollups.
+WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS: tuple[str, ...] = ("final_submit", "paused_end_of_day")
+_OPS_PKG_REASONS_LOWER = {r.lower() for r in WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS}
+
+
+def ops_packaging_snapshot_reasons_sql_in() -> str:
+    """Fragment for SQL IN (...): 'final_submit','paused_end_of_day'"""
+    return ", ".join(f"'{r}'" for r in WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS)
+
+
+def sql_packaging_equiv_displays(
+    payload_col: str = "we.payload",
+    dpc_sql: str = "COALESCE(pd.displays_per_case, 0)",
+) -> str:
+    """SQLite expr: total displays from snapshot payload + product (cases×DPC+loose or legacy)."""
+    p = payload_col
+    return (
+        f"CASE WHEN json_extract({p}, '$.case_count') IS NOT NULL OR "
+        f"json_extract({p}, '$.loose_display_count') IS NOT NULL THEN "
+        f"COALESCE(CAST(json_extract({p}, '$.case_count') AS REAL), 0) * CAST(({dpc_sql}) AS REAL) + "
+        f"COALESCE(CAST(json_extract({p}, '$.loose_display_count') AS REAL), "
+        f"CAST(json_extract({p}, '$.display_count') AS REAL), 0) "
+        f"ELSE COALESCE(CAST(json_extract({p}, '$.display_count') AS REAL), "
+        f"CAST(json_extract({p}, '$.count_total') AS REAL), 0) END"
+    )
+
 
 def _payload_from_raw(raw: str | None) -> dict[str, Any]:
     if not raw:
@@ -395,7 +421,7 @@ def gather_output_pace_averages(
     day_start_ms: int,
     now_ms: int,
 ) -> dict[str, float | int | None]:
-    """Final-display pace from real packaging final-submit events."""
+    """Final-display pace from packaging snapshots that carry ops counts (final submit + pause)."""
     window_start = day_start_ms - (7 * 24 * 60 * 60_000)
     window_end = day_start_ms + (24 * 60 * 60_000)
     daily: dict[int, float] = {i: 0.0 for i in range(-7, 1)}
@@ -420,7 +446,7 @@ def gather_output_pace_averages(
     bag_ids_pace: set[int] = set()
     for r in rows:
         payload = _payload_from_raw(r["payload"])
-        if str(payload.get("reason") or "").lower() != "final_submit":
+        if str(payload.get("reason") or "").lower() not in _OPS_PKG_REASONS_LOWER:
             continue
         bid = r["bag_id"]
         try:
@@ -485,7 +511,7 @@ def gather_output_pace_averages(
         except (TypeError, ValueError):
             continue
         payload = _payload_from_raw(r["payload"])
-        if str(payload.get("reason") or "").lower() != "final_submit":
+        if str(payload.get("reason") or "").lower() not in _OPS_PKG_REASONS_LOWER:
             continue
         bid = r["bag_id"]
         try:
