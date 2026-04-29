@@ -379,6 +379,21 @@
 
     var oeeValues = machineMetrics.map(function (m) { return m.oeePct; }).filter(function (v) { return v != null; });
     var oeeAvg = oeeValues.length ? oeeValues.reduce(function (a, b) { return a + b; }, 0) / oeeValues.length : null;
+    var targetTp = asNum(shiftConfig && shiftConfig.targetThroughputPerHour);
+    var elapsedHours = Math.max((win.now - win.dayStart) / 3600000, 1 / 60);
+    var plannedMin = asNum(shiftConfig && shiftConfig.plannedShiftMinutes) || Math.max(1, (win.now - win.dayStart) / 60000);
+    var runtimeMin = machineMetrics.reduce(function (sum, m) { return sum + (asNum(m.runtimeMinutes) || 0); }, 0);
+    var availabilityEstimate = plannedMin > 0
+      ? clamp(((runtimeMin > 0 ? runtimeMin : Math.min(plannedMin, (win.now - win.dayStart) / 60000)) / plannedMin) * 100, 0, 100)
+      : null;
+    var actualDisplayRate = displays / elapsedHours;
+    var performanceEstimate = targetTp && targetTp > 0 ? clamp((actualDisplayRate / targetTp) * 100, 0, 100) : null;
+    var qualityEstimate = hasRejectData && displays > 0 ? clamp(((displays - rejectTotal) / displays) * 100, 0, 100) : (displays > 0 ? 100 : null);
+    var aggregateOee = null;
+    if (availabilityEstimate != null && performanceEstimate != null && qualityEstimate != null) {
+      aggregateOee = clamp((availabilityEstimate / 100) * (performanceEstimate / 100) * (qualityEstimate / 100) * 100, 0, 100);
+    }
+    if (aggregateOee != null) oeeAvg = aggregateOee;
 
     return {
       kpis: [
@@ -397,8 +412,8 @@
       genealogySelectedBagId: Object.keys(bagSet).length ? Number(Object.keys(bagSet).pop()) : null,
       oeeDonut: {
         total: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data",
-        availability: "Insufficient data",
-        performance: shiftConfig && shiftConfig.targetThroughputPerHour ? "Estimated" : "No target set",
+        availability: availabilityEstimate != null ? availabilityEstimate.toFixed(1) + "%" : "Insufficient data",
+        performance: performanceEstimate != null ? performanceEstimate.toFixed(1) + "%" : "No target set",
         quality: hasRejectData && units > 0 ? (100 - clamp((rejectTotal / units) * 100, 0, 100)).toFixed(1) + "%" : "No reject data",
       },
       notes: ["No fake counters", "No fake operators", "Bottle line requires real QR events"],

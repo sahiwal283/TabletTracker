@@ -87,6 +87,10 @@ def manage_ops_tv_dataset():
             'ops_tv_target_units_per_hour',
             'Target units per runtime hour for estimated OEE performance.',
         ),
+        'daily_display_target': (
+            'ops_tv_daily_output_target',
+            'Daily final-display target for the Ops TV output tile.',
+        ),
         'production_due_time': (
             'ops_tv_production_due_time',
             'Local HH:MM due time for on-time completion calculation.',
@@ -107,6 +111,7 @@ def manage_ops_tv_dataset():
 
             data = request.get_json() or {}
             target = str(data.get('target_units_per_hour') or '').strip()
+            daily_display_target = str(data.get('daily_display_target') or '').strip()
             due = str(data.get('production_due_time') or '').strip()
 
             if target:
@@ -117,6 +122,15 @@ def manage_ops_tv_dataset():
                 if target_value <= 0:
                     return jsonify({'success': False, 'error': 'Target units/hour must be greater than zero.'}), 400
                 target = str(target_value).rstrip('0').rstrip('.') if '.' in str(target_value) else str(target_value)
+
+            if daily_display_target:
+                try:
+                    daily_target_value = int(float(daily_display_target))
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'error': 'Daily display target must be a number.'}), 400
+                if daily_target_value <= 0:
+                    return jsonify({'success': False, 'error': 'Daily display target must be greater than zero.'}), 400
+                daily_display_target = str(daily_target_value)
 
             if due:
                 try:
@@ -131,6 +145,7 @@ def manage_ops_tv_dataset():
 
             values = {
                 'target_units_per_hour': target,
+                'daily_display_target': daily_display_target,
                 'production_due_time': due,
             }
             for public_key, value in values.items():

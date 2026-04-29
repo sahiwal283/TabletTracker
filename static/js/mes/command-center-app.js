@@ -106,6 +106,13 @@
     return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   }
 
+  function timeInputValue(ms) {
+    var n = asNum(ms);
+    if (n == null) return "";
+    var d = new Date(n);
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
   function todayIsoDate() {
     var d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -265,10 +272,18 @@
   function miniIcon(type) {
     if (type === "bag") return html`<svg viewBox="0 0 48 48"><path d="M14 18h20l4 24H10z"/><path d="M18 18c0-10 12-10 12 0"/></svg>`;
     if (type === "bars") return html`<svg viewBox="0 0 48 48"><path d="M9 38V25M20 38V18M31 38V12M42 38V6"/></svg>`;
+    if (type === "grid") return html`<svg viewBox="0 0 48 48"><rect x="9" y="9" width="10" height="10" rx="1"/><rect x="29" y="9" width="10" height="10" rx="1"/><rect x="9" y="29" width="10" height="10" rx="1"/><rect x="29" y="29" width="10" height="10" rx="1"/></svg>`;
     if (type === "cycle") return html`<svg viewBox="0 0 48 48"><path d="M36 16a15 15 0 0 0-25 7M12 13v10h10M12 32a15 15 0 0 0 25-7M36 35V25H26"/></svg>`;
     if (type === "clock") return html`<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><path d="M24 12v13l9 7"/></svg>`;
     if (type === "gauge") return html`<svg viewBox="0 0 48 48"><path d="M8 32a16 16 0 0 1 32 0"/><path d="M24 32l9-13"/><path d="M13 32h4M31 32h4"/></svg>`;
     if (type === "target") return html`<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16"/><circle cx="24" cy="24" r="9"/><circle cx="24" cy="24" r="3"/><path d="M36 12l6-6M35 13h7v7"/></svg>`;
+    if (type === "blister") return html`<svg viewBox="0 0 48 48"><rect x="14" y="8" width="20" height="32" rx="3"/><circle cx="21" cy="17" r="2"/><circle cx="28" cy="17" r="2"/><circle cx="21" cy="25" r="2"/><circle cx="28" cy="25" r="2"/><circle cx="21" cy="33" r="2"/><circle cx="28" cy="33" r="2"/></svg>`;
+    if (type === "machine") return html`<svg viewBox="0 0 48 48"><rect x="8" y="15" width="32" height="8" rx="2"/><rect x="5" y="31" width="38" height="8" rx="2"/><path d="M11 23v8M37 23v8M18 25l6 5 6-5"/></svg>`;
+    if (type === "bottle") return html`<svg viewBox="0 0 48 48"><path d="M19 42h14l3-20h-5V10h-9v12h-5z"/><path d="M19 31h14"/></svg>`;
+    if (type === "users") return html`<svg viewBox="0 0 48 48"><circle cx="19" cy="18" r="6"/><circle cx="32" cy="20" r="5"/><path d="M8 39c2-8 20-8 22 0"/><path d="M27 38c2-5 10-5 13 0"/></svg>`;
+    if (type === "settings") return html`<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="5"/><path d="M24 7v6M24 35v6M7 24h6M35 24h6M12 12l4 4M32 32l4 4M36 12l-4 4M16 32l-4 4"/></svg>`;
+    if (type === "warn") return html`<svg viewBox="0 0 48 48"><path d="M24 7l19 34H5z"/><path d="M24 18v10M24 35h.01"/></svg>`;
+    if (type === "pencil") return html`<svg viewBox="0 0 48 48"><path d="M10 36l2 2 9-2 17-17-7-7-17 17z"/><path d="M28 15l7 7"/></svg>`;
     return html`<svg viewBox="0 0 48 48"><path d="M24 7l19 34H5z"/><path d="M24 18v10M24 35h.01"/></svg>`;
   }
 
@@ -277,9 +292,14 @@
   }
 
   function KpiCard(props) {
-    return html`<article className="occ-kpi">
-      <div><span>${props.label}</span><strong className=${props.tone ? "kpi-" + props.tone : ""}>${props.value}</strong><em>${props.note || "Insufficient data"}</em></div>
-      <div className="occ-kpi-icon">${miniIcon(props.icon)}</div>
+    var editing = !!props.editing;
+    return html`<article className=${"occ-kpi" + (editing ? " is-editing" : "")}>
+      ${props.editable ? html`<button className="kpi-edit-btn" type="button" title=${editing ? "Close target editor" : "Edit target"} onClick=${props.onEdit}>${miniIcon("pencil")}</button>` : null}
+      ${editing ? html`<form className="kpi-target-form" onSubmit=${function (e) { e.preventDefault(); props.onSave && props.onSave(e); }}>
+        <label>${props.editLabel || "Target"}<input name="target" type=${props.editType || "number"} min="0" step=${props.editStep || "1"} defaultValue=${props.editValue || ""} /></label>
+        <div><button type="submit">Save</button><button type="button" onClick=${props.onEdit}>Cancel</button></div>
+      </form>` : html`<div><span>${props.label}</span><strong className=${props.tone ? "kpi-" + props.tone : ""}>${props.value}</strong><em>${props.note || "Insufficient data"}</em></div>
+      <div className="occ-kpi-icon">${miniIcon(props.icon)}</div>`}
     </article>`;
   }
 
@@ -320,9 +340,9 @@
   function StepCard(props) {
     return html`<div className=${"step-card" + (props.attention ? " attention" : "")}>
       <b>${props.index}</b>
-      <div><strong>${props.title}</strong><small>${props.sub || "Insufficient data"}</small></div>
+      <div><strong title=${props.title}>${props.title}</strong><small title=${props.sub || "Insufficient data"}>${props.sub || "Insufficient data"}</small></div>
       ${machineIcon(props.icon || "bag", props.status || "NO_ACTIVITY_TODAY")}
-      <p>${props.attention ? "Over historical avg" : (props.detail || "Insufficient data")}</p>
+      <p title=${props.detail || "Insufficient data"}>${props.attention ? "Over historical avg" : (props.detail || "Insufficient data")}</p>
     </div>`;
   }
 
@@ -613,6 +633,12 @@
     });
     var selectedDate = dateState[0];
     var setSelectedDate = dateState[1];
+    var targetEditState = useState(null);
+    var targetEditing = targetEditState[0];
+    var setTargetEditing = targetEditState[1];
+    var saveTickState = useState(0);
+    var saveTick = saveTickState[0];
+    var setSaveTick = saveTickState[1];
 
     useEffect(function () {
       var t = setInterval(function () { setNow(new Date()); }, 1000);
@@ -644,7 +670,7 @@
       load();
       var id = setInterval(load, 5000);
       return function () { clearInterval(id); };
-    }, [props.snapshotUrl, selectedDate]);
+    }, [props.snapshotUrl, selectedDate, saveTick]);
 
     var boot = readBoot();
     var navRaw = Array.isArray(boot.nav) && boot.nav.length ? boot.nav : FALLBACK_NAV_ITEMS;
@@ -713,6 +739,12 @@
       if (receipt) return receipt;
       if (flavor && flavor !== "—") return "BAG-" + bagId + " (" + flavor + ")";
       return "BAG-" + bagId;
+    }
+    function bagShortLabel(bagId) {
+      if (bagId == null || bagId === "") return "N/A";
+      var b = bagById[String(bagId)] || null;
+      var receipt = b ? String(b.receiptNumber || "").trim() : "";
+      return receipt || ("BAG-" + bagId);
     }
     var machines = defs.map(function (d) {
       var liveRow = (inp.machines || []).find(function (r) { return r.id === d.stationId; }) || {};
@@ -900,6 +932,44 @@
     }
     var bottleLineMachines = bottleIntegrated ? rawBottleFlowMachines : rawBottleFlowMachines.map(offlineCopy);
     var oeeTargetNote = inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "configured" ? "Target configured" : (inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "historical" ? "Historical pace estimate" : "No target set");
+    var dailyDisplayTarget = asNum(inp.shiftConfig && inp.shiftConfig.dailyDisplayTarget);
+    var targetThroughput = asNum(inp.shiftConfig && inp.shiftConfig.targetThroughputPerHour);
+    var dueTimeValue = timeInputValue(inp.shiftConfig && inp.shiftConfig.productionDueMs);
+    var finalDisplaysValue = kpiBy.units ? asNum(kpiBy.units.value) : null;
+    var finalDisplayNote = dailyDisplayTarget != null && finalDisplaysValue != null
+      ? fmtNumber(finalDisplaysValue) + " / " + fmtNumber(dailyDisplayTarget) + " target"
+      : "Packaging final submit";
+
+    function toggleTargetEditor(which) {
+      setTargetEditing(targetEditing === which ? null : which);
+    }
+
+    function saveOpsTarget(kind, event) {
+      var form = event && event.currentTarget;
+      var target = form && form.elements && form.elements.target ? form.elements.target.value : "";
+      var payload = {
+        target_units_per_hour: targetThroughput != null ? String(targetThroughput) : "",
+        daily_display_target: dailyDisplayTarget != null ? String(dailyDisplayTarget) : "",
+        production_due_time: dueTimeValue || "",
+      };
+      if (kind === "daily") payload.daily_display_target = target;
+      if (kind === "throughput") payload.target_units_per_hour = target;
+      if (kind === "due") payload.production_due_time = target;
+      fetch("/api/settings/ops_tv_dataset", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": readCsrfToken(),
+        },
+        body: JSON.stringify(payload),
+      }).then(function (r) { return r.json(); }).then(function (out) {
+        if (out && out.success) {
+          setTargetEditing(null);
+          setSaveTick(function (n) { return n + 1; });
+        }
+      }).catch(function () {});
+    }
     var blisterStationId =
       asNum(inp.blisterStationId) ||
       (blisterMachines[0] && asNum(blisterMachines[0].stationId)) ||
@@ -1042,21 +1112,21 @@
         ${activeTab === "overview" ? html`
         <section className="occ-kpis">
           <${KpiCard} label="COMPLETED BAGS (DAY)" value=${kpiBy.bags ? fmtNumber(kpiBy.bags.value) : "0"} note="Bag to final only" icon="bag" />
-          <${KpiCard} label="FINAL DISPLAYS PRODUCED" value=${kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"} note="Packaging final submit" icon="bars" />
+          <${KpiCard} label="FINAL DISPLAYS PRODUCED" value=${kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"} note=${finalDisplayNote} icon="bars" editable=${true} editing=${targetEditing === "daily"} editLabel="Daily display target" editValue=${dailyDisplayTarget != null ? String(dailyDisplayTarget) : ""} editStep="1" onEdit=${function () { toggleTargetEditor("daily"); }} onSave=${function (e) { saveOpsTarget("daily", e); }} />
           <${KpiCard} label="FLAVORS PRODUCED (DAY)" value=${kpiBy.cycles ? fmtNumber(kpiBy.cycles.value) : "0"} note="Displays by flavor below" icon="cycle" />
           <${KpiCard} label="AVERAGE CYCLE TIME (ALL)" value=${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"} note=${kpiBy.avg_cycle && kpiBy.avg_cycle.value !== "Insufficient data" ? "From completed operations" : "Insufficient data"} icon="clock" tone="amber" />
-          <${KpiCard} label="OEE (OVERALL)" value=${kpiBy.oee ? kpiBy.oee.value : "Insufficient data"} note=${oeeTargetNote} icon="gauge" tone="green" />
-          <${KpiCard} label="ON TIME COMPLETION" value=${kpiBy.on_time ? kpiBy.on_time.value : "No target set"} note=${inp.shiftConfig && inp.shiftConfig.productionDueMs ? "Due time configured" : "No target set"} icon="target" tone="red" />
+          <${KpiCard} label="OEE (OVERALL)" value=${kpiBy.oee ? kpiBy.oee.value : "Insufficient data"} note=${oeeTargetNote} icon="gauge" tone="green" editable=${true} editing=${targetEditing === "throughput"} editLabel="Target output/hour" editValue=${targetThroughput != null ? String(targetThroughput) : ""} editStep="0.01" onEdit=${function () { toggleTargetEditor("throughput"); }} onSave=${function (e) { saveOpsTarget("throughput", e); }} />
+          <${KpiCard} label="ON TIME COMPLETION" value=${kpiBy.on_time ? kpiBy.on_time.value : "No target set"} note=${inp.shiftConfig && inp.shiftConfig.productionDueMs ? "Due time configured" : "No target set"} icon="target" tone="red" editable=${true} editing=${targetEditing === "due"} editLabel="Daily due time" editType="time" editValue=${dueTimeValue} onEdit=${function () { toggleTargetEditor("due"); }} onSave=${function (e) { saveOpsTarget("due", e); }} />
           <${KpiCard} label="DAMAGED / RIPPED CARDS" value=${kpiBy.rework ? (typeof kpiBy.rework.value === "number" ? fmtNumber(kpiBy.rework.value) : kpiBy.rework.value) : "No reject data"} note="Packaging cards reopened" icon="warn" tone="red" />
         </section>
         <section className="occ-life-grid">
           <${LifecycleLane} tone="blue" title="BLISTER / CARD FLOW" sku=${blisterSku} steps=${[
             { title: "BAG", sub: "Bag QR scanned", detail: "Received qty N/A", icon: "bag" },
-            { title: "BLISTER", sub: (blisterMachines[0] && blisterMachines[0].shortLabel) || "M1", detail: (blisterMachines[0] && (blisterMachines[0].workflowBagId != null || blisterMachines[0].currentBagId != null)) ? bagDisplayLabel(blisterMachines[0].workflowBagId != null ? blisterMachines[0].workflowBagId : blisterMachines[0].currentBagId) : "Insufficient data", icon: "blister", status: blisterMachines[0] && blisterMachines[0].integrationStatus, attention: overAverage(blisterMachines[0], inp.shiftConfig || {}, now.getTime()) },
+            { title: "BLISTER", sub: (blisterMachines[0] && blisterMachines[0].shortLabel) || "M1", detail: (blisterMachines[0] && (blisterMachines[0].workflowBagId != null || blisterMachines[0].currentBagId != null)) ? bagShortLabel(blisterMachines[0].workflowBagId != null ? blisterMachines[0].workflowBagId : blisterMachines[0].currentBagId) : "Insufficient data", icon: "blister", status: blisterMachines[0] && blisterMachines[0].integrationStatus, attention: overAverage(blisterMachines[0], inp.shiftConfig || {}, now.getTime()) },
             { title: "STAGE", sub: "Auto gap queue", detail: "After blister, before heat seal", icon: "bag" },
             { title: "CARD / HEAT SEAL", sub: heatSealMachines.map(function (m) { return m.shortLabel.replace("MACHINE ", "M"); }).join(" / ") || "Heat seal", detail: "Scan station + bag", icon: "heat", status: heatSealMachines.some(function (m) { return m.integrationStatus === "LIVE_QR"; }) ? "LIVE_QR" : "NO_ACTIVITY_TODAY", attention: heatSealMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
-            { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagDisplayLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
+            { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagShortLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} recentRun=${recentFinalRun} />
           <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
@@ -1067,7 +1137,7 @@
             { title: "STAGE", sub: "Auto gap queue", detail: "After sticker, before seal", icon: "bag" },
             { title: "HEAT SEAL", sub: "Bottle seal", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
-            { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagDisplayLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
+            { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagShortLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
           ]} />
           <${AlertsRail} alerts=${alerts} />

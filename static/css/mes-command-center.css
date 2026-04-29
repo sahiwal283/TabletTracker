@@ -218,6 +218,7 @@ input {
 }
 
 .occ-kpi {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px;
   padding: 12px 14px;
@@ -276,6 +277,74 @@ input {
   stroke-linejoin: round;
 }
 
+.kpi-edit-btn {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(158, 184, 211, 0.34);
+  border-radius: 3px;
+  color: #a9bdd8;
+  background: rgba(3, 16, 29, 0.72);
+  cursor: pointer;
+}
+
+.kpi-edit-btn svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.kpi-target-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  min-width: 0;
+}
+
+.kpi-target-form label {
+  display: grid;
+  gap: 5px;
+  color: #dbeafe;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.kpi-target-form input {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  box-sizing: border-box;
+  border: 1px solid rgba(65, 121, 157, 0.8);
+  border-radius: 3px;
+  background: #04111d;
+  color: #f8fbff;
+  padding: 0 8px;
+}
+
+.kpi-target-form div {
+  display: flex;
+  gap: 6px;
+}
+
+.kpi-target-form button {
+  height: 26px;
+  border: 1px solid rgba(65, 121, 157, 0.72);
+  border-radius: 3px;
+  background: rgba(34, 168, 255, 0.18);
+  color: #f8fbff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .occ-life-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.32fr) minmax(190px, 0.34fr);
@@ -309,7 +378,7 @@ input {
   color: #22a8ff;
   font-weight: 900;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   white-space: normal;
   line-height: 1.12;
 }
@@ -333,7 +402,8 @@ input {
   margin: 0;
   min-width: 0;
   max-width: 48%;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: normal;
   text-align: right;
   line-height: 1.12;
@@ -415,7 +485,9 @@ input {
   font-size: 10px;
   line-height: 1.2;
   font-weight: 900;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   word-break: normal;
   hyphens: none;
 }
@@ -426,8 +498,9 @@ input {
   color: #dae6f5;
   font-size: 8px;
   font-weight: 700;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .step-card .line-icon {
@@ -443,7 +516,9 @@ input {
   font-size: 9px;
   text-align: center;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .life-run-strip {
@@ -1264,7 +1339,7 @@ input {
   }
 }
 
-@media (max-width: 1600px) {
+@media (max-width: 2200px) {
   .occ-life-grid {
     grid-template-columns: minmax(0, 1fr);
   }

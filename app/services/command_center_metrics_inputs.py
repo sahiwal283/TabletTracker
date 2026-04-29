@@ -453,6 +453,7 @@ def build_metrics_inputs_bundle(
     bags = gather_bags_for_trace(conn, bag_ids)
 
     configured_target = _float_setting(conn, "ops_tv_target_units_per_hour")
+    daily_display_target = _float_setting(conn, "ops_tv_daily_output_target")
     bm = configured_target if configured_target is not None else (kpis_benchmark_uh if kpis_benchmark_uh and kpis_benchmark_uh > 0.5 else None)
     target_source = "configured" if configured_target is not None else ("historical" if bm is not None else None)
     planned_min = max(1.0, (now_ms - day_start_ms) / 60000.0)
@@ -463,6 +464,7 @@ def build_metrics_inputs_bundle(
         "plannedShiftMinutes": planned_min,
         "targetThroughputPerHour": bm,
         "targetThroughputSource": target_source,
+        "dailyDisplayTarget": daily_display_target,
         "productionDueMs": _due_time_ms(conn, day_start_ms),
         "stationCycleAvgWindowDays": 7,
         "stationCycleAvgMinutes": gather_station_cycle_averages(conn, day_start_ms - (7 * 24 * 60 * 60_000), day_start_ms),
