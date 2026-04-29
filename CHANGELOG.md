@@ -89,6 +89,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.20.1] - 2026-04-29
+
+### Fixed
+- **Workflow staff → Assign bag to QR card:** Restyled the **Start variety pack QR run** block from a washed-out cyan sheet to a Command Center dark panel (`tt-workflow-variety-run-panel`), corrected heading/body contrast, and tightened field spacing on desktop (`md:gap-4`) so token/product/receipt inputs align cleanly.
+
+---
+
 ## [4.19.0] - 2026-04-29
 
 ### Added

@@ -39,10 +39,10 @@
   {% endif %}
 {% endfor %}
 {% if variety_products %}
-<div class="mb-6 rounded-xl border border-cyan-200 bg-cyan-50/60 p-4">
-  <h3 class="text-sm font-semibold text-slate-900 mb-1">Start variety pack QR run</h3>
-  <p class="text-xs text-slate-600 mb-3">Use this for the dedicated variety QR that travels through bottle production. The individual bag QR cards stay with their bags and are scanned at hand pack as source bags.</p>
-  <form method="post" action="{{ url_for('workflow_staff.new_variety_run') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+<div class="mb-6 rounded-xl p-4 tt-workflow-variety-run-panel">
+  <h3 class="text-sm font-semibold text-slate-100 mb-1">Start variety pack QR run</h3>
+  <p class="text-xs text-slate-300 mb-3">Use this for the dedicated variety QR that travels through bottle production. The individual bag QR cards stay with their bags and are scanned at hand pack as source bags.</p>
+  <form method="post" action="{{ url_for('workflow_staff.new_variety_run') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 items-end">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>
     <div>
