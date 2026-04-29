@@ -2204,14 +2204,15 @@ def workflow_qr_remove_card():
 @admin_required
 def workflow_qr_edit_station_scan_token():
     """Update workflow_stations.station_scan_token (floor URL path)."""
+    stations_url = url_for("admin.workflow_qr_management", tools="stations")
     station_id = request.form.get("station_id", type=int)
     new_scan = (request.form.get("station_scan_token") or "").strip()
     if not station_id:
         flash("station_id is required.", "error")
-        return redirect(url_for("admin.workflow_qr_management"))
+        return redirect(stations_url)
     if not new_scan:
         flash("Scan token is required.", "error")
-        return redirect(url_for("admin.workflow_qr_management"))
+        return redirect(stations_url)
 
     try:
         with db_transaction() as conn:
@@ -2233,26 +2234,26 @@ def workflow_qr_edit_station_scan_token():
                 ).fetchone()
             if not row:
                 flash("Unknown workflow station.", "error")
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
             r = dict(row)
             sk = _normalize_station_kind(r.get("station_kind"))
             if new_scan == r["station_scan_token"]:
                 flash("No change to scan token.", "info")
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
             if not _validate_station_scan_token_for_kind(sk, new_scan):
                 pfx = _station_scan_token_prefix(sk)
                 flash(
                     f"Scan token must start with {pfx} for this station type, and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
                     "error",
                 )
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
             dup = conn.execute(
                 "SELECT id FROM workflow_stations WHERE station_scan_token = ? AND id != ?",
                 (new_scan, station_id),
             ).fetchone()
             if dup:
                 flash("That scan token is already used by another station.", "error")
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
             conn.execute(
                 "UPDATE workflow_stations SET station_scan_token = ? WHERE id = ?",
                 (new_scan, station_id),
@@ -2266,7 +2267,7 @@ def workflow_qr_edit_station_scan_token():
     except Exception as e:
         current_app.logger.error("workflow_qr_edit_station_scan_token: %s", e)
         flash(str(e), "error")
-    return redirect(url_for("admin.workflow_qr_management"))
+    return redirect(stations_url)
 
 
 @bp.route("/admin/workflow-qr/edit-card-token", methods=["POST"])
@@ -2329,6 +2330,7 @@ def workflow_qr_edit_card_scan_token():
 @admin_required
 def workflow_qr_map_station_machine():
     """Link a workflow sealing station to a production machine (machine count form)."""
+    stations_url = url_for("admin.workflow_qr_management", tools="stations")
     station_id = request.form.get("station_id", type=int)
     raw_mid = request.form.get("machine_id")
     machine_id = None
@@ -2336,7 +2338,7 @@ def workflow_qr_map_station_machine():
         machine_id = int(str(raw_mid).strip())
     if not station_id:
         flash("station_id is required.", "error")
-        return redirect(url_for("admin.workflow_qr_management"))
+        return redirect(stations_url)
 
     sk = "sealing"
     try:
@@ -2357,13 +2359,13 @@ def workflow_qr_map_station_machine():
                 ).fetchone()
             if not st:
                 flash("Unknown workflow station.", "error")
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
             if not _machine_allowed_for_station_kind(conn, sk, machine_id):
                 flash(
                     "That machine does not match this station type (sealing vs blister vs packaging).",
                     "error",
                 )
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
             conn.execute(
                 "UPDATE workflow_stations SET machine_id = ? WHERE id = ?",
                 (machine_id, station_id),
@@ -2375,19 +2377,20 @@ def workflow_qr_map_station_machine():
     except Exception as e:
         current_app.logger.error("workflow_qr_map_station_machine: %s", e)
         flash(str(e), "error")
-    return redirect(url_for("admin.workflow_qr_management"))
+    return redirect(stations_url)
 
 
 @bp.route("/admin/workflow-qr/station", methods=["POST"])
 @admin_required
 def workflow_qr_add_station():
     """Create a workflow floor station row (QR URL + optional machine link)."""
+    stations_url = url_for("admin.workflow_qr_management", tools="stations")
     label = (request.form.get("label") or "").strip()
     station_kind = _normalize_station_kind(request.form.get("station_kind"))
     station_code = (request.form.get("station_code") or "").strip() or None
     if station_code and len(station_code) > 64:
         flash("Station code must be 64 characters or less.", "error")
-        return redirect(url_for("admin.workflow_qr_management"))
+        return redirect(stations_url)
     token_in = (request.form.get("station_scan_token") or "").strip()
     raw_mid = request.form.get("machine_id")
     machine_id = None
@@ -2396,7 +2399,7 @@ def workflow_qr_add_station():
 
     if not label:
         flash("Label is required.", "error")
-        return redirect(url_for("admin.workflow_qr_management"))
+        return redirect(stations_url)
 
     if token_in:
         if not _validate_station_scan_token_for_kind(station_kind, token_in):
@@ -2405,7 +2408,7 @@ def workflow_qr_add_station():
                 f"Scan token must start with {pfx} for this station type, and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
                 "error",
             )
-            return redirect(url_for("admin.workflow_qr_management"))
+            return redirect(stations_url)
         scan_token = token_in
     else:
         scan_token = None
@@ -2421,13 +2424,13 @@ def workflow_qr_add_station():
                 ).fetchone()
                 if dup:
                     flash("That scan token is already used by another station.", "error")
-                    return redirect(url_for("admin.workflow_qr_management"))
+                    return redirect(stations_url)
 
             if machine_id is not None and not _machine_allowed_for_station_kind(
                 conn, station_kind, machine_id
             ):
                 flash("Invalid machine for this station type.", "error")
-                return redirect(url_for("admin.workflow_qr_management"))
+                return redirect(stations_url)
 
             try:
                 conn.execute(
@@ -2466,4 +2469,4 @@ def workflow_qr_add_station():
     except Exception as e:
         current_app.logger.error("workflow_qr_add_station: %s", e)
         flash(str(e), "error")
-    return redirect(url_for("admin.workflow_qr_management"))
+    return redirect(stations_url)
