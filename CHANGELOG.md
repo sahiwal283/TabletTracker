@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.22] - 2026-04-29
+
+### Changed
+- **Command Center → Station settings:** Moved the **Add workflow station** panel to the bottom of the station-settings page so existing stations and controls appear first.
+
+---
+
 ## [4.19.21] - 2026-04-29
 
 ### Changed

@@ -288,52 +288,6 @@
       </p>
     </div>
 
-    <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-8 bg-gray-50/80">
-      <h3 class="text-sm font-semibold text-gray-900 mb-3">Add workflow station</h3>
-      <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Station type <span class="text-red-600">*</span></label>
-          <select name="station_kind" class="form-input text-sm max-w-md" required>
-            {% for k in station_kind_options %}
-            <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% elif k == 'bottle_handpack' %}bottle hand pack + QA{% elif k == 'bottle_cap_seal' %}bottle cap sealer{% elif k == 'bottle_stickering' %}bottle stickering{% else %}packaging bench (machine link optional){% endif %}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
-          <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Blister line A, Packaging table 1"/>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
-          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="Floor shorthand"/>
-          <p class="text-xs text-gray-500 mt-1">Not used by APIs; optional sticker shorthand.</p>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
-          <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
-          <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> / <strong>bottle-handpack-</strong> / <strong>bottle-seal-</strong> / <strong>bottle-sticker-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
-          <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above. Packaging may leave blank or link any machine.</p>
-          {% if all_machines %}
-          <select name="machine_id" class="form-input text-sm max-w-lg">
-            <option value="">— Link later —</option>
-            {% for m in all_machines %}
-            <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }}) · {{ m.machine_role }}</option>
-            {% endfor %}
-          </select>
-          {% else %}
-          <p class="text-xs text-amber-700">No machines in the database.</p>
-          {% endif %}
-        </div>
-        <div class="md:col-span-2">
-          <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
-        </div>
-      </form>
-    </div>
-
     {% if edit_station %}
     <div id="station-edit-card" class="card p-5 mb-8 border-2 border-cyan-300/80 shadow-sm">
       <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
@@ -441,6 +395,51 @@
       {% endif %}
     </div>
     {% endfor %}
+    <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-8 bg-gray-50/80">
+      <h3 class="text-sm font-semibold text-gray-900 mb-3">Add workflow station</h3>
+      <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Station type <span class="text-red-600">*</span></label>
+          <select name="station_kind" class="form-input text-sm max-w-md" required>
+            {% for k in station_kind_options %}
+            <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% elif k == 'bottle_handpack' %}bottle hand pack + QA{% elif k == 'bottle_cap_seal' %}bottle cap sealer{% elif k == 'bottle_stickering' %}bottle stickering{% else %}packaging bench (machine link optional){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
+          <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Blister line A, Packaging table 1"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
+          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="Floor shorthand"/>
+          <p class="text-xs text-gray-500 mt-1">Not used by APIs; optional sticker shorthand.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
+          <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
+          <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> / <strong>bottle-handpack-</strong> / <strong>bottle-seal-</strong> / <strong>bottle-sticker-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
+          <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above. Packaging may leave blank or link any machine.</p>
+          {% if all_machines %}
+          <select name="machine_id" class="form-input text-sm max-w-lg">
+            <option value="">— Link later —</option>
+            {% for m in all_machines %}
+            <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }}) · {{ m.machine_role }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <p class="text-xs text-amber-700">No machines in the database.</p>
+          {% endif %}
+        </div>
+        <div class="md:col-span-2">
+          <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
+        </div>
+      </form>
+    </div>
     {% elif tools_view == 'cards' %}
     <div class="card p-5 overflow-x-auto">
       <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
