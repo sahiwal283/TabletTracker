@@ -1695,7 +1695,7 @@ def workflow_qr_management():
                            m.machine_name AS machine_name,
                            COALESCE(ws.station_kind, 'sealing') AS station_kind
                     FROM workflow_stations ws
-                    LEFT JOIN machines m ON m.id = ws.machine_id
+                    LEFT JOIN machines m ON m.id = ws.machine_id AND COALESCE(m.is_active, 1) = 1
                     ORDER BY ws.station_kind, ws.id
                     """
                 ).fetchall()
@@ -1718,7 +1718,7 @@ def workflow_qr_management():
                     """
                     SELECT id, machine_name
                     FROM machines
-                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'sealing'
+                    WHERE is_active = 1 AND machine_role = 'sealing'
                     ORDER BY machine_name
                     """
                 ).fetchall()
@@ -1731,7 +1731,7 @@ def workflow_qr_management():
                     """
                     SELECT id, machine_name
                     FROM machines
-                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'blister'
+                    WHERE is_active = 1 AND machine_role = 'blister'
                     ORDER BY machine_name
                     """
                 ).fetchall()
@@ -1744,7 +1744,7 @@ def workflow_qr_management():
                     """
                     SELECT id, machine_name
                     FROM machines
-                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'bottle'
+                    WHERE is_active = 1 AND machine_role = 'bottle'
                     ORDER BY machine_name
                     """
                 ).fetchall()
@@ -1757,7 +1757,7 @@ def workflow_qr_management():
                     """
                     SELECT id, machine_name
                     FROM machines
-                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'stickering'
+                    WHERE is_active = 1 AND machine_role = 'stickering'
                     ORDER BY machine_name
                     """
                 ).fetchall()
@@ -1770,7 +1770,7 @@ def workflow_qr_management():
                     """
                     SELECT id, machine_name, machine_role
                     FROM machines
-                    WHERE COALESCE(is_active, 1) = 1
+                    WHERE is_active = 1
                     ORDER BY machine_name
                     """
                 ).fetchall()
