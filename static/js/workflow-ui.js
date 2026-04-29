@@ -1013,6 +1013,11 @@
     const empInput = document.getElementById('wf-employee-name');
     const qaLabel = document.getElementById('wf-qa-checked-label');
     const sourcePanel = document.getElementById('wf-source-bags-panel');
+    const sourceHelp = document.getElementById('wf-source-bags-help');
+    const sourceScanBtn = document.getElementById('wf-source-scan');
+    const sourceStopBtn = document.getElementById('wf-source-scan-stop');
+    const sourceClearBtn = document.getElementById('wf-source-clear');
+    const sourceTokensInput = document.getElementById('wf-source-card-tokens');
     const takenBtn = document.getElementById('wf-taken-delivery');
     const takenGateBtn = document.getElementById('wf-gate-taken');
     const takenIntentBtn = document.getElementById('wf-intent-taken');
@@ -1037,6 +1042,10 @@
     if (qaLabel) qaLabel.classList.add('hidden');
     if (qaLabel) qaLabel.classList.remove('flex');
     if (sourcePanel) sourcePanel.classList.add('hidden');
+    if (sourceScanBtn) sourceScanBtn.disabled = false;
+    if (sourceStopBtn) sourceStopBtn.disabled = false;
+    if (sourceClearBtn) sourceClearBtn.disabled = false;
+    if (sourceTokensInput) sourceTokensInput.readOnly = false;
     if (takenBtn) takenBtn.classList.add('hidden');
     if (kind !== 'packaging') {
       if (takenGateBtn) takenGateBtn.classList.add('hidden');
@@ -1120,6 +1129,17 @@
         qaLabel.classList.add('flex');
       }
       if (sourcePanel) sourcePanel.classList.remove('hidden');
+      var sourceReady = hasLoadedBag && stationClaimed && !stationNeedsResume;
+      if (sourceScanBtn) sourceScanBtn.disabled = !sourceReady;
+      if (sourceStopBtn) sourceStopBtn.disabled = !sourceReady;
+      if (sourceClearBtn) sourceClearBtn.disabled = !sourceReady;
+      if (sourceTokensInput) sourceTokensInput.readOnly = !sourceReady;
+      if (sourcePanel) sourcePanel.classList.toggle('opacity-70', !sourceReady);
+      if (sourceHelp) {
+        sourceHelp.innerHTML = sourceReady
+          ? 'Scan each source bag QR one by one, then submit hand-pack count.'
+          : 'Load and claim the active bag first, then scan all source bag QRs here.';
+      }
       if (hint) {
         hint.classList.remove('hidden');
         hint.textContent = occupancyGateIntentEndRun

@@ -131,8 +131,11 @@
     <input id="wf-qa-checked" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
     <span>Second person checked the bottles</span>
   </label>
-  <div id="wf-source-bags-panel" class="hidden mb-3 rounded-xl border border-slate-200 bg-white p-3">
-    <label for="wf-source-card-tokens" class="block text-sm font-medium mb-1">Variety source bag cards</label>
+  <div id="wf-source-bags-panel" class="hidden mb-3 rounded-xl border border-cyan-300/70 bg-cyan-50/50 p-3">
+    <label for="wf-source-card-tokens" class="block text-sm font-semibold mb-1">Variety source bag cards (scan multiple)</label>
+    <p id="wf-source-bags-help" class="text-xs text-slate-600 mb-2">
+      1) Load the active bag above. 2) Tap <strong>Scan source bag QR</strong>. 3) Scan each source bag one by one. 4) Submit hand-pack count.
+    </p>
     <div class="flex flex-wrap gap-3 mb-2">
       <button type="button" id="wf-source-scan" class="btn-secondary px-4 py-3 text-base">Scan source bag QR</button>
       <button type="button" id="wf-source-scan-stop" class="btn-secondary px-4 py-3 text-base hidden">Stop scan</button>
