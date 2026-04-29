@@ -488,6 +488,7 @@
     deriveBottleneck: deriveBottleneck,
     deriveStagingBags: deriveStagingBags,
     getMachineIntegrationStatus: getMachineIntegrationStatus,
+    finalSubmitDisplayTotal: finalSubmitDisplayTotal,
   };
   window.MesMetrics = window.OpsMetrics;
 })();
