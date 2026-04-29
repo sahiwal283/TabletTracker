@@ -36,9 +36,21 @@
     return total != null && total >= 0 ? total : 0;
   }
 
+  function isFinalPackagingSnapshot(ev) {
+    var t = String((ev && ev.eventType) || "").toUpperCase();
+    return t === "PACKAGING_SNAPSHOT" && String((ev && ev.reason) || "").toLowerCase() === "final_submit";
+  }
+
+  function displayCount(ev) {
+    var n = asNum(ev && (ev.displayCount != null ? ev.displayCount : ev.countTotal));
+    return n != null && n >= 0 ? n : 0;
+  }
+
   function rejectUnits(ev) {
     var t = String((ev && ev.eventType) || "").toUpperCase();
     var looksReject = t.indexOf("REJECT") >= 0 || t.indexOf("REWORK") >= 0 || t === "CARD_FORCE_RELEASED";
+    var reopened = asNum(ev && ev.cardsReopened);
+    if (reopened != null && reopened >= 0 && t === "PACKAGING_SNAPSHOT") return reopened;
     if (!looksReject) return null;
     var explicit = asNum(ev && (ev.rejectUnits != null ? ev.rejectUnits : ev.reworkUnits));
     if (explicit != null && explicit >= 0) return explicit;
@@ -294,6 +306,7 @@
     }
     var win = todayWindow(shiftConfig);
     var todays = (events || []).filter(function (e) { return asNum(e.atMs) != null && asNum(e.atMs) >= win.dayStart; });
+    var bagsById = bagMap(bags);
     var machineById = {};
     (machines || []).forEach(function (m) {
       if (m && m.id != null) machineById[String(m.id)] = m;
@@ -310,14 +323,28 @@
     }
     var bagSet = {};
     var units = 0;
+    var displays = 0;
+    var flavorsWithDisplays = {};
     var cycles = [];
     var rejectTotal = 0;
     var hasRejectData = false;
     var completeTotal = 0;
     var onTimeTotal = 0;
+    var finalizedBagSet = {};
     todays.forEach(function (e) {
       var bid = eventBagId(e);
       if (bid != null) bagSet[String(bid)] = true;
+      if ((String(e.eventType || "").toUpperCase() === "BAG_FINALIZED" || isFinalPackagingSnapshot(e)) && bid != null) {
+        finalizedBagSet[String(bid)] = true;
+      }
+      if (isFinalPackagingSnapshot(e)) {
+        var dc = displayCount(e);
+        displays += dc;
+        if (dc > 0 && bid != null) {
+          var bi = bagsById[String(bid)] || {};
+          flavorsWithDisplays[String(bi.sku || bi.productLabel || bid)] = true;
+        }
+      }
       if (isCompletedEvent(e)) {
         units += completedUnitsForEvent(e);
         completeTotal += 1;
@@ -355,13 +382,13 @@
 
     return {
       kpis: [
-        { id: "bags", value: Object.keys(bagSet).length, displayLabel: "Bags Today", sparkline: Object.keys(bagSet).length ? [0, Object.keys(bagSet).length] : [] },
-        { id: "units", value: units, displayLabel: "Units Today", sparkline: units ? [0, units] : [] },
-        { id: "cycles", value: q.length, displayLabel: "Active Bags / WIP", formulaNote: "Unique active staged bags" },
+        { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
+        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit display_count", sparkline: displays ? [0, displays] : [] },
+        { id: "cycles", value: Object.keys(flavorsWithDisplays).length, displayLabel: "Flavors Produced", formulaNote: "Flavor/display breakdown shown below" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
         { id: "on_time", value: shiftConfig && shiftConfig.productionDueMs ? (completeTotal ? clamp((onTimeTotal / completeTotal) * 100, 0, 100).toFixed(1) + "%" : "Insufficient data") : "No target set", displayLabel: "On-Time Completion" },
-        { id: "rework", value: hasRejectData && units > 0 ? clamp((rejectTotal / units) * 100, 0, 100).toFixed(2) + "%" : "No reject data", displayLabel: "Reject Rate" },
+        { id: "rework", value: hasRejectData ? rejectTotal : "No reject data", displayLabel: "Packaging Damages" },
       ],
       machines: machineMetrics,
       queues: q,

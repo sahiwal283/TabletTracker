@@ -238,7 +238,8 @@ def build_pill_command_center_board_payload(
     station_hourly_pkg: dict[int, list[float]],
     station_hourly_tbl: dict[int, list[float]],
 ) -> dict:
-    y_start, y_end = _ny_yesterday_bounds_ms()
+    y_start = int(ny_start_ms - 24 * 3600000)
+    y_end = int(ny_start_ms)
 
     bags_t = _count_finalize_events(conn, ny_start_ms, ny_end_ms)
     bags_y = _count_finalize_events(conn, y_start, y_end)
@@ -362,11 +363,7 @@ def build_pill_command_center_board_payload(
             """
             SELECT COALESCE(pd.product_name, 'Unknown') AS sku,
                    'Packaging' AS line_hint,
-                   COALESCE(SUM(
-                     CAST(json_extract(we.payload, '$.display_count') AS REAL) *
-                     COALESCE(CAST(pd.tablets_per_package AS REAL), 0) *
-                     COALESCE(CAST(pd.packages_per_display AS REAL), 1)
-                   ), 0) AS units,
+                   COALESCE(SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)), 0) AS displays,
                    COUNT(DISTINCT we.workflow_bag_id) AS bags_ct
             FROM workflow_events we
             JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
@@ -374,17 +371,10 @@ def build_pill_command_center_board_payload(
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.event_type = 'PACKAGING_SNAPSHOT'
               AND json_extract(we.payload, '$.reason') = 'final_submit'
+              AND json_extract(we.payload, '$.display_count') IS NOT NULL
             GROUP BY wb.product_id
-            HAVING SUM(
-                     CAST(json_extract(we.payload, '$.display_count') AS REAL) *
-                     COALESCE(CAST(pd.tablets_per_package AS REAL), 0) *
-                     COALESCE(CAST(pd.packages_per_display AS REAL), 1)
-                   ) > 0
-            ORDER BY SUM(
-                     CAST(json_extract(we.payload, '$.display_count') AS REAL) *
-                     COALESCE(CAST(pd.tablets_per_package AS REAL), 0) *
-                     COALESCE(CAST(pd.packages_per_display AS REAL), 1)
-                   ) DESC
+            HAVING SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)) > 0
+            ORDER BY SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)) DESC
             LIMIT 10
             """,
             (ny_start_ms, ny_end_ms),
@@ -393,7 +383,7 @@ def build_pill_command_center_board_payload(
                 {
                     "sku": str(r["sku"] or "")[:42],
                     "line": str(r["line_hint"] or "Packaging")[:24],
-                    "units": int(float(r["units"] or 0)),
+                    "displays": int(float(r["displays"] or 0)),
                     "bags": int(r["bags_ct"] or 0),
                     "cycles": int(r["bags_ct"] or 0),
                 }

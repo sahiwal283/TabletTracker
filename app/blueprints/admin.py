@@ -10,7 +10,7 @@ import statistics
 import traceback
 import unicodedata
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import time as epoch_time
 
 from config import Config
@@ -115,14 +115,22 @@ def _paused_run_elapsed_label(occ: dict) -> str | None:
     return _format_elapsed_hms_from_delta_ms(delta)
 
 
-def _ny_today_bounds_ms() -> tuple[int, int, str]:
+def _ny_today_bounds_ms(date_iso: str | None = None) -> tuple[int, int, str]:
     """Factory-local day bounds in America/New_York for workflow floor stats."""
-    from datetime import datetime, timedelta
+    from datetime import date as date_cls
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo("America/New_York")
-    now = datetime.now(tz)
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if date_iso:
+        try:
+            picked = date_cls.fromisoformat(str(date_iso)[:10])
+            start = datetime(picked.year, picked.month, picked.day, tzinfo=tz)
+        except (TypeError, ValueError):
+            now = datetime.now(tz)
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        now = datetime.now(tz)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end = start + timedelta(days=1)
     return (
         int(start.timestamp() * 1000),
@@ -603,10 +611,15 @@ def _ops_smart_alerts(
     return out
 
 
-def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
+def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None) -> dict:
     """JSON payload for the TV operations dashboard (no HTML tables; data only)."""
-    start_ms, end_ms, date_label = _ny_today_bounds_ms()
+    start_ms, end_ms, date_label = _ny_today_bounds_ms(date_iso)
     now_ms = int(epoch_time() * 1000)
+    stats_now_ms = now_ms
+    if now_ms >= end_ms:
+        stats_now_ms = end_ms - 60_000
+    elif now_ms < start_ms:
+        stats_now_ms = start_ms
 
     stations: list[dict] = []
     try:
@@ -850,7 +863,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
     else:
         avg_cycle = None
 
-    cur_h = int((now_ms - start_ms) // 3600000)
+    cur_h = int((stats_now_ms - start_ms) // 3600000)
     cur_h = min(23, max(0, cur_h))
 
     occupied = idle = paused = 0
@@ -958,7 +971,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
 
     hist_disp = _hist_station_totals_7d(conn, start_ms)
     hist_tbl = _hist_tablets_by_station_7d(conn, start_ms)
-    hours_into_day = max(0.25, (now_ms - start_ms) / 3600000.0)
+    hours_into_day = max(0.25, (stats_now_ms - start_ms) / 3600000.0)
     hours_7d = 7.0 * 24.0
     for m in machines:
         sid = int(m["id"])
@@ -980,9 +993,9 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             claim_ms = _latest_bag_claim_ms(conn, int(live_bid), sid)
             if claim_ms is not None:
                 session_out_val = _session_tablets_since_claim(conn, int(live_bid), sid, claim_ms)
-                elapsed_h = max(1.0 / 60.0, (now_ms - claim_ms) / 3600000.0)
+                elapsed_h = max(1.0 / 60.0, (stats_now_ms - claim_ms) / 3600000.0)
                 session_uh = round(float(session_out_val) / elapsed_h, 1)
-                cycle_session_min = round((now_ms - claim_ms) / 60000.0, 1)
+                cycle_session_min = round((stats_now_ms - claim_ms) / 60000.0, 1)
 
         has_running_session = session_uh is not None and st_vis == "running"
         compare_uh = session_uh if has_running_session else today_uh
@@ -1017,7 +1030,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
 
     flow_intel: dict = {}
     try:
-        flow_intel = compute_production_flow_intel(conn, now_ms, stations, station_live)
+        flow_intel = compute_production_flow_intel(conn, stats_now_ms, stations, station_live)
     except Exception:
         flow_intel = {}
 
@@ -1055,11 +1068,11 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         sid = int(st["id"])
         live = station_live.get(sid) or {}
         if live.get("status") == "paused" and live.get("occupancy_started_at"):
-            el = now_ms - int(live["occupancy_started_at"])
+            el = stats_now_ms - int(live["occupancy_started_at"])
             if el > 30 * 60 * 1000:
                 lbl = str(st.get("label") or f"Station {sid}")
                 _push_act(
-                    now_ms,
+                    stats_now_ms,
                     f"{lbl}: paused {int(el // 60000)} min — check floor",
                     "alert",
                 )
@@ -1109,7 +1122,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
         "avg_cycle_time_min": avg_cycle,
     }
     targets_out = {"benchmark_displays_pace_per_hour": round(pace_per_hour, 2)}
-    smart_acts = _ops_smart_alerts(now_ms, kpis_out, targets_out, machines, flow_intel)
+    smart_acts = _ops_smart_alerts(stats_now_ms, kpis_out, targets_out, machines, flow_intel)
     activity = smart_acts + activity
     activity.sort(
         key=lambda x: (
@@ -1123,7 +1136,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
     try:
         pill_board = build_pill_command_center_board_payload(
             conn,
-            now_ms,
+            stats_now_ms,
             start_ms,
             end_ms,
             date_label,
@@ -1153,7 +1166,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection) -> dict:
             cumulative_hourly,
             activity,
             pill_board,
-            now_ms,
+            stats_now_ms,
             start_ms,
             stations,
             benchmark_uh_hint=targets_out.get("benchmark_displays_pace_per_hour"),
@@ -1866,7 +1879,7 @@ def _render_ops_tv_dashboard_page():
     initial_snapshot: dict = {}
     try:
         with db_read_only() as conn:
-            initial_snapshot = build_ops_tv_snapshot(conn)
+            initial_snapshot = build_ops_tv_snapshot(conn, request.args.get("date"))
     except Exception:
         current_app.logger.exception("ops_tv_dashboard bootstrap snapshot")
 
@@ -1930,7 +1943,7 @@ def pill_packing_command_center():
 def ops_tv_snapshot_api():
     try:
         with db_read_only() as conn:
-            payload = build_ops_tv_snapshot(conn)
+            payload = build_ops_tv_snapshot(conn, request.args.get("date"))
         r = jsonify(payload)
         r.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         r.headers["Pragma"] = "no-cache"

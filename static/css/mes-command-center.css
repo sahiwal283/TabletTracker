@@ -172,7 +172,8 @@ input {
   font-weight: 700;
 }
 
-.occ-head-controls button {
+.occ-head-controls button,
+.occ-head-controls input[type="date"] {
   min-width: 96px;
   height: 32px;
   border: 1px solid rgba(158, 184, 211, 0.45);
@@ -180,6 +181,13 @@ input {
   background: #061624;
   color: #f4f8ff;
   font-size: 12px;
+  box-sizing: border-box;
+  padding: 0 10px;
+}
+
+.occ-head-controls input[type="date"] {
+  min-width: 140px;
+  color-scheme: dark;
 }
 
 .occ-head-controls i {
@@ -338,9 +346,9 @@ input {
 
 .step-row {
   display: grid;
-  grid-template-columns: repeat(var(--step-count, 4), minmax(82px, 1fr));
+  grid-template-columns: repeat(var(--step-count, 4), minmax(126px, 1fr));
   gap: 8px;
-  min-width: 0;
+  min-width: max-content;
 }
 
 .life-lane.blue .step-row {
@@ -552,6 +560,10 @@ input {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
 }
 
+.occ-machine-grid.three-bands {
+  grid-template-columns: minmax(0, 1.18fr) minmax(260px, 0.78fr) minmax(0, 0.9fr);
+}
+
 .occ-machine-grid.station-grid {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -587,6 +599,10 @@ input {
 }
 
 .machine-band.green .machine-band-row {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.occ-machine-grid.three-bands .machine-band-row {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 

@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.16.11** (Ops TV shared packaging station and 7-day station averages)
+Current: **v4.17.11** (Ops TV final-output KPIs and date picker)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

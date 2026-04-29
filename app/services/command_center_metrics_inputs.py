@@ -15,22 +15,26 @@ _PAYLOAD_NUM = (
     "display_count",
     "counter_start",
     "counter_end",
+    "cards_reopened",
 )
 
 _START_EVENTS = {"BAG_CLAIMED", "STATION_RESUMED", "PACKAGING_START"}
 _COMPLETE_EVENTS = {"BLISTER_COMPLETE", "SEALING_COMPLETE", "PACKAGING_SNAPSHOT", "BAG_FINALIZED"}
 
 
-def _float_from_payload(raw: str | None) -> dict[str, float | None]:
-    out: dict[str, float | None] = {k: None for k in _PAYLOAD_NUM}
+def _payload_from_raw(raw: str | None) -> dict[str, Any]:
     if not raw:
-        return out
+        return {}
     try:
         p = json.loads(raw) if isinstance(raw, str) else dict(raw) if isinstance(raw, dict) else {}
     except json.JSONDecodeError:
-        return out
-    if not isinstance(p, dict):
-        return out
+        return {}
+    return p if isinstance(p, dict) else {}
+
+
+def _float_from_payload(raw: str | None) -> dict[str, float | None]:
+    out: dict[str, float | None] = {k: None for k in _PAYLOAD_NUM}
+    p = _payload_from_raw(raw)
     for k in _PAYLOAD_NUM:
         v = p.get(k)
         try:
@@ -187,6 +191,7 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
         for r in q.fetchall():
             raw_payload = dict(r)["payload"]
             nums = _float_from_payload(str(raw_payload) if raw_payload not in (None, "") else None)
+            payload_obj = _payload_from_raw(str(raw_payload) if raw_payload not in (None, "") else None)
             row = dict(r)
             sid = row.get("sid")
             bid = row.get("bag_id")
@@ -202,6 +207,8 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                     "displayCount": nums["display_count"],
                     "counterStart": nums["counter_start"],
                     "counterEnd": nums["counter_end"],
+                    "cardsReopened": nums["cards_reopened"],
+                    "reason": str(payload_obj.get("reason") or ""),
                 }
             )
     except sqlite3.OperationalError:
@@ -417,6 +424,9 @@ def build_metrics_inputs_bundle(
             "tabletsToday": tablets_today,
             "displaysToday": displays_today,
             "manualEntrySignal": False,
+            "rateHistUh": m.get("rate_hist_uh"),
+            "rateTodayUh": m.get("rate_today_uh"),
+            "rateSessionUh": m.get("rate_session_uh"),
         }
 
     mrows = [_ms_row(m) for m in machines]

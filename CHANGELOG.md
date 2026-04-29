@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.17.11] - 2026-04-28
+
+### Changed
+- **Ops TV day controls:** added a dashboard date picker and scoped snapshot metrics to the selected factory day.
+- **Ops TV final-output KPIs:** completed bags now count bags that reached final packaging/finalization, final displays come from packaging final-submit display counts, and packaging damages come from cards reopened/ripped at packaging.
+- **Ops TV production view:** displays-by-flavor now reports final displays per flavor, machine throughput can fall back to real 7-day historical units/hour, packaging sits between blister/card and bottle machine bands, and lifecycle cards use readable fixed-width steps.
+
+---
+
 ## [4.17.9] - 2026-04-28
 
 ### Fixed
