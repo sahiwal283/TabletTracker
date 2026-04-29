@@ -403,20 +403,20 @@
     var rows = (props.rows || []).slice(0, 8).map(function (r) {
       return {
         flavor: r.sku || r.flavor || "N/A",
-        displays: asNum(r.displays != null ? r.displays : r.units),
+        cases: asNum(r.cases != null ? r.cases : (r.case_count != null ? r.case_count : r.displays)),
         bags: asNum(r.bags),
       };
     }).filter(function (r) {
-      return r.displays != null && r.displays > 0;
+      return r.cases != null && r.cases > 0;
     });
-    var max = rows.reduce(function (m, r) { return Math.max(m, r.displays || 0); }, 0);
-    return html`<section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3>
+    var max = rows.reduce(function (m, r) { return Math.max(m, r.cases || 0); }, 0);
+    return html`<section className="wall-panel"><h3>CASES BY FLAVOR (DAY)</h3>
       ${rows.length ? html`<div className="flavor-bar-list">${rows.map(function (r) {
-        var pct = max > 0 ? Math.max(4, Math.round((r.displays / max) * 100)) : 0;
+        var pct = max > 0 ? Math.max(4, Math.round((r.cases / max) * 100)) : 0;
         return html`<div className="flavor-bar-row" key=${r.flavor}>
           <div><strong title=${r.flavor}>${r.flavor}</strong><span>${r.bags != null ? fmtNumber(r.bags) + " bags" : "Bags N/A"}</span></div>
           <div className="flavor-bar-track"><i style=${{ width: pct + "%" }}></i></div>
-          <b>${fmtNumber(r.displays)}</b>
+          <b>${fmtNumber(r.cases)}</b>
         </div>`;
       })}</div>` : html`<div className="panel-empty">Insufficient data</div>`}
     </section>`;
@@ -896,6 +896,9 @@
     var topSkuRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.displays != null ? r.displays : r.units), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
+    var topSkuCaseRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
+      return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.cases != null ? r.cases : (r.case_count != null ? r.case_count : 0)), fmtNumber(r.bags), fmtNumber(r.cycles)];
+    });
     var finalPackagingEvents = (events || []).filter(isFinalPackagingSnapshot).sort(function (a, b) {
       return (eventAt(b) || 0) - (eventAt(a) || 0);
     });
@@ -1281,7 +1284,7 @@
           <section className="wall-panel"><h3>BAG INVENTORY (IN STOCK)</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRows} /></section>
           <${TrendPanel} trend=${mes.trend || {}} />
           <${FlavorBarPanel} rows=${mes.sku_table || []} />
-          <section className="wall-panel"><h3>FLAVOR OUTPUT DETAIL (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section>
+          <section className="wall-panel"><h3>FLAVOR OUTPUT DETAIL (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "CASES", "BAGS", "CYCLES"]} rows=${topSkuCaseRows} /></section>
           <section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section>
         </section>
         <section className="occ-wall wall-row-b">

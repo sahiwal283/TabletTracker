@@ -363,7 +363,7 @@ def build_pill_command_center_board_payload(
             """
             SELECT COALESCE(pd.product_name, 'Unknown') AS sku,
                    'Packaging' AS line_hint,
-                   COALESCE(SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)), 0) AS displays,
+                   COALESCE(SUM(CAST(json_extract(we.payload, '$.case_count') AS REAL)), 0) AS cases_made,
                    COUNT(DISTINCT we.workflow_bag_id) AS bags_ct
             FROM workflow_events we
             JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
@@ -371,10 +371,10 @@ def build_pill_command_center_board_payload(
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.event_type = 'PACKAGING_SNAPSHOT'
               AND json_extract(we.payload, '$.reason') = 'final_submit'
-              AND json_extract(we.payload, '$.display_count') IS NOT NULL
+              AND json_extract(we.payload, '$.case_count') IS NOT NULL
             GROUP BY wb.product_id
-            HAVING SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)) > 0
-            ORDER BY SUM(CAST(json_extract(we.payload, '$.display_count') AS REAL)) DESC
+            HAVING SUM(CAST(json_extract(we.payload, '$.case_count') AS REAL)) > 0
+            ORDER BY SUM(CAST(json_extract(we.payload, '$.case_count') AS REAL)) DESC
             LIMIT 10
             """,
             (ny_start_ms, ny_end_ms),
@@ -383,7 +383,7 @@ def build_pill_command_center_board_payload(
                 {
                     "sku": str(r["sku"] or "")[:42],
                     "line": str(r["line_hint"] or "Packaging")[:24],
-                    "displays": int(float(r["displays"] or 0)),
+                    "cases": int(float(r["cases_made"] or 0)),
                     "bags": int(r["bags_ct"] or 0),
                     "cycles": int(r["bags_ct"] or 0),
                 }
