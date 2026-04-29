@@ -2000,6 +2000,7 @@ def _render_ops_tv_dashboard_page():
             {"label": "Blister Line", "tab": "blister", "icon": "▭"},
             {"label": "Card Line", "tab": "card", "icon": "▭"},
             {"label": "Bottle Line", "tab": "bottle", "icon": "▭"},
+            {"label": "Packaging", "tab": "packaging", "icon": "▭"},
             {"label": "Machines", "tab": "machines", "icon": "⚙"},
             {"label": "Bags / Inventory", "tab": "bags", "icon": "▣"},
             {"label": "Staging", "tab": "staging", "icon": "▤"},
