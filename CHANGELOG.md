@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Product & Tablet Configuration:** “Add new tablet” uses a responsive flex layout with wider `min-w` columns, shorter placeholders + `title` hints, and compact primary button height. Extra vertical spacing between blocks and taller accordion/table rows (`py-5`). Replaced light gradient strips on tablet-type accordions, **Category management** trigger, and Products tab accordions with Command Center dark surfaces and readable `text-slate-*` copy; count badges use cyan/emerald/violet rings aligned with primary actions.
+- **Admin → All Products:** Card and bottle SKUs could land in **different accordions** for the same marketing line: bottles often had a **product category override** (e.g. ``Hyroxi MIT A``) while cards inherited only **tablet type category** (e.g. ``MIT A``). The list groups by exact string match, so only bottles appeared under Hyroxi MIT A. Products now get a **canonical section category**: when the coalesced label and tablet-type category disagree but both look like the **MIT/Hyroxi** family, the **more specific (longer) name** is used so card and bottle rows list together. ``category_override`` / edit behavior is unchanged.
 
 ---
 

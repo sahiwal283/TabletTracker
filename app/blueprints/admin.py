@@ -1352,6 +1352,31 @@ def tablet_types_config():
     return redirect(url_for('admin.product_config'))
 
 
+def _canonical_product_section_category(
+    coalesced_effective: str | None, tablet_type_category: str | None
+) -> str | None:
+    """Single accordion bucket for admin All Products.
+
+    Card SKUs often have no ``product_details.category`` override and inherit a short
+    ``tablet_types.category`` (e.g. ``MIT A``). Bottle SKUs may set override
+    ``Hyroxi MIT A``. Plain COALESCE keeps those strings different, so card and bottle
+    lines split across accordions. When both labels look like the same MIT/Hyroxi
+    product family, prefer the more specific (longer) name so all types show together.
+    """
+    eff = (coalesced_effective or "").strip() or None
+    tt_c = (tablet_type_category or "").strip() or None
+    if not eff and not tt_c:
+        return None
+    if not eff:
+        return tt_c
+    if not tt_c:
+        return eff
+    if eff == tt_c:
+        return eff
+    combined = eff + tt_c
+    if re.search(r"MIT|Hyroxi", combined, re.I):
+        return max((eff, tt_c), key=len)
+    return eff
 
 
 @bp.route('/admin/settings/machines')
@@ -1359,6 +1384,8 @@ def tablet_types_config():
 def machine_settings_page():
     """Dedicated machine settings page (moved out of product config tabs)."""
     return render_template('machine_settings.html')
+
+
 @bp.route('/admin/config')
 @admin_required
 def product_config():
@@ -1366,13 +1393,14 @@ def product_config():
     try:
         with db_transaction() as conn:
             # Explicit columns: avoid ``pd.*`` + ``AS category`` duplicate column names (sqlite Row ``category`` could bind to pd.category instead of the coalesced label).
-            products = conn.execute('''
+            product_rows = conn.execute('''
                 SELECT pd.id, pd.product_name, pd.tablet_type_id,
                        pd.packages_per_display, pd.tablets_per_package,
                        pd.is_bottle_product, pd.is_variety_pack,
                        pd.tablets_per_bottle, pd.bottles_per_display,
                        pd.displays_per_case, pd.variety_pack_contents,
                        tt.tablet_type_name, tt.inventory_item_id,
+                       tt.category AS tablet_type_category,
                        NULLIF(TRIM(pd.category), '') AS category_override,
                        COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category,
                        (SELECT GROUP_CONCAT(pat.tablet_type_id)
@@ -1382,6 +1410,18 @@ def product_config():
                 LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name
             ''').fetchall()
+
+            products = []
+            canonical_category_labels = set()
+            for row in product_rows:
+                d = dict(row)
+                tt_cat = d.pop("tablet_type_category", None)
+                coalesced = d.get("category")
+                canon = _canonical_product_section_category(coalesced, tt_cat)
+                d["category"] = canon
+                if canon:
+                    canonical_category_labels.add(canon)
+                products.append(d)
 
             # Check if category column exists and add it if missing
             table_info = conn.execute("PRAGMA table_info(tablet_types)").fetchall()
@@ -1447,6 +1487,11 @@ def product_config():
                         category_set.add(c)
             except Exception as e:
                 current_app.logger.warning("Warning: Could not load effective product categories: %s", e)
+
+            for c in canonical_category_labels:
+                if c and c not in category_set:
+                    category_list.append(c)
+                    category_set.add(c)
 
             # Get created categories from app_settings (may not be in use yet)
             try:

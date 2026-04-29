@@ -44,6 +44,56 @@ def _physical_bag_label_short(
     return f"{sh}-{bx}-{bg}"
 
 
+def _inventory_po_options_like_receives(conn: sqlite3.Connection) -> list[dict[str, str]]:
+    """Open POs that have at least one physical bag (matches Receives / Active POs intent).
+
+    Independent of ``workflow_bags.inventory_bag_id`` — the prior dropdown-only-from-workflow
+    merge hid POs whenever workflow rows lacked a resolved ``po_number``.
+    """
+    vendor_expr = "trim(COALESCE(po.vendor_name, ''))"
+    try:
+        cols = [
+            str(r["name"])
+            for r in conn.execute("PRAGMA table_info(purchase_orders)").fetchall()
+        ]
+        if "vendor_name" not in cols:
+            vendor_expr = "''"
+    except sqlite3.OperationalError:
+        vendor_expr = "''"
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT DISTINCT trim(COALESCE(po.po_number, '')) AS po_number,
+                   {vendor_expr} AS vendor_name
+            FROM purchase_orders po
+            WHERE COALESCE(po.closed, 0) = 0
+              AND trim(COALESCE(po.internal_status, '')) != 'Cancelled'
+              AND trim(COALESCE(po.po_number, '')) != ''
+              AND EXISTS (
+                SELECT 1
+                FROM receiving r
+                JOIN small_boxes sb ON sb.receiving_id = r.id
+                JOIN bags bg ON bg.small_box_id = sb.id
+                WHERE r.po_id = po.id
+              )
+            ORDER BY po.po_number DESC
+            LIMIT 400
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for r in rows:
+        pn = (r["po_number"] or "").strip()
+        if not pn or pn in seen:
+            continue
+        seen.add(pn)
+        vn = (r["vendor_name"] or "").strip() if r["vendor_name"] is not None else ""
+        out.append({"po_number": pn, "vendor_name": vn[:120]})
+    return out
+
+
 def _count_finalize_events(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> int:
     try:
         r = conn.execute(
@@ -432,9 +482,22 @@ def build_pill_command_center_board_payload(
             _po_vendor[_pn] = _vn
         elif _vn and not (_po_vendor[_pn] or "").strip():
             _po_vendor[_pn] = _vn
+
+    merged_po_vendor: dict[str, str] = {}
+    for item in _inventory_po_options_like_receives(conn):
+        pn = (item.get("po_number") or "").strip()
+        if not pn:
+            continue
+        merged_po_vendor[pn] = (item.get("vendor_name") or "").strip()
+    for _pn, _vn in _po_vendor.items():
+        if _pn not in merged_po_vendor:
+            merged_po_vendor[_pn] = _vn
+        elif _vn and not (merged_po_vendor[_pn] or "").strip():
+            merged_po_vendor[_pn] = _vn
+
     inventory_po_options: list[dict[str, str]] = [
-        {"po_number": _pk, "vendor_name": _po_vendor[_pk]}
-        for _pk in sorted(_po_vendor.keys(), reverse=True)
+        {"po_number": _pk, "vendor_name": merged_po_vendor[_pk]}
+        for _pk in sorted(merged_po_vendor.keys(), reverse=True)
     ]
 
     staging_rows: list[dict] = []
