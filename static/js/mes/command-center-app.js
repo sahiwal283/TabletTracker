@@ -147,6 +147,20 @@
     return asNum(e && (e.stationId != null ? e.stationId : e.machineId));
   }
 
+  function isFinalPackagingSnapshot(e) {
+    return eventType(e) === "PACKAGING_SNAPSHOT" && String((e && e.reason) || "").toLowerCase() === "final_submit";
+  }
+
+  function eventDisplayCount(e) {
+    var n = asNum(e && (e.displayCount != null ? e.displayCount : e.countTotal));
+    return n != null && n >= 0 ? n : null;
+  }
+
+  function eventDamagedCards(e) {
+    var n = asNum(e && (e.cardsReopened != null ? e.cardsReopened : e.cards_reopened));
+    return n != null && n >= 0 ? n : null;
+  }
+
   function statusText(status) {
     if (status === "LIVE_QR") return "RUNNING";
     if (status === "LIVE_PAUSED") return "PAUSED";
@@ -318,7 +332,43 @@
       <div className="step-row">${props.steps.map(function (s, i) {
         return html`<${StepCard} key=${i} index=${i + 1} title=${s.title} sub=${s.sub} detail=${s.detail} icon=${s.icon} status=${s.status} attention=${s.attention} />`;
       })}</div>
+      ${props.recentRun ? html`<${RecentRunStrip} run=${props.recentRun} />` : null}
       <footer><span></span><strong>FULL PRODUCTION CYCLE COMPLETE</strong><i>✓</i></footer>
+    </section>`;
+  }
+
+  function RecentRunStrip(props) {
+    var r = props.run || {};
+    return html`<div className="life-run-strip">
+      <b>MOST RECENT FINAL RUN</b>
+      <span><em>Bag</em>${r.bag || "N/A"}</span>
+      <span><em>Flavor</em>${r.sku || "N/A"}</span>
+      <span><em>Displays</em>${r.displays != null ? fmtNumber(r.displays) : "Insufficient data"}</span>
+      <span><em>Damaged</em>${r.damaged != null ? fmtNumber(r.damaged) : "No reject data"}</span>
+      <span><em>Completed</em>${r.at ? fmtTime(r.at) : "N/A"}</span>
+    </div>`;
+  }
+
+  function FlavorBarPanel(props) {
+    var rows = (props.rows || []).slice(0, 8).map(function (r) {
+      return {
+        flavor: r.sku || r.flavor || "N/A",
+        displays: asNum(r.displays != null ? r.displays : r.units),
+        bags: asNum(r.bags),
+      };
+    }).filter(function (r) {
+      return r.displays != null && r.displays > 0;
+    });
+    var max = rows.reduce(function (m, r) { return Math.max(m, r.displays || 0); }, 0);
+    return html`<section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3>
+      ${rows.length ? html`<div className="flavor-bar-list">${rows.map(function (r) {
+        var pct = max > 0 ? Math.max(4, Math.round((r.displays / max) * 100)) : 0;
+        return html`<div className="flavor-bar-row" key=${r.flavor}>
+          <div><strong title=${r.flavor}>${r.flavor}</strong><span>${r.bags != null ? fmtNumber(r.bags) + " bags" : "Bags N/A"}</span></div>
+          <div className="flavor-bar-track"><i style=${{ width: pct + "%" }}></i></div>
+          <b>${fmtNumber(r.displays)}</b>
+        </div>`;
+      })}</div>` : html`<div className="panel-empty">Insufficient data</div>`}
     </section>`;
   }
 
@@ -757,6 +807,20 @@
     var topSkuRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.displays != null ? r.displays : r.units), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
+    var recentFinalEvent = (events || []).filter(isFinalPackagingSnapshot).sort(function (a, b) {
+      return (eventAt(b) || 0) - (eventAt(a) || 0);
+    })[0] || null;
+    var recentFinalRun = null;
+    if (recentFinalEvent) {
+      var recentBag = eventBagId(recentFinalEvent);
+      recentFinalRun = {
+        bag: recentBag != null ? bagDisplayLabel(recentBag) : "N/A",
+        sku: recentBag != null ? skuForBag(recentBag) : (recentFinalEvent.sku || recentFinalEvent.productLabel || "N/A"),
+        displays: eventDisplayCount(recentFinalEvent),
+        damaged: eventDamagedCards(recentFinalEvent),
+        at: eventAt(recentFinalEvent),
+      };
+    }
     function stagingContext(row) {
       var et = String((row && row.lastEventType) || "").toUpperCase();
       var sid = asNum(row && row.lastStationId);
@@ -994,7 +1058,7 @@
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
             { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagDisplayLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
-          ]} />
+          ]} recentRun=${recentFinalRun} />
           <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
             { title: "BAG", sub: "Bag QR scanned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: "NOT_INTEGRATED" },
             { title: "BOTTLE", sub: "Bottle station", detail: bottleIntegrated ? "Scan station + bag" : "Not integrated", icon: "bottle", status: bottleIntegrated ? "LIVE_QR" : "NOT_INTEGRATED" },
@@ -1016,8 +1080,8 @@
         <section className="occ-wall wall-row-a">
           <section className="wall-panel"><h3>BAG INVENTORY (IN STOCK)</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRows} /></section>
           <${TrendPanel} trend=${mes.trend || {}} />
-          <section className="wall-panel"><h3>CYCLE TIME ANALYSIS (AVG)</h3><div className="panel-empty">${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"}</div></section>
-          <section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section>
+          <${FlavorBarPanel} rows=${mes.sku_table || []} />
+          <section className="wall-panel"><h3>FLAVOR OUTPUT DETAIL (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section>
           <section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section>
         </section>
         <section className="occ-wall wall-row-b">

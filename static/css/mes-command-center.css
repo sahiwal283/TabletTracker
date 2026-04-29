@@ -287,8 +287,7 @@ input {
 .life-lane {
   padding: 12px 14px;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .life-lane.dimmed {
@@ -346,9 +345,9 @@ input {
 
 .step-row {
   display: grid;
-  grid-template-columns: repeat(var(--step-count, 4), minmax(126px, 1fr));
-  gap: 8px;
-  min-width: max-content;
+  grid-template-columns: repeat(var(--step-count, 4), minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
 }
 
 .life-lane.blue .step-row {
@@ -366,8 +365,8 @@ input {
 .step-card {
   position: relative;
   min-width: 0;
-  min-height: 142px;
-  padding: 9px 7px 10px;
+  min-height: 132px;
+  padding: 8px 7px 9px;
   border: 1px solid rgba(65, 121, 157, 0.7);
   border-radius: 3px;
   background: rgba(8, 27, 43, 0.74);
@@ -425,26 +424,111 @@ input {
   display: block;
   margin-top: 2px;
   color: #dae6f5;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
 .step-card .line-icon {
-  width: 31px;
-  height: 37px;
-  margin: 8px 0 0 2px;
+  width: 28px;
+  height: 34px;
+  margin: 7px 0 0 2px;
 }
 
 .step-card p {
   position: static;
-  margin: 6px 0 0 42px;
+  margin: 5px 0 0 0;
   color: #c8d8eb;
   font-size: 9px;
-  text-align: left;
+  text-align: center;
   line-height: 1.15;
   overflow-wrap: anywhere;
+}
+
+.life-run-strip {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.1fr) repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid rgba(34, 168, 255, 0.28);
+  border-radius: 4px;
+  background: rgba(4, 18, 32, 0.68);
+  min-width: 0;
+}
+
+.life-run-strip b,
+.life-run-strip span {
+  min-width: 0;
+  color: #eef6ff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+}
+
+.life-run-strip em {
+  display: block;
+  color: #8da8c6;
+  font-size: 8px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.flavor-bar-list {
+  display: grid;
+  gap: 9px;
+}
+
+.flavor-bar-row {
+  display: grid;
+  grid-template-columns: minmax(94px, 0.9fr) minmax(90px, 1.4fr) max-content;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.flavor-bar-row strong,
+.flavor-bar-row span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flavor-bar-row strong {
+  color: #f5f9ff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.flavor-bar-row span {
+  color: #8fa8c5;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.flavor-bar-row b {
+  color: #f5f9ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.flavor-bar-track {
+  height: 10px;
+  border: 1px solid rgba(34, 168, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(3, 13, 24, 0.82);
+  overflow: hidden;
+}
+
+.flavor-bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22a8ff, #62d84f);
 }
 
 .life-lane footer {
@@ -1177,5 +1261,34 @@ input {
   .wall-row-a,
   .wall-row-b {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1600px) {
+  .occ-life-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .step-card {
+    min-height: 118px;
+  }
+
+  .step-card .line-icon {
+    width: 24px;
+    height: 29px;
+  }
+}
+
+@media (max-width: 900px) {
+  .step-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .step-card:not(:last-child)::after {
+    display: none;
+  }
+
+  .life-run-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

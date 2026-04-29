@@ -832,10 +832,72 @@ def build_dimensions(
     throughput_rows: list[tuple[str, float, float, int]] = []
     # tuple: (day, duration_minutes, tablets_per_hour, tablets_packed)
     throughput_groups: dict[str, dict[str, Any]] = {}
+    staffing_by_operator: dict[str, dict[str, Any]] = {}
+    staffing_by_station: dict[str, dict[str, Any]] = {}
+
+    def _station_label(sub: dict[str, Any]) -> str:
+        st = (sub.get("submission_type") or "packaged").lower()
+        if st in ("packaged", "repack"):
+            return "Packaging"
+        if st == "machine":
+            return "Blister / heat sealing"
+        if st == "bag":
+            return "Bag intake"
+        if st == "bottle":
+            return "Bottle packaging"
+        return st.replace("_", " ").title() if st else "Unmapped"
+
+    def _display_equiv(sub: dict[str, Any]) -> float:
+        if (sub.get("submission_type") or "packaged").lower() in ("bag", "machine"):
+            return 0.0
+        total = 0.0
+        for tid, part, _rid in packed_tablets_allocations(conn, sub):
+            tpd = tpd_map.get(tid)
+            if part > 0 and tpd and tpd > 0:
+                total += part / tpd
+        return total
+
+    def _minutes_for_submission(sub: dict[str, Any]) -> float | None:
+        start_dt = _parse_dt(sub.get("bag_start_time"))
+        end_dt = _parse_dt(sub.get("bag_end_time"))
+        if not start_dt or not end_dt:
+            return None
+        minutes = (end_dt - start_dt).total_seconds() / 60.0
+        if minutes <= 0 or minutes > (12 * 60):
+            return None
+        return minutes
+
+    def _ensure_staff(bucket: dict[str, dict[str, Any]], key: str) -> dict[str, Any]:
+        if key not in bucket:
+            bucket[key] = {
+                "label": key,
+                "submissions": 0,
+                "display_equiv": 0.0,
+                "ripped_cards": 0,
+                "minutes": 0.0,
+                "timed_samples": 0,
+                "operators": set(),
+            }
+        return bucket[key]
+
     for sub in subs:
         st = (sub.get("submission_type") or "packaged").lower()
         n = packed_output_tablets(conn, sub)
         day = str(sub.get("filter_date") or sub.get("created_at", ""))[:10]
+
+        operator = (sub.get("employee_name") or "Unassigned").strip() or "Unassigned"
+        station = _station_label(sub)
+        disp_equiv = _display_equiv(sub)
+        minutes_sample = _minutes_for_submission(sub)
+        staff_op = _ensure_staff(staffing_by_operator, operator)
+        staff_station = _ensure_staff(staffing_by_station, station)
+        for target in (staff_op, staff_station):
+            target["submissions"] += 1
+            target["display_equiv"] += disp_equiv
+            if minutes_sample is not None:
+                target["minutes"] += minutes_sample
+                target["timed_samples"] += 1
+        staff_station["operators"].add(operator)
 
         # Throughput can span multiple rows: machine/bag rows may capture start,
         # while packaged rows may capture end and packed output.
@@ -905,6 +967,10 @@ def build_dimensions(
         ripped_cards_by_flavor[tid] = ripped_cards_by_flavor.get(tid, 0) + ripped_cards
         if day:
             ripped_cards_by_day[day] = ripped_cards_by_day.get(day, 0) + ripped_cards
+        operator = (sub.get("employee_name") or "Unassigned").strip() or "Unassigned"
+        station = _station_label(sub)
+        _ensure_staff(staffing_by_operator, operator)["ripped_cards"] += ripped_cards
+        _ensure_staff(staffing_by_station, station)["ripped_cards"] += ripped_cards
 
     flavor_list = []
     for tid, total in sorted(
@@ -1022,6 +1088,28 @@ def build_dimensions(
                 }
             )
 
+    def _staff_rows(bucket: dict[str, dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for item in bucket.values():
+            timed = int(item.get("timed_samples") or 0)
+            minutes = float(item.get("minutes") or 0.0)
+            displays = float(item.get("display_equiv") or 0.0)
+            operators = item.get("operators")
+            row = {
+                "label": item.get("label") or "N/A",
+                "submissions": int(item.get("submissions") or 0),
+                "display_equiv": round(displays, 2),
+                "ripped_cards": int(item.get("ripped_cards") or 0),
+                "timed_samples": timed,
+                "avg_minutes": round(minutes / timed, 2) if timed > 0 else None,
+                "displays_per_hour": round(displays / (minutes / 60.0), 2) if minutes > 0 and displays > 0 else None,
+            }
+            if isinstance(operators, set):
+                row["operators_observed"] = len(operators)
+            rows.append(row)
+        rows.sort(key=lambda r: (-(r.get("display_equiv") or 0), -(r.get("submissions") or 0), r.get("label") or ""))
+        return rows[:limit]
+
     return {
         "success": True,
         "top_flavors": flavor_list[:25],
@@ -1033,6 +1121,13 @@ def build_dimensions(
         "loss_rate_cards_per_display": loss_rate_cards_per_display,
         "throughput_summary": throughput_summary,
         "throughput_series": throughput_series,
+        "staffing_summary": {
+            "operator_rows": _staff_rows(staffing_by_operator),
+            "station_rows": _staff_rows(staffing_by_station),
+            "operators_observed": len(staffing_by_operator),
+            "headcount_capture": "not_configured",
+            "note": "Current data counts the employee/operator tied to each scan or submission. It does not yet capture how many people were physically assigned to each station.",
+        },
     }
 
 

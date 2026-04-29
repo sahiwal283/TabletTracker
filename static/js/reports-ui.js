@@ -663,6 +663,49 @@
         });
     }
 
+    function renderStaffing(summary) {
+        var data = summary || {};
+        var note = document.getElementById('reports_staffing_note');
+        var stations = document.getElementById('reports_staffing_station_rows');
+        var operators = document.getElementById('reports_staffing_operator_rows');
+        var plan = document.getElementById('reports_staffing_people_plan');
+        if (note) {
+            note.textContent = data.note || 'Operator scan productivity is based only on submission employee names.';
+        }
+        if (plan) {
+            plan.textContent = data.headcount_capture === 'not_configured'
+                ? 'Headcount is not captured yet. Add people assigned per station/shift to calculate displays per labor hour, cycle minutes per person, and expected output by crew size.'
+                : 'Headcount capture is enabled.';
+        }
+        function rowHtml(row, showOperators) {
+            var dph = row.displays_per_hour == null ? 'Insufficient data' : fmt(row.displays_per_hour) + ' disp/hr';
+            var avg = row.avg_minutes == null ? 'N/A' : fmt(row.avg_minutes) + ' min avg';
+            var op = showOperators ? '<span>' + fmt(row.operators_observed || 0) + ' operators observed</span>' : '';
+            return '' +
+                '<div class="tt-reports-productivity-row rounded-md px-3 py-2">' +
+                '<div class="min-w-0"><strong>' + escapeHtml(row.label || 'N/A') + '</strong>' + op + '</div>' +
+                '<div><em>Displays</em><b>' + fmt(row.display_equiv || 0) + '</b></div>' +
+                '<div><em>Runs</em><b>' + fmt(row.submissions || 0) + '</b></div>' +
+                '<div><em>Rate</em><b>' + escapeHtml(dph) + '</b></div>' +
+                '<div><em>Cycle</em><b>' + escapeHtml(avg) + '</b></div>' +
+                '<div><em>Damaged</em><b>' + fmt(row.ripped_cards || 0) + '</b></div>' +
+                '</div>';
+        }
+        function fill(host, rows, empty, showOperators) {
+            if (!host) return;
+            var list = rows || [];
+            if (!list.length) {
+                host.innerHTML = '<div class="text-xs text-gray-500">Insufficient data</div>';
+                return;
+            }
+            host.innerHTML = list.slice(0, 8).map(function (row) {
+                return rowHtml(row, showOperators);
+            }).join('');
+        }
+        fill(stations, data.station_rows, 'No workstation scan data in this range.', true);
+        fill(operators, data.operator_rows, 'No operator scan data in this range.', false);
+    }
+
     function renderKpis(trendsSeries, topFlavors) {
         var packed = 0;
         var received = 0;
@@ -834,6 +877,7 @@
             renderRippedCards(dims.ripped_cards_total || 0, dims.ripped_cards_by_flavor || []);
             renderLossRate(dims.loss_rate_cards_per_display);
             renderThroughput(dims.throughput_summary || {}, dims.throughput_series || []);
+            renderStaffing(dims.staffing_summary || {});
             if (ensureChartLibrary()) {
                 renderTrendsChart(trends.series || []);
                 renderTopFlavorsChart(dims.top_flavors || []);
