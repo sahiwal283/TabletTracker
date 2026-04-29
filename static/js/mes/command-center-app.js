@@ -1115,6 +1115,16 @@
       var h = "#" + tab;
       if (window.location.hash !== h) window.history.replaceState(null, "", h);
     }
+    var activeTabMeta = (navItems || []).find(function (item) {
+      return String((item && item.tab) || "").toLowerCase() === String(activeTab || "").toLowerCase();
+    }) || null;
+    var activeTabLabel = activeTabMeta && activeTabMeta.label ? String(activeTabMeta.label).trim() : "Overview";
+    var headerTitle = activeTab === "overview"
+      ? "PILL PACKING COMMAND CENTER"
+      : activeTabLabel.toUpperCase() + " COMMAND CENTER";
+    var headerSubtitle = activeTab === "overview"
+      ? "Real-time Production Monitoring"
+      : activeTabLabel + " view";
 
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
@@ -1139,7 +1149,7 @@
       <${Sidebar} boot=${boot} items=${navItems} activeTab=${activeTab} onSelect=${selectTab} />
       <main className="occ-main">
         <header className="occ-header">
-          <div><h1>PILL PACKING COMMAND CENTER</h1><p>Real-time Production Monitoring <span></span> LIVE</p></div>
+          <div><h1>${headerTitle}</h1><p>${headerSubtitle} <span></span> LIVE</p></div>
           <div className="occ-head-controls"><input type="date" aria-label="Dashboard date" value=${selectedDate} onInput=${function (e) { setSelectedDate(e.target.value || todayIsoDate()); }} /><b>${fmtDate(generated)}</b><b>${fmtTime(now.getTime())}</b></div>
         </header>
         ${activeTab !== "overview" ? renderFocusedTab() : null}
