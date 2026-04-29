@@ -1124,7 +1124,7 @@
         hint.classList.remove('hidden');
         hint.textContent = occupancyGateIntentEndRun
           ? 'End run: enter the filled bottle count and tap Submit below.'
-          : 'Hand pack: enter filled bottle count after packing and QA check, or pause with current count.';
+          : 'Hand pack: enter filled bottle count after packing and QA check; for variety packs, scan each source bag in "Variety source bag cards", then submit or pause.';
       }
       if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
     } else if (kind === 'bottle_cap_seal') {
