@@ -598,6 +598,7 @@
   }
   function shownOnlyWhenBagLoaded() {
     return [
+      document.getElementById('wf-loaded-bag-header'),
       document.getElementById('wf-count-label'),
       document.getElementById('wf-count-total'),
       document.getElementById('wf-employee-name-label'),
@@ -659,6 +660,25 @@
       wrap.classList.remove('hidden');
     }
   }
+  function renderLoadedBagHeader(facts) {
+    var wrap = document.getElementById('wf-loaded-bag-header');
+    var text = document.getElementById('wf-loaded-bag-header-text');
+    if (!wrap || !text) return;
+    var bv = facts && facts.bag_verification;
+    if (!bv) {
+      wrap.classList.add('hidden');
+      text.textContent = '';
+      return;
+    }
+    var product = String((bv.product_name || '').trim() || 'Bag loaded');
+    var boxRaw = String((bv.box_display || '').trim() || '');
+    var bagRaw = String((bv.bag_display || '').trim() || '');
+    var bx = (boxRaw.match(/(\d+)/) || [])[1] || '';
+    var bg = (bagRaw.match(/(\d+)/) || [])[1] || '';
+    var boxBag = bx && bg ? (bx + '-' + bg) : (boxRaw || bagRaw || '');
+    text.textContent = boxBag ? (product + ' · ' + boxBag) : product;
+    wrap.classList.remove('hidden');
+  }
   function applyStationFacts(data) {
     if (!data || !data.facts) {
       return;
@@ -668,15 +688,20 @@
     }
     stationNeedsResume = !!data.facts.resume_required;
     renderBagVerification(data.facts);
+    renderLoadedBagHeader(data.facts);
     renderOccupancyBanner(data.facts, data.workflow_bag_id);
   }
   function setBagLoadedUi(loaded) {
+    var cardEntry = document.getElementById('wf-card-entry');
     if (!loaded) {
       shownOnlyWhenBagLoaded().forEach(function (el) {
         el.classList.add('hidden');
       });
+      if (cardEntry) cardEntry.classList.remove('hidden');
+      renderLoadedBagHeader(null);
     }
     if (loaded) {
+      if (cardEntry) cardEntry.classList.add('hidden');
       configureStationActions();
     }
   }

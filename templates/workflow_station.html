@@ -112,13 +112,16 @@
   </p>
   {% endif %}
   </div>
+  <div id="wf-loaded-bag-header" class="hidden mb-3 rounded-xl border border-cyan-300/60 bg-cyan-50/40 px-3 py-2">
+    <p id="wf-loaded-bag-header-text" class="text-sm font-semibold text-cyan-900"></p>
+  </div>
   <div id="wf-workflow-fields">
   <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
-  <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Loose cards / bottles remaining</label>
-  <input id="wf-packs-remaining" type="number" min="0" step="1" class="hidden form-input mb-1" placeholder="0" />
   <label for="wf-loose-displays" id="wf-loose-displays-label" class="hidden block text-sm font-medium mb-1">Displays not in a full case</label>
   <input id="wf-loose-displays" type="number" min="0" step="1" class="hidden form-input mb-1" placeholder="0" />
+  <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Loose cards / bottles remaining</label>
+  <input id="wf-packs-remaining" type="number" min="0" step="1" class="hidden form-input mb-1" placeholder="0" />
   <label for="wf-cards-reopened" id="wf-cards-reopened-label" class="hidden block text-sm font-medium mb-1">Cards re-opened</label>
   <p id="wf-cards-reopened-help" class="hidden text-xs text-gray-500 mb-1">Blister cards ripped or wasted (packaging loss), not tablet units.</p>
   <input id="wf-cards-reopened" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="0" />
