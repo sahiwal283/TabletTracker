@@ -36,9 +36,9 @@
     <p class="text-xl font-bold text-slate-900">Station idle — ready for work</p>
     <p class="text-base text-slate-600 mt-2 leading-snug">Scan the <strong>bag card</strong> with the button below or type the token. The bag loads and is <strong>claimed at this station automatically</strong> so the run timer can start.</p>
   </div>
-  <div id="wf-occupied-banner" class="hidden mb-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50">
-    <p class="text-sm text-indigo-900 font-semibold">Station currently occupied</p>
-    <p class="text-2xl font-bold text-indigo-900 mt-2">
+  <div id="wf-occupied-banner" class="hidden mb-4 p-4 rounded-xl border border-slate-600 bg-slate-900/90">
+    <p class="text-sm text-slate-200 font-semibold">Station currently occupied</p>
+    <p class="text-2xl font-bold text-cyan-300 mt-2">
       Elapsed: <span id="wf-occupied-elapsed">00:00:00</span>
     </p>
   </div>
@@ -58,12 +58,11 @@
   </div>
   <div id="wf-feedback" class="hidden mb-4 p-3 rounded-xl border text-sm" role="status" aria-live="polite"></div>
 
-  <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-    <button type="button" id="wf-gate-pause" class="btn-secondary px-6 py-4 text-lg">Pause</button>
-    <button type="button" id="wf-gate-end" class="btn-primary px-6 py-4 text-lg">End run</button>
+  <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+    <button type="button" id="wf-gate-pause" class="btn-secondary px-6 py-4 text-lg !bg-amber-400 !border-amber-300 !text-slate-900 hover:!bg-amber-300">Pause</button>
+    <button type="button" id="wf-gate-end" class="btn-secondary px-6 py-4 text-lg !bg-red-600 !border-red-500 !text-white hover:!bg-red-500">End run</button>
     <button type="button" id="wf-gate-material" class="btn-secondary px-6 py-4 text-lg">Material change</button>
     <button type="button" id="wf-gate-taken" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery</button>
-    <button type="button" id="wf-gate-resume" class="hidden btn-primary px-6 py-4 text-lg sm:col-span-2 lg:col-span-4">Verify card to continue</button>
   </div>
 
   <div id="wf-packaging-intent" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">

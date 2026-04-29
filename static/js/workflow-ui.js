@@ -291,7 +291,6 @@
     var pauseB = document.getElementById('wf-gate-pause');
     var endB = document.getElementById('wf-gate-end');
     var materialB = document.getElementById('wf-gate-material');
-    var resumeB = document.getElementById('wf-gate-resume');
     var takenG = document.getElementById('wf-gate-taken');
 
     if (verifyPan) {
@@ -302,18 +301,19 @@
     if (fields) fields.classList.toggle('hidden', hideMain);
     if (actions) actions.classList.toggle('hidden', hideMain);
 
-    if (choice && pauseB && endB && resumeB) {
+    if (choice && pauseB && endB) {
       if (!showChoice) {
         choice.classList.add('hidden');
         if (takenG) takenG.classList.add('hidden');
       } else {
         choice.classList.remove('hidden');
         if (occupancyIsPaused) {
+          // Resume is handled in the paused modal; the gate action row should stay hidden.
+          choice.classList.add('hidden');
           pauseB.classList.add('hidden');
           endB.classList.add('hidden');
           if (materialB) materialB.classList.add('hidden');
           if (takenG) takenG.classList.add('hidden');
-          resumeB.classList.remove('hidden');
         } else {
           pauseB.classList.remove('hidden');
           endB.classList.remove('hidden');
@@ -322,7 +322,6 @@
               stationKind() === 'blister' || stationKind() === 'combined';
             materialB.classList.toggle('hidden', !showMaterialGate);
           }
-          resumeB.classList.add('hidden');
           if (takenG) {
             var showTakenGate = stationKind() === 'packaging';
             takenG.classList.toggle('hidden', !showTakenGate);
@@ -2115,8 +2114,6 @@
         applyOccupancyGateUi();
       });
     }
-    const gr = document.getElementById('wf-gate-resume');
-    if (gr) gr.addEventListener('click', () => openOccupancyVerify('resume'));
     const pr = document.getElementById('wf-paused-resume');
     if (pr) pr.addEventListener('click', () => openOccupancyVerify('resume'));
     const vScan = document.getElementById('wf-verify-scan');
