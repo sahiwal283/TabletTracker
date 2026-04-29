@@ -386,6 +386,86 @@ def get_machine_count_by_receipt():
         return jsonify({'error': str(e)}), 500
 
 
+def _bag_used_tablets_total(conn, bag_id: int) -> int:
+    """Tablet usage for one bag across all tablet-counting submission types."""
+    packaged_total = conn.execute(
+        '''
+        SELECT COALESCE(SUM(
+            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+        ), 0) as total
+        FROM warehouse_submissions ws
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+    ''',
+        (bag_id,),
+    ).fetchone()
+    bottle_direct = conn.execute(
+        '''
+        SELECT COALESCE(SUM(
+            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+        ), 0) as total
+        FROM warehouse_submissions ws
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+    ''',
+        (bag_id,),
+    ).fetchone()
+    bottle_junction = conn.execute(
+        '''
+        SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
+        FROM submission_bag_deductions sbd
+        WHERE sbd.bag_id = ?
+    ''',
+        (bag_id,),
+    ).fetchone()
+    try:
+        machine_total = conn.execute(
+            '''
+            SELECT COALESCE(SUM(
+                CASE
+                  WHEN COALESCE(m.machine_role, 'sealing') = 'blister'
+                    THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                  ELSE MAX(
+                    COALESCE(ws.tablets_pressed_into_cards, 0),
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)),
+                    COALESCE(ws.loose_tablets, 0)
+                  )
+                END
+            ), 0) as total
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN machines m ON ws.machine_id = m.id
+            WHERE ws.bag_id = ? AND COALESCE(ws.submission_type, 'packaged') = 'machine'
+        ''',
+            (bag_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        machine_total = None
+    try:
+        repack_total = conn.execute(
+            '''
+            SELECT COALESCE(SUM(
+                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+            ), 0) as total
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.bag_id = ? AND COALESCE(ws.submission_type, 'packaged') = 'repack'
+        ''',
+            (bag_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        repack_total = None
+    return (
+        (packaged_total['total'] if packaged_total else 0)
+        + (bottle_direct['total'] if bottle_direct else 0)
+        + (bottle_junction['total'] if bottle_junction else 0)
+        + (machine_total['total'] if machine_total else 0)
+        + (repack_total['total'] if repack_total else 0)
+    )
+
+
 @bp.route('/api/submissions/bottles', methods=['POST'])
 @employee_required
 def submit_bottles():
@@ -505,37 +585,7 @@ def submit_bottles():
                         bag = dict(bag_row)
                         original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
 
-                        # Get already packaged count for this bag
-                        packaged_total = conn.execute('''
-                            SELECT COALESCE(SUM(
-                                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                            ), 0) as total
-                            FROM warehouse_submissions ws
-                            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                            WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
-                        ''', (bag['id'],)).fetchone()
-
-                        # Bottle submissions (bottle-only products with bag_id)
-                        bottle_direct = conn.execute('''
-                            SELECT COALESCE(SUM(
-                                COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                            ), 0) as total
-                            FROM warehouse_submissions ws
-                            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                            WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
-                        ''', (bag['id'],)).fetchone()
-
-                        # Variety pack deductions via junction table
-                        bottle_junction = conn.execute('''
-                            SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
-                            FROM submission_bag_deductions sbd
-                            WHERE sbd.bag_id = ?
-                        ''', (bag['id'],)).fetchone()
-
-                        already_used = (packaged_total['total'] if packaged_total else 0) + \
-                                       (bottle_direct['total'] if bottle_direct else 0) + \
-                                       (bottle_junction['total'] if bottle_junction else 0)
+                        already_used = _bag_used_tablets_total(conn, int(bag['id']))
                         remaining = max(0, original_count - already_used)
 
                         if remaining <= 0:
@@ -617,37 +667,7 @@ def submit_bottles():
                 if bag:
                     original_count = bag.get('bag_label_count') or bag.get('pill_count') or 0
 
-                    # Packaged submissions (card products)
-                    packaged_total = conn.execute('''
-                        SELECT COALESCE(SUM(
-                            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
-                            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
-                        ), 0) as total
-                        FROM warehouse_submissions ws
-                        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                        WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
-                    ''', (bag['id'],)).fetchone()
-
-                    # Bottle submissions (bottle-only products with bag_id)
-                    bottle_direct = conn.execute('''
-                        SELECT COALESCE(SUM(
-                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
-                        ), 0) as total
-                        FROM warehouse_submissions ws
-                        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
-                        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
-                    ''', (bag['id'],)).fetchone()
-
-                    # Variety pack deductions via junction table
-                    bottle_junction = conn.execute('''
-                        SELECT COALESCE(SUM(sbd.tablets_deducted), 0) as total
-                        FROM submission_bag_deductions sbd
-                        WHERE sbd.bag_id = ?
-                    ''', (bag['id'],)).fetchone()
-
-                    already_used = (packaged_total['total'] if packaged_total else 0) + \
-                                   (bottle_direct['total'] if bottle_direct else 0) + \
-                                   (bottle_junction['total'] if bottle_junction else 0)
+                    already_used = _bag_used_tablets_total(conn, int(bag['id']))
                     remaining = max(0, original_count - already_used)
 
                     # Check if submission exceeds remaining count - warn but don't block

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.22.2] - 2026-04-29
+
+### Fixed
+- **Variety pack child bag deductions:** Remaining-tablet allocation for variety submissions now subtracts prior usage from **packaged**, **bottle**, **junction deductions**, **machine**, and **repack** rows so step-by-step counts deduct from the correct source bags before final packaging.
+
+---
+
 ## [4.21.1] - 2026-04-29
 
 ### Fixed

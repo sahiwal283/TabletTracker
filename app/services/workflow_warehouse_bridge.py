@@ -171,6 +171,44 @@ def _bag_remaining_tablets(conn: sqlite3.Connection, bag_id: int) -> int:
         (int(bag_id),),
     ).fetchone()
     try:
+        machine_total = conn.execute(
+            """
+            SELECT COALESCE(SUM(
+                CASE
+                  WHEN COALESCE(m.machine_role, 'sealing') = 'blister'
+                    THEN COALESCE(ws.tablets_pressed_into_cards, 0)
+                  ELSE MAX(
+                    COALESCE(ws.tablets_pressed_into_cards, 0),
+                    (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)),
+                    COALESCE(ws.loose_tablets, 0)
+                  )
+                END
+            ), 0) AS total
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            LEFT JOIN machines m ON ws.machine_id = m.id
+            WHERE ws.bag_id = ? AND COALESCE(ws.submission_type, 'packaged') = 'machine'
+            """,
+            (int(bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        machine_total = None
+    try:
+        repack_total = conn.execute(
+            """
+            SELECT COALESCE(SUM(
+                (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+                (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+            ), 0) AS total
+            FROM warehouse_submissions ws
+            LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+            WHERE ws.bag_id = ? AND COALESCE(ws.submission_type, 'packaged') = 'repack'
+            """,
+            (int(bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        repack_total = None
+    try:
         bottle_junction = conn.execute(
             """
             SELECT COALESCE(SUM(sbd.tablets_deducted), 0) AS total
@@ -185,6 +223,8 @@ def _bag_remaining_tablets(conn: sqlite3.Connection, bag_id: int) -> int:
         int(dict(packaged_total).get("total") or 0 if packaged_total else 0)
         + int(dict(bottle_direct).get("total") or 0 if bottle_direct else 0)
         + int(dict(bottle_junction).get("total") or 0 if bottle_junction else 0)
+        + int(dict(machine_total).get("total") or 0 if machine_total else 0)
+        + int(dict(repack_total).get("total") or 0 if repack_total else 0)
     )
     return max(0, original_count - already_used)
 
