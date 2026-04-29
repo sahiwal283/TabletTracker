@@ -395,30 +395,45 @@ def build_pill_command_center_board_payload(
     try:
         for r in conn.execute(
             """
-            SELECT COALESCE(pd.product_name, '—') AS sku,
+            SELECT COALESCE(pd.product_name, tt.tablet_type_name, '—') AS sku,
                    wb.id AS workflow_bag_id,
                    wb.receipt_number,
                    COALESCE(rc.shipment_number, 1) AS shipment_number,
                    sb.box_number,
                    bg.bag_number,
+                   bg.id AS inventory_bag_id,
                    trim(COALESCE(po.po_number, '')) AS po_number,
-                   trim(COALESCE(po.vendor_name, '')) AS vendor_name
-            FROM workflow_bags wb
+                   trim(COALESCE(po.vendor_name, '')) AS vendor_name,
+                   COALESCE(wb.created_at, bg.id) AS sort_key
+            FROM bags bg
+            JOIN small_boxes sb ON sb.id = bg.small_box_id
+            JOIN receiving rc ON rc.id = sb.receiving_id
+            LEFT JOIN purchase_orders po ON po.id = rc.po_id
+            LEFT JOIN workflow_bags wb
+              ON wb.id = (
+                  SELECT wb2.id
+                  FROM workflow_bags wb2
+                  WHERE wb2.inventory_bag_id = bg.id
+                  ORDER BY wb2.created_at DESC, wb2.id DESC
+                  LIMIT 1
+              )
             LEFT JOIN product_details pd ON pd.id = wb.product_id
-            LEFT JOIN bags bg ON bg.id = wb.inventory_bag_id
-            LEFT JOIN small_boxes sb ON bg.small_box_id = sb.id
-            LEFT JOIN receiving rc ON sb.receiving_id = rc.id
-            LEFT JOIN purchase_orders po ON rc.po_id = po.id
-            ORDER BY wb.created_at DESC
+            LEFT JOIN tablet_types tt ON tt.id = bg.tablet_type_id
+            WHERE COALESCE(rc.status, 'published') = 'published'
+              AND COALESCE(rc.closed, 0) = 0
+              AND COALESCE(bg.status, 'Available') != 'Closed'
+            ORDER BY sort_key DESC
             LIMIT 2500
             """
         ).fetchall():
-            wid = int(r["workflow_bag_id"])
+            wid_raw = r["workflow_bag_id"]
+            wid = int(wid_raw) if wid_raw is not None else None
             phys = _physical_bag_label_short(
                 r["shipment_number"], r["box_number"], r["bag_number"]
             )
             receipt = (r["receipt_number"] or "").strip()
-            bag_display = phys or (receipt[:40] if receipt else f"WB-{wid}")
+            inv_id = int(r["inventory_bag_id"]) if r["inventory_bag_id"] is not None else None
+            bag_display = phys or (receipt[:40] if receipt else (f"WB-{wid}" if wid is not None else (f"BAG-{inv_id}" if inv_id is not None else "N/A")))
             po = (r["po_number"] or "").strip()
             vn = (r["vendor_name"] or "").strip()
             inventory_rows.append(
