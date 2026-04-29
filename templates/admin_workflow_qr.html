@@ -227,87 +227,8 @@
     </div>
   </div>
 
-  <details class="rounded-xl border border-gray-200 bg-gray-50/80 mb-8">
-    <summary class="px-4 py-3 cursor-pointer list-none flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 font-semibold text-gray-900 text-sm">
-      <span>Staff tools and configuration</span>
-      <span class="text-xs font-normal text-gray-500">Assign bag ↔ QR is the first block below · stations &amp; cards follow</span>
-    </summary>
-    <div class="px-4 pb-5 pt-4 border-t border-gray-200 space-y-6">
-
-  <div class="card p-5 bg-white border-2 border-cyan-300/80 shadow-sm scroll-mt-4" id="assign-bag-qr-card">
-    <h2 class="text-base font-semibold text-gray-900 mb-1">Assign bag to QR card</h2>
-    <p class="text-sm text-gray-600 mb-3">Link received inventory to a physical bag card. Requires staff access on submit — use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="text-blue-600 hover:underline font-medium">full-screen assign form</a> if you prefer, or if the product list does not load here.</p>
-    {% if bag_assign.products_load_failed %}
-    <div class="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-950">
-      <strong class="font-semibold">Could not load products for this form.</strong>
-      Use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="underline font-medium">staff assign page</a> (same workflow), or check Product configuration / database access.
-    </div>
-    {% elif not bag_assign.products %}
-    <div class="mb-4 p-3 rounded-lg border border-amber-100 bg-amber-50/80 text-sm text-amber-950">
-      <strong class="font-semibold">No products configured.</strong> Add flavors under Product configuration, then refresh.
-    </div>
-    {% endif %}
-    {% include "includes/workflow_assign_bag_form.html" %}
-  </div>
-  {% include "includes/workflow_assign_bag_scripts.html" %}
-
-  <div class="card p-5 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-2">About floor stations (blister, sealing, packaging)</h2>
-    <p class="text-sm text-gray-600">
-      All of these use the same <code class="text-xs">workflow_stations</code> table: each row is one <strong>QR / URL</strong>
-      (<code class="text-xs">/workflow/station/&lt;scan_token&gt;</code>) that opens the floor tablet UI. The
-      <strong>Station type</strong> only organizes the admin view and controls which <strong>production machine</strong> role you can link
-      (sealing vs blister; packaging can reference any machine for your own tracking). Physical bags still use the
-      <strong>QR cards</strong> table below.
-    </p>
-  </div>
-
-  <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-8 bg-gray-50/80">
-    <h3 class="text-sm font-semibold text-gray-900 mb-3">Add workflow station</h3>
-    <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <div class="md:col-span-2">
-        <label class="block text-xs font-medium text-gray-700 mb-1">Station type <span class="text-red-600">*</span></label>
-        <select name="station_kind" class="form-input text-sm max-w-md" required>
-          {% for k in station_kind_options %}
-          <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% elif k == 'bottle_handpack' %}bottle hand pack + QA{% elif k == 'bottle_cap_seal' %}bottle cap sealer{% elif k == 'bottle_stickering' %}bottle stickering{% else %}packaging bench (machine link optional){% endif %}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="md:col-span-2">
-        <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
-        <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Blister line A, Packaging table 1"/>
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
-        <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="Floor shorthand"/>
-        <p class="text-xs text-gray-500 mt-1">Not used by APIs; optional sticker shorthand.</p>
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
-        <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
-        <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> / <strong>bottle-handpack-</strong> / <strong>bottle-seal-</strong> / <strong>bottle-sticker-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
-      </div>
-      <div class="md:col-span-2">
-        <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
-        <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above. Packaging may leave blank or link any machine.</p>
-        {% if all_machines %}
-        <select name="machine_id" class="form-input text-sm max-w-lg">
-          <option value="">— Link later —</option>
-          {% for m in all_machines %}
-          <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }}) · {{ m.machine_role }}</option>
-          {% endfor %}
-        </select>
-        {% else %}
-        <p class="text-xs text-amber-700">No machines in the database.</p>
-        {% endif %}
-      </div>
-      <div class="md:col-span-2">
-        <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
-      </div>
-    </form>
-  </div>
-
+  {% set tools_view = (request.args.get('tools') or '').strip() %}
+  {% set is_hub = tools_view not in ['assign', 'stations', 'cards'] %}
   {% set section_meta = [
     ('sealing', 'Sealing stations', 'Link to a machine with role <code class="text-xs">sealing</code> (same as Production Machine / full run).'),
     ('blister', 'Blister stations', 'Link to a machine with role <code class="text-xs">blister</code>. Add blister machines under Product configuration if needed. Any legacy multi-step (combined-type) stations are listed here too.'),
@@ -317,164 +238,285 @@
     ('bottle_stickering', 'Bottle stickering stations', 'Bottle sticker counter. Link to a machine with role <code class="text-xs">stickering</code>.'),
   ] %}
 
-  {% for kind, title, blurb in section_meta %}
-  <div class="card p-5 mb-8 overflow-x-auto">
-    <h2 class="text-lg font-semibold text-gray-900 mb-2">{{ title }}</h2>
-    <p class="text-sm text-gray-600 mb-4">{{ blurb | safe }}</p>
-    {% set rows = stations_by_kind.get(kind, []) %}
-    {% if kind == 'blister' %}
-    {% set rows = rows + (stations_by_kind.get('combined', []) or []) %}
-    {% endif %}
-    {% if not rows %}
-    <p class="text-sm text-gray-500">No {{ title|lower }} yet. Add one above.</p>
-    {% else %}
-    <table class="min-w-full text-sm">
-      <thead>
-        <tr class="border-b border-gray-200 text-left text-gray-600">
-          <th class="py-2 pr-4">ID</th>
-          <th class="py-2 pr-4">Label</th>
-          <th class="py-2 pr-4" title="Optional">Code</th>
-          <th class="py-2 pr-4">Machine (production)</th>
-          <th class="py-2 pr-4">Scan token</th>
-          <th class="py-2">Floor URL</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for s in rows %}
-        <tr class="border-b border-gray-100 align-top">
-          <td class="py-2 pr-4 font-mono">{{ s.id }}</td>
-          <td class="py-2 pr-4">{{ s.label }}</td>
-          <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
-          <td class="py-2 pr-4">{{ station_machine_cell(s) }}</td>
-          <td class="py-2 pr-4">
-            <div class="wf-token-readonly flex flex-wrap items-center gap-2 max-w-[18rem]">
-              <span class="font-mono text-xs break-all">{{ s.station_scan_token }}</span>
-              <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-edit-btn">Edit</button>
-            </div>
-            <div class="wf-token-edit-panel hidden max-w-[18rem]">
-              <form method="post" action="{{ url_for('admin.workflow_qr_edit_station_scan_token') }}" class="flex flex-col gap-1">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <input type="hidden" name="station_id" value="{{ s.id }}"/>
-                <input type="text" name="station_scan_token" value="{{ s.station_scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full" autocomplete="off" aria-label="Scan token for station {{ s.id }}"/>
-                <p class="text-[10px] text-gray-500 leading-tight">Prefix:
-                  {% if s.station_kind == 'packaging' %}<code class="text-[10px]">packaging-</code>
-                  {% elif s.station_kind == 'blister' %}<code class="text-[10px]">blister-</code>
-                  {% elif s.station_kind == 'combined' %}<code class="text-[10px]">combined-</code>
-                  {% elif s.station_kind == 'bottle_handpack' %}<code class="text-[10px]">bottle-handpack-</code>
-                  {% elif s.station_kind == 'bottle_cap_seal' %}<code class="text-[10px]">bottle-seal-</code>
-                  {% elif s.station_kind == 'bottle_stickering' %}<code class="text-[10px]">bottle-sticker-</code>
-                  {% else %}<code class="text-[10px]">seal-</code>{% endif %}
-                </p>
-                <div class="flex flex-wrap gap-2">
-                  <button type="submit" class="btn-secondary text-xs py-1 px-2">Save token</button>
-                  <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-cancel-btn">Cancel</button>
-                </div>
-              </form>
-            </div>
-          </td>
-          <td class="py-2">
-            <a class="text-blue-600 hover:underline text-xs break-all"
-               href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
-               target="_blank" rel="noopener">Open station page</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-  </div>
-  {% endfor %}
-
-  <div class="card p-5 overflow-x-auto">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
-    <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>. Enter any URL-safe token you like (letters, numbers, <code class="text-xs">._-</code>), or leave blank to auto-generate one with a <strong>bag-</strong> prefix.</p>
-
-    <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <div class="flex flex-wrap items-end gap-4">
-        <div class="flex flex-col gap-1 min-w-0">
-          <label for="wf-add-card-label" class="text-xs font-medium text-gray-600">Label (optional)</label>
-          <input id="wf-add-card-label" type="text" name="label" maxlength="128" class="form-input text-sm w-48 max-w-full" placeholder="e.g. Floor card 12" autocomplete="off"/>
-        </div>
-        <div class="flex flex-col gap-1 min-w-0">
-          <label for="wf-add-card-token" class="text-xs font-medium text-gray-600">Scan token (optional)</label>
-          <input id="wf-add-card-token" type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 max-w-full font-mono" placeholder="test-1" autocomplete="off" title="URL-safe characters only; leave blank for auto bag-…"/>
-        </div>
-        <button type="submit" class="btn-primary text-sm py-2 px-4 shrink-0">Add card</button>
+  <div class="card p-5 mb-8">
+    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-gray-900">Staff tools and configuration</h2>
+        <p class="text-sm text-gray-600 mt-1">Open only the section you need: assign cards, station settings, or card management.</p>
       </div>
-      <p class="text-[10px] text-gray-500 mt-2">Leave scan token blank for a random <code class="text-[10px]">bag-…</code> value.</p>
-    </form>
+      {% if not is_hub %}
+      <a href="{{ url_for('admin.workflow_qr_management') }}" class="btn-secondary text-sm py-2 px-3">Back to tools home</a>
+      {% endif %}
+    </div>
 
-    {% if not cards %}
-    <p class="text-sm text-gray-500">No cards in <code class="text-xs">qr_cards</code>.</p>
-    {% else %}
-    <table class="min-w-full text-sm">
-      <thead>
-        <tr class="border-b border-gray-200 text-left text-gray-600">
-          <th class="py-2 pr-3">Card ID</th>
-          <th class="py-2 pr-3">Label</th>
-          <th class="py-2 pr-3">Status</th>
-          <th class="py-2 pr-3">Scan token</th>
-          <th class="py-2 pr-3">Workflow bag #</th>
-          <th class="py-2 pr-3">Bag name</th>
-          <th class="py-2">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for c in cards %}
-        <tr class="border-b border-gray-100 align-top">
-          <td class="py-2 pr-3 font-mono">{{ c.id }}</td>
-          <td class="py-2 pr-3">{{ c.label or "—" }}</td>
-          <td class="py-2 pr-3">{{ c.status_display or c.status }}</td>
-          <td class="py-2 pr-3">
-            <div class="wf-token-readonly flex flex-wrap items-center gap-2 max-w-[16rem]">
-              <span class="font-mono text-xs break-all">{{ c.scan_token }}</span>
-              <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-edit-btn">Edit</button>
-            </div>
-            <div class="wf-token-edit-panel hidden max-w-[16rem]">
-              <form method="post" action="{{ url_for('admin.workflow_qr_edit_card_scan_token') }}" class="flex flex-col gap-1">
+    {% if is_hub %}
+    <div class="flex flex-wrap gap-5">
+      <div class="card hover-lift w-full md:w-[22rem]">
+        <div class="p-5">
+          <div class="flex items-center justify-center w-11 h-11 bg-cyan-100 rounded-lg mx-auto mb-3">
+            <svg class="w-6 h-6 text-primary" aria-hidden="true"><use href="#icon-mobile"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-gray-900 text-center mb-1">Assign QR cards</h3>
+          <p class="text-sm text-gray-600 text-center mb-4">Assign a receiving bag to a physical QR card.</p>
+          <a href="{{ url_for('admin.workflow_qr_management', tools='assign') }}" class="block w-full text-center btn-secondary text-sm py-2">Open assign tool</a>
+        </div>
+      </div>
+
+      <div class="card hover-lift w-full md:w-[22rem]">
+        <div class="p-5">
+          <div class="flex items-center justify-center w-11 h-11 bg-orange-100 rounded-lg mx-auto mb-3">
+            <svg class="w-6 h-6 text-primary" aria-hidden="true"><use href="#icon-gear"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-gray-900 text-center mb-1">Station settings</h3>
+          <p class="text-sm text-gray-600 text-center mb-4">Add stations, edit scan tokens, and link production machines.</p>
+          <a href="{{ url_for('admin.workflow_qr_management', tools='stations') }}" class="block w-full text-center btn-secondary text-sm py-2">Open station settings</a>
+        </div>
+      </div>
+
+      <div class="card hover-lift w-full md:w-[22rem]">
+        <div class="p-5">
+          <div class="flex items-center justify-center w-11 h-11 bg-green-100 rounded-lg mx-auto mb-3">
+            <svg class="w-6 h-6 text-primary" aria-hidden="true"><use href="#icon-users"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-gray-900 text-center mb-1">QR card inventory</h3>
+          <p class="text-sm text-gray-600 text-center mb-4">Create, edit, release, or remove physical bag cards.</p>
+          <a href="{{ url_for('admin.workflow_qr_management', tools='cards') }}" class="block w-full text-center btn-secondary text-sm py-2">Open card manager</a>
+        </div>
+      </div>
+    </div>
+    {% elif tools_view == 'assign' %}
+    <div class="card p-5 bg-white border-2 border-cyan-300/80 shadow-sm scroll-mt-4" id="assign-bag-qr-card">
+      <h2 class="text-base font-semibold text-gray-900 mb-1">Assign bag to QR card</h2>
+      <p class="text-sm text-gray-600 mb-3">Link received inventory to a physical bag card. Requires staff access on submit — use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="text-blue-600 hover:underline font-medium">full-screen assign form</a> if you prefer, or if the product list does not load here.</p>
+      {% if bag_assign.products_load_failed %}
+      <div class="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-950">
+        <strong class="font-semibold">Could not load products for this form.</strong>
+        Use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="underline font-medium">staff assign page</a> (same workflow), or check Product configuration / database access.
+      </div>
+      {% elif not bag_assign.products %}
+      <div class="mb-4 p-3 rounded-lg border border-amber-100 bg-amber-50/80 text-sm text-amber-950">
+        <strong class="font-semibold">No products configured.</strong> Add flavors under Product configuration, then refresh.
+      </div>
+      {% endif %}
+      {% include "includes/workflow_assign_bag_form.html" %}
+    </div>
+    {% include "includes/workflow_assign_bag_scripts.html" %}
+    {% elif tools_view == 'stations' %}
+    <div class="card p-5 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-2">About floor stations (blister, sealing, packaging)</h2>
+      <p class="text-sm text-gray-600">
+        All of these use the same <code class="text-xs">workflow_stations</code> table: each row is one <strong>QR / URL</strong>
+        (<code class="text-xs">/workflow/station/&lt;scan_token&gt;</code>) that opens the floor tablet UI. The
+        <strong>Station type</strong> only organizes the admin view and controls which <strong>production machine</strong> role you can link
+        (sealing vs blister; packaging can reference any machine for your own tracking). Physical bags still use the
+        <strong>QR cards</strong> table in QR card inventory.
+      </p>
+    </div>
+
+    <div class="border border-dashed border-gray-300 rounded-lg p-4 mb-8 bg-gray-50/80">
+      <h3 class="text-sm font-semibold text-gray-900 mb-3">Add workflow station</h3>
+      <form method="post" action="{{ url_for('admin.workflow_qr_add_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Station type <span class="text-red-600">*</span></label>
+          <select name="station_kind" class="form-input text-sm max-w-md" required>
+            {% for k in station_kind_options %}
+            <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% elif k == 'bottle_handpack' %}bottle hand pack + QA{% elif k == 'bottle_cap_seal' %}bottle cap sealer{% elif k == 'bottle_stickering' %}bottle stickering{% else %}packaging bench (machine link optional){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
+          <input name="label" type="text" required maxlength="255" class="form-input text-sm" placeholder="e.g. Blister line A, Packaging table 1"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Code <span class="text-gray-500 font-normal">(optional)</span></label>
+          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" placeholder="Floor shorthand"/>
+          <p class="text-xs text-gray-500 mt-1">Not used by APIs; optional sticker shorthand.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
+          <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
+          <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> / <strong>bottle-handpack-</strong> / <strong>bottle-seal-</strong> / <strong>bottle-sticker-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
+          <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above. Packaging may leave blank or link any machine.</p>
+          {% if all_machines %}
+          <select name="machine_id" class="form-input text-sm max-w-lg">
+            <option value="">— Link later —</option>
+            {% for m in all_machines %}
+            <option value="{{ m.id }}">{{ m.machine_name }} (id {{ m.id }}) · {{ m.machine_role }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <p class="text-xs text-amber-700">No machines in the database.</p>
+          {% endif %}
+        </div>
+        <div class="md:col-span-2">
+          <button type="submit" class="btn-primary text-sm py-2 px-4">Add station</button>
+        </div>
+      </form>
+    </div>
+
+    {% for kind, title, blurb in section_meta %}
+    <div class="card p-5 mb-8 overflow-x-auto">
+      <h2 class="text-lg font-semibold text-gray-900 mb-2">{{ title }}</h2>
+      <p class="text-sm text-gray-600 mb-4">{{ blurb | safe }}</p>
+      {% set rows = stations_by_kind.get(kind, []) %}
+      {% if kind == 'blister' %}
+      {% set rows = rows + (stations_by_kind.get('combined', []) or []) %}
+      {% endif %}
+      {% if not rows %}
+      <p class="text-sm text-gray-500">No {{ title|lower }} yet. Add one above.</p>
+      {% else %}
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-200 text-left text-gray-600">
+            <th class="py-2 pr-4">ID</th>
+            <th class="py-2 pr-4">Label</th>
+            <th class="py-2 pr-4" title="Optional">Code</th>
+            <th class="py-2 pr-4">Machine (production)</th>
+            <th class="py-2 pr-4">Scan token</th>
+            <th class="py-2">Floor URL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in rows %}
+          <tr class="border-b border-gray-100 align-top">
+            <td class="py-2 pr-4 font-mono">{{ s.id }}</td>
+            <td class="py-2 pr-4">{{ s.label }}</td>
+            <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
+            <td class="py-2 pr-4">{{ station_machine_cell(s) }}</td>
+            <td class="py-2 pr-4">
+              <div class="wf-token-readonly flex flex-wrap items-center gap-2 max-w-[18rem]">
+                <span class="font-mono text-xs break-all">{{ s.station_scan_token }}</span>
+                <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-edit-btn">Edit</button>
+              </div>
+              <div class="wf-token-edit-panel hidden max-w-[18rem]">
+                <form method="post" action="{{ url_for('admin.workflow_qr_edit_station_scan_token') }}" class="flex flex-col gap-1">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="station_id" value="{{ s.id }}"/>
+                  <input type="text" name="station_scan_token" value="{{ s.station_scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full" autocomplete="off" aria-label="Scan token for station {{ s.id }}"/>
+                  <p class="text-[10px] text-gray-500 leading-tight">Prefix:
+                    {% if s.station_kind == 'packaging' %}<code class="text-[10px]">packaging-</code>
+                    {% elif s.station_kind == 'blister' %}<code class="text-[10px]">blister-</code>
+                    {% elif s.station_kind == 'combined' %}<code class="text-[10px]">combined-</code>
+                    {% elif s.station_kind == 'bottle_handpack' %}<code class="text-[10px]">bottle-handpack-</code>
+                    {% elif s.station_kind == 'bottle_cap_seal' %}<code class="text-[10px]">bottle-seal-</code>
+                    {% elif s.station_kind == 'bottle_stickering' %}<code class="text-[10px]">bottle-sticker-</code>
+                    {% else %}<code class="text-[10px]">seal-</code>{% endif %}
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="btn-secondary text-xs py-1 px-2">Save token</button>
+                    <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-cancel-btn">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </td>
+            <td class="py-2">
+              <a class="text-blue-600 hover:underline text-xs break-all"
+                 href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
+                 target="_blank" rel="noopener">Open station page</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% elif tools_view == 'cards' %}
+    <div class="card p-5 overflow-x-auto">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">QR cards (bags)</h2>
+      <p class="text-sm text-gray-600 mb-4">Physical cards assigned to workflow bags — not the same as station QRs above. Encode the <strong>scan token</strong> in each card’s QR; the floor uses it as <code class="text-xs">card_token</code>. Enter any URL-safe token you like (letters, numbers, <code class="text-xs">._-</code>), or leave blank to auto-generate one with a <strong>bag-</strong> prefix.</p>
+
+      <form method="post" action="{{ url_for('admin.workflow_qr_add_card') }}" class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="flex flex-wrap items-end gap-4">
+          <div class="flex flex-col gap-1 min-w-0">
+            <label for="wf-add-card-label" class="text-xs font-medium text-gray-600">Label (optional)</label>
+            <input id="wf-add-card-label" type="text" name="label" maxlength="128" class="form-input text-sm w-48 max-w-full" placeholder="e.g. Floor card 12" autocomplete="off"/>
+          </div>
+          <div class="flex flex-col gap-1 min-w-0">
+            <label for="wf-add-card-token" class="text-xs font-medium text-gray-600">Scan token (optional)</label>
+            <input id="wf-add-card-token" type="text" name="scan_token" maxlength="128" class="form-input text-sm w-56 max-w-full font-mono" placeholder="test-1" autocomplete="off" title="URL-safe characters only; leave blank for auto bag-…"/>
+          </div>
+          <button type="submit" class="btn-primary text-sm py-2 px-4 shrink-0">Add card</button>
+        </div>
+        <p class="text-[10px] text-gray-500 mt-2">Leave scan token blank for a random <code class="text-[10px]">bag-…</code> value.</p>
+      </form>
+
+      {% if not cards %}
+      <p class="text-sm text-gray-500">No cards in <code class="text-xs">qr_cards</code>.</p>
+      {% else %}
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-200 text-left text-gray-600">
+            <th class="py-2 pr-3">Card ID</th>
+            <th class="py-2 pr-3">Label</th>
+            <th class="py-2 pr-3">Status</th>
+            <th class="py-2 pr-3">Scan token</th>
+            <th class="py-2 pr-3">Workflow bag #</th>
+            <th class="py-2 pr-3">Bag name</th>
+            <th class="py-2">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in cards %}
+          <tr class="border-b border-gray-100 align-top">
+            <td class="py-2 pr-3 font-mono">{{ c.id }}</td>
+            <td class="py-2 pr-3">{{ c.label or "—" }}</td>
+            <td class="py-2 pr-3">{{ c.status_display or c.status }}</td>
+            <td class="py-2 pr-3">
+              <div class="wf-token-readonly flex flex-wrap items-center gap-2 max-w-[16rem]">
+                <span class="font-mono text-xs break-all">{{ c.scan_token }}</span>
+                <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-edit-btn">Edit</button>
+              </div>
+              <div class="wf-token-edit-panel hidden max-w-[16rem]">
+                <form method="post" action="{{ url_for('admin.workflow_qr_edit_card_scan_token') }}" class="flex flex-col gap-1">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
+                  <input type="text" name="scan_token" value="{{ c.scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full break-all" autocomplete="off" aria-label="Scan token for card {{ c.id }}"/>
+                  <p class="text-[10px] text-gray-500">Letters, numbers, <code class="text-[10px]">._-</code> only (1–128 chars).</p>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="btn-secondary text-xs py-1 px-2">Save token</button>
+                    <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-cancel-btn">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </td>
+            <td class="py-2 pr-3 font-mono">{{ c.assigned_workflow_bag_id or "—" }}</td>
+            <td class="py-2 pr-3 font-mono">{{ c.bag_name or "—" }}</td>
+            <td class="py-2">
+              {% if c.assigned_workflow_bag_id %}
+              <form method="post" action="{{ url_for('admin.workflow_qr_release_card') }}" class="inline"
+                    onsubmit="return confirm('Release card #{{ c.id }} from workflow bag #{{ c.assigned_workflow_bag_id }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="workflow_bag_id" value="{{ c.assigned_workflow_bag_id }}"/>
+                <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
+                <input type="hidden" name="reason" value="admin_panel_undo"/>
+                <button type="submit" class="btn-secondary text-xs py-1 px-2">Release</button>
+              </form>
+              {% elif c.status == 'idle' %}
+              <form method="post" action="{{ url_for('admin.workflow_qr_remove_card') }}" class="inline"
+                    onsubmit="return confirm('Remove idle bag QR card #{{ c.id }}? This cannot be undone.');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
-                <input type="text" name="scan_token" value="{{ c.scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full break-all" autocomplete="off" aria-label="Scan token for card {{ c.id }}"/>
-                <p class="text-[10px] text-gray-500">Letters, numbers, <code class="text-[10px]">._-</code> only (1–128 chars).</p>
-                <div class="flex flex-wrap gap-2">
-                  <button type="submit" class="btn-secondary text-xs py-1 px-2">Save token</button>
-                  <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-cancel-btn">Cancel</button>
-                </div>
+                <button type="submit" class="text-xs py-1 px-2 rounded border border-red-200 text-red-800 hover:bg-red-50">Remove</button>
               </form>
-            </div>
-          </td>
-          <td class="py-2 pr-3 font-mono">{{ c.assigned_workflow_bag_id or "—" }}</td>
-          <td class="py-2 pr-3 font-mono">{{ c.bag_name or "—" }}</td>
-          <td class="py-2">
-            {% if c.assigned_workflow_bag_id %}
-            <form method="post" action="{{ url_for('admin.workflow_qr_release_card') }}" class="inline"
-                  onsubmit="return confirm('Release card #{{ c.id }} from workflow bag #{{ c.assigned_workflow_bag_id }}?');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <input type="hidden" name="workflow_bag_id" value="{{ c.assigned_workflow_bag_id }}"/>
-              <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
-              <input type="hidden" name="reason" value="admin_panel_undo"/>
-              <button type="submit" class="btn-secondary text-xs py-1 px-2">Release</button>
-            </form>
-            {% elif c.status == 'idle' %}
-            <form method="post" action="{{ url_for('admin.workflow_qr_remove_card') }}" class="inline"
-                  onsubmit="return confirm('Remove idle bag QR card #{{ c.id }}? This cannot be undone.');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <input type="hidden" name="qr_card_id" value="{{ c.id }}"/>
-              <button type="submit" class="text-xs py-1 px-2 rounded border border-red-200 text-red-800 hover:bg-red-50">Remove</button>
-            </form>
-            {% else %}
-            <span class="text-gray-400 text-xs">—</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+              {% else %}
+              <span class="text-gray-400 text-xs">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
     {% endif %}
   </div>
-    </div>
-  </details>
 </div>
 <script>
 (function () {
