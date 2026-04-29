@@ -19,7 +19,8 @@ def find_unassigned_inventory_bags_by_flavor_box_bag(
     Bags matching tablet type + small-box number + bag number, on open published receives,
     excluding closed bags. Includes bags marked ``reserved_for_bottles`` (variety/bottle deduction
     preference does not block QR workflow assignment).
-    Only bags not yet linked to ``workflow_bags.inventory_bag_id``.
+    Only bags not currently linked to an active QR card are excluded; finalized/released prior
+    workflow links do not block reuse when tablets remain.
     """
     rows = conn.execute(
         """
@@ -30,8 +31,13 @@ def find_unassigned_inventory_bags_by_flavor_box_bag(
         JOIN receiving r ON sb.receiving_id = r.id
         LEFT JOIN purchase_orders po ON r.po_id = po.id
         JOIN tablet_types tt ON b.tablet_type_id = tt.id
-        LEFT JOIN workflow_bags wb ON wb.inventory_bag_id = b.id
-        WHERE wb.id IS NULL
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM workflow_bags wb
+            JOIN qr_cards qc ON qc.assigned_workflow_bag_id = wb.id
+            WHERE wb.inventory_bag_id = b.id
+              AND qc.status = 'assigned'
+        )
           AND b.tablet_type_id = ?
           AND sb.box_number = ?
           AND b.bag_number = ?

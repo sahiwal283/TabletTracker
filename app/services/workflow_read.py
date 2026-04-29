@@ -85,7 +85,8 @@ def production_flow_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> s
     try:
         row = conn.execute(
             """
-            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
+            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE wb.id = ?
@@ -93,9 +94,23 @@ def production_flow_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> s
             (int(workflow_bag_id),),
         ).fetchone()
     except sqlite3.OperationalError:
-        return "card"
-    if row and int(dict(row).get("is_bottle_product") or 0) == 1:
-        return "bottle"
+        try:
+            row = conn.execute(
+                """
+                SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                       0 AS is_variety_pack
+                FROM workflow_bags wb
+                LEFT JOIN product_details pd ON pd.id = wb.product_id
+                WHERE wb.id = ?
+                """,
+                (int(workflow_bag_id),),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return "card"
+    if row:
+        r = dict(row)
+        if int(r.get("is_bottle_product") or 0) == 1 or int(r.get("is_variety_pack") or 0) == 1:
+            return "bottle"
     return "card"
 
 

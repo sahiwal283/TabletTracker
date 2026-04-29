@@ -420,9 +420,13 @@ class MigrationRunner:
             )
             self.c.execute(
                 """
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_bags_inventory_bag_id
+                DROP INDEX IF EXISTS uq_workflow_bags_inventory_bag_id
+                """
+            )
+            self.c.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ix_workflow_bags_inventory_bag_id
                 ON workflow_bags(inventory_bag_id)
-                WHERE inventory_bag_id IS NOT NULL
                 """
             )
             self._add_column_if_not_exists(
@@ -503,4 +507,3 @@ class MigrationRunner:
             except sqlite3.Error as e:
                 # Column might already exist or table might not exist yet
                 logger.debug("Skipping column add %s.%s: %s", table_name, column_name, e)
-

@@ -41,6 +41,12 @@ class TestWorkflowBagLookup(unittest.TestCase):
                 id INTEGER PRIMARY KEY,
                 inventory_bag_id INTEGER REFERENCES bags(id)
             );
+            CREATE TABLE qr_cards (
+                id INTEGER PRIMARY KEY,
+                scan_token TEXT,
+                status TEXT,
+                assigned_workflow_bag_id INTEGER REFERENCES workflow_bags(id)
+            );
             INSERT INTO tablet_types (id, tablet_type_name) VALUES (1, 'T1');
             INSERT INTO receiving (id, closed, status, received_date) VALUES (1, 0, 'published', '2026-01-01');
             INSERT INTO small_boxes (id, receiving_id, box_number) VALUES (1, 1, 2);
@@ -58,9 +64,26 @@ class TestWorkflowBagLookup(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["id"], 10)
 
-    def test_excludes_linked_bag(self):
+    def test_includes_linked_bag_when_card_released(self):
         self.conn.execute(
             "INSERT INTO workflow_bags (id, inventory_bag_id) VALUES (100, 10)"
+        )
+        self.conn.commit()
+        rows = find_unassigned_inventory_bags_by_flavor_box_bag(
+            self.conn, tablet_type_id=1, box_number=2, bag_number=3
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], 10)
+
+    def test_excludes_active_assigned_card_link(self):
+        self.conn.execute(
+            "INSERT INTO workflow_bags (id, inventory_bag_id) VALUES (100, 10)"
+        )
+        self.conn.execute(
+            """
+            INSERT INTO qr_cards (id, scan_token, status, assigned_workflow_bag_id)
+            VALUES (1, 'bag-1', 'assigned', 100)
+            """
         )
         self.conn.commit()
         rows = find_unassigned_inventory_bags_by_flavor_box_bag(

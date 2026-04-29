@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from collections.abc import Sequence
 
 
@@ -22,7 +23,42 @@ def allowed_tablet_type_ids_for_product(conn: sqlite3.Connection, product_id: in
         rows = ()
     if rows:
         return [int(dict(r)["tablet_type_id"]) for r in rows]
-    prow = conn.execute("SELECT tablet_type_id FROM product_details WHERE id = ?", (pid,)).fetchone()
+    try:
+        prow = conn.execute(
+            """
+            SELECT tablet_type_id, COALESCE(is_variety_pack, 0) AS is_variety_pack,
+                   variety_pack_contents
+            FROM product_details
+            WHERE id = ?
+            """,
+            (pid,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        prow = conn.execute(
+            "SELECT tablet_type_id, 0 AS is_variety_pack, NULL AS variety_pack_contents FROM product_details WHERE id = ?",
+            (pid,),
+        ).fetchone()
+    if prow and int(dict(prow).get("is_variety_pack") or 0) == 1:
+        raw = dict(prow).get("variety_pack_contents")
+        try:
+            contents = json.loads(raw or "[]")
+        except (TypeError, json.JSONDecodeError):
+            contents = []
+        ids: list[int] = []
+        seen: set[int] = set()
+        for item in contents if isinstance(contents, list) else []:
+            if not isinstance(item, dict):
+                continue
+            tid = item.get("tablet_type_id")
+            try:
+                tid_i = int(tid)
+            except (TypeError, ValueError):
+                continue
+            if tid_i not in seen:
+                seen.add(tid_i)
+                ids.append(tid_i)
+        if ids:
+            return ids
     if prow and prow["tablet_type_id"] is not None:
         return [int(prow["tablet_type_id"])]
     return []

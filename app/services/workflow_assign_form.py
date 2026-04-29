@@ -23,8 +23,10 @@ def load_workflow_products(conn) -> list[dict[str, Any]]:
                COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
         FROM product_details pd
         LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
-        WHERE COALESCE(pd.is_variety_pack, 0) = 0
-        ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name
+        ORDER BY
+            COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'),
+            COALESCE(pd.is_variety_pack, 0),
+            pd.product_name
         LIMIT 500
         """
     ).fetchall()

@@ -21,7 +21,17 @@ _ALLOWED: dict[str, frozenset[str]] = {
     WC.EVENT_STATION_RESUMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_BLISTER_COMPLETE: frozenset({"count_total", "employee_name"}),
     WC.EVENT_SEALING_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
-    WC.EVENT_BOTTLE_HANDPACK_COMPLETE: frozenset({"count_total", "employee_name", "qa_checked"}),
+    WC.EVENT_BOTTLE_HANDPACK_COMPLETE: frozenset(
+        {
+            "count_total",
+            "employee_name",
+            "qa_checked",
+            "source_card_tokens",
+            "source_qr_card_ids",
+            "source_workflow_bag_ids",
+            "source_inventory_bag_ids",
+        }
+    ),
     WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_BOTTLE_STICKER_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_PACKAGING_SNAPSHOT: frozenset(
@@ -37,7 +47,9 @@ _ALLOWED: dict[str, frozenset[str]] = {
     ),
     WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: frozenset({"displays_taken", "employee_name", "note"}),
     WC.EVENT_BAG_FINALIZED: frozenset({"finalization_rule_version"}),
-    WC.EVENT_CARD_FORCE_RELEASED: frozenset({"qr_card_id", "workflow_bag_id", "reason"}),
+    WC.EVENT_CARD_FORCE_RELEASED: frozenset(
+        {"qr_card_id", "workflow_bag_id", "reason", "released_by_workflow_bag_id"}
+    ),
     WC.EVENT_STATION_SCAN_TOKEN_ROTATED: frozenset({"station_id", "old_token_prefix", "new_token_prefix"}),
 }
 

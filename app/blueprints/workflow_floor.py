@@ -467,6 +467,98 @@ def _normalize_packaging_snapshot_payload(
     return out
 
 
+def _workflow_bag_product_flags(conn: sqlite3.Connection, workflow_bag_id: int) -> dict:
+    try:
+        row = conn.execute(
+            """
+            SELECT wb.product_id, COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (int(workflow_bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    if not row:
+        return {"product_id": None, "is_bottle_product": False, "is_variety_pack": False}
+    r = dict(row)
+    return {
+        "product_id": r.get("product_id"),
+        "is_bottle_product": bool(int(r.get("is_bottle_product") or 0)),
+        "is_variety_pack": bool(int(r.get("is_variety_pack") or 0)),
+    }
+
+
+def _list_from_payload(raw) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return [str(x) for x in raw if str(x or "").strip()]
+    return []
+
+
+def _normalize_bottle_handpack_sources(
+    conn: sqlite3.Connection,
+    *,
+    workflow_bag_id: int,
+    main_card_token: str,
+    payload: dict,
+) -> dict:
+    """Resolve scanned source card tokens to active workflow/source inventory ids for variety packs."""
+    flags = _workflow_bag_product_flags(conn, workflow_bag_id)
+    if not flags.get("is_variety_pack"):
+        return payload
+    out = dict(payload or {})
+    tokens: list[str] = []
+    seen_tokens: set[str] = set()
+    for token in [main_card_token, *_list_from_payload(out.get("source_card_tokens"))]:
+        t = str(token or "").strip()
+        if not t or t in seen_tokens:
+            continue
+        seen_tokens.add(t)
+        tokens.append(t)
+    if not tokens:
+        return out
+    qmarks = ",".join("?" for _ in tokens)
+    rows = conn.execute(
+        f"""
+        SELECT qc.id AS qr_card_id, qc.scan_token, qc.assigned_workflow_bag_id,
+               wb.inventory_bag_id, wb.product_id
+        FROM qr_cards qc
+        JOIN workflow_bags wb ON wb.id = qc.assigned_workflow_bag_id
+        WHERE qc.status = ?
+          AND qc.scan_token IN ({qmarks})
+        """,
+        (WC.QR_CARD_STATUS_ASSIGNED, *tokens),
+    ).fetchall()
+    by_token = {str(r["scan_token"]): dict(r) for r in rows}
+    missing = [t for t in tokens if t not in by_token]
+    if missing:
+        raise ValueError(f"Source bag QR not assigned: {missing[0]}")
+    product_id = flags.get("product_id")
+    qr_card_ids: list[int] = []
+    workflow_ids: list[int] = []
+    inventory_ids: list[int] = []
+    for token in tokens:
+        r = by_token[token]
+        if product_id is not None and r.get("product_id") != product_id:
+            raise ValueError("Source bag QR is assigned to a different product.")
+        if r.get("inventory_bag_id") is None:
+            raise ValueError("Source bag QR is not linked to a receiving bag.")
+        qr_card_ids.append(int(r["qr_card_id"]))
+        workflow_ids.append(int(r["assigned_workflow_bag_id"]))
+        inventory_ids.append(int(r["inventory_bag_id"]))
+    out["source_card_tokens"] = tokens
+    out["source_qr_card_ids"] = qr_card_ids
+    out["source_workflow_bag_ids"] = workflow_ids
+    out["source_inventory_bag_ids"] = inventory_ids
+    return out
+
+
 @bp.route("/manual")
 def manual_station():
     """Paste station / card tokens without scanning."""
@@ -624,6 +716,21 @@ def api_append_event():
         station_id = int(st["id"])
         if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
             payload = _normalize_packaging_snapshot_payload(conn, bag_id, payload)
+        if event_type == WC.EVENT_BOTTLE_HANDPACK_COMPLETE:
+            try:
+                payload = _normalize_bottle_handpack_sources(
+                    conn,
+                    workflow_bag_id=bag_id,
+                    main_card_token=card_token,
+                    payload=payload if isinstance(payload, dict) else {},
+                )
+            except ValueError as ve:
+                return workflow_json(
+                    "WORKFLOW_VALIDATION",
+                    str(ve),
+                    details={"reason": "invalid_source_bag"},
+                    status=400,
+                )
         station_claimed = _station_has_claimed_bag(conn, bag_id, station_id)
         if event_type != WC.EVENT_BAG_CLAIMED and not station_claimed:
             return workflow_json(

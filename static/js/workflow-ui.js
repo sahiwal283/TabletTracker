@@ -2,8 +2,10 @@
 (function () {
   let html5QrCode = null;
   let html5QrCodeVerify = null;
+  let html5QrCodeSource = null;
   let productScanDone = false;
   let verifyScanDone = false;
+  let sourceScanDone = false;
   let hasLoadedBag = false;
   let stationClaimed = false;
   /** When true, bag was paused at this station — submit/pause blocked until Resume (server: resume_required). */
@@ -940,6 +942,43 @@
       if (el) el.value = '';
     });
   }
+  function setSourceScanUi(scanning) {
+    var wrap = document.getElementById('wf-source-reader-wrap');
+    var stopBtn = document.getElementById('wf-source-scan-stop');
+    var scanBtn = document.getElementById('wf-source-scan');
+    if (wrap) wrap.classList.toggle('hidden', !scanning);
+    if (stopBtn) stopBtn.classList.toggle('hidden', !scanning);
+    if (scanBtn) scanBtn.classList.toggle('hidden', scanning);
+  }
+  function sourceBagTokens() {
+    var el = document.getElementById('wf-source-card-tokens');
+    if (!el) return [];
+    var seen = {};
+    return String(el.value || '')
+      .split(/\s+/)
+      .map(function (x) {
+        return String(x || '').trim();
+      })
+      .filter(function (x) {
+        if (!x || seen[x]) return false;
+        seen[x] = true;
+        return true;
+      });
+  }
+  function setSourceBagTokens(tokens) {
+    var el = document.getElementById('wf-source-card-tokens');
+    if (el) el.value = (tokens || []).join('\n');
+  }
+  function addSourceBagToken(token) {
+    var t = String(token || '').trim();
+    if (!t) return;
+    var tokens = sourceBagTokens();
+    if (!tokens.includes(t)) tokens.push(t);
+    setSourceBagTokens(tokens);
+  }
+  function clearSourceBagTokens() {
+    setSourceBagTokens([]);
+  }
   function configureStationActions() {
     const kind = stationKind();
     const hint = document.getElementById('wf-station-hint');
@@ -957,12 +996,14 @@
     const empLabel = document.getElementById('wf-employee-name-label');
     const empInput = document.getElementById('wf-employee-name');
     const qaLabel = document.getElementById('wf-qa-checked-label');
+    const sourcePanel = document.getElementById('wf-source-bags-panel');
     if (!saveBtn || !pauseBtn || !claimBtn || !countTotal) return;
     if (resumeBtn) resumeBtn.classList.add('hidden');
     if (empLabel) empLabel.classList.add('hidden');
     if (empInput) empInput.classList.add('hidden');
     if (qaLabel) qaLabel.classList.add('hidden');
     if (qaLabel) qaLabel.classList.remove('flex');
+    if (sourcePanel) sourcePanel.classList.add('hidden');
     hidePackagingStationExtra();
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (handpackBtn) handpackBtn.classList.add('hidden');
@@ -1046,6 +1087,7 @@
         qaLabel.classList.remove('hidden');
         qaLabel.classList.add('flex');
       }
+      if (sourcePanel) sourcePanel.classList.remove('hidden');
       if (hint) {
         hint.classList.remove('hidden');
         hint.textContent = occupancyGateIntentEndRun
@@ -1343,6 +1385,92 @@
       }
     }
   }
+  async function stopSourceQrScanner() {
+    sourceScanDone = false;
+    if (html5QrCodeSource) {
+      try {
+        await html5QrCodeSource.stop();
+      } catch (_e) {
+        /* already stopped */
+      }
+      try {
+        await html5QrCodeSource.clear();
+      } catch (_e2) {
+        /* */
+      }
+      html5QrCodeSource = null;
+    }
+    setSourceScanUi(false);
+  }
+  async function startSourceQrScan() {
+    if (typeof Html5Qrcode === 'undefined') {
+      statusLine('Scanner failed to load. Check your connection and refresh the page.', 'error');
+      return;
+    }
+    await stopSourceQrScanner();
+    sourceScanDone = false;
+    var readerId = 'wf-source-qr-reader';
+    var el = document.getElementById(readerId);
+    if (!el) return;
+    html5QrCodeSource = new Html5Qrcode(readerId);
+    setSourceScanUi(true);
+    statusLine('Point the camera at a variety source bag QR code.', 'info');
+    var config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    function onScanSuccess(decodedText) {
+      if (sourceScanDone) return;
+      var text = String(decodedText || '').trim();
+      if (!text) return;
+      sourceScanDone = true;
+      setTimeout(function () {
+        (async function () {
+          try {
+            addSourceBagToken(text);
+            try {
+              if (navigator.vibrate) navigator.vibrate(15);
+            } catch (_v) {
+              /* */
+            }
+            statusLine('Source bag QR captured. Scan another source bag if needed.', 'success');
+            await stopSourceQrScanner();
+          } catch (err) {
+            statusLine(String(err), 'error');
+          }
+        })();
+      }, 0);
+    }
+    function onScanFailure() {
+      /* per-frame noise; ignore */
+    }
+    try {
+      await html5QrCodeSource.start({ facingMode: 'environment' }, config, onScanSuccess, onScanFailure);
+    } catch (e1) {
+      try {
+        await html5QrCodeSource.stop();
+      } catch (_s) {
+        /* */
+      }
+      try {
+        await html5QrCodeSource.clear();
+      } catch (_c) {
+        /* */
+      }
+      html5QrCodeSource = null;
+      try {
+        var devices = await Html5Qrcode.getCameras();
+        if (!devices || devices.length === 0) throw e1;
+        var back =
+          devices.find(function (d) {
+            return /back|rear|environment|wide/i.test(d.label || '');
+          }) || devices[0];
+        html5QrCodeSource = new Html5Qrcode(readerId);
+        await html5QrCodeSource.start(back.id, config, onScanSuccess, onScanFailure);
+      } catch (e2) {
+        await stopSourceQrScanner();
+        var msg = (e1 && e1.message) || String(e1);
+        statusLine('Could not start camera: ' + msg, 'error');
+      }
+    }
+  }
   async function postJson(path, body) {
     const r = await fetch(path, {
       method: 'POST',
@@ -1564,11 +1692,13 @@
         count_total: countTotal,
         employee_name: requiredEmployeeName(),
         qa_checked: true,
+        source_card_tokens: sourceBagTokens(),
       });
       occupancyGateIntentEndRun = false;
       clearCountField();
       clearEmployeeNameField();
       clearQaCheckedField();
+      clearSourceBagTokens();
       configureStationActions();
       startCooldownAfterSuccess('submit');
       statusLine('Bottle hand-pack count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
@@ -1743,11 +1873,13 @@
       if (kind === 'bottle_handpack') {
         requiredQaChecked();
         bottlePayload.qa_checked = true;
+        bottlePayload.source_card_tokens = sourceBagTokens();
       }
       await emitEvent(bottleEventType, bottlePayload);
       clearCountField();
       clearEmployeeNameField();
       clearQaCheckedField();
+      clearSourceBagTokens();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
@@ -1942,6 +2074,12 @@
     if (sp) sp.addEventListener('click', () => startProductQrScan().catch((e) => statusLine(String(e), 'error')));
     const st = document.getElementById('wf-scan-stop');
     if (st) st.addEventListener('click', () => stopProductQrScanner().catch((e) => statusLine(String(e), 'error')));
+    const ss = document.getElementById('wf-source-scan');
+    if (ss) ss.addEventListener('click', () => startSourceQrScan().catch((e) => statusLine(String(e), 'error')));
+    const sst = document.getElementById('wf-source-scan-stop');
+    if (sst) sst.addEventListener('click', () => stopSourceQrScanner().catch((e) => statusLine(String(e), 'error')));
+    const sc = document.getElementById('wf-source-clear');
+    if (sc) sc.addEventListener('click', () => clearSourceBagTokens());
     const gp = document.getElementById('wf-gate-pause');
     if (gp) gp.addEventListener('click', () => openOccupancyVerify('pause'));
     const ge = document.getElementById('wf-gate-end');
@@ -1992,6 +2130,7 @@
     window.addEventListener('beforeunload', () => {
       stopProductQrScanner().catch(() => {});
       stopVerifyQrScanner().catch(() => {});
+      stopSourceQrScanner().catch(() => {});
     });
   });
 })();

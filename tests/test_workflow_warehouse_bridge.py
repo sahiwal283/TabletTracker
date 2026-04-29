@@ -32,6 +32,7 @@ CREATE TABLE product_details (
     tablets_per_bottle INTEGER,
     bottles_per_display INTEGER,
     displays_per_case INTEGER,
+    variety_pack_contents TEXT,
     is_bottle_product INTEGER DEFAULT 0,
     is_variety_pack INTEGER DEFAULT 0
 );
@@ -91,6 +92,13 @@ CREATE TABLE warehouse_submissions (
     bottles_made INTEGER DEFAULT 0,
     bottle_sealing_machine_count INTEGER,
     bag_end_time TEXT
+);
+CREATE TABLE submission_bag_deductions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id INTEGER,
+    bag_id INTEGER,
+    tablets_deducted INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -289,6 +297,94 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
         self.assertEqual(row["displays_made"], 7)
         self.assertEqual(row["packs_remaining"], 3)
         self.assertEqual(row["bottle_sealing_machine_count"], 95)
+
+    def test_variety_bottle_packaging_deducts_scanned_source_bags(self):
+        self.conn.execute(
+            "INSERT INTO tablet_types (tablet_type_name, inventory_item_id) VALUES ('T2', 'inv-y')"
+        )
+        t2 = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status, po_id)
+            VALUES (1, 3, 5000, ?, 'Available', 1)
+            """,
+            (t2,),
+        )
+        bag2 = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            INSERT INTO product_details (
+                product_name, tablet_type_id, tablets_per_bottle, bottles_per_display,
+                is_variety_pack, variety_pack_contents
+            )
+            VALUES ('Variety Bottle', NULL, 0, 10, 1, ?)
+            """,
+            (
+                '[{"tablet_type_id": 1, "tablets_per_bottle": 2}, '
+                '{"tablet_type_id": %d, "tablets_per_bottle": 3}]' % t2,
+            ),
+        )
+        pid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            INSERT INTO workflow_bags (created_at, product_id, box_number, bag_number, inventory_bag_id)
+            VALUES (1700000000000, ?, 1, 2, 1)
+            """,
+            (pid,),
+        )
+        wid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                workflow_bag_id INTEGER NOT NULL,
+                station_id INTEGER
+            )
+            """
+        )
+        self.conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, payload, occurred_at, workflow_bag_id, station_id)
+            VALUES (?, ?, 1700000000001, ?, 1)
+            """,
+            (
+                WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+                '{"count_total": 21, "qa_checked": true, "source_inventory_bag_ids": [1, %d]}' % bag2,
+                wid,
+            ),
+        )
+        self.conn.commit()
+
+        r = upsert_bottle_from_workflow_packaging(
+            self.conn,
+            wid,
+            displays_made=2,
+            bottles_remaining=1,
+            station_row={"id": 1},
+            employee_name="QR",
+        )
+        self.assertTrue(r.get("ok"))
+        self.assertEqual(r.get("bottles_made"), 21)
+        rows = self.conn.execute(
+            """
+            SELECT bag_id, tablets_deducted
+            FROM submission_bag_deductions
+            WHERE submission_id = ?
+            ORDER BY bag_id
+            """,
+            (r["warehouse_submission_id"],),
+        ).fetchall()
+        self.assertEqual([(row["bag_id"], row["tablets_deducted"]) for row in rows], [(1, 42), (bag2, 63)])
+        ws = self.conn.execute(
+            "SELECT bag_id, submission_type, bottles_made FROM warehouse_submissions WHERE id = ?",
+            (r["warehouse_submission_id"],),
+        ).fetchone()
+        self.assertIsNone(ws["bag_id"])
+        self.assertEqual(ws["submission_type"], "bottle")
+        self.assertEqual(ws["bottles_made"], 21)
 
     def test_per_event_packaging_appends_distinct_receipts(self):
         wid = self._wf_bag_id

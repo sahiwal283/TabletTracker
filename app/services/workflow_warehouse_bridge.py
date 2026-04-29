@@ -10,6 +10,7 @@ rows when attributing by event.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
@@ -124,6 +125,122 @@ def _latest_event_count_total(
         return max(0, int(payload.get("count_total") or 0))
     except (TypeError, ValueError, json.JSONDecodeError):
         return 0
+
+
+def _handpack_source_inventory_bag_ids(conn: sqlite3.Connection, workflow_bag_id: int) -> list[int]:
+    """Union of inventory bag ids scanned into bottle hand-pack source payloads."""
+    try:
+        rows = conn.execute(
+            """
+            SELECT payload
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND event_type = ?
+            ORDER BY occurred_at ASC, id ASC
+            """,
+            (int(workflow_bag_id), WC.EVENT_BOTTLE_HANDPACK_COMPLETE),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    seen: set[int] = set()
+    out: list[int] = []
+    for row in rows:
+        try:
+            payload = json.loads(row["payload"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for raw in payload.get("source_inventory_bag_ids") or []:
+            try:
+                bid = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if bid in seen:
+                continue
+            seen.add(bid)
+            out.append(bid)
+    return out
+
+
+def _bag_remaining_tablets(conn: sqlite3.Connection, bag_id: int) -> int:
+    try:
+        bag = conn.execute(
+            "SELECT bag_label_count, pill_count FROM bags WHERE id = ?",
+            (int(bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        bag = conn.execute(
+            "SELECT bag_label_count, NULL AS pill_count FROM bags WHERE id = ?",
+            (int(bag_id),),
+        ).fetchone()
+    if not bag:
+        return 0
+    original_count = int((dict(bag).get("bag_label_count") or dict(bag).get("pill_count") or 0))
+    packaged_total = conn.execute(
+        """
+        SELECT COALESCE(SUM(
+            (COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)) +
+            (COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0))
+        ), 0) AS total
+        FROM warehouse_submissions ws
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        WHERE ws.bag_id = ? AND ws.submission_type = 'packaged'
+        """,
+        (int(bag_id),),
+    ).fetchone()
+    bottle_direct = conn.execute(
+        """
+        SELECT COALESCE(SUM(
+            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0)
+        ), 0) AS total
+        FROM warehouse_submissions ws
+        LEFT JOIN product_details pd ON ws.product_name = pd.product_name
+        WHERE ws.submission_type = 'bottle' AND ws.bag_id = ?
+        """,
+        (int(bag_id),),
+    ).fetchone()
+    try:
+        bottle_junction = conn.execute(
+            """
+            SELECT COALESCE(SUM(sbd.tablets_deducted), 0) AS total
+            FROM submission_bag_deductions sbd
+            WHERE sbd.bag_id = ?
+            """,
+            (int(bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        bottle_junction = None
+    already_used = (
+        int(dict(packaged_total).get("total") or 0 if packaged_total else 0)
+        + int(dict(bottle_direct).get("total") or 0 if bottle_direct else 0)
+        + int(dict(bottle_junction).get("total") or 0 if bottle_junction else 0)
+    )
+    return max(0, original_count - already_used)
+
+
+def _delete_bottle_submissions_for_receipts(conn: sqlite3.Connection, receipts: list[str]) -> None:
+    clean = [str(r) for r in receipts if str(r or "").strip()]
+    if not clean:
+        return
+    qmarks = ",".join("?" for _ in clean)
+    rows = conn.execute(
+        f"SELECT id FROM warehouse_submissions WHERE submission_type = 'bottle' AND receipt_number IN ({qmarks})",
+        tuple(clean),
+    ).fetchall()
+    ids = [int(r["id"]) for r in rows]
+    if ids:
+        id_marks = ",".join("?" for _ in ids)
+        try:
+            conn.execute(
+                f"DELETE FROM submission_bag_deductions WHERE submission_id IN ({id_marks})",
+                tuple(ids),
+            )
+        except sqlite3.OperationalError:
+            pass
+    conn.execute(
+        f"DELETE FROM warehouse_submissions WHERE submission_type = 'bottle' AND receipt_number IN ({qmarks})",
+        tuple(clean),
+    )
 
 
 def _display_count_from_packaging_payload(
@@ -540,9 +657,11 @@ def upsert_bottle_from_workflow_packaging(
         """
         SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.tablets_per_bottle,
                pd.bottles_per_display, COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+               COALESCE(pd.is_variety_pack, 0) AS is_variety_pack,
+               pd.variety_pack_contents,
                tt.inventory_item_id, tt.id AS tablet_type_id
         FROM product_details pd
-        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
         WHERE pd.id = ?
         """,
         (product_id,),
@@ -550,15 +669,17 @@ def upsert_bottle_from_workflow_packaging(
     if not product:
         return {"ok": False, "reason": "product_not_found", "skipped": True}
     product = dict(product)
-    if int(product.get("is_bottle_product") or 0) != 1:
+    is_variety_pack = int(product.get("is_variety_pack") or 0) == 1
+    is_bottle_product = int(product.get("is_bottle_product") or 0) == 1
+    if not is_bottle_product and not is_variety_pack:
         return {"ok": False, "reason": "not_bottle_product", "skipped": True}
     tpb = int(product.get("tablets_per_bottle") or 0)
     bpd = int(product.get("bottles_per_display") or 0)
-    if tpb <= 0 or bpd <= 0:
+    if bpd <= 0 or (tpb <= 0 and not is_variety_pack):
         return {"ok": False, "reason": "incomplete_bottle_product_config", "skipped": True}
 
     inv = product.get("inventory_item_id")
-    if not inv:
+    if not inv and not is_variety_pack:
         return {"ok": False, "reason": "no_inventory_item_id", "skipped": True}
 
     bag_id = None
@@ -604,7 +725,7 @@ def upsert_bottle_from_workflow_packaging(
             box_number = bag.get("box_number") or box_number
             bag_number = bag.get("bag_number") or bag_number
 
-    if bag_id is None:
+    if bag_id is None and not is_variety_pack:
         return {"ok": False, "reason": "no_bag_resolution", "skipped": True}
 
     base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
@@ -612,19 +733,21 @@ def upsert_bottle_from_workflow_packaging(
         f"{base}-pkg-e{int(event_id)}" if event_id is not None else base
     )
     if _has_manual_receipt(wb):
-        conn.execute(
+        legacy_rows = conn.execute(
             """
-            DELETE FROM warehouse_submissions
+            SELECT DISTINCT receipt_number
+            FROM warehouse_submissions
             WHERE submission_type = 'bottle'
               AND (receipt_number = ? OR receipt_number LIKE ?)
             """,
             (base, base + "-pkg-e%"),
+        ).fetchall()
+        _delete_bottle_submissions_for_receipts(
+            conn,
+            [str(r["receipt_number"]) for r in legacy_rows if r["receipt_number"]],
         )
     elif event_id is None:
-        conn.execute(
-            "DELETE FROM warehouse_submissions WHERE receipt_number = ? AND submission_type = 'bottle'",
-            (receipt,),
-        )
+        _delete_bottle_submissions_for_receipts(conn, [receipt])
 
     try:
         assert_receipt_product_chain(
@@ -640,6 +763,177 @@ def upsert_bottle_from_workflow_packaging(
     )
     emp = employee_name or "QR workflow"
     submission_date = datetime.now().date().isoformat()
+
+    if is_variety_pack:
+        try:
+            contents = json.loads(product.get("variety_pack_contents") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            contents = []
+        if not isinstance(contents, list) or not contents:
+            raise ProductionSubmissionError(
+                400, {"error": "Variety pack contents are not configured."}
+            )
+        source_bag_ids = _handpack_source_inventory_bag_ids(conn, workflow_bag_id)
+        if not source_bag_ids:
+            raise ProductionSubmissionError(
+                400,
+                {"error": "Scan the variety source bag QR cards at hand pack before packaging."},
+            )
+        qmarks = ",".join("?" for _ in source_bag_ids)
+        try:
+            source_rows = conn.execute(
+                f"""
+                SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count, b.tablet_type_id,
+                       sb.box_number, tt.tablet_type_name, COALESCE(b.po_id, r.po_id) AS po_id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE b.id IN ({qmarks})
+                  AND COALESCE(b.status, 'Available') != 'Closed'
+                """,
+                tuple(source_bag_ids),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            source_rows = conn.execute(
+                f"""
+                SELECT b.id, b.bag_number, b.bag_label_count, NULL AS pill_count, b.tablet_type_id,
+                       sb.box_number, tt.tablet_type_name, COALESCE(b.po_id, r.po_id) AS po_id
+                FROM bags b
+                JOIN small_boxes sb ON b.small_box_id = sb.id
+                JOIN receiving r ON sb.receiving_id = r.id
+                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+                WHERE b.id IN ({qmarks})
+                  AND COALESCE(b.status, 'Available') != 'Closed'
+                """,
+                tuple(source_bag_ids),
+            ).fetchall()
+        source_by_flavor: dict[int, list[dict[str, Any]]] = {}
+        for row in source_rows:
+            b = dict(row)
+            try:
+                flavor_id = int(b.get("tablet_type_id"))
+            except (TypeError, ValueError):
+                continue
+            source_by_flavor.setdefault(flavor_id, []).append(b)
+
+        deduction_details: list[dict[str, Any]] = []
+        for flavor in contents:
+            if not isinstance(flavor, dict):
+                continue
+            try:
+                flavor_tt_id = int(flavor.get("tablet_type_id"))
+                tablets_per_flavor = int(flavor.get("tablets_per_bottle") or 0)
+            except (TypeError, ValueError):
+                continue
+            tablets_needed = bottles_made * tablets_per_flavor
+            if tablets_needed <= 0:
+                continue
+            tablets_still_needed = tablets_needed
+            for bag in source_by_flavor.get(flavor_tt_id, []):
+                if tablets_still_needed <= 0:
+                    break
+                remaining = _bag_remaining_tablets(conn, int(bag["id"]))
+                if remaining <= 0:
+                    continue
+                tablets_to_deduct = min(remaining, tablets_still_needed)
+                tablets_still_needed -= tablets_to_deduct
+                deduction_details.append(
+                    {
+                        "bag_id": int(bag["id"]),
+                        "tablet_type_name": bag.get("tablet_type_name"),
+                        "bag_number": bag.get("bag_number"),
+                        "box_number": bag.get("box_number"),
+                        "tablets_deducted": tablets_to_deduct,
+                        "po_id": bag.get("po_id"),
+                    }
+                )
+            if tablets_still_needed > 0:
+                label = flavor.get("tablet_type_name") or f"flavor ID {flavor_tt_id}"
+                raise ProductionSubmissionError(
+                    400,
+                    {
+                        "error": (
+                            f"Not enough tablets in scanned source bags for {label}. "
+                            f"Need {tablets_needed}, only have {tablets_needed - tablets_still_needed} available."
+                        )
+                    },
+                )
+
+        po_ids = {d.get("po_id") for d in deduction_details if d.get("po_id") is not None}
+        variety_assigned_po_id = (
+            next(iter(po_ids))
+            if len(po_ids) == 1
+            else (deduction_details[0].get("po_id") if deduction_details else None)
+        )
+        if event_id is None or _has_manual_receipt(wb):
+            receipts: list[str] = [receipt]
+            if _has_manual_receipt(wb):
+                legacy_rows = conn.execute(
+                    """
+                    SELECT DISTINCT receipt_number
+                    FROM warehouse_submissions
+                    WHERE submission_type = 'bottle'
+                      AND (receipt_number = ? OR receipt_number LIKE ?)
+                    """,
+                    (base, base + "-pkg-e%"),
+                ).fetchall()
+                receipts = [str(r["receipt_number"]) for r in legacy_rows if r["receipt_number"]]
+            _delete_bottle_submissions_for_receipts(conn, receipts)
+        conn.execute(
+            """
+            INSERT INTO warehouse_submissions
+            (employee_name, product_name, inventory_item_id, bottles_made, displays_made,
+             packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
+             bottle_sealing_machine_count, assigned_po_id, needs_review, bag_end_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?, ?, 0, ?)
+            """,
+            (
+                emp,
+                product["product_name"],
+                inv,
+                bottles_made,
+                int(displays_made),
+                int(bottles_remaining),
+                submission_date,
+                receipt,
+                None,
+                bottle_sealing_machine_count,
+                variety_assigned_po_id,
+                utc_now_naive_string(),
+            ),
+        )
+        sid = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+        for deduction in deduction_details:
+            conn.execute(
+                """
+                INSERT INTO submission_bag_deductions
+                (submission_id, bag_id, tablets_deducted)
+                VALUES (?, ?, ?)
+                """,
+                (sid, deduction["bag_id"], deduction["tablets_deducted"]),
+            )
+        station_id = int(station_row.get("id")) if station_row and station_row.get("id") else None
+        end_ms = _event_occurred_at_ms(conn, event_id)
+        start_ms = _station_session_start_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
+        _update_receipt_station_times(
+            conn,
+            receipt_number=receipt,
+            submission_type="bottle",
+            bag_start_time=_utc_naive_from_event_ms(start_ms),
+            bag_end_time=_utc_naive_from_event_ms(end_ms) or utc_now_naive_string(),
+        )
+        return {
+            "ok": True,
+            "warehouse_submission_id": sid,
+            "bag_id": None,
+            "assigned_po_id": variety_assigned_po_id,
+            "receipt_number": receipt,
+            "bottles_made": bottles_made,
+            "bottle_sealing_machine_count": bottle_sealing_machine_count,
+            "source_bag_count": len(source_bag_ids),
+            "deduction_count": len(deduction_details),
+        }
 
     insert_values = (
         emp,
@@ -727,7 +1021,8 @@ def sync_if_packaging_snapshot(
     try:
         flow_row = conn.execute(
             """
-            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
+            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE wb.id = ?
@@ -736,16 +1031,18 @@ def sync_if_packaging_snapshot(
         ).fetchone()
     except sqlite3.OperationalError:
         flow_row = None
-    if flow_row and int(dict(flow_row).get("is_bottle_product") or 0) == 1:
-        return upsert_bottle_from_workflow_packaging(
-            conn,
-            workflow_bag_id,
-            displays_made=dm,
-            bottles_remaining=pr,
-            station_row=station_row,
-            event_id=event_id,
-            employee_name=_employee_name_from_payload(payload),
-        )
+    if flow_row:
+        flow = dict(flow_row)
+        if int(flow.get("is_bottle_product") or 0) == 1 or int(flow.get("is_variety_pack") or 0) == 1:
+            return upsert_bottle_from_workflow_packaging(
+                conn,
+                workflow_bag_id,
+                displays_made=dm,
+                bottles_remaining=pr,
+                station_row=station_row,
+                event_id=event_id,
+                employee_name=_employee_name_from_payload(payload),
+            )
     return upsert_packaged_from_workflow_packaging(
         conn,
         workflow_bag_id,

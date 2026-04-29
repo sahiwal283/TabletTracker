@@ -129,14 +129,12 @@ def new_bag():
 
         prow = conn.execute(
             """
-            SELECT id, tablet_type_id FROM product_details
+            SELECT id FROM product_details
             WHERE id = ?
-            AND COALESCE(is_variety_pack, 0) = 0
-            AND (is_bottle_product = 0 OR is_bottle_product IS NULL)
             """,
             (product_id,),
         ).fetchone()
-        if not prow or prow["tablet_type_id"] is None:
+        if not prow:
             flash("Invalid product for workflow assignment.", "error")
             return assign_bag_redirect_after_post()
 

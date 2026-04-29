@@ -123,6 +123,18 @@
     <input id="wf-qa-checked" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
     <span>Second person checked the bottles</span>
   </label>
+  <div id="wf-source-bags-panel" class="hidden mb-3 rounded-xl border border-slate-200 bg-white p-3">
+    <label for="wf-source-card-tokens" class="block text-sm font-medium mb-1">Variety source bag cards</label>
+    <div class="flex flex-wrap gap-3 mb-2">
+      <button type="button" id="wf-source-scan" class="btn-secondary px-4 py-3 text-base">Scan source bag QR</button>
+      <button type="button" id="wf-source-scan-stop" class="btn-secondary px-4 py-3 text-base hidden">Stop scan</button>
+      <button type="button" id="wf-source-clear" class="btn-secondary px-4 py-3 text-base">Clear sources</button>
+    </div>
+    <div id="wf-source-reader-wrap" class="mb-3 hidden">
+      <div id="wf-source-qr-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
+    </div>
+    <textarea id="wf-source-card-tokens" class="form-input min-h-[92px]" placeholder="Scan each source bag QR, or type one token per line"></textarea>
+  </div>
   </div>
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />

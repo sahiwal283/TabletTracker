@@ -215,6 +215,76 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(st, "reject")
         self.assertIn("missing_bottle_handpack", body["details"]["reasons"])
 
+    def test_finalize_bottle_releases_scanned_source_cards(self):
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (703, 'Variety Bottle', 1)"
+        )
+        self.conn.commit()
+        main_id, main_card_id = create_workflow_bag_with_card(
+            self.conn,
+            product_id=703,
+            box_number="1",
+            bag_number="25",
+            receipt_number=None,
+            user_id=None,
+        )
+        source_id, source_card_id = create_workflow_bag_with_card(
+            self.conn,
+            product_id=703,
+            box_number="1",
+            bag_number="26",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(
+            self.conn,
+            "BOTTLE_HANDPACK_COMPLETE",
+            {
+                "count_total": 100,
+                "qa_checked": True,
+                "source_workflow_bag_ids": [main_id, source_id],
+            },
+            main_id,
+        )
+        append_workflow_event(
+            self.conn, "BOTTLE_CAP_SEAL_COMPLETE", {"station_id": 1, "count_total": 96}, main_id
+        )
+        append_workflow_event(
+            self.conn, "BOTTLE_STICKER_COMPLETE", {"station_id": 1, "count_total": 94}, main_id
+        )
+        append_workflow_event(
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "x"}, main_id
+        )
+        self.conn.commit()
+
+        st, _body = try_finalize(self.conn, main_id, station_id=1)
+        self.assertEqual(st, "ok")
+        rows = self.conn.execute(
+            """
+            SELECT id, status, assigned_workflow_bag_id
+            FROM qr_cards
+            WHERE id IN (?, ?)
+            ORDER BY id
+            """,
+            (main_card_id, source_card_id),
+        ).fetchall()
+        self.assertEqual(
+            [(r["status"], r["assigned_workflow_bag_id"]) for r in rows],
+            [("idle", None), ("idle", None)],
+        )
+        ev = self.conn.execute(
+            """
+            SELECT payload
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND event_type = 'CARD_FORCE_RELEASED'
+            """,
+            (source_id,),
+        ).fetchone()
+        self.assertIsNotNone(ev)
+
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card
