@@ -343,7 +343,7 @@
       verifyPan.classList.toggle('hidden', !occupancyVerifyOpen);
     }
 
-    if (cardEntry) cardEntry.classList.toggle('hidden', hideMain);
+    if (cardEntry) cardEntry.classList.toggle('hidden', hideMain || hasLoadedBag);
     if (fields) fields.classList.toggle('hidden', hideMain);
     if (actions) actions.classList.toggle('hidden', hideMain);
 

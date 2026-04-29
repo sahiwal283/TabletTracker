@@ -31,6 +31,7 @@ _ALLOWED: dict[str, frozenset[str]] = {
     WC.EVENT_BAG_CLAIMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_STATION_RESUMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_BLISTER_COMPLETE: frozenset({"count_total", "employee_name"}),
+    WC.EVENT_OPERATOR_CHANGE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_SEALING_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_BOTTLE_HANDPACK_COMPLETE: frozenset(
         {
