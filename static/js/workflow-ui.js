@@ -293,6 +293,7 @@
     var verifyPan = document.getElementById('wf-verify-panel');
     var pauseB = document.getElementById('wf-gate-pause');
     var endB = document.getElementById('wf-gate-end');
+    var opB = document.getElementById('wf-gate-operator');
     var materialB = document.getElementById('wf-gate-material');
     var takenG = document.getElementById('wf-gate-taken');
     var isPackaging = stationKind() === 'packaging';
@@ -316,11 +317,13 @@
           choice.classList.add('hidden');
           pauseB.classList.add('hidden');
           endB.classList.add('hidden');
+          if (opB) opB.classList.add('hidden');
           if (materialB) materialB.classList.add('hidden');
           if (takenG) takenG.classList.add('hidden');
         } else {
           pauseB.classList.remove('hidden');
           endB.classList.remove('hidden');
+          if (opB) opB.classList.remove('hidden');
           if (materialB) {
             var showMaterialGate =
               stationKind() === 'blister' || stationKind() === 'combined';
@@ -364,6 +367,9 @@
       } else if (mode === 'material') {
         inst.textContent =
           'Scan the bag card QR to verify before recording material change.';
+      } else if (mode === 'operator') {
+        inst.textContent =
+          'Scan the bag card QR to verify before recording operator change.';
       } else if (mode === 'resume') {
         inst.textContent = 'Scan the bag card QR to verify, then the station will resume.';
       } else {
@@ -1314,6 +1320,14 @@
         if (saveSealBtn) saveSealBtn.classList.add('hidden');
         if (handpackBtn) handpackBtn.classList.add('hidden');
         if (materialChangeOpenBtn) materialChangeOpenBtn.classList.remove('hidden');
+      } else if (forced === 'operator') {
+        pauseBtn.classList.add('hidden');
+        if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
+        if (saveSealBtn) saveSealBtn.classList.add('hidden');
+        if (handpackBtn) handpackBtn.classList.add('hidden');
+        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
+        saveBtn.classList.remove('hidden');
+        saveBtn.textContent = 'Operator change';
       }
     }
   }
@@ -1704,6 +1718,10 @@
   }
   async function saveCountAndContinue() {
     ensureLoadedBag();
+    if (occupancyGateForcedAction === 'operator') {
+      await saveOperatorChangeWithCount();
+      return;
+    }
     assertActionCooldown('submit');
     const kind = stationKind();
     if (kind === 'packaging') {
@@ -1981,6 +1999,30 @@
       refreshStationOccupancy().catch(function () {});
     });
   }
+  async function saveOperatorChangeWithCount() {
+    ensureLoadedBag();
+    const kind = stationKind();
+    const countTotal = selectedCountTotal();
+    const payload = {
+      count_total: countTotal,
+      employee_name: requiredEmployeeName(),
+      metadata: {
+        operator_change: true,
+        reason: 'operator_change',
+      },
+    };
+    if (kind === 'sealing' || kind === 'bottle_cap_seal' || kind === 'bottle_stickering') {
+      payload.station_id = window.WF_STATION_ID || 1;
+    }
+    await emitEvent('OPERATOR_CHANGE', payload);
+    clearCountField();
+    clearEmployeeNameField();
+    occupancyGateForcedAction = null;
+    occupancyGateIntentEndRun = false;
+    configureStationActions();
+    statusLine('Operator change saved with current count.', 'success');
+    fullscreenSubmitOk('Operator change saved.');
+  }
   async function submitPackagingAndFinalize() {
     ensureLoadedBag();
     assertActionCooldown('submit');
@@ -2134,6 +2176,8 @@
     if (gp) gp.addEventListener('click', () => openOccupancyVerify('pause'));
     const ge = document.getElementById('wf-gate-end');
     if (ge) ge.addEventListener('click', () => openOccupancyVerify('end'));
+    const go = document.getElementById('wf-gate-operator');
+    if (go) go.addEventListener('click', () => openOccupancyVerify('operator'));
     const gm = document.getElementById('wf-gate-material');
     if (gm) gm.addEventListener('click', () => openOccupancyVerify('material'));
     const gt = document.getElementById('wf-gate-taken');

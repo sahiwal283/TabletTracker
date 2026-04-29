@@ -389,6 +389,8 @@ def _is_event_allowed_for_station(station_kind: str, event_type: str) -> bool:
     et = (event_type or "").strip().upper()
     if et in (WC.EVENT_BAG_CLAIMED, WC.EVENT_STATION_RESUMED):
         return True
+    if et == WC.EVENT_OPERATOR_CHANGE:
+        return True
     allowed = {
         "blister": {WC.EVENT_BLISTER_COMPLETE},
         "sealing": {WC.EVENT_SEALING_COMPLETE},
@@ -761,6 +763,7 @@ def api_append_event():
         if station_needs_resume and event_type in (
             WC.EVENT_BLISTER_COMPLETE,
             WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_OPERATOR_CHANGE,
             WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
             WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
             WC.EVENT_BOTTLE_STICKER_COMPLETE,
