@@ -639,16 +639,23 @@
       if (summary.selected_po_number) lbl += ' · ' + summary.selected_po_number;
       totalLabel.textContent = lbl;
     }
+    try {
+      if (summary && summary.selected_po_id != null) {
+        localStorage.setItem('tt-final-output-selected-po-id', String(summary.selected_po_id));
+      }
+    } catch (_e) {
+      /* ignore storage access issues */
+    }
   }
 
   var poSelect = document.getElementById('po-final-output-select');
   var panel = document.getElementById('final-output-by-po-panel');
   if (poSelect && panel) {
     var summaryApiUrl = panel.getAttribute('data-summary-api-url') || '';
-    poSelect.addEventListener('change', function () {
-      if (!summaryApiUrl || !poSelect.value) return;
+    function loadSummaryForPo(poId) {
+      if (!summaryApiUrl || !poId) return Promise.resolve();
       poSelect.disabled = true;
-      fetch(summaryApiUrl + '?po_id=' + encodeURIComponent(poSelect.value), { credentials: 'same-origin' })
+      return fetch(summaryApiUrl + '?po_id=' + encodeURIComponent(poId), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (out) {
           if (!out || !out.success || !out.summary) return;
@@ -658,7 +665,29 @@
         .finally(function () {
           poSelect.disabled = false;
         });
+    }
+
+    poSelect.addEventListener('change', function () {
+      if (!poSelect.value) return;
+      try {
+        localStorage.setItem('tt-final-output-selected-po-id', String(poSelect.value));
+      } catch (_e) {
+        /* ignore storage access issues */
+      }
+      loadSummaryForPo(poSelect.value);
     });
+
+    try {
+      var savedPoId = localStorage.getItem('tt-final-output-selected-po-id');
+      var currentPoId = poSelect.value ? String(poSelect.value) : '';
+      if (savedPoId && savedPoId !== currentPoId) {
+        loadSummaryForPo(savedPoId);
+      } else if (currentPoId) {
+        localStorage.setItem('tt-final-output-selected-po-id', currentPoId);
+      }
+    } catch (_e) {
+      /* ignore storage access issues */
+    }
   }
 })();
 </script>
