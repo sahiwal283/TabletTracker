@@ -36,6 +36,7 @@ from app.services.workflow_assign_form import (
     ASSIGN_BAG_RETURN_COMMAND_CENTER,
     build_assign_bag_context,
     load_workflow_products,
+    load_workflow_tablet_types,
 )
 from app.services.workflow_finalize import force_release_card
 from app.services.workflow_txn import run_with_busy_retry
@@ -1899,10 +1900,11 @@ def workflow_qr_management():
             )
             try:
                 bag_assign["products"] = load_workflow_products(conn)
+                bag_assign["tablet_types"] = load_workflow_tablet_types(conn)
             except Exception:
                 bag_assign["products_load_failed"] = True
                 current_app.logger.warning(
-                    "workflow_qr_management: assign form product list unavailable", exc_info=True
+                    "workflow_qr_management: assign form product/tablet list unavailable", exc_info=True
                 )
             floor_station_day_stats: dict[int, dict] = {}
             floor_ops_date_label = ""

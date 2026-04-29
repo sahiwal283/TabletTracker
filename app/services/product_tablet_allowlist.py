@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import sqlite3
 import json
+import sqlite3
 from collections.abc import Sequence
+from typing import Any
 
 
 def allowed_tablet_type_ids_for_product(conn: sqlite3.Connection, product_id: int) -> list[int]:
@@ -67,6 +68,59 @@ def allowed_tablet_type_ids_for_product(conn: sqlite3.Connection, product_id: in
 def product_allows_tablet_type(conn: sqlite3.Connection, product_id: int, tablet_type_id: int) -> bool:
     allowed = allowed_tablet_type_ids_for_product(conn, product_id)
     return int(tablet_type_id) in allowed
+
+
+def eligible_products_for_tablet_type(
+    conn: sqlite3.Connection,
+    *,
+    tablet_type_id: int,
+    production_flow: str,
+) -> list[dict[str, Any]]:
+    """Finished products that may consume this physical tablet in the requested workflow flow."""
+    tid = int(tablet_type_id)
+    flow = (production_flow or "").strip().lower()
+    if flow not in {"card", "bottle"}:
+        return []
+    bottle_flag = 1 if flow == "bottle" else 0
+
+    try:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT pd.id, pd.product_name, pd.tablet_type_id,
+                   COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack,
+                   COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category
+            FROM product_details pd
+            JOIN product_allowed_tablet_types pat ON pat.product_details_id = pd.id
+            LEFT JOIN tablet_types tt ON tt.id = pd.tablet_type_id
+            WHERE pat.tablet_type_id = ?
+              AND COALESCE(pd.is_variety_pack, 0) = 0
+              AND COALESCE(pd.is_bottle_product, 0) = ?
+            ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name, pd.id
+            """,
+            (tid, bottle_flag),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = ()
+
+    if not rows:
+        rows = conn.execute(
+            """
+            SELECT pd.id, pd.product_name, pd.tablet_type_id,
+                   COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack,
+                   COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category
+            FROM product_details pd
+            LEFT JOIN tablet_types tt ON tt.id = pd.tablet_type_id
+            WHERE pd.tablet_type_id = ?
+              AND COALESCE(pd.is_variety_pack, 0) = 0
+              AND COALESCE(pd.is_bottle_product, 0) = ?
+            ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name, pd.id
+            """,
+            (tid, bottle_flag),
+        ).fetchall()
+
+    return [dict(r) for r in rows]
 
 
 def sync_product_allowed_tablets(

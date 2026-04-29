@@ -1,14 +1,15 @@
-{# Requires bag_assign dict: products, ambiguous_matches, form_*, return_to, restart_url #}
+{# Requires bag_assign dict: products, tablet_types, ambiguous_matches, form_*, return_to, restart_url #}
 {% set ba = bag_assign %}
 {% if ba.ambiguous_matches %}
 <div class="mb-4 border border-amber-300 bg-amber-50 rounded-lg p-4 text-slate-800">
   <p class="font-semibold mb-2">Multiple bags found — please select the correct bag.</p>
-  <p class="text-sm text-slate-600 mb-4">Same flavor, box, and bag number exist on more than one receive. Pick the line that matches the shipment you are working.</p>
+  <p class="text-sm text-slate-600 mb-4">Same tablet, box, and bag number exist on more than one receive. Pick the line that matches the shipment you are working.</p>
   <form method="post" action="{{ url_for('workflow_staff.new_bag') }}" class="space-y-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>
     <input type="hidden" name="disambiguate" value="1"/>
     <input type="hidden" name="product_id" value="{{ ba.form_product_id }}"/>
+    <input type="hidden" name="tablet_type_id" value="{{ ba.form_tablet_type_id }}"/>
     <input type="hidden" name="box_number" value="{{ ba.form_box_number }}"/>
     <input type="hidden" name="bag_number" value="{{ ba.form_bag_number }}"/>
     <input type="hidden" name="card_scan_token" value="{{ ba.form_card_scan_token or '' }}"/>
@@ -106,19 +107,18 @@
     </p>
   </div>
   <div>
-    <label class="block text-sm font-medium mb-1" for="wv_assign_product">Product (flavor)</label>
-    <select id="wv_assign_product" name="product_id" required class="form-input">
-      <option value="">Select product...</option>
-      {% for p in ba.products %}
-      <option value="{{ p['id'] }}"
-              {% if ba.form_product_id and p['id'] == ba.form_product_id %}selected{% endif %}
-              data-tablet-type="{{ p['tablet_type_id'] or '' }}"
-              data-category="{{ p['category'] or 'Other' }}">
-        {{ p['product_name'] }}
+    <label class="block text-sm font-medium mb-1" for="wv_assign_tablet">Tablet</label>
+    <select id="wv_assign_tablet" name="tablet_type_id" required class="form-input">
+      <option value="">Select tablet...</option>
+      {% for t in ba.tablet_types %}
+      <option value="{{ t['id'] }}"
+              {% if ba.form_tablet_type_id and t['id'] == ba.form_tablet_type_id %}selected{% endif %}
+              data-category="{{ t['category'] or 'Other' }}">
+        {{ t['tablet_type_name'] }}
       </option>
       {% endfor %}
     </select>
-    <p class="text-xs text-gray-500 mt-1">Same category/product picker as Production. Must match the bag&rsquo;s tablet type.</p>
+    <p class="text-xs text-gray-500 mt-1">Choose the physical tablet in the bag. The finished product maps automatically when the card is scanned at a card or bottle station.</p>
   </div>
   <div class="grid grid-cols-2 gap-4">
     <div>
@@ -148,9 +148,9 @@
     </label>
     <p class="text-xs text-gray-500 mt-1">Use when this bag is packed by hand in sealing; blister is not required before packaging submit/finalize.</p>
   </div>
-  <button type="submit" class="btn-primary" {% if not ba.products %}disabled aria-disabled="true"{% endif %}>Find bag and assign QR card</button>
-  {% if not ba.products %}
-  <p class="text-xs text-amber-800 mt-2">Choose a product above before submitting — or open the <a href="{{ url_for('workflow_staff.new_bag', return_to=ba.return_to or '') }}" class="underline font-medium">staff assign page</a>.</p>
+  <button type="submit" class="btn-primary" {% if not ba.tablet_types %}disabled aria-disabled="true"{% endif %}>Find bag and assign QR card</button>
+  {% if not ba.tablet_types %}
+  <p class="text-xs text-amber-800 mt-2">Add tablets under Product Configuration before submitting — or open the <a href="{{ url_for('workflow_staff.new_bag', return_to=ba.return_to or '') }}" class="underline font-medium">staff assign page</a>.</p>
   {% endif %}
 </form>
 {% endif %}

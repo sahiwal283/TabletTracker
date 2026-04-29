@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.21.0] - 2026-04-29
+
+### Added
+- **Tablet-first QR assignment:** Bag QR cards can now be assigned to the physical tablet/flavor only; the finished product is mapped automatically when the bag is scanned at a card or bottle station.
+- **Deferred product resolution:** Floor station claims now resolve `tablet + production flow` to the correct product, prompt for a SKU only when multiple products are valid, and record a `PRODUCT_MAPPED` workflow event for auditability.
+
+---
+
 ## [4.20.0] - 2026-04-29
 
 ### Added

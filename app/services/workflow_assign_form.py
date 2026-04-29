@@ -34,6 +34,19 @@ def load_workflow_products(conn) -> list[dict[str, Any]]:
     return [dict(p) for p in rows]
 
 
+def load_workflow_tablet_types(conn) -> list[dict[str, Any]]:
+    """Tablet/flavor choices for raw-material QR bag assignment."""
+    rows = conn.execute(
+        """
+        SELECT id, tablet_type_name, category, inventory_item_id
+        FROM tablet_types
+        ORDER BY COALESCE(NULLIF(TRIM(category), ''), 'ZZZ'), tablet_type_name
+        LIMIT 500
+        """
+    ).fetchall()
+    return [dict(t) for t in rows]
+
+
 def parse_nonnegative_int(raw: object) -> int | None:
     """Parse an optional non-negative integer form field."""
     if raw is None:
@@ -53,8 +66,10 @@ def parse_nonnegative_int(raw: object) -> int | None:
 def build_assign_bag_context(
     *,
     products: list[dict[str, Any]],
+    tablet_types: list[dict[str, Any]] | None = None,
     ambiguous_matches: list[dict[str, Any]] | None = None,
     form_product_id: int | None = None,
+    form_tablet_type_id: int | None = None,
     form_box_number: int | None = None,
     form_bag_number: int | None = None,
     form_card_scan_token: str | None = None,
@@ -67,8 +82,10 @@ def build_assign_bag_context(
     """Template context for the shared QR-card bag assignment form."""
     return {
         "products": products,
+        "tablet_types": tablet_types or [],
         "ambiguous_matches": ambiguous_matches,
         "form_product_id": form_product_id,
+        "form_tablet_type_id": form_tablet_type_id,
         "form_box_number": form_box_number,
         "form_bag_number": form_bag_number,
         "form_card_scan_token": form_card_scan_token,

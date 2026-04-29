@@ -954,6 +954,7 @@
         lastScanMs: null,
         throughputPerHour: null,
         completedUnits: null,
+        forceNotIntegrated: true,
         sku: "N/A",
       });
     }

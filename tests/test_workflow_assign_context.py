@@ -15,8 +15,10 @@ class TestWorkflowAssignContext(unittest.TestCase):
             ctx = build_assign_bag_context(products=[{"id": 1, "product_name": "Mint"}])
 
         self.assertEqual(ctx["products"], [{"id": 1, "product_name": "Mint"}])
+        self.assertEqual(ctx["tablet_types"], [])
         self.assertIsNone(ctx["ambiguous_matches"])
         self.assertIsNone(ctx["form_product_id"])
+        self.assertIsNone(ctx["form_tablet_type_id"])
         self.assertIsNone(ctx["form_box_number"])
         self.assertIsNone(ctx["form_bag_number"])
         self.assertIsNone(ctx["form_card_scan_token"])
@@ -30,8 +32,10 @@ class TestWorkflowAssignContext(unittest.TestCase):
         with self.app.test_request_context():
             ctx = build_assign_bag_context(
                 products=[],
+                tablet_types=[{"id": 8, "tablet_type_name": "Blue Raz"}],
                 ambiguous_matches=[{"id": 7}],
                 form_product_id=3,
+                form_tablet_type_id=8,
                 form_box_number=4,
                 form_bag_number=5,
                 form_card_scan_token="bag-card",
@@ -43,7 +47,9 @@ class TestWorkflowAssignContext(unittest.TestCase):
             )
 
         self.assertEqual(ctx["ambiguous_matches"], [{"id": 7}])
+        self.assertEqual(ctx["tablet_types"], [{"id": 8, "tablet_type_name": "Blue Raz"}])
         self.assertEqual(ctx["form_product_id"], 3)
+        self.assertEqual(ctx["form_tablet_type_id"], 8)
         self.assertEqual(ctx["form_box_number"], 4)
         self.assertEqual(ctx["form_bag_number"], 5)
         self.assertEqual(ctx["form_card_scan_token"], "bag-card")

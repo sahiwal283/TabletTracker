@@ -17,6 +17,17 @@ _EXTRA_KEYS: frozenset[str] = frozenset({"metadata", "extra"})
 
 _ALLOWED: dict[str, frozenset[str]] = {
     WC.EVENT_CARD_ASSIGNED: frozenset({"qr_card_id", "workflow_bag_id"}),
+    WC.EVENT_PRODUCT_MAPPED: frozenset(
+        {
+            "product_id",
+            "product_name",
+            "tablet_type_id",
+            "tablet_type_name",
+            "production_flow",
+            "resolution",
+            "station_id",
+        }
+    ),
     WC.EVENT_BAG_CLAIMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_STATION_RESUMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_BLISTER_COMPLETE: frozenset({"count_total", "employee_name"}),

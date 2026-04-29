@@ -394,7 +394,7 @@ def assign_inventory_bag_to_card(
     conn: sqlite3.Connection,
     *,
     inventory_bag_id: int,
-    product_id: int,
+    product_id: int | None,
     user_id: int | None,
     card_scan_token: str | None = None,
     receipt_number_override: str | None = None,
@@ -425,19 +425,20 @@ def assign_inventory_bag_to_card(
     if inv.get("tablet_type_id") is None:
         raise RuntimeError("inventory_bag_missing_tablet_type")
 
-    prow = conn.execute(
-        """
-        SELECT tablet_type_id FROM product_details
-        WHERE id = ?
-        """,
-        (product_id,),
-    ).fetchone()
-    if prow is None:
-        raise RuntimeError("invalid_product")
-    from app.services.product_tablet_allowlist import product_allows_tablet_type
+    if product_id is not None:
+        prow = conn.execute(
+            """
+            SELECT tablet_type_id FROM product_details
+            WHERE id = ?
+            """,
+            (product_id,),
+        ).fetchone()
+        if prow is None:
+            raise RuntimeError("invalid_product")
+        from app.services.product_tablet_allowlist import product_allows_tablet_type
 
-    if not product_allows_tablet_type(conn, int(product_id), int(inv["tablet_type_id"])):
-        raise RuntimeError("product_bag_tablet_type_mismatch")
+        if not product_allows_tablet_type(conn, int(product_id), int(inv["tablet_type_id"])):
+            raise RuntimeError("product_bag_tablet_type_mismatch")
 
     box_number = str(inv["box_number"]) if inv.get("box_number") is not None else None
     bag_number = str(inv["bag_number"]) if inv.get("bag_number") is not None else None

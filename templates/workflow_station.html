@@ -60,6 +60,11 @@
     <dl id="wf-bag-verification-body" class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-left"></dl>
   </div>
   <div id="wf-feedback" class="hidden mb-4 p-3 rounded-xl border text-sm" role="status" aria-live="polite"></div>
+  <div id="wf-product-map-panel" class="hidden mb-4 p-4 rounded-xl border border-amber-300 bg-amber-50 text-slate-900">
+    <p class="text-sm font-semibold mb-1">Choose product for this run</p>
+    <p id="wf-product-map-copy" class="text-xs text-amber-900 mb-3"></p>
+    <div id="wf-product-map-options" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+  </div>
 
   <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
     <button type="button" id="wf-gate-pause" class="btn-secondary px-6 py-4 text-lg !bg-amber-400 !border-amber-300 !text-slate-900 hover:!bg-amber-300">Pause</button>

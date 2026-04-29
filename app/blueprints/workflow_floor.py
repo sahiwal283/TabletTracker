@@ -14,6 +14,10 @@ from app.services.production_submission_helpers import ProductionSubmissionError
 from app.services.workflow_append import append_workflow_event
 from app.services.workflow_finalize import try_finalize
 from app.services.workflow_http import rate_limit_floor, read_json_body, workflow_json
+from app.services.workflow_product_mapping import (
+    ensure_workflow_bag_product_for_flow,
+    production_flow_for_event_or_station,
+)
 from app.services.workflow_read import (
     display_stage_label,
     floor_bag_verification,
@@ -417,6 +421,21 @@ def _event_flow(event_type: str) -> str | None:
     return None
 
 
+def _selected_product_id_from_payload(payload: dict) -> int | None:
+    """Optional operator-selected product for ambiguous tablet-to-SKU mappings."""
+    if not isinstance(payload, dict):
+        return None
+    raw = payload.get("product_id")
+    if raw is None:
+        meta = payload.get("metadata")
+        if isinstance(meta, dict):
+            raw = meta.get("product_id") or meta.get("selected_product_id")
+    try:
+        return int(raw) if raw is not None and str(raw).strip() else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _coerce_nonnegative_int(raw) -> int:
     try:
         n = int(raw or 0)
@@ -487,6 +506,14 @@ def _workflow_bag_product_flags(conn: sqlite3.Connection, workflow_bag_id: int) 
         "is_bottle_product": bool(int(r.get("is_bottle_product") or 0)),
         "is_variety_pack": bool(int(r.get("is_variety_pack") or 0)),
     }
+
+
+def _workflow_bag_has_product(conn: sqlite3.Connection, workflow_bag_id: int) -> bool:
+    row = conn.execute(
+        "SELECT product_id FROM workflow_bags WHERE id = ?",
+        (int(workflow_bag_id),),
+    ).fetchone()
+    return bool(row and row["product_id"] is not None)
 
 
 def _list_from_payload(raw) -> list[str]:
@@ -698,8 +725,53 @@ def api_append_event():
                 },
                 status=400,
             )
-        bag_flow = production_flow_for_bag(conn, bag_id)
         ev_flow = _event_flow(event_type)
+        mapping_flow = production_flow_for_event_or_station(event_type, station_kind)
+        if mapping_flow:
+            map_status, map_body = ensure_workflow_bag_product_for_flow(
+                conn,
+                workflow_bag_id=bag_id,
+                production_flow=mapping_flow,
+                selected_product_id=_selected_product_id_from_payload(
+                    payload if isinstance(payload, dict) else {}
+                ),
+                station_id=int(st["id"]),
+                device_id=device_id,
+            )
+            if map_status == "reject":
+                reason = map_body.get("reason")
+                if reason == "wrong_production_flow":
+                    return workflow_json(
+                        "WORKFLOW_VALIDATION",
+                        f"{event_type} is not allowed for {map_body.get('production_flow')} workflow bags.",
+                        details={
+                            **map_body,
+                            "event_type": event_type,
+                        },
+                        status=400,
+                    )
+                if reason == "ambiguous_product_mapping":
+                    return workflow_json(
+                        "WORKFLOW_PRODUCT_MAPPING",
+                        "Choose which product this tablet is running as on this station.",
+                        details=map_body,
+                        status=409,
+                    )
+                if reason == "no_product_mapping":
+                    return workflow_json(
+                        "WORKFLOW_PRODUCT_MAPPING",
+                        "No product is configured for this tablet on this station type.",
+                        details=map_body,
+                        status=400,
+                    )
+                return workflow_json(
+                    "WORKFLOW_PRODUCT_MAPPING",
+                    "Could not map this tablet to a product for this station.",
+                    details=map_body,
+                    status=400,
+                )
+
+        bag_flow = production_flow_for_bag(conn, bag_id)
         if ev_flow and ev_flow != bag_flow:
             return workflow_json(
                 "WORKFLOW_VALIDATION",
@@ -710,6 +782,27 @@ def api_append_event():
                     "event_flow": ev_flow,
                     "event_type": event_type,
                 },
+                status=400,
+            )
+        if (
+            event_type == WC.EVENT_BAG_CLAIMED
+            and station_kind == "packaging"
+            and not _workflow_bag_has_product(conn, bag_id)
+        ):
+            return workflow_json(
+                "WORKFLOW_PRODUCT_MAPPING",
+                "Scan this bag at a card or bottle station before packaging.",
+                details={"reason": "product_not_mapped", "station_kind": station_kind},
+                status=400,
+            )
+        if event_type in (
+            WC.EVENT_PACKAGING_SNAPSHOT,
+            WC.EVENT_PACKAGING_TAKEN_FOR_ORDER,
+        ) and not _workflow_bag_has_product(conn, bag_id):
+            return workflow_json(
+                "WORKFLOW_PRODUCT_MAPPING",
+                "This bag must be scanned through its card or bottle production station before packaging.",
+                details={"reason": "product_not_mapped", "station_kind": station_kind},
                 status=400,
             )
         station_id = int(st["id"])

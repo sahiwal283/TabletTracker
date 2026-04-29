@@ -12,9 +12,10 @@ from app.services.workflow_assign_form import (
     ASSIGN_BAG_RETURN_COMMAND_CENTER,
     build_assign_bag_context,
     load_workflow_products,
+    load_workflow_tablet_types,
     parse_nonnegative_int,
 )
-from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_for_product
+from app.services.workflow_bag_lookup import find_unassigned_inventory_bags_for_tablet
 from app.services.workflow_finalize import (
     assign_inventory_bag_to_card,
     assign_variety_pack_run_to_card,
@@ -136,6 +137,7 @@ def new_bag():
     try:
         if request.method == "GET":
             products = load_workflow_products(conn)
+            tablet_types = load_workflow_tablet_types(conn)
             rt = (request.args.get("return_to") or "").strip()
             if rt != ASSIGN_BAG_RETURN_COMMAND_CENTER:
                 rt = ""
@@ -148,12 +150,14 @@ def new_bag():
                 "workflow_new_bag.html",
                 bag_assign=build_assign_bag_context(
                     products=products,
+                    tablet_types=tablet_types,
                     return_to=rt,
                     restart_url=restart,
                 ),
             )
 
         product_id = request.form.get("product_id", type=int)
+        tablet_type_id = request.form.get("tablet_type_id", type=int)
         box_number = parse_nonnegative_int(request.form.get("box_number"))
         bag_number = parse_nonnegative_int(request.form.get("bag_number"))
         card_scan_token = (request.form.get("card_scan_token") or "").strip()
@@ -171,8 +175,17 @@ def new_bag():
         if session.get("admin_authenticated"):
             uid = None
 
-        if not product_id or box_number is None or bag_number is None:
-            flash("Product, box number, and bag number are required.", "error")
+        if not tablet_type_id and product_id:
+            # Compatibility with older posted forms: resolve through the product's primary tablet.
+            prow = conn.execute(
+                "SELECT tablet_type_id FROM product_details WHERE id = ?",
+                (int(product_id),),
+            ).fetchone()
+            if prow and prow["tablet_type_id"] is not None:
+                tablet_type_id = int(prow["tablet_type_id"])
+
+        if not tablet_type_id or box_number is None or bag_number is None:
+            flash("Tablet, box number, and bag number are required.", "error")
             return assign_bag_redirect_after_post()
         if not card_scan_token:
             flash("Scan or enter the bag card token before assigning.", "error")
@@ -181,20 +194,20 @@ def new_bag():
             flash("Receipt number is required.", "error")
             return assign_bag_redirect_after_post()
 
-        prow = conn.execute(
+        trow = conn.execute(
             """
-            SELECT id FROM product_details
+            SELECT id FROM tablet_types
             WHERE id = ?
             """,
-            (product_id,),
+            (tablet_type_id,),
         ).fetchone()
-        if not prow:
-            flash("Invalid product for workflow assignment.", "error")
+        if not trow:
+            flash("Invalid tablet for workflow assignment.", "error")
             return assign_bag_redirect_after_post()
 
-        matches = find_unassigned_inventory_bags_for_product(
+        matches = find_unassigned_inventory_bags_for_tablet(
             conn,
-            product_id=product_id,
+            tablet_type_id=tablet_type_id,
             box_number=box_number,
             bag_number=bag_number,
         )
@@ -214,12 +227,15 @@ def new_bag():
                 return assign_bag_redirect_after_post()
             if len(matches) > 1:
                 products = load_workflow_products(conn)
+                tablet_types = load_workflow_tablet_types(conn)
                 return render_template(
                     "workflow_new_bag.html",
                     bag_assign=build_assign_bag_context(
                         products=products,
+                        tablet_types=tablet_types,
                         ambiguous_matches=matches,
                         form_product_id=product_id,
+                        form_tablet_type_id=tablet_type_id,
                         form_box_number=box_number,
                         form_bag_number=bag_number,
                         form_card_scan_token=card_scan_token,
@@ -304,7 +320,7 @@ def new_bag():
         card_token = card_row["scan_token"] if card_row else card_scan_token
         bag_name = _bag_display_name(conn, inventory_bag_id)
         flash(
-            f"Assigned bag {bag_name} to QR card {card_token}.",
+            f"Assigned bag {bag_name} to QR card {card_token}. Product will map automatically at the floor station.",
             "success",
         )
         return assign_bag_redirect_after_post()

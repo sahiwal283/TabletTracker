@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.19.0** (QR packaging case counts and case-based final product summaries)
+Current: **v4.21.0** (tablet-first QR assignment with deferred product mapping)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

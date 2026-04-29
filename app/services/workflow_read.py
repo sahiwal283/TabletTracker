@@ -125,19 +125,35 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> di
         row = conn.execute(
             """
             SELECT wb.product_id, wb.box_number, wb.bag_number, wb.receipt_number, wb.inventory_bag_id,
-                   pd.product_name AS product_name
+                   pd.product_name AS product_name,
+                   tt.tablet_type_name AS tablet_type_name
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
+            LEFT JOIN bags b ON b.id = wb.inventory_bag_id
+            LEFT JOIN tablet_types tt ON tt.id = b.tablet_type_id
             WHERE wb.id = ?
             """,
             (wid,),
         ).fetchone()
     except sqlite3.OperationalError:
-        return {}
+        try:
+            row = conn.execute(
+                """
+                SELECT wb.product_id, wb.box_number, wb.bag_number, wb.receipt_number, wb.inventory_bag_id,
+                       pd.product_name AS product_name, NULL AS tablet_type_name
+                FROM workflow_bags wb
+                LEFT JOIN product_details pd ON pd.id = wb.product_id
+                WHERE wb.id = ?
+                """,
+                (wid,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return {}
     if not row:
         return {}
     wb = dict(row)
     product_name = (wb.get("product_name") or "").strip() or None
+    tablet_type_name = (wb.get("tablet_type_name") or "").strip() or None
     box_raw = wb.get("box_number")
     bag_raw = wb.get("bag_number")
     box_s = str(box_raw).strip() if box_raw is not None and str(box_raw).strip() else None
@@ -190,6 +206,7 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> di
 
     return {
         "product_name": product_name,
+        "tablet_type_name": tablet_type_name,
         "production_flow": production_flow_for_bag(conn, workflow_bag_id),
         "box_display": _fmt_box_bag("Box", box_s),
         "bag_display": _fmt_box_bag("Bag", bag_s),
@@ -206,6 +223,7 @@ def display_stage_label(facts: dict[str, Any]) -> str:
         return "No events"
     pretty = {
         WC.EVENT_CARD_ASSIGNED: "Card assigned",
+        WC.EVENT_PRODUCT_MAPPED: "Product mapped",
         WC.EVENT_BAG_CLAIMED: "Bag claimed",
         WC.EVENT_STATION_RESUMED: "Station resumed",
         WC.EVENT_BLISTER_COMPLETE: "Blister",

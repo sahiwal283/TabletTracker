@@ -262,15 +262,15 @@
     {% elif tools_view == 'assign' %}
     <div class="card p-5 bg-white border-2 border-cyan-300/80 shadow-sm scroll-mt-4" id="assign-bag-qr-card">
       <h2 class="text-base font-semibold text-gray-900 mb-1">Assign bag to QR card</h2>
-      <p class="text-sm text-gray-600 mb-3">Link received inventory to a physical bag card. Requires staff access on submit — use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="text-blue-600 hover:underline font-medium">full-screen assign form</a> if you prefer, or if the product list does not load here.</p>
+      <p class="text-sm text-gray-600 mb-3">Link received inventory to a physical bag card by tablet. Requires staff access on submit — use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="text-blue-600 hover:underline font-medium">full-screen assign form</a> if you prefer, or if the tablet list does not load here.</p>
       {% if bag_assign.products_load_failed %}
       <div class="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-950">
-        <strong class="font-semibold">Could not load products for this form.</strong>
+        <strong class="font-semibold">Could not load tablets for this form.</strong>
         Use the <a href="{{ url_for('workflow_staff.new_bag', return_to='command_center') }}" class="underline font-medium">staff assign page</a> (same workflow), or check Product configuration / database access.
       </div>
-      {% elif not bag_assign.products %}
+      {% elif not bag_assign.tablet_types %}
       <div class="mb-4 p-3 rounded-lg border border-amber-100 bg-amber-50/80 text-sm text-amber-950">
-        <strong class="font-semibold">No products configured.</strong> Add flavors under Product configuration, then refresh.
+        <strong class="font-semibold">No tablets configured.</strong> Add tablets under Product configuration, then refresh.
       </div>
       {% endif %}
       {% include "includes/workflow_assign_bag_form.html" %}

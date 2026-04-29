@@ -71,3 +71,21 @@ def find_unassigned_inventory_bags_for_product(
     out = list(seen.values())
     out.sort(key=lambda m: (str(m.get("received_date") or ""), int(m.get("id") or 0)), reverse=True)
     return out
+
+
+def find_unassigned_inventory_bags_for_tablet(
+    conn: sqlite3.Connection,
+    *,
+    tablet_type_id: int,
+    box_number: int,
+    bag_number: int,
+) -> list[dict[str, Any]]:
+    """Unassigned receiving bags for a selected physical tablet/flavor."""
+    rows = find_unassigned_inventory_bags_by_flavor_box_bag(
+        conn,
+        tablet_type_id=int(tablet_type_id),
+        box_number=box_number,
+        bag_number=bag_number,
+    )
+    rows.sort(key=lambda m: (str(m.get("received_date") or ""), int(m.get("id") or 0)), reverse=True)
+    return rows

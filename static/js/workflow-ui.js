@@ -28,6 +28,7 @@
   let occupancyGateForcedAction = null;
   /** Packaging: pick = choose End / Pause / Taken; then only fields for that path. */
   let packagingUiPhase = 'pick';
+  let pendingProductMapProductId = null;
   const isAdminUser = !!Number(window.WF_IS_ADMIN_USER || 0);
 
   /** Prevent double-submit of the same action (pause vs submit are independent). ~1.5 minutes. */
@@ -92,6 +93,44 @@
     var panel = document.getElementById('wf-scan-success');
     if (!panel) return;
     panel.classList.toggle('hidden', !visible);
+  }
+
+  function clearProductMappingPrompt() {
+    pendingProductMapProductId = null;
+    var panel = document.getElementById('wf-product-map-panel');
+    var opts = document.getElementById('wf-product-map-options');
+    var copy = document.getElementById('wf-product-map-copy');
+    if (panel) panel.classList.add('hidden');
+    if (opts) opts.innerHTML = '';
+    if (copy) copy.textContent = '';
+  }
+
+  function renderProductMappingPrompt(details) {
+    var panel = document.getElementById('wf-product-map-panel');
+    var opts = document.getElementById('wf-product-map-options');
+    var copy = document.getElementById('wf-product-map-copy');
+    if (!panel || !opts || !copy) return;
+    var tablet = (details && details.tablet_type_name) || 'this tablet';
+    var flow = (details && details.production_flow) || stationKind();
+    var candidates = (details && details.candidates) || [];
+    opts.innerHTML = '';
+    copy.textContent = 'Multiple products can use ' + tablet + ' on this ' + flow + ' station. Select the SKU being made, then the bag will be claimed.';
+    candidates.forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-secondary px-4 py-3 text-left text-sm !bg-white !text-slate-900 !border-amber-300 hover:!bg-amber-100';
+      btn.textContent = c.product_name || ('Product #' + c.product_id);
+      btn.addEventListener('click', function () {
+        pendingProductMapProductId = c.product_id || c.id;
+        panel.classList.add('hidden');
+        statusLine('Product selected — claiming bag…', 'info');
+        claimBag().catch(function (e) {
+          statusLine(String(e), 'error');
+        });
+      });
+      opts.appendChild(btn);
+    });
+    panel.classList.remove('hidden');
   }
 
   var fullscreenSuccessTimer = null;
@@ -636,6 +675,7 @@
     var receiptLine = (bv.receipt_number || bv.shipment_label || '').trim();
     var rows = [
       ['Product', bv.product_name],
+      ['Tablet', bv.tablet_type_name],
       ['Receipt #', receiptLine],
       ['Box', bv.box_display],
       ['Bag', bv.bag_display],
@@ -1612,6 +1652,14 @@
           if (finalReasons.includes('missing_packaging')) throw new Error('Bag scanned too early. Packaging counts are still required.');
         }
       }
+      if (code === 'WORKFLOW_PRODUCT_MAPPING') {
+        if (reason === 'ambiguous_product_mapping') {
+          renderProductMappingPrompt(data.details || {});
+        }
+        if (reason === 'no_product_mapping') {
+          throw new Error('No product is configured for this tablet on this station type. Update Product Configuration, then scan again.');
+        }
+      }
       throw new Error((data.message || (code + ': ' + r.status)).toString());
     }
     return data;
@@ -1651,6 +1699,7 @@
       page_session_id: pageSessionId(),
     });
     hasLoadedBag = true;
+    clearProductMappingPrompt();
     applyStationFacts(data);
     var facts = data.facts || {};
     var shouldAutoClaim =
@@ -1749,7 +1798,9 @@
       station_id: window.WF_STATION_ID || 0,
       station_kind: kind,
       note: 'claimed_on_station',
+      metadata: pendingProductMapProductId ? { selected_product_id: pendingProductMapProductId } : {},
     });
+    clearProductMappingPrompt();
     applyStationFacts(data);
     configureStationActions();
     setActionsEnabled(true);

@@ -1,7 +1,7 @@
 /* Bag card scan + two-level product dropdown for assign-bag forms (standalone + Command Center). */
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
-    var el = document.getElementById('wv_assign_product');
+    var el = document.getElementById('wv_assign_tablet') || document.getElementById('wv_assign_product');
     if (el && typeof convertToTwoLevelDropdownByDataAttr === 'function') {
       convertToTwoLevelDropdownByDataAttr(el, 'data-category');
     }
