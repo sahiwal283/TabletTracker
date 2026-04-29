@@ -504,6 +504,27 @@
     </section>`;
   }
 
+  function PaceAveragePanel(props) {
+    var pace = props.pace || {};
+    var rows = [
+      { label: "7D avg", value: asNum(pace.weeklyAvgDisplays), tone: "s0" },
+      { label: "Day avg", value: asNum(pace.dailyDisplays), tone: "s1" },
+      { label: "Projected", value: asNum(pace.projectedDisplays), tone: "s2" },
+    ];
+    var max = rows.reduce(function (m, r) { return Math.max(m, r.value || 0); }, 1);
+    return html`<section className="wall-panel pace-panel"><h3>OUTPUT AVERAGE TREND</h3>
+      <div className="pace-bars">${rows.map(function (r) {
+        var h = Math.max(6, Math.round(((r.value || 0) / max) * 100));
+        return html`<div className="pace-bar-col" key=${r.label}>
+          <div className="pace-bar-track"><i className=${r.tone} style=${{ height: h + "%" }}></i></div>
+          <b>${r.value != null ? fmtNumber(r.value) : "N/A"}</b>
+          <span>${r.label}</span>
+        </div>`;
+      })}</div>
+      <p>Final displays/day: previous 7-day average, selected day so far, and current projected finish.</p>
+    </section>`;
+  }
+
   function TracePanel(props) {
     var inputState = useState("");
     var q = inputState[0];
@@ -761,12 +782,9 @@
         cardsPerTurn: liveRow.cardsPerTurn != null ? liveRow.cardsPerTurn : metrics.cardsPerTurn,
         occupancyStatus: liveRow.status || null,
       });
-      var isBottleFlow = d.flow === "bottle";
-      var hasBottleEvents = !isBottleFlow || events.some(function (e) { return eventMachineId(e) === asNum(d.stationId); });
       var status = d.stationId == null ? "NOT_INTEGRATED" : resolveIntegrationBadge(liveRow, d.stationId, events, {
         dayStartMs: inp.shiftConfig && inp.shiftConfig.dayStartMs,
         configuredMachineIds: configured,
-        forceNotIntegratedMachineIds: isBottleFlow && !hasBottleEvents ? [d.stationId] : [],
       });
       var wid = merged.workflowBagId != null ? merged.workflowBagId : merged.currentBagId;
       return Object.assign({}, d, merged, {
@@ -1095,7 +1113,7 @@
         })}</select></div><h3>BAGS / INVENTORY</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRowsBagsTab} emptyLabel=${bagsInventoryEmptyLabel} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
       if (activeTab === "card" || activeTab === "blister") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BLISTER LINE MACHINES" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="CARD LINE MACHINES" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
       if (activeTab === "bottle") return html`<section className="occ-machine-grid two-bands"><${MachineBand} title="BOTTLE LINE MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section>`;
-      if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
+      if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${PaceAveragePanel} pace=${inp.shiftConfig && inp.shiftConfig.outputPaceAverages} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
       if (activeTab === "team") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
       if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} rollMessage=${rollMessage} onChangeRoll=${changeRoll} /></section>`;
       return null;
@@ -1162,7 +1180,7 @@
             busy=${materialBusy}
             onChangeRoll=${changeRoll}
           />
-          <${OeePanel} value=${kpiBy.oee && kpiBy.oee.value} />
+          <${PaceAveragePanel} pace=${inp.shiftConfig && inp.shiftConfig.outputPaceAverages} />
           <section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section>
           <section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section>
         </section>

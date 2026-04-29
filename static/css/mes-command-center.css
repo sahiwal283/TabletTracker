@@ -1106,6 +1106,78 @@ input {
   position: relative;
 }
 
+.pace-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.pace-bars {
+  min-height: 136px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding: 8px 2px 2px;
+}
+
+.pace-bar-col {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: 5px;
+  align-items: end;
+  text-align: center;
+}
+
+.pace-bar-track {
+  height: 92px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  border-bottom: 1px solid rgba(132, 180, 211, 0.35);
+}
+
+.pace-bar-track i {
+  width: clamp(18px, 42%, 36px);
+  min-height: 6px;
+  display: block;
+  border-radius: 5px 5px 0 0;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.15);
+}
+
+.pace-bar-track .s0 {
+  background: linear-gradient(180deg, #6ea8ff, #1f8def);
+}
+
+.pace-bar-track .s1 {
+  background: linear-gradient(180deg, #6ee27a, #42bf50);
+}
+
+.pace-bar-track .s2 {
+  background: linear-gradient(180deg, #ffd166, #f59e0b);
+}
+
+.pace-bar-col b {
+  min-width: 0;
+  color: #f5fbff;
+  font-size: 14px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pace-bar-col span,
+.pace-panel p {
+  color: #a8bbce;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.pace-panel p {
+  margin: 8px 0 0;
+  line-height: 1.35;
+}
+
 .donut-wrap {
   height: calc(100% - 24px);
   display: grid;

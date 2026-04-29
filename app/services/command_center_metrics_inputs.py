@@ -170,6 +170,66 @@ def build_slot_map(machines: list[dict]) -> list[dict[str, Any]]:
     return slots
 
 
+def gather_unmapped_machine_settings(conn: sqlite3.Connection, existing: list[dict]) -> list[dict[str, Any]]:
+    """Machines configured in settings but not yet attached to a workflow station."""
+    attached_ids: set[int] = set()
+    for row in existing:
+        mid = row.get("machine_id")
+        try:
+            if mid is not None:
+                attached_ids.add(int(mid))
+        except (TypeError, ValueError):
+            continue
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, machine_name, machine_role, cards_per_turn
+            FROM machines
+            WHERE COALESCE(is_active, 1) = 1
+            ORDER BY machine_name
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+    out: list[dict[str, Any]] = []
+    next_virtual_id = -1
+    for r in rows:
+        try:
+            machine_id = int(r["id"])
+        except (TypeError, ValueError):
+            continue
+        if machine_id in attached_ids:
+            continue
+        role = str(r["machine_role"] or "").lower()
+        if role not in {"bottle", "stickering", "packaging"}:
+            continue
+        out.append(
+            {
+                "id": next_virtual_id,
+                "machine_id": machine_id,
+                "display_name": str(r["machine_name"] or ""),
+                "machine_name": str(r["machine_name"] or ""),
+                "station_label": "Configured machine",
+                "label": "Configured machine",
+                "station_kind": role,
+                "machine_role": role,
+                "cards_per_turn": float(r["cards_per_turn"] or 1),
+                "status": "idle",
+                "bag_id": None,
+                "occupancy_started_at_ms": None,
+                "paused_at_ms": None,
+                "tablets_today": 0,
+                "displays_today": 0,
+                "rate_hist_uh": None,
+                "rate_today_uh": None,
+                "rate_session_uh": None,
+            }
+        )
+        next_virtual_id -= 1
+    return out
+
+
 def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: int, limit: int = 24000) -> list[dict[str, Any]]:
     rows_out: list[dict[str, Any]] = []
     try:
@@ -305,6 +365,63 @@ def gather_station_cycle_averages(
     return out
 
 
+def gather_output_pace_averages(
+    conn: sqlite3.Connection,
+    day_start_ms: int,
+    now_ms: int,
+) -> dict[str, float | int | None]:
+    """Final-display pace from real packaging final-submit events."""
+    window_start = day_start_ms - (7 * 24 * 60 * 60_000)
+    window_end = day_start_ms + (24 * 60 * 60_000)
+    daily: dict[int, float] = {i: 0.0 for i in range(-7, 1)}
+    try:
+        rows = conn.execute(
+            """
+            SELECT occurred_at AS at_ms, payload
+            FROM workflow_events
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND event_type = 'PACKAGING_SNAPSHOT'
+            """,
+            (window_start, window_end),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {
+            "weeklyAvgDisplays": None,
+            "dailyDisplays": None,
+            "projectedDisplays": None,
+            "sampleDays": 0,
+        }
+
+    for r in rows:
+        try:
+            at = int(r["at_ms"])
+        except (TypeError, ValueError):
+            continue
+        payload = _payload_from_raw(r["payload"])
+        if str(payload.get("reason") or "").lower() != "final_submit":
+            continue
+        raw_count = payload.get("display_count", payload.get("count_total"))
+        try:
+            count = float(raw_count or 0)
+        except (TypeError, ValueError):
+            count = 0.0
+        if count <= 0:
+            continue
+        idx = int((at - day_start_ms) // (24 * 60 * 60_000))
+        if idx in daily:
+            daily[idx] += count
+
+    previous = [daily[i] for i in range(-7, 0)]
+    today = daily[0]
+    elapsed_fraction = max((now_ms - day_start_ms) / float(24 * 60 * 60_000), 1 / 96)
+    return {
+        "weeklyAvgDisplays": round(sum(previous) / 7.0, 2),
+        "dailyDisplays": round(today, 2),
+        "projectedDisplays": round(today / elapsed_fraction, 2) if today > 0 else 0,
+        "sampleDays": 7,
+    }
+
+
 def pick_default_bag_id(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> int | None:
     """Most recently active workflow bag having events in window."""
     try:
@@ -394,6 +511,7 @@ def build_metrics_inputs_bundle(
 
     demo_mode = os.environ.get("MES_COMMAND_CENTER_DEMO_MODE", "").lower() in ("1", "true", "yes")
 
+    machines = list(machines or []) + gather_unmapped_machine_settings(conn, machines or [])
     slots = build_slot_map(machines)
     blister_station_id = _first_blister_station_id(machines)
 
@@ -468,6 +586,7 @@ def build_metrics_inputs_bundle(
         "productionDueMs": _due_time_ms(conn, day_start_ms),
         "stationCycleAvgWindowDays": 7,
         "stationCycleAvgMinutes": gather_station_cycle_averages(conn, day_start_ms - (7 * 24 * 60 * 60_000), day_start_ms),
+        "outputPaceAverages": gather_output_pace_averages(conn, day_start_ms, now_ms),
     }
 
     return {

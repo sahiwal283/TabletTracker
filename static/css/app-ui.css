@@ -507,6 +507,53 @@ body.tt-app-body input[type="date"].form-input {
   color-scheme: dark;
 }
 
+/* Global control sizing: keep forms compact and consistent across settings, reports, and modals. */
+main.tt-app-main .form-input,
+main.tt-app-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+main.tt-app-main select,
+main.tt-app-main textarea {
+  min-height: 44px !important;
+  border-radius: 12px !important;
+  border-width: 1px !important;
+  padding: 0.72rem 0.9rem !important;
+  font-size: 0.95rem !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+}
+
+main.tt-app-main textarea.form-input,
+main.tt-app-main textarea {
+  min-height: 88px !important;
+  resize: vertical;
+}
+
+main.tt-app-main select.form-input,
+main.tt-app-main select {
+  padding-right: 2.6rem !important;
+  background-position: right 0.85rem center, 0 0 !important;
+  background-size: 1rem 1rem, auto !important;
+}
+
+main.tt-app-main .btn-primary,
+main.tt-app-main .btn-secondary,
+main.tt-app-main .btn-success,
+main.tt-app-main .btn-warning,
+main.tt-app-main .btn-danger {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+  padding: 0.68rem 1rem !important;
+  font-size: 0.95rem !important;
+  line-height: 1.2 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+main.tt-app-main .card {
+  border-radius: 18px !important;
+}
+
 /* Tailwind pastel gradient stops (blue-50 / indigo-50 / sky-50) — must match cmd panels
    or headings become light-on-light with main.tt-app-main text-gray-900 overrides. */
 body.tt-app-body .from-blue-50,
