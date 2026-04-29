@@ -520,6 +520,32 @@ def _packaged_admin_notes(data):
     return normalize_optional_text(data.get('packaged_admin_notes') or data.get('admin_notes') or '')
 
 
+def _ensure_packaging_case_columns(conn) -> dict[str, bool]:
+    """Ensure optional packaging case columns exist on warehouse_submissions."""
+    try:
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(warehouse_submissions)').fetchall()}
+    except Exception:
+        columns = set()
+    has_case_count = 'case_count' in columns
+    has_loose_display_count = 'loose_display_count' in columns
+    if not has_case_count:
+        try:
+            conn.execute('ALTER TABLE warehouse_submissions ADD COLUMN case_count INTEGER DEFAULT 0')
+            has_case_count = True
+        except sqlite3.OperationalError:
+            pass
+    if not has_loose_display_count:
+        try:
+            conn.execute('ALTER TABLE warehouse_submissions ADD COLUMN loose_display_count INTEGER DEFAULT 0')
+            has_loose_display_count = True
+        except sqlite3.OperationalError:
+            pass
+    return {
+        'case_count': has_case_count,
+        'loose_display_count': has_loose_display_count,
+    }
+
+
 def execute_packaged_submission(conn, data, employee_name: str) -> dict:
     """
     Execute packaged (warehouse) submission inside an existing connection/transaction.
@@ -579,9 +605,11 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         raise ProductionSubmissionError(400, {'error': error_msg})
 
     product = dict(product)
+    case_columns = _ensure_packaging_case_columns(conn)
 
     packages_per_display = product.get('packages_per_display')
     tablets_per_package = product.get('tablets_per_package')
+    displays_per_case = product.get('displays_per_case')
 
     if (
         packages_per_display is None
@@ -599,6 +627,7 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
     try:
         packages_per_display = int(packages_per_display)
         tablets_per_package = int(tablets_per_package)
+        displays_per_case = int(displays_per_case or 0)
     except (ValueError, TypeError):
         raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for product configuration'}) from None
 
@@ -609,6 +638,28 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
         cards_reopened = int(data.get('cards_reopened', 0) or 0)
     except (ValueError, TypeError):
         raise ProductionSubmissionError(400, {'error': 'Invalid numeric values for counts'}) from None
+
+    case_count_raw = data.get('case_count')
+    has_case_input = case_count_raw is not None
+    try:
+        case_count = int(case_count_raw or 0)
+        loose_display_count = int(displays_made or 0)
+    except (ValueError, TypeError):
+        raise ProductionSubmissionError(400, {'error': 'Invalid case_count or displays_made'}) from None
+    if case_count < 0 or loose_display_count < 0:
+        raise ProductionSubmissionError(400, {'error': 'case_count and displays_made must be >= 0'})
+    if has_case_input:
+        if displays_per_case <= 0 and case_count > 0:
+            raise ProductionSubmissionError(
+                400,
+                {
+                    'error': (
+                        f"Product '{product_name}' needs displays_per_case > 0 "
+                        "to convert cases into displays."
+                    )
+                },
+            )
+        displays_made = (case_count * displays_per_case) + loose_display_count
 
     submission_date = data.get('submission_date', datetime.now().date().isoformat())
 
@@ -862,34 +913,67 @@ def execute_packaged_submission(conn, data, employee_name: str) -> dict:
             inventory_item_id = b_inv
 
     try:
-        conn.execute(
-            """
-            INSERT INTO warehouse_submissions
-            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-             displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
-             submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
-            """,
-            (
-                employee_name,
-                data.get('product_name'),
-                inventory_item_id,
-                box_number,
-                bag_number,
-                bag_label_count or data.get('bag_label_count') or 0,
-                displays_made,
-                packs_remaining,
-                loose_tablets,
-                cards_reopened,
-                submission_date,
-                admin_notes,
-                bag_id,
-                assigned_po_id,
-                needs_review,
-                receipt_number,
-                bag_end_time,
-            ),
-        )
+        if case_columns.get('case_count') and case_columns.get('loose_display_count'):
+            conn.execute(
+                """
+                INSERT INTO warehouse_submissions
+                (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
+                 displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
+                 submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time,
+                 case_count, loose_display_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    employee_name,
+                    data.get('product_name'),
+                    inventory_item_id,
+                    box_number,
+                    bag_number,
+                    bag_label_count or data.get('bag_label_count') or 0,
+                    displays_made,
+                    packs_remaining,
+                    loose_tablets,
+                    cards_reopened,
+                    submission_date,
+                    admin_notes,
+                    bag_id,
+                    assigned_po_id,
+                    needs_review,
+                    receipt_number,
+                    bag_end_time,
+                    case_count,
+                    loose_display_count,
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO warehouse_submissions
+                (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
+                 displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
+                 submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
+                """,
+                (
+                    employee_name,
+                    data.get('product_name'),
+                    inventory_item_id,
+                    box_number,
+                    bag_number,
+                    bag_label_count or data.get('bag_label_count') or 0,
+                    displays_made,
+                    packs_remaining,
+                    loose_tablets,
+                    cards_reopened,
+                    submission_date,
+                    admin_notes,
+                    bag_id,
+                    assigned_po_id,
+                    needs_review,
+                    receipt_number,
+                    bag_end_time,
+                ),
+            )
     except Exception as e:
         current_app.logger.error(f'SQL Error inserting submission: {e}')
         current_app.logger.error(

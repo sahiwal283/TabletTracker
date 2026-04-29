@@ -243,10 +243,32 @@ def _delete_bottle_submissions_for_receipts(conn: sqlite3.Connection, receipts: 
     )
 
 
+def _ensure_packaging_case_columns(conn: sqlite3.Connection) -> dict[str, bool]:
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(warehouse_submissions)").fetchall()}
+    except Exception:
+        cols = set()
+    has_case_count = "case_count" in cols
+    has_loose_display_count = "loose_display_count" in cols
+    if not has_case_count:
+        try:
+            conn.execute("ALTER TABLE warehouse_submissions ADD COLUMN case_count INTEGER DEFAULT 0")
+            has_case_count = True
+        except sqlite3.OperationalError:
+            pass
+    if not has_loose_display_count:
+        try:
+            conn.execute("ALTER TABLE warehouse_submissions ADD COLUMN loose_display_count INTEGER DEFAULT 0")
+            has_loose_display_count = True
+        except sqlite3.OperationalError:
+            pass
+    return {"case_count": has_case_count, "loose_display_count": has_loose_display_count}
+
+
 def _display_count_from_packaging_payload(
     conn: sqlite3.Connection, workflow_bag_id: int, payload: dict[str, Any]
 ) -> int:
-    """Total displays from either legacy display_count or new case + loose-display fields."""
+    """Total displays = cases * displays_per_case + loose displays."""
     has_case_fields = "case_count" in payload or "loose_display_count" in payload
     if has_case_fields:
         try:
@@ -254,7 +276,12 @@ def _display_count_from_packaging_payload(
         except (TypeError, ValueError):
             cases = 0
         try:
-            loose_displays = max(0, int(payload.get("loose_display_count") or 0))
+            loose_raw = (
+                payload.get("display_count")
+                if payload.get("display_count") is not None
+                else payload.get("loose_display_count")
+            )
+            loose_displays = max(0, int(loose_raw or 0))
         except (TypeError, ValueError):
             loose_displays = 0
         try:
@@ -275,8 +302,9 @@ def _display_count_from_packaging_payload(
             dpc = 0
         if dpc > 0:
             return (cases * dpc) + loose_displays
+        return loose_displays
     try:
-        return int(payload.get("display_count") or 0)
+        return max(0, int(payload.get("display_count") or 0))
     except (TypeError, ValueError):
         return 0
 
@@ -396,6 +424,8 @@ def upsert_packaged_from_workflow_packaging(
     employee_name: str | None = None,
     packs_remaining: int = 0,
     cards_reopened: int = 0,
+    case_count: int = 0,
+    loose_display_count: int = 0,
     receipt_mode: str = "pkg",
 ) -> dict[str, Any]:
     """
@@ -576,34 +606,68 @@ def upsert_packaged_from_workflow_packaging(
     # QR workflow sync rows should not add noisy auto-notes.
     admin_notes = None
 
-    conn.execute(
-        """
-        INSERT INTO warehouse_submissions
-        (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
-         displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
-         submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
-        """,
-        (
-            emp,
-            product_name,
-            inv,
-            box_number,
-            bag_number,
-            bag_label_count,
-            int(displays_made),
-            int(packs_remaining),
-            0,
-            int(cards_reopened),
-            submission_date,
-            admin_notes,
-            bag_id,
-            assigned_po_id,
-            1 if needs_review else 0,
-            receipt,
-            utc_now_naive_string(),
-        ),
-    )
+    case_columns = _ensure_packaging_case_columns(conn)
+    if case_columns.get("case_count") and case_columns.get("loose_display_count"):
+        conn.execute(
+            """
+            INSERT INTO warehouse_submissions
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
+             displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
+             submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time,
+             case_count, loose_display_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                emp,
+                product_name,
+                inv,
+                box_number,
+                bag_number,
+                bag_label_count,
+                int(displays_made),
+                int(packs_remaining),
+                0,
+                int(cards_reopened),
+                submission_date,
+                admin_notes,
+                bag_id,
+                assigned_po_id,
+                1 if needs_review else 0,
+                receipt,
+                utc_now_naive_string(),
+                int(case_count or 0),
+                int(loose_display_count or 0),
+            ),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO warehouse_submissions
+            (employee_name, product_name, inventory_item_id, box_number, bag_number, bag_label_count,
+             displays_made, packs_remaining, loose_tablets, cards_reopened, submission_date, admin_notes,
+             submission_type, bag_id, assigned_po_id, needs_review, receipt_number, bag_end_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'packaged', ?, ?, ?, ?, ?)
+            """,
+            (
+                emp,
+                product_name,
+                inv,
+                box_number,
+                bag_number,
+                bag_label_count,
+                int(displays_made),
+                int(packs_remaining),
+                0,
+                int(cards_reopened),
+                submission_date,
+                admin_notes,
+                bag_id,
+                assigned_po_id,
+                1 if needs_review else 0,
+                receipt,
+                utc_now_naive_string(),
+            ),
+        )
     sid = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
     station_id = int(station_row.get("id")) if station_row and station_row.get("id") else None
     end_ms = _event_occurred_at_ms(conn, event_id)
@@ -1043,6 +1107,19 @@ def sync_if_packaging_snapshot(
                 event_id=event_id,
                 employee_name=_employee_name_from_payload(payload),
             )
+    try:
+        case_count = int(payload.get("case_count") or 0)
+    except (TypeError, ValueError):
+        case_count = 0
+    try:
+        loose_raw = (
+            payload.get("display_count")
+            if payload.get("display_count") is not None
+            else payload.get("loose_display_count")
+        )
+        loose_display_count = int(loose_raw or 0)
+    except (TypeError, ValueError):
+        loose_display_count = 0
     return upsert_packaged_from_workflow_packaging(
         conn,
         workflow_bag_id,
@@ -1052,6 +1129,8 @@ def sync_if_packaging_snapshot(
         employee_name=_employee_name_from_payload(payload),
         packs_remaining=pr,
         cards_reopened=dt,
+        case_count=case_count,
+        loose_display_count=loose_display_count,
     )
 
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.27] - 2026-04-29
+
+### Fixed
+- **Packaging cases wiring:** Packaging snapshot submissions now treat `display_count` as **displays not in a full case** and compute total displays as `case_count * displays_per_case + display_count`, while preserving legacy `loose_display_count` payload compatibility.
+- **Submission visibility:** Case counts entered by packaging are persisted on submission rows and shown in Submission Details as the primary stakeholder-facing output (**Cases Made**), with loose displays shown separately.
+- **Packaged submission compatibility:** Case-based packaged writes now use the existing `displays_made` input as loose displays outside full cases when `case_count` is provided.
+
+---
+
 ## [4.19.23] - 2026-04-29
 
 ### Fixed

@@ -37,10 +37,18 @@ def get_submission_details(submission_id):
     """Get full details of a submission (viewable by all authenticated users)"""
     try:
         with db_read_only() as conn:
-            submission = conn.execute('''
+            ws_columns = {row['name'] for row in conn.execute("PRAGMA table_info(warehouse_submissions)").fetchall()}
+            case_count_select = "ws.case_count," if "case_count" in ws_columns else "NULL AS case_count,"
+            loose_display_select = (
+                "ws.loose_display_count," if "loose_display_count" in ws_columns else "NULL AS loose_display_count,"
+            )
+            submission = conn.execute(f'''
             SELECT ws.*, po.po_number, po.closed as po_closed, po.zoho_po_id, po.vendor_name,
                    COALESCE(ws.po_assignment_verified, 0) as po_verified,
                    pd.packages_per_display, pd.tablets_per_package,
+                   pd.displays_per_case,
+                   {case_count_select}
+                   {loose_display_select}
                    COALESCE(pd.tablets_per_package, (
                                SELECT pd2.tablets_per_package
                                FROM product_details pd2
@@ -346,6 +354,17 @@ def get_submission_details(submission_id):
                 )
                 submission_dict['individual_calc'] = calculated_total
                 submission_dict['total_tablets'] = calculated_total
+                dpc = int(submission_dict.get('displays_per_case') or 0)
+                if dpc > 0:
+                    explicit_case_count = submission_dict.get('case_count')
+                    explicit_loose_display_count = submission_dict.get('loose_display_count')
+                    if explicit_case_count is not None or explicit_loose_display_count is not None:
+                        submission_dict['case_count'] = int(explicit_case_count or 0)
+                        submission_dict['loose_display_count'] = int(explicit_loose_display_count or 0)
+                    else:
+                        submission_dict['case_count'] = int(displays_made // dpc)
+                        submission_dict['loose_display_count'] = int(displays_made % dpc)
+                    submission_dict['cases_made_total'] = float(displays_made) / float(dpc)
 
             # Repack rows store allocated bag_id but INSERT leaves box_number/bag_number NULL on the row.
             # Hydrate from bags/small_boxes so receive_name and bag running totals match the physical bag.
@@ -647,6 +666,7 @@ def edit_submission(submission_id):
 
             # Convert Row to dict for safe access
             submission = dict(submission)
+            ws_columns = {row['name'] for row in conn.execute("PRAGMA table_info(warehouse_submissions)").fetchall()}
 
             old_po_id = submission['assigned_po_id']
             inventory_item_id = submission['inventory_item_id']
@@ -688,7 +708,8 @@ def edit_submission(submission_id):
             # Get product details for calculations
             # Make this more resilient - try multiple approaches
             product = conn.execute('''
-                SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display
+                SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display,
+                       pd.displays_per_case
                 FROM product_details pd
                 JOIN tablet_types tt ON pd.tablet_type_id = tt.id
                 WHERE pd.product_name = ?
@@ -697,7 +718,8 @@ def edit_submission(submission_id):
             if not product:
                 # Fallback: try to get product details without the JOIN
                 product = conn.execute('''
-                    SELECT packages_per_display, tablets_per_package, tablets_per_bottle, bottles_per_display
+                    SELECT packages_per_display, tablets_per_package, tablets_per_bottle, bottles_per_display,
+                           displays_per_case
                     FROM product_details
                     WHERE product_name = ?
                 ''', (product_name_to_use,)).fetchone()
@@ -705,7 +727,8 @@ def edit_submission(submission_id):
             if not product:
                 # Last resort: get from existing submission or use defaults
                 existing_config = conn.execute('''
-                    SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display
+                    SELECT pd.packages_per_display, pd.tablets_per_package, pd.tablets_per_bottle, pd.bottles_per_display,
+                           pd.displays_per_case
                     FROM warehouse_submissions ws
                     LEFT JOIN product_details pd ON ws.product_name = pd.product_name
                     WHERE ws.id = ?
@@ -753,6 +776,7 @@ def edit_submission(submission_id):
                 bottles_per_display = int(bottles_per_display or 0)
             except (ValueError, TypeError):
                 return jsonify({'success': False, 'error': 'Invalid numeric values for product configuration'}), 400
+            displays_per_case = int(product.get('displays_per_case') or 0)
 
             # Calculate old totals to subtract based on submission type
             if submission_type == 'machine':
@@ -1003,29 +1027,62 @@ def edit_submission(submission_id):
                     ),
                 )
             else:
+                case_count_for_update = 0
+                loose_display_count_for_update = 0
+                if displays_per_case > 0:
+                    case_count_for_update = displays_made // displays_per_case
+                    loose_display_count_for_update = displays_made % displays_per_case
                 if submission_type == 'packaged' and 'bag_end_time' in data:
-                    conn.execute('''
-                        UPDATE warehouse_submissions
-                        SET displays_made = ?, packs_remaining = ?, loose_tablets = ?,
-                                cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                                submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
-                                bag_end_time = ?
-                        WHERE id = ?
-                    ''', (displays_made, packs_remaining, loose_tablets,
-                              cards_reopened, new_box_number, new_bag_number, new_bag_id,
-                              data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
-                              product_name_to_use, inventory_item_id, bag_end_parsed, submission_id))
+                    if 'case_count' in ws_columns and 'loose_display_count' in ws_columns:
+                        conn.execute('''
+                            UPDATE warehouse_submissions
+                            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?,
+                                    cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                    submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                                    bag_end_time = ?, case_count = ?, loose_display_count = ?
+                            WHERE id = ?
+                        ''', (displays_made, packs_remaining, loose_tablets,
+                                  cards_reopened, new_box_number, new_bag_number, new_bag_id,
+                                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                                  product_name_to_use, inventory_item_id, bag_end_parsed,
+                                  case_count_for_update, loose_display_count_for_update, submission_id))
+                    else:
+                        conn.execute('''
+                            UPDATE warehouse_submissions
+                            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?,
+                                    cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                    submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                                    bag_end_time = ?
+                            WHERE id = ?
+                        ''', (displays_made, packs_remaining, loose_tablets,
+                                  cards_reopened, new_box_number, new_bag_number, new_bag_id,
+                                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                                  product_name_to_use, inventory_item_id, bag_end_parsed, submission_id))
                 else:
-                    conn.execute('''
-                        UPDATE warehouse_submissions
-                        SET displays_made = ?, packs_remaining = ?, loose_tablets = ?,
-                                cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
-                                submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
-                        WHERE id = ?
-                    ''', (displays_made, packs_remaining, loose_tablets,
-                              cards_reopened, new_box_number, new_bag_number, new_bag_id,
-                              data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
-                              product_name_to_use, inventory_item_id, submission_id))
+                    if 'case_count' in ws_columns and 'loose_display_count' in ws_columns:
+                        conn.execute('''
+                            UPDATE warehouse_submissions
+                            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?,
+                                    cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                    submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?,
+                                    case_count = ?, loose_display_count = ?
+                            WHERE id = ?
+                        ''', (displays_made, packs_remaining, loose_tablets,
+                                  cards_reopened, new_box_number, new_bag_number, new_bag_id,
+                                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                                  product_name_to_use, inventory_item_id,
+                                  case_count_for_update, loose_display_count_for_update, submission_id))
+                    else:
+                        conn.execute('''
+                            UPDATE warehouse_submissions
+                            SET displays_made = ?, packs_remaining = ?, loose_tablets = ?,
+                                    cards_reopened = ?, box_number = ?, bag_number = ?, bag_id = ?, bag_label_count = ?,
+                                    submission_date = ?, admin_notes = ?, receipt_number = ?, product_name = ?, inventory_item_id = ?
+                            WHERE id = ?
+                        ''', (displays_made, packs_remaining, loose_tablets,
+                                  cards_reopened, new_box_number, new_bag_number, new_bag_id,
+                                  data.get('bag_label_count'), submission_date, data.get('admin_notes'), receipt_number,
+                                  product_name_to_use, inventory_item_id, submission_id))
 
             propagated_edits = 0
             apply_receipt_group = data.get('apply_receipt_group', True)

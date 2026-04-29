@@ -1927,7 +1927,7 @@
     if (kind === 'packaging') {
       await emitEvent('PACKAGING_SNAPSHOT', {
         case_count: selectedPackagingCaseCount(),
-        loose_display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
+        display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
         packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
         cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
         reason: 'paused_end_of_day',
@@ -2076,7 +2076,7 @@
     assertActionCooldown('submit');
     await emitEvent('PACKAGING_SNAPSHOT', {
       case_count: selectedPackagingCaseCount(),
-      loose_display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
+      display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
       packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
       cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
       reason: 'final_submit',

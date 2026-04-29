@@ -450,20 +450,18 @@ def _packaging_displays_per_case(conn: sqlite3.Connection, workflow_bag_id: int)
 def _normalize_packaging_snapshot_payload(
     conn: sqlite3.Connection, workflow_bag_id: int, payload: dict
 ) -> dict:
-    """Derive display_count from case fields while keeping legacy display_count payloads valid."""
+    """Normalize packaging payload; display_count remains loose displays (not full cases)."""
     out = dict(payload or {})
     has_case_fields = "case_count" in out or "loose_display_count" in out
     if not has_case_fields:
         return out
-    dpc = _packaging_displays_per_case(conn, workflow_bag_id)
     cases = _coerce_nonnegative_int(out.get("case_count"))
-    loose_displays = _coerce_nonnegative_int(out.get("loose_display_count"))
+    loose_displays = _coerce_nonnegative_int(
+        out.get("display_count") if "display_count" in out else out.get("loose_display_count")
+    )
     out["case_count"] = cases
     out["loose_display_count"] = loose_displays
-    if dpc:
-        out["display_count"] = (cases * dpc) + loose_displays
-    else:
-        out["display_count"] = _coerce_nonnegative_int(out.get("display_count"))
+    out["display_count"] = loose_displays
     return out
 
 
