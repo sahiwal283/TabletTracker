@@ -904,10 +904,10 @@
     var bagsInventoryEmptyLabel =
       inventoryRowsBagsTab.length || !selectedInventoryPo ? null : "No bags for this purchase order in the loaded list.";
     var invTableHeaders = ["SKU", "SHIP-BOX-BAG", "UNITS", "QUANTITY", "STATUS"];
-    var topSkuRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
+    var topSkuRows = (mes.sku_table || []).slice(0, 10).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.displays != null ? r.displays : r.units), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
-    var topSkuCaseRows = (mes.sku_table || []).slice(0, 4).map(function (r) {
+    var topSkuCaseRows = (mes.sku_table || []).slice(0, 10).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.cases != null ? r.cases : (r.case_count != null ? r.case_count : 0)), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
     var finalPackagingEvents = (events || []).filter(isFinalPackagingSnapshot).sort(function (a, b) {

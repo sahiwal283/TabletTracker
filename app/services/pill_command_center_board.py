@@ -365,33 +365,78 @@ def build_pill_command_center_board_payload(
         round(cy * float(pkg_share) / float(tot_share), 1),
     ]
 
+    # Align with Command Center final-displays math: case_count × displays_per_case + loose (or legacy display_count).
     sku_rows: list[dict] = []
     try:
         for r in conn.execute(
             """
-            SELECT COALESCE(pd.product_name, 'Unknown') AS sku,
+            SELECT MAX(COALESCE(pd.product_name, 'Unknown')) AS sku,
                    'Packaging' AS line_hint,
-                   COALESCE(SUM(CAST(json_extract(we.payload, '$.case_count') AS REAL)), 0) AS cases_made,
-                   COUNT(DISTINCT we.workflow_bag_id) AS bags_ct
+                   MAX(COALESCE(pd.displays_per_case, 0)) AS dpc_max,
+                   COUNT(DISTINCT we.workflow_bag_id) AS bags_ct,
+                   SUM(
+                     CASE
+                       WHEN json_extract(we.payload, '$.case_count') IS NOT NULL
+                         OR json_extract(we.payload, '$.loose_display_count') IS NOT NULL
+                       THEN
+                         COALESCE(CAST(json_extract(we.payload, '$.case_count') AS REAL), 0)
+                           * COALESCE(CAST(pd.displays_per_case AS REAL), 0)
+                         + COALESCE(
+                             CAST(json_extract(we.payload, '$.loose_display_count') AS REAL),
+                             CAST(json_extract(we.payload, '$.display_count') AS REAL),
+                             0
+                           )
+                       ELSE
+                         COALESCE(
+                           CAST(json_extract(we.payload, '$.display_count') AS REAL),
+                           CAST(json_extract(we.payload, '$.count_total') AS REAL),
+                           0
+                         )
+                     END
+                   ) AS sum_displays
             FROM workflow_events we
             JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.event_type = 'PACKAGING_SNAPSHOT'
               AND json_extract(we.payload, '$.reason') = 'final_submit'
-              AND json_extract(we.payload, '$.case_count') IS NOT NULL
             GROUP BY wb.product_id
-            HAVING SUM(CAST(json_extract(we.payload, '$.case_count') AS REAL)) > 0
-            ORDER BY SUM(CAST(json_extract(we.payload, '$.case_count') AS REAL)) DESC
+            HAVING SUM(
+                     CASE
+                       WHEN json_extract(we.payload, '$.case_count') IS NOT NULL
+                         OR json_extract(we.payload, '$.loose_display_count') IS NOT NULL
+                       THEN
+                         COALESCE(CAST(json_extract(we.payload, '$.case_count') AS REAL), 0)
+                           * COALESCE(CAST(pd.displays_per_case AS REAL), 0)
+                         + COALESCE(
+                             CAST(json_extract(we.payload, '$.loose_display_count') AS REAL),
+                             CAST(json_extract(we.payload, '$.display_count') AS REAL),
+                             0
+                           )
+                       ELSE
+                         COALESCE(
+                           CAST(json_extract(we.payload, '$.display_count') AS REAL),
+                           CAST(json_extract(we.payload, '$.count_total') AS REAL),
+                           0
+                         )
+                     END
+                   ) > 0
+            ORDER BY sum_displays DESC
             LIMIT 10
             """,
             (ny_start_ms, ny_end_ms),
         ).fetchall():
+            dpc_m = int(r["dpc_max"] or 0)
+            sd = float(r["sum_displays"] or 0)
+            if dpc_m > 0:
+                cases_val = round(sd / float(dpc_m), 1)
+            else:
+                cases_val = int(round(sd))
             sku_rows.append(
                 {
                     "sku": str(r["sku"] or "")[:42],
                     "line": str(r["line_hint"] or "Packaging")[:24],
-                    "cases": int(float(r["cases_made"] or 0)),
+                    "cases": cases_val,
                     "bags": int(r["bags_ct"] or 0),
                     "cycles": int(r["bags_ct"] or 0),
                 }
