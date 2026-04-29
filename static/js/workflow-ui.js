@@ -24,6 +24,8 @@
   let lastOccupancyVerifyMode = null;
   /** After verifying for "End run", show only submit until counts are saved (hide pause/hand pack on blister). */
   let occupancyGateIntentEndRun = false;
+  /** After occupancy verify, keep only the selected action visible. */
+  let occupancyGateForcedAction = null;
   /** Packaging: pick = choose End / Pause / Taken; then only fields for that path. */
   let packagingUiPhase = 'pick';
 
@@ -248,7 +250,7 @@
       return;
     }
     if (!hasLoadedBag) {
-      statusLine('Scan the bag card or enter the token, then tap Load bag (or press Enter).', 'info');
+      statusLine('Scan the bag card or enter the token, then press Enter to load.', 'info');
     }
   }
 
@@ -374,6 +376,7 @@
     occupancyVerifyOpen = false;
     lastOccupancyVerifyMode = null;
     occupancyGateIntentEndRun = false;
+    occupancyGateForcedAction = null;
     if (stationKind() === 'packaging') {
       packagingUiPhase = 'pick';
     }
@@ -408,20 +411,25 @@
       if (gateMode === 'end') {
         packagingUiPhase = 'end';
         occupancyGateIntentEndRun = true;
+        occupancyGateForcedAction = 'end';
       } else if (gateMode === 'pause') {
         packagingUiPhase = 'pause';
         occupancyGateIntentEndRun = false;
+        occupancyGateForcedAction = 'pause';
       } else if (gateMode === 'taken') {
         packagingUiPhase = 'taken';
         occupancyGateIntentEndRun = false;
+        occupancyGateForcedAction = 'taken';
       } else {
         packagingUiPhase = 'pick';
         occupancyGateIntentEndRun = false;
+        occupancyGateForcedAction = null;
       }
     } else {
       if (intentEndRun) {
         occupancyGateIntentEndRun = true;
       }
+      occupancyGateForcedAction = gateMode || null;
       if (gateMode === 'material') {
         openMaterialChangePanel();
       }
@@ -568,7 +576,6 @@
   function actionButtons() {
     /* Resume is not in this list so a submit/pause cooldown cannot block the next-day Resume action. */
     return [
-      document.getElementById('wf-claim'),
       document.getElementById('wf-save-count'),
       document.getElementById('wf-save-blister'),
       document.getElementById('wf-handpack-rest'),
@@ -586,7 +593,6 @@
       document.getElementById('wf-count-total'),
       document.getElementById('wf-employee-name-label'),
       document.getElementById('wf-employee-name'),
-      document.getElementById('wf-claim'),
       document.getElementById('wf-save-count'),
       document.getElementById('wf-save-blister'),
       document.getElementById('wf-handpack-rest'),
@@ -764,6 +770,7 @@
     stationClaimed = false;
     stationNeedsResume = false;
     occupancyGateIntentEndRun = false;
+    occupancyGateForcedAction = null;
     packagingUiPhase = 'pick';
     renderBagVerification(null);
     setScanSuccessVisible(false);
@@ -772,7 +779,7 @@
     setActionsEnabled(false);
     applyOccupancyGateUi();
     if (showHint) {
-      statusLine('Scan the bag card or enter the token, then tap Load bag (or press Enter).', 'info');
+      statusLine('Scan the bag card or enter the token, then press Enter to load.', 'info');
     }
   }
   function ensureLoadedBag() {
@@ -987,7 +994,6 @@
     const hint = document.getElementById('wf-station-hint');
     const countLabel = document.getElementById('wf-count-label');
     const countTotal = document.getElementById('wf-count-total');
-    const claimBtn = document.getElementById('wf-claim');
     const saveBtn = document.getElementById('wf-save-count');
     const saveBlisterBtn = document.getElementById('wf-save-blister');
     const handpackBtn = document.getElementById('wf-handpack-rest');
@@ -1003,7 +1009,21 @@
     const takenBtn = document.getElementById('wf-taken-delivery');
     const takenGateBtn = document.getElementById('wf-gate-taken');
     const takenIntentBtn = document.getElementById('wf-intent-taken');
-    if (!saveBtn || !pauseBtn || !claimBtn || !countTotal) return;
+    function applyPauseTone(btn, enabled) {
+      if (!btn) return;
+      btn.classList.toggle('!bg-amber-400', !!enabled);
+      btn.classList.toggle('!border-amber-300', !!enabled);
+      btn.classList.toggle('!text-slate-900', !!enabled);
+      btn.classList.toggle('hover:!bg-amber-300', !!enabled);
+    }
+    function applyEndTone(btn, enabled) {
+      if (!btn) return;
+      btn.classList.toggle('!bg-red-600', !!enabled);
+      btn.classList.toggle('!border-red-500', !!enabled);
+      btn.classList.toggle('!text-white', !!enabled);
+      btn.classList.toggle('hover:!bg-red-500', !!enabled);
+    }
+    if (!saveBtn || !pauseBtn || !countTotal) return;
     if (resumeBtn) resumeBtn.classList.add('hidden');
     if (empLabel) empLabel.classList.add('hidden');
     if (empInput) empInput.classList.add('hidden');
@@ -1021,7 +1041,6 @@
     if (saveSealBtn) saveSealBtn.classList.add('hidden');
     if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
     if (materialChangePanel) materialChangePanel.classList.add('hidden');
-    claimBtn.classList.add('hidden');
     saveBtn.classList.add('hidden');
     pauseBtn.classList.add('hidden');
     countLabel && countLabel.classList.add('hidden');
@@ -1029,14 +1048,7 @@
     if (!hasLoadedBag) {
       return;
     }
-    if (!stationClaimed) {
-      claimBtn.classList.remove('hidden');
-      if (hint) {
-        hint.classList.remove('hidden');
-        hint.textContent = 'Claim bag at this station to unlock count and pause actions.';
-      }
-      return;
-    }
+    if (!stationClaimed) return;
     if (stationNeedsResume) {
       if (resumeBtn) {
         resumeBtn.classList.remove('hidden');
@@ -1062,6 +1074,8 @@
     }
     saveBtn.classList.remove('hidden');
     pauseBtn.classList.remove('hidden');
+    applyPauseTone(pauseBtn, false);
+    applyEndTone(saveBtn, false);
     if (kind === 'blister') {
       saveBtn.textContent = 'Submit blister count';
       pauseBtn.textContent = 'Pause blister bag';
@@ -1147,7 +1161,7 @@
         if (intentPan) intentPan.classList.add('hidden');
         if (hint) {
           hint.classList.remove('hidden');
-          hint.textContent = 'Claim bag at this station to unlock packaging actions.';
+          hint.textContent = 'Loading station state…';
         }
         return;
       }
@@ -1272,6 +1286,33 @@
       if (hint) {
         hint.classList.remove('hidden');
         hint.textContent = 'Submit machine count for this station, or pause with current count.';
+      }
+    }
+    if (kind !== 'packaging') {
+      var forced = occupancyGateForcedAction;
+      if (forced === 'pause') {
+        saveBtn.classList.add('hidden');
+        if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
+        if (saveSealBtn) saveSealBtn.classList.add('hidden');
+        if (handpackBtn) handpackBtn.classList.add('hidden');
+        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
+        pauseBtn.classList.remove('hidden');
+        applyPauseTone(pauseBtn, true);
+      } else if (forced === 'end') {
+        pauseBtn.classList.add('hidden');
+        if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
+        if (saveSealBtn) saveSealBtn.classList.add('hidden');
+        if (handpackBtn) handpackBtn.classList.add('hidden');
+        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
+        saveBtn.classList.remove('hidden');
+        applyEndTone(saveBtn, true);
+      } else if (forced === 'material') {
+        saveBtn.classList.add('hidden');
+        pauseBtn.classList.add('hidden');
+        if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
+        if (saveSealBtn) saveSealBtn.classList.add('hidden');
+        if (handpackBtn) handpackBtn.classList.add('hidden');
+        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.remove('hidden');
       }
     }
   }
@@ -1568,7 +1609,7 @@
     applyOccupancyGateUi();
     if (!stationClaimed) {
       setScanSuccessVisible(false);
-      statusLine('Bag loaded. Use Claim if this station still requires it, or fix resume/pause state.', 'info');
+      statusLine('Bag loaded, but station claim state is not ready yet. Try scanning again.', 'info');
     } else {
       setScanSuccessVisible(false);
       clearFeedback();
@@ -2053,13 +2094,6 @@
     }
     const emp = employeeNameInput();
     if (emp) emp.addEventListener('blur', () => persistEmployeeName());
-    const r = document.getElementById('wf-refresh');
-    if (r) r.addEventListener('click', () => refresh().catch((e) => {
-      resetLoadedBagState(false);
-      statusLine(String(e), 'error');
-    }));
-    const c = document.getElementById('wf-claim');
-    if (c) c.addEventListener('click', () => claimBag().catch((e) => statusLine(String(e), 'error')));
     const save = document.getElementById('wf-save-count');
     if (save) save.addEventListener('click', () => saveCountAndContinue().catch((e) => statusLine(String(e), 'error')));
     const saveBlister = document.getElementById('wf-save-blister');

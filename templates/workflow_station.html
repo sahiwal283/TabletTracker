@@ -2,6 +2,9 @@
 {% block site_footer %}{% endblock %}
 {% block title %}Workflow Station Kiosk{% endblock %}
 {% block content %}
+<style>
+  .hidden { display: none !important; }
+</style>
 <div id="wf-fullscreen-success" class="hidden fixed inset-0 z-[200] flex flex-col items-center justify-center bg-emerald-600 px-5 text-center shadow-2xl" role="alert" aria-live="assertive">
   <svg class="w-28 h-28 sm:w-36 sm:h-36 mb-8 shrink-0 drop-shadow-lg" viewBox="0 0 80 80" fill="none" aria-hidden="true">
     <circle cx="40" cy="40" r="38" stroke="white" stroke-opacity="0.35" stroke-width="3"/>
@@ -138,7 +141,6 @@
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />
   <div id="wf-workflow-actions" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-    <button type="button" id="wf-claim" class="hidden btn-secondary px-6 py-4 text-lg">Claim bag</button>
     <button type="button" id="wf-save-count" class="hidden btn-secondary px-6 py-4 text-lg">Submit count</button>
     <button type="button" id="wf-handpack-rest" class="btn-secondary px-6 py-4 text-lg hidden">Hand pack the rest</button>
     <button type="button" id="wf-material-change-open" class="btn-secondary px-6 py-4 text-lg hidden">Material change</button>
@@ -147,7 +149,6 @@
     <button type="button" id="wf-pause-count" class="hidden btn-secondary px-6 py-4 text-lg">Pause bag (end of day)</button>
     <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery / order</button>
     <button type="button" id="wf-resume-bag" class="hidden btn-primary px-6 py-4 text-lg">Resume bag</button>
-    <button type="button" id="wf-refresh" class="btn-secondary px-6 py-4 text-lg">Load bag</button>
   </div>
   <div id="wf-material-change-panel" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">
     <p class="text-sm font-semibold text-slate-900 mb-2">Material change (blister)</p>
