@@ -1672,7 +1672,7 @@ def manage_employees():
 
 @bp.route("/admin/workflow-qr")
 @bp.route("/command-center")
-@admin_required
+@role_required("dashboard")
 def workflow_qr_management():
     """Command Center: monitor workflow stations/cards and manage QR settings."""
     selected_po_id: int | None = None

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.23] - 2026-04-29
+
+### Fixed
+- **Manager Command Center access:** `/command-center` now uses dashboard-role access so manager users can open it (not admin-only).
+- **Login routing:** manager/admin employee logins now land on **Command Center** instead of reports.
+- **Sidebar visibility:** **Command Center** navigation is now hidden for users without manager/admin access so inaccessible pages are not shown.
+
+---
+
 ## [4.19.22] - 2026-04-29
 
 ### Changed
