@@ -1158,7 +1158,7 @@
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
             { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagShortLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }
-          ]} />
+          ]} recentRun=${recentFinalRun} />
           <${AlertsRail} alerts=${alerts} />
         </section>
         <section className="occ-machine-grid three-bands">
