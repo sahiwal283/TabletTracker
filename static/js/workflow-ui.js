@@ -292,6 +292,7 @@
     var endB = document.getElementById('wf-gate-end');
     var materialB = document.getElementById('wf-gate-material');
     var takenG = document.getElementById('wf-gate-taken');
+    var isPackaging = stationKind() === 'packaging';
 
     if (verifyPan) {
       verifyPan.classList.toggle('hidden', !occupancyVerifyOpen);
@@ -323,11 +324,14 @@
             materialB.classList.toggle('hidden', !showMaterialGate);
           }
           if (takenG) {
-            var showTakenGate = stationKind() === 'packaging';
+            var showTakenGate = isPackaging;
             takenG.classList.toggle('hidden', !showTakenGate);
           }
         }
       }
+    }
+    if (!isPackaging && takenG) {
+      takenG.classList.add('hidden');
     }
     var intentPanGate = document.getElementById('wf-packaging-intent');
     if (intentPanGate && (showChoice || occupancyVerifyOpen)) {
@@ -996,6 +1000,9 @@
     const empInput = document.getElementById('wf-employee-name');
     const qaLabel = document.getElementById('wf-qa-checked-label');
     const sourcePanel = document.getElementById('wf-source-bags-panel');
+    const takenBtn = document.getElementById('wf-taken-delivery');
+    const takenGateBtn = document.getElementById('wf-gate-taken');
+    const takenIntentBtn = document.getElementById('wf-intent-taken');
     if (!saveBtn || !pauseBtn || !claimBtn || !countTotal) return;
     if (resumeBtn) resumeBtn.classList.add('hidden');
     if (empLabel) empLabel.classList.add('hidden');
@@ -1003,6 +1010,11 @@
     if (qaLabel) qaLabel.classList.add('hidden');
     if (qaLabel) qaLabel.classList.remove('flex');
     if (sourcePanel) sourcePanel.classList.add('hidden');
+    if (takenBtn) takenBtn.classList.add('hidden');
+    if (kind !== 'packaging') {
+      if (takenGateBtn) takenGateBtn.classList.add('hidden');
+      if (takenIntentBtn) takenIntentBtn.classList.add('hidden');
+    }
     hidePackagingStationExtra();
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (handpackBtn) handpackBtn.classList.add('hidden');
@@ -1118,7 +1130,6 @@
       if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
     } else if (kind === 'packaging') {
       var intentPan = document.getElementById('wf-packaging-intent');
-      var takenBtn = document.getElementById('wf-taken-delivery');
       hidePackagingStationExtra();
       ['wf-taken-displays-label', 'wf-taken-displays-help', 'wf-taken-displays'].forEach(function (id) {
         var el = document.getElementById(id);
