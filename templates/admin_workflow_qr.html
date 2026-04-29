@@ -2,35 +2,7 @@
 {% block title %}Command Center{% endblock %}
 
 {% macro station_machine_cell(s) %}
-  {% if s.station_kind == 'blister' %}
-    {% set mlist = blister_machines %}
-  {% elif s.station_kind == 'bottle_handpack' or s.station_kind == 'bottle_cap_seal' %}
-    {% set mlist = bottle_machines %}
-  {% elif s.station_kind == 'bottle_stickering' %}
-    {% set mlist = stickering_machines %}
-  {% elif s.station_kind == 'packaging' or s.station_kind == 'combined' %}
-    {% set mlist = all_machines %}
-  {% else %}
-    {% set mlist = sealing_machines %}
-  {% endif %}
-  {% if mlist %}
-  <form method="post" action="{{ url_for('admin.workflow_qr_map_station_machine') }}" class="flex flex-col sm:flex-row sm:items-center gap-2 max-w-md">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <input type="hidden" name="station_id" value="{{ s.id }}"/>
-    <select name="machine_id" class="form-input text-xs py-1 flex-1 min-w-[10rem]" aria-label="Production machine for station {{ s.id }}">
-      <option value="">— Not linked —</option>
-      {% for m in mlist %}
-      <option value="{{ m.id }}" {% if s.machine_id == m.id %}selected{% endif %}>
-        {{ m.machine_name }} (id {{ m.id }}){% if m.machine_role %} · {{ m.machine_role }}{% endif %}
-      </option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">Save</button>
-  </form>
-  {% else %}
-  <span class="text-gray-400 text-xs">{{ s.machine_name or "—" }}</span>
-  <p class="text-xs text-amber-700 mt-1">No matching machines. Add machines under Product configuration.</p>
-  {% endif %}
+  <span class="text-sm text-gray-200">{{ s.machine_name or "— Not linked —" }}</span>
 {% endmacro %}
 
 {% block content %}
@@ -362,6 +334,67 @@
       </form>
     </div>
 
+    {% if edit_station %}
+    <div id="station-edit-card" class="card p-5 mb-8 border-2 border-cyan-300/80 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Edit station #{{ edit_station.id }}</h3>
+          <p class="text-xs text-gray-600">Update any fields below, then save. Remove is available here as well.</p>
+        </div>
+        <a href="{{ url_for('admin.workflow_qr_management', tools='stations') }}" class="btn-secondary text-xs py-1.5 px-3">Done editing</a>
+      </div>
+      {% if edit_station.station_kind == 'blister' %}
+        {% set edit_machines = blister_machines %}
+      {% elif edit_station.station_kind == 'bottle_handpack' or edit_station.station_kind == 'bottle_cap_seal' %}
+        {% set edit_machines = bottle_machines %}
+      {% elif edit_station.station_kind == 'bottle_stickering' %}
+        {% set edit_machines = stickering_machines %}
+      {% elif edit_station.station_kind == 'packaging' or edit_station.station_kind == 'combined' %}
+        {% set edit_machines = all_machines %}
+      {% else %}
+        {% set edit_machines = sealing_machines %}
+      {% endif %}
+      <form method="post" action="{{ url_for('admin.workflow_qr_update_station') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="station_id" value="{{ edit_station.id }}"/>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Station type</label>
+          <input type="text" class="form-input text-sm" value="{{ edit_station.station_kind }}" disabled />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
+          <input name="label" type="text" required maxlength="255" class="form-input text-sm" value="{{ edit_station.label }}"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Code</label>
+          <input name="station_code" type="text" maxlength="64" class="form-input text-sm" value="{{ edit_station.station_code or '' }}"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
+          <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" value="{{ edit_station.station_scan_token }}"/>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
+          <select name="machine_id" class="form-input text-sm max-w-lg">
+            <option value="">— Not linked —</option>
+            {% for m in edit_machines %}
+            <option value="{{ m.id }}" {% if edit_station.machine_id == m.id %}selected{% endif %}>{{ m.machine_name }} (id {{ m.id }}){% if m.machine_role %} · {{ m.machine_role }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="md:col-span-2 flex flex-wrap items-center gap-2">
+          <button type="submit" class="btn-primary text-sm py-2 px-4">Save station</button>
+        </div>
+      </form>
+      <form method="post" action="{{ url_for('admin.workflow_qr_remove_station') }}" class="mt-2"
+            onsubmit="return confirm('Remove station #{{ edit_station.id }} ({{ edit_station.label|e }})? This is blocked if active, paused, or it has workflow event history.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="station_id" value="{{ edit_station.id }}"/>
+        <button type="submit" class="text-xs py-2 px-3 rounded border border-red-200 text-red-800 hover:bg-red-50">Remove station</button>
+      </form>
+    </div>
+    {% endif %}
+
     {% for kind, title, blurb in section_meta %}
     <div class="card p-5 mb-8 overflow-x-auto">
       <h2 class="text-lg font-semibold text-gray-900 mb-2">{{ title }}</h2>
@@ -391,43 +424,14 @@
             <td class="py-2 pr-4">{{ s.label }}</td>
             <td class="py-2 pr-4">{{ s.station_code or "—" }}</td>
             <td class="py-2 pr-4">{{ station_machine_cell(s) }}</td>
-            <td class="py-2 pr-4">
-              <div class="wf-token-readonly flex flex-wrap items-center gap-2 max-w-[18rem]">
-                <span class="font-mono text-xs break-all">{{ s.station_scan_token }}</span>
-                <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-edit-btn">Edit</button>
-              </div>
-              <div class="wf-token-edit-panel hidden max-w-[18rem]">
-                <form method="post" action="{{ url_for('admin.workflow_qr_edit_station_scan_token') }}" class="flex flex-col gap-1">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                  <input type="hidden" name="station_id" value="{{ s.id }}"/>
-                  <input type="text" name="station_scan_token" value="{{ s.station_scan_token }}" maxlength="128" class="form-input text-xs font-mono w-full" autocomplete="off" aria-label="Scan token for station {{ s.id }}"/>
-                  <p class="text-[10px] text-gray-500 leading-tight">Prefix:
-                    {% if s.station_kind == 'packaging' %}<code class="text-[10px]">packaging-</code>
-                    {% elif s.station_kind == 'blister' %}<code class="text-[10px]">blister-</code>
-                    {% elif s.station_kind == 'combined' %}<code class="text-[10px]">combined-</code>
-                    {% elif s.station_kind == 'bottle_handpack' %}<code class="text-[10px]">bottle-handpack-</code>
-                    {% elif s.station_kind == 'bottle_cap_seal' %}<code class="text-[10px]">bottle-seal-</code>
-                    {% elif s.station_kind == 'bottle_stickering' %}<code class="text-[10px]">bottle-sticker-</code>
-                    {% else %}<code class="text-[10px]">seal-</code>{% endif %}
-                  </p>
-                  <div class="flex flex-wrap gap-2">
-                    <button type="submit" class="btn-secondary text-xs py-1 px-2">Save token</button>
-                    <button type="button" class="btn-secondary text-xs py-1 px-2 wf-token-cancel-btn">Cancel</button>
-                  </div>
-                </form>
-              </div>
-            </td>
+            <td class="py-2 pr-4"><span class="font-mono text-xs break-all">{{ s.station_scan_token }}</span></td>
             <td class="py-2">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <a class="btn-secondary text-xs py-1 px-2"
+                   href="{{ url_for('admin.workflow_qr_management', tools='stations', edit_station_id=s.id) }}#station-edit-card">Edit</a>
                 <a class="text-blue-600 hover:underline text-xs break-all"
                    href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
                    target="_blank" rel="noopener">Open station page</a>
-                <form method="post" action="{{ url_for('admin.workflow_qr_remove_station') }}" class="inline"
-                    onsubmit="return confirm('Remove station #{{ s.id }} ({{ s.label|e }})? This is blocked if active, paused, or it has workflow event history.');">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                  <input type="hidden" name="station_id" value="{{ s.id }}"/>
-                  <button type="submit" class="text-xs py-1 px-2 rounded border border-red-200 text-red-800 hover:bg-red-50">Remove</button>
-                </form>
               </div>
             </td>
           </tr>

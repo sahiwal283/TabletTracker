@@ -1682,11 +1682,19 @@ def workflow_qr_management():
             selected_po_id = int(raw_po)
         except (TypeError, ValueError):
             selected_po_id = None
+    edit_station_id: int | None = None
+    raw_edit_station = (request.args.get("edit_station_id") or "").strip()
+    if raw_edit_station:
+        try:
+            edit_station_id = int(raw_edit_station)
+        except (TypeError, ValueError):
+            edit_station_id = None
     try:
         with db_read_only() as conn:
             stations = []
             cards = []
             station_live = {}
+            edit_station = None
             sealing_machines = []
             try:
                 stations = conn.execute(
@@ -1700,6 +1708,8 @@ def workflow_qr_management():
                     """
                 ).fetchall()
                 stations = [dict(r) for r in stations]
+                if edit_station_id is not None:
+                    edit_station = next((s for s in stations if int(s.get("id") or 0) == edit_station_id), None)
             except sqlite3.OperationalError:
                 try:
                     stations = conn.execute(
@@ -1711,6 +1721,8 @@ def workflow_qr_management():
                         """
                     ).fetchall()
                     stations = [dict(r) for r in stations]
+                    if edit_station_id is not None:
+                        edit_station = next((s for s in stations if int(s.get("id") or 0) == edit_station_id), None)
                 except sqlite3.OperationalError:
                     pass
             try:
@@ -1916,6 +1928,7 @@ def workflow_qr_management():
                 stickering_machines=stickering_machines,
                 all_machines=all_machines,
                 station_kind_options=_STATION_KIND_ORDER_ADD,
+                edit_station=edit_station,
                 cards=cards,
                 station_live=station_live,
                 floor_station_day_stats=floor_station_day_stats,
@@ -1939,6 +1952,7 @@ def workflow_qr_management():
             stickering_machines=[],
             all_machines=[],
             station_kind_options=_STATION_KIND_ORDER_ADD,
+            edit_station=None,
             cards=[],
             station_live={},
             floor_station_day_stats={},
@@ -2471,6 +2485,96 @@ def workflow_qr_add_station():
         current_app.logger.error("workflow_qr_add_station: %s", e)
         flash(str(e), "error")
     return redirect(stations_url)
+
+
+@bp.route("/admin/workflow-qr/station/update", methods=["POST"])
+@admin_required
+def workflow_qr_update_station():
+    """Edit station fields (label/code/machine/token) from one panel."""
+    station_id = request.form.get("station_id", type=int)
+    label = (request.form.get("label") or "").strip()
+    station_code = (request.form.get("station_code") or "").strip() or None
+    scan_token = (request.form.get("station_scan_token") or "").strip()
+    raw_mid = (request.form.get("machine_id") or "").strip()
+    machine_id = int(raw_mid) if raw_mid else None
+    if not station_id:
+        flash("station_id is required.", "error")
+        return redirect(url_for("admin.workflow_qr_management", tools="stations"))
+    stations_url = url_for(
+        "admin.workflow_qr_management", tools="stations", edit_station_id=station_id
+    )
+    if not label:
+        flash("Label is required.", "error")
+        return redirect(stations_url)
+    if station_code and len(station_code) > 64:
+        flash("Station code must be 64 characters or less.", "error")
+        return redirect(stations_url)
+    if not scan_token:
+        flash("Scan token is required.", "error")
+        return redirect(stations_url)
+
+    try:
+        with db_transaction() as conn:
+            try:
+                row = conn.execute(
+                    """
+                    SELECT id, COALESCE(station_kind, 'sealing') AS station_kind
+                    FROM workflow_stations
+                    WHERE id = ?
+                    """,
+                    (station_id,),
+                ).fetchone()
+            except sqlite3.OperationalError:
+                row = conn.execute(
+                    """
+                    SELECT id, 'sealing' AS station_kind
+                    FROM workflow_stations
+                    WHERE id = ?
+                    """,
+                    (station_id,),
+                ).fetchone()
+            if not row:
+                flash("Unknown workflow station.", "error")
+                return redirect(url_for("admin.workflow_qr_management", tools="stations"))
+            sk = _normalize_station_kind(dict(row).get("station_kind"))
+            if not _validate_station_scan_token_for_kind(sk, scan_token):
+                pfx = _station_scan_token_prefix(sk)
+                flash(
+                    f"Scan token must start with {pfx} for this station type, and use only letters, numbers, dot, underscore, and hyphen (1–128 chars).",
+                    "error",
+                )
+                return redirect(stations_url)
+            dup = conn.execute(
+                "SELECT id FROM workflow_stations WHERE station_scan_token = ? AND id != ?",
+                (scan_token, station_id),
+            ).fetchone()
+            if dup:
+                flash("That scan token is already used by another station.", "error")
+                return redirect(stations_url)
+            if not _machine_allowed_for_station_kind(conn, sk, machine_id):
+                flash(
+                    "That machine does not match this station type (sealing vs blister vs packaging).",
+                    "error",
+                )
+                return redirect(stations_url)
+            conn.execute(
+                """
+                UPDATE workflow_stations
+                SET label = ?, station_code = ?, machine_id = ?, station_scan_token = ?
+                WHERE id = ?
+                """,
+                (label, station_code, machine_id, scan_token, station_id),
+            )
+        flash("Station updated.", "success")
+    except sqlite3.IntegrityError:
+        flash("That scan token is already in use.", "error")
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_update_station: %s", oe)
+        flash("Could not update station (database error).", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_update_station: %s", e)
+        flash(str(e), "error")
+    return redirect(url_for("admin.workflow_qr_management", tools="stations"))
 
 
 @bp.route("/admin/workflow-qr/remove-station", methods=["POST"])
