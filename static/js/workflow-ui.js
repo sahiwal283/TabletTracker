@@ -1406,7 +1406,8 @@
         if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
         if (saveSealBtn) saveSealBtn.classList.add('hidden');
         if (handpackBtn) handpackBtn.classList.add('hidden');
-        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.remove('hidden');
+        if (materialChangeOpenBtn) materialChangeOpenBtn.classList.add('hidden');
+        if (materialChangePanel) materialChangePanel.classList.remove('hidden');
       } else if (forced === 'operator') {
         pauseBtn.classList.add('hidden');
         if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
