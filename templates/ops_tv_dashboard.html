@@ -13,14 +13,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/mes-command-center.css') }}?v={{ app_version }}">
   <style>
     .mes-back-link {
-      position: fixed;
-      top: 72px;
-      left: 8px;
-      z-index: 2000;
+      position: static;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       padding: 8px 10px;
+      margin: 8px 0 4px 8px;
       border-radius: 10px;
       border: 1px solid rgba(148, 163, 184, 0.25);
       background: rgba(15, 23, 42, 0.82);
@@ -37,8 +35,7 @@
     }
     @media (max-width: 900px) {
       .mes-back-link {
-        top: 12px;
-        left: 12px;
+        margin: 8px 0 4px 8px;
       }
     }
   </style>
