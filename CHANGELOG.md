@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.19.16] - 2026-04-29
+
+### Fixed
+- **Command Center → Station settings:** Made station **Remove** controls visible without horizontal scrolling by placing them beside each row’s **Open station page** link.
+
+---
+
+## [4.19.12] - 2026-04-29
+
+### Added
+- **Command Center → Station settings:** Added a **Remove** action per station row so admins can delete legacy/unused stations directly from the UI. Deletion is safely blocked when the station has an active/paused occupant or existing workflow event history.
+
+---
+
 ## [4.19.10] - 2026-04-29
 
 ### Fixed

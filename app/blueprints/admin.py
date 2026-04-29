@@ -2471,3 +2471,58 @@ def workflow_qr_add_station():
         current_app.logger.error("workflow_qr_add_station: %s", e)
         flash(str(e), "error")
     return redirect(stations_url)
+
+
+@bp.route("/admin/workflow-qr/remove-station", methods=["POST"])
+@admin_required
+def workflow_qr_remove_station():
+    """Remove an unused workflow station row."""
+    stations_url = url_for("admin.workflow_qr_management", tools="stations")
+    station_id = request.form.get("station_id", type=int)
+    if not station_id:
+        flash("station_id is required.", "error")
+        return redirect(stations_url)
+    try:
+        with db_transaction() as conn:
+            row = conn.execute(
+                """
+                SELECT id, label, station_scan_token
+                FROM workflow_stations
+                WHERE id = ?
+                """,
+                (station_id,),
+            ).fetchone()
+            if not row:
+                flash("Unknown workflow station.", "error")
+                return redirect(stations_url)
+            station = dict(row)
+            occ = _current_station_occupancy(conn, int(station_id))
+            if occ and occ.get("status") in ("occupied", "paused"):
+                flash(
+                    "Cannot remove a station while it has an active or paused bag.",
+                    "error",
+                )
+                return redirect(stations_url)
+            ev = conn.execute(
+                "SELECT 1 FROM workflow_events WHERE station_id = ? LIMIT 1",
+                (station_id,),
+            ).fetchone()
+            if ev:
+                flash(
+                    "Cannot remove this station because it has workflow history. "
+                    "Keep it for audit/history, or add a new station and stop using this one.",
+                    "error",
+                )
+                return redirect(stations_url)
+            conn.execute("DELETE FROM workflow_stations WHERE id = ?", (station_id,))
+        flash(
+            f"Removed station #{station_id} ({station.get('label') or station.get('station_scan_token')}).",
+            "success",
+        )
+    except sqlite3.OperationalError as oe:
+        current_app.logger.error("workflow_qr_remove_station: %s", oe)
+        flash("Could not remove station (database error).", "error")
+    except Exception as e:
+        current_app.logger.error("workflow_qr_remove_station: %s", e)
+        flash(str(e), "error")
+    return redirect(stations_url)

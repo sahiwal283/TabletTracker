@@ -418,9 +418,17 @@
               </div>
             </td>
             <td class="py-2">
-              <a class="text-blue-600 hover:underline text-xs break-all"
-                 href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
-                 target="_blank" rel="noopener">Open station page</a>
+              <div class="flex items-center gap-2">
+                <a class="text-blue-600 hover:underline text-xs break-all"
+                   href="{{ url_for('workflow_floor.station_page', station_token=s.station_scan_token) }}"
+                   target="_blank" rel="noopener">Open station page</a>
+                <form method="post" action="{{ url_for('admin.workflow_qr_remove_station') }}" class="inline"
+                    onsubmit="return confirm('Remove station #{{ s.id }} ({{ s.label|e }})? This is blocked if active, paused, or it has workflow event history.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="station_id" value="{{ s.id }}"/>
+                  <button type="submit" class="text-xs py-1 px-2 rounded border border-red-200 text-red-800 hover:bg-red-50">Remove</button>
+                </form>
+              </div>
             </td>
           </tr>
           {% endfor %}
