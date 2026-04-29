@@ -395,7 +395,7 @@ def build_pill_command_center_board_payload(
     try:
         for r in conn.execute(
             """
-            SELECT COALESCE(pd.product_name, tt.tablet_type_name, '—') AS sku,
+            SELECT COALESCE(pd.product_name, '—') AS sku,
                    wb.id AS workflow_bag_id,
                    wb.receipt_number,
                    COALESCE(rc.shipment_number, 1) AS shipment_number,
@@ -418,10 +418,6 @@ def build_pill_command_center_board_payload(
                   LIMIT 1
               )
             LEFT JOIN product_details pd ON pd.id = wb.product_id
-            LEFT JOIN tablet_types tt ON tt.id = bg.tablet_type_id
-            WHERE COALESCE(rc.status, 'published') = 'published'
-              AND COALESCE(rc.closed, 0) = 0
-              AND COALESCE(bg.status, 'Available') != 'Closed'
             ORDER BY sort_key DESC
             LIMIT 2500
             """
