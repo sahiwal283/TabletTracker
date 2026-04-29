@@ -27,6 +27,12 @@ from app.services.workflow_read import (
 )
 from app.services.workflow_txn import run_with_busy_retry
 from app.services.workflow_warehouse_bridge import sync_workflow_warehouse_events
+from app.services.workflow_variety_sources import (
+    active_variety_parent_for_source_bag,
+    parse_source_card_tokens,
+    resolve_source_cards,
+    source_payload_for_parent,
+)
 from app.utils.db_utils import get_db
 
 LOGGER = logging.getLogger(__name__)
@@ -538,55 +544,33 @@ def _normalize_bottle_handpack_sources(
     if not flags.get("is_variety_pack"):
         return payload
     out = dict(payload or {})
-    tokens: list[str] = []
-    seen_tokens: set[str] = set()
-    for token in _list_from_payload(out.get("source_card_tokens")):
-        t = str(token or "").strip()
-        if not t or t == str(main_card_token or "").strip() or t in seen_tokens:
-            continue
-        seen_tokens.add(t)
-        tokens.append(t)
+    raw_tokens = out.get("source_card_tokens")
+    tokens = parse_source_card_tokens(raw_tokens)
     if not tokens:
+        assigned = source_payload_for_parent(conn, workflow_bag_id)
+        if assigned["source_workflow_bag_ids"]:
+            out.update(assigned)
+            return out
         raise ValueError("Scan at least one source bag QR for this variety pack.")
-    qmarks = ",".join("?" for _ in tokens)
-    rows = conn.execute(
-        f"""
-        SELECT qc.id AS qr_card_id, qc.scan_token, qc.assigned_workflow_bag_id,
-               wb.inventory_bag_id, wb.product_id
-        FROM qr_cards qc
-        JOIN workflow_bags wb ON wb.id = qc.assigned_workflow_bag_id
-        WHERE qc.status = ?
-          AND qc.scan_token IN ({qmarks})
-        """,
-        (WC.QR_CARD_STATUS_ASSIGNED, *tokens),
-    ).fetchall()
-    by_token = {str(r["scan_token"]): dict(r) for r in rows}
-    missing = [t for t in tokens if t not in by_token]
-    if missing:
-        raise ValueError(f"Source bag QR not assigned: {missing[0]}")
-    qr_card_ids: list[int] = []
-    workflow_ids: list[int] = []
-    inventory_ids: list[int] = []
-    for token in tokens:
-        r = by_token[token]
-        if r.get("inventory_bag_id") is None:
-            raise ValueError("Source bag QR is not linked to a receiving bag.")
-        locked = _active_variety_parent_for_source_bag(
-            conn,
-            int(r["assigned_workflow_bag_id"]),
-            excluding_parent_workflow_bag_id=workflow_bag_id,
-        )
-        if locked:
-            raise ValueError(
-                f"Source bag QR is already assigned to variety pack {locked.get('parent_label') or locked.get('parent_workflow_bag_id')}."
+    try:
+        out.update(
+            resolve_source_cards(
+                conn,
+                source_card_tokens=raw_tokens,
+                parent_card_token=main_card_token,
+                excluding_parent_workflow_bag_id=workflow_bag_id,
             )
-        qr_card_ids.append(int(r["qr_card_id"]))
-        workflow_ids.append(int(r["assigned_workflow_bag_id"]))
-        inventory_ids.append(int(r["inventory_bag_id"]))
-    out["source_card_tokens"] = tokens
-    out["source_qr_card_ids"] = qr_card_ids
-    out["source_workflow_bag_ids"] = workflow_ids
-    out["source_inventory_bag_ids"] = inventory_ids
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        if msg.startswith("source_card_not_assigned:"):
+            raise ValueError(f"Source bag QR not assigned: {msg.split(':', 1)[1]}") from exc
+        if msg == "source_card_missing_inventory_bag":
+            raise ValueError("Source bag QR is not linked to a receiving bag.") from exc
+        if msg.startswith("source_card_already_variety_assigned:"):
+            label = msg.split(":", 1)[1]
+            raise ValueError(f"Source bag QR is already assigned to variety pack {label}.") from exc
+        raise
     return out
 
 
@@ -596,61 +580,11 @@ def _active_variety_parent_for_source_bag(
     *,
     excluding_parent_workflow_bag_id: int | None = None,
 ) -> dict | None:
-    """Return the active variety parent that has scanned this source bag, if any."""
-    try:
-        rows = conn.execute(
-            """
-            SELECT we.workflow_bag_id AS parent_workflow_bag_id, we.payload,
-                   wb.receipt_number, pd.product_name, qc.scan_token
-            FROM workflow_events we
-            JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
-            LEFT JOIN product_details pd ON pd.id = wb.product_id
-            LEFT JOIN qr_cards qc
-              ON qc.assigned_workflow_bag_id = we.workflow_bag_id
-             AND qc.status = ?
-            WHERE we.event_type = ?
-              AND we.workflow_bag_id != ?
-              AND NOT EXISTS (
-                SELECT 1
-                FROM workflow_events fin
-                WHERE fin.workflow_bag_id = we.workflow_bag_id
-                  AND fin.event_type = ?
-              )
-            ORDER BY we.occurred_at DESC, we.id DESC
-            """,
-            (
-                WC.QR_CARD_STATUS_ASSIGNED,
-                WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
-                int(excluding_parent_workflow_bag_id or 0),
-                WC.EVENT_BAG_FINALIZED,
-            ),
-        ).fetchall()
-    except sqlite3.OperationalError:
-        return None
-    source_id = int(source_workflow_bag_id)
-    for row in rows:
-        try:
-            payload = json.loads(row["payload"] or "{}")
-        except (TypeError, json.JSONDecodeError):
-            continue
-        if not isinstance(payload, dict):
-            continue
-        for raw in payload.get("source_workflow_bag_ids") or []:
-            try:
-                child_id = int(raw)
-            except (TypeError, ValueError):
-                continue
-            if child_id != source_id:
-                continue
-            parent = dict(row)
-            label = (
-                parent.get("receipt_number")
-                or parent.get("product_name")
-                or parent.get("scan_token")
-                or f"workflow bag #{parent.get('parent_workflow_bag_id')}"
-            )
-            return {**parent, "parent_label": str(label)}
-    return None
+    return active_variety_parent_for_source_bag(
+        conn,
+        source_workflow_bag_id,
+        excluding_parent_workflow_bag_id=excluding_parent_workflow_bag_id,
+    )
 
 
 def _variety_source_lock_response(conn: sqlite3.Connection, workflow_bag_id: int):

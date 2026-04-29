@@ -23,6 +23,7 @@ from app.services.workflow_finalize import (
 )
 from app.services.workflow_read import production_day_for_event_ms
 from app.services.workflow_txn import run_with_busy_retry
+from app.services.workflow_variety_sources import parse_source_card_tokens
 from app.utils.auth_utils import employee_required
 from app.utils.db_utils import get_db
 
@@ -88,6 +89,7 @@ def new_variety_run():
         product_id = request.form.get("product_id", type=int)
         card_scan_token = (request.form.get("card_scan_token") or "").strip()
         receipt_number = (request.form.get("receipt_number") or "").strip()
+        source_card_tokens = (request.form.get("source_card_tokens") or "").strip()
         uid = session.get("employee_id")
         if session.get("admin_authenticated"):
             uid = None
@@ -105,12 +107,15 @@ def new_variety_run():
                     user_id=uid,
                     card_scan_token=card_scan_token,
                     receipt_number_override=receipt_number,
+                    source_card_tokens=source_card_tokens,
                 ),
                 op_name="assign_variety_pack_run_to_card",
             )
             conn.commit()
-            flash(f"Assigned variety pack QR card #{card_id} to workflow bag #{bag_id}.", "success")
-        except RuntimeError as re:
+            source_count = len(parse_source_card_tokens(source_card_tokens))
+            suffix = f" with {source_count} source bag card(s)" if source_count else ""
+            flash(f"Assigned variety pack QR card #{card_id} to workflow bag #{bag_id}{suffix}.", "success")
+        except (RuntimeError, ValueError) as re:
             err = str(re)
             if "invalid_variety_product" in err:
                 flash("Choose a product configured as a variety pack.", "error")
@@ -120,6 +125,14 @@ def new_variety_run():
                 flash(f"Card token '{card_scan_token}' is already in use. Release/finalize it first.", "error")
             elif "card_token_required" in err:
                 flash("A dedicated variety QR card token is required.", "error")
+            elif "source_card_not_assigned" in err:
+                token = err.split(":", 1)[-1]
+                flash(f"Source bag card token '{token}' is not assigned to an active bag.", "error")
+            elif "source_card_missing_inventory_bag" in err:
+                flash("One source QR card is not linked to a receiving bag. Use bag QR cards, not the variety QR.", "error")
+            elif "source_card_already_variety_assigned" in err:
+                label = err.split(":", 1)[-1]
+                flash(f"One source bag is already assigned to active variety pack {label}.", "error")
             else:
                 LOGGER.warning("new_variety_run runtime error: %s", err)
                 flash("Could not assign variety pack QR card. Try again.", "error")

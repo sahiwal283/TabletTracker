@@ -42,7 +42,7 @@
 {% if variety_products %}
 <div class="mb-6 rounded-xl p-4 tt-workflow-variety-run-panel">
   <h3 class="text-sm font-semibold text-slate-100 mb-1">Start variety pack QR run</h3>
-  <p class="text-xs text-slate-300 mb-3">Use this for the dedicated variety QR that travels through bottle production. The individual bag QR cards stay with their bags and are scanned at hand pack as source bags.</p>
+  <p class="text-xs text-slate-300 mb-3">Use this for the dedicated variety QR that travels through bottle production. Scan the source bag QR cards here so the variety run owns them until packaging finalizes the count.</p>
   <form method="post" action="{{ url_for('workflow_staff.new_variety_run') }}" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 items-end">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="return_to" value="{{ ba.return_to or '' }}"/>
@@ -71,6 +71,26 @@
       <label class="block text-xs font-medium mb-1" for="wv_variety_receipt_number">Run / receipt label</label>
       <input id="wv_variety_receipt_number" name="receipt_number" maxlength="128" class="form-input text-sm"
              placeholder="Optional; defaults to variety product name" autocomplete="off"/>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-medium mb-1" for="wv_variety_source_card_tokens">Source bag QR cards</label>
+      <div class="flex flex-wrap gap-2 mb-2">
+        <button type="button" id="wv-scan-variety-source" class="btn-secondary px-3 py-2 text-xs">Scan source bag QR</button>
+        <button type="button" id="wv-scan-variety-source-stop" class="btn-secondary px-3 py-2 text-xs hidden">Stop scan</button>
+        <button type="button" id="wv-clear-variety-sources" class="btn-secondary px-3 py-2 text-xs">Clear sources</button>
+      </div>
+      <div id="wv-variety-source-reader-wrap" class="mb-3 hidden">
+        <div id="wv-variety-source-reader" class="w-full rounded border bg-black min-h-[200px]"></div>
+        <p class="text-xs text-slate-400 mt-1">Point camera at each bag QR card. Scanned cards are added below.</p>
+      </div>
+      <textarea
+        id="wv_variety_source_card_tokens"
+        name="source_card_tokens"
+        rows="4"
+        class="form-input font-mono text-sm w-full"
+        placeholder="Scan or paste one source bag card token per line"
+      ></textarea>
+      <p class="text-xs text-slate-400 mt-1">These bag cards stay physically with their bags, but they cannot be scanned into another station until this variety QR is finalized at packaging.</p>
     </div>
     <div class="md:col-span-2">
       <button type="submit" class="btn-primary text-sm py-2 px-4">Assign variety QR run</button>

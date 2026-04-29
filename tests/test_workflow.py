@@ -286,23 +286,36 @@ class TestWorkflowCore(unittest.TestCase):
         ).fetchone()
         self.assertIsNone(ev)
 
-    def test_assign_variety_pack_run_to_card_without_source_bag(self):
-        from app.services.workflow_finalize import assign_variety_pack_run_to_card
+    def test_assign_variety_pack_run_to_card_with_source_bag_cards(self):
+        from app.services.workflow_finalize import (
+            assign_variety_pack_run_to_card,
+            create_workflow_bag_with_card,
+        )
 
         self.conn.execute(
             """
             INSERT INTO product_details (id, product_name, is_bottle_product, is_variety_pack)
-            VALUES (704, 'Variety Bottle Run', 0, 1)
+            VALUES (704, 'Variety Bottle Run', 0, 1), (707, 'Flavor Source', 0, 0)
             """
         )
         self.conn.commit()
+        source_bag_id, source_card_id = create_workflow_bag_with_card(
+            self.conn,
+            product_id=707,
+            box_number="2",
+            bag_number="9",
+            receipt_number="SRC",
+            user_id=None,
+            inventory_bag_id=123,
+        )
 
         bag_id, card_id = assign_variety_pack_run_to_card(
             self.conn,
             product_id=704,
             user_id=None,
-            card_scan_token="tok0",
+            card_scan_token="tok1",
             receipt_number_override="VAR-RUN-1",
+            source_card_tokens="tok0",
         )
         self.conn.commit()
         wb = self.conn.execute(
@@ -318,6 +331,21 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(wb["receipt_number"], "VAR-RUN-1")
         self.assertEqual(card["status"], "assigned")
         self.assertEqual(card["assigned_workflow_bag_id"], bag_id)
+        ev = self.conn.execute(
+            """
+            SELECT payload
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND event_type = 'VARIETY_SOURCES_ASSIGNED'
+            """,
+            (bag_id,),
+        ).fetchone()
+        self.assertIsNotNone(ev)
+        import json
+
+        payload = json.loads(ev["payload"])
+        self.assertEqual(payload["source_qr_card_ids"], [source_card_id])
+        self.assertEqual(payload["source_workflow_bag_ids"], [source_bag_id])
+        self.assertEqual(payload["source_inventory_bag_ids"], [123])
 
     def test_active_variety_parent_locks_source_bag_until_finalized(self):
         from app.blueprints.workflow_floor import _active_variety_parent_for_source_bag
@@ -349,12 +377,8 @@ class TestWorkflowCore(unittest.TestCase):
         )
         append_workflow_event(
             self.conn,
-            "BOTTLE_HANDPACK_COMPLETE",
-            {
-                "count_total": 100,
-                "qa_checked": True,
-                "source_workflow_bag_ids": [source_id],
-            },
+            "VARIETY_SOURCES_ASSIGNED",
+            {"source_workflow_bag_ids": [source_id], "source_inventory_bag_ids": [456]},
             parent_id,
         )
         self.conn.commit()
@@ -364,6 +388,9 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(locked["parent_workflow_bag_id"], parent_id)
         self.assertEqual(locked["parent_label"], "VAR-LOCK")
 
+        append_workflow_event(
+            self.conn, "BOTTLE_HANDPACK_COMPLETE", {"count_total": 100, "qa_checked": True}, parent_id
+        )
         append_workflow_event(
             self.conn, "BOTTLE_CAP_SEAL_COMPLETE", {"station_id": 1, "count_total": 96}, parent_id
         )

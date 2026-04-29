@@ -45,6 +45,14 @@ _ALLOWED: dict[str, frozenset[str]] = {
     ),
     WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_BOTTLE_STICKER_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
+    WC.EVENT_VARIETY_SOURCES_ASSIGNED: frozenset(
+        {
+            "source_card_tokens",
+            "source_qr_card_ids",
+            "source_workflow_bag_ids",
+            "source_inventory_bag_ids",
+        }
+    ),
     WC.EVENT_PACKAGING_SNAPSHOT: frozenset(
         {
             "display_count",

@@ -16,6 +16,7 @@ from app.services.workflow_read import (
     mechanical_bag_facts,
 )
 from app.services.workflow_txn import immediate_transaction, run_with_busy_retry
+from app.services.workflow_variety_sources import resolve_source_cards
 from app.utils.db_utils import BagRepository
 
 LOGGER = logging.getLogger(__name__)
@@ -359,6 +360,7 @@ def assign_variety_pack_run_to_card(
     user_id: int | None,
     card_scan_token: str,
     receipt_number_override: str | None = None,
+    source_card_tokens: list[str] | str | None = None,
 ) -> tuple[int, int]:
     """Create a dedicated traveling QR workflow for a variety pack run (no source bag claimed)."""
     prow = conn.execute(
@@ -374,10 +376,15 @@ def assign_variety_pack_run_to_card(
     selected_qr_card_id = _selected_idle_qr_card_id(conn, card_scan_token)
     if selected_qr_card_id is None:
         raise RuntimeError("card_token_required")
+    source_payload = resolve_source_cards(
+        conn,
+        source_card_tokens=source_card_tokens,
+        parent_card_token=card_scan_token,
+    )
     receipt_number = _normalize_workflow_receipt(receipt_number_override) or str(
         dict(prow).get("product_name") or f"Variety-{int(product_id)}"
     )[:128]
-    return create_workflow_bag_with_card(
+    bag_id, card_id = create_workflow_bag_with_card(
         conn,
         product_id=int(product_id),
         box_number=None,
@@ -388,6 +395,15 @@ def assign_variety_pack_run_to_card(
         inventory_bag_id=None,
         qr_card_id=selected_qr_card_id,
     )
+    if source_payload["source_workflow_bag_ids"]:
+        append_workflow_event(
+            conn,
+            WC.EVENT_VARIETY_SOURCES_ASSIGNED,
+            source_payload,
+            bag_id,
+            user_id=user_id,
+        )
+    return bag_id, card_id
 
 
 def assign_inventory_bag_to_card(

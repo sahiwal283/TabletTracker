@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.services import workflow_constants as WC
+from app.services.workflow_variety_sources import source_payload_for_parent
 from app.services.product_tablet_allowlist import (
     allowed_tablet_type_ids_for_product,
     inventory_item_id_for_bag_tablet,
@@ -128,38 +129,8 @@ def _latest_event_count_total(
 
 
 def _handpack_source_inventory_bag_ids(conn: sqlite3.Connection, workflow_bag_id: int) -> list[int]:
-    """Union of inventory bag ids scanned into bottle hand-pack source payloads."""
-    try:
-        rows = conn.execute(
-            """
-            SELECT payload
-            FROM workflow_events
-            WHERE workflow_bag_id = ? AND event_type = ?
-            ORDER BY occurred_at ASC, id ASC
-            """,
-            (int(workflow_bag_id), WC.EVENT_BOTTLE_HANDPACK_COMPLETE),
-        ).fetchall()
-    except sqlite3.OperationalError:
-        return []
-    seen: set[int] = set()
-    out: list[int] = []
-    for row in rows:
-        try:
-            payload = json.loads(row["payload"] or "{}")
-        except (TypeError, json.JSONDecodeError):
-            continue
-        if not isinstance(payload, dict):
-            continue
-        for raw in payload.get("source_inventory_bag_ids") or []:
-            try:
-                bid = int(raw)
-            except (TypeError, ValueError):
-                continue
-            if bid in seen:
-                continue
-            seen.add(bid)
-            out.append(bid)
-    return out
+    """Union of inventory bag ids assigned to or scanned into a variety parent."""
+    return [int(x) for x in source_payload_for_parent(conn, workflow_bag_id)["source_inventory_bag_ids"]]
 
 
 def _bag_remaining_tablets(conn: sqlite3.Connection, bag_id: int) -> int:
