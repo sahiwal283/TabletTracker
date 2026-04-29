@@ -13,6 +13,8 @@ from typing import Any
 _PAYLOAD_NUM = (
     "count_total",
     "display_count",
+    "case_count",
+    "loose_display_count",
     "counter_start",
     "counter_end",
     "cards_reopened",
@@ -239,9 +241,12 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                    we.workflow_bag_id AS bag_id, we.station_id AS sid, we.event_type AS etype,
                    we.user_id AS user_id,
                    COALESCE(NULLIF(trim(e.full_name), ''), NULLIF(trim(e.username), '')) AS op_label,
-                   we.payload AS payload
+                   we.payload AS payload,
+                   COALESCE(pd.displays_per_case, 0) AS product_displays_per_case
             FROM workflow_events we
             LEFT JOIN employees e ON e.id = we.user_id
+            LEFT JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
             ORDER BY we.occurred_at ASC
             LIMIT ?
@@ -255,6 +260,16 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
             row = dict(r)
             sid = row.get("sid")
             bid = row.get("bag_id")
+            packaging_case_breakdown = (
+                "case_count" in payload_obj or "loose_display_count" in payload_obj
+            )
+            loose_display_num = nums["loose_display_count"]
+            if loose_display_num is None:
+                loose_display_num = nums["display_count"]
+            try:
+                prod_dpc = int(row.get("product_displays_per_case") or 0)
+            except (TypeError, ValueError):
+                prod_dpc = 0
             rows_out.append(
                 {
                     "atMs": int(row["at_ms"] or 0),
@@ -265,6 +280,10 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                     "operatorLabel": str(row.get("op_label") or ""),
                     "countTotal": nums["count_total"],
                     "displayCount": nums["display_count"],
+                    "caseCount": nums["case_count"],
+                    "looseDisplayCount": loose_display_num,
+                    "productDisplaysPerCase": prod_dpc,
+                    "packagingCaseBreakdown": packaging_case_breakdown,
                     "counterStart": nums["counter_start"],
                     "counterEnd": nums["counter_end"],
                     "cardsReopened": nums["cards_reopened"],
@@ -287,7 +306,8 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
             SELECT wb.id,
                    wb.receipt_number,
                    substr(upper(trim(replace(coalesce(pd.product_name,''),' ','-'))),1,48) AS sku,
-                   NULL AS qty_received
+                   NULL AS qty_received,
+                   COALESCE(pd.displays_per_case, 0) AS displays_per_case
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE wb.id IN ({placeholders})
@@ -298,6 +318,10 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
             rid = rr.get("id")
             if rid is None:
                 continue
+            try:
+                dpc = int(rr.get("displays_per_case") or 0)
+            except (TypeError, ValueError):
+                dpc = 0
             out.append(
                 {
                     "id": int(rid),
@@ -305,6 +329,7 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
                     "sku": str(rr.get("sku") or "—"),
                     "qtyReceived": rr.get("qty_received"),
                     "productLabel": str(rr.get("sku") or "—"),
+                    "displaysPerCase": dpc,
                 }
             )
     except sqlite3.OperationalError:
@@ -377,7 +402,7 @@ def gather_output_pace_averages(
     try:
         rows = conn.execute(
             """
-            SELECT occurred_at AS at_ms, payload
+            SELECT occurred_at AS at_ms, workflow_bag_id AS bag_id, payload
             FROM workflow_events
             WHERE occurred_at >= ? AND occurred_at < ?
               AND event_type = 'PACKAGING_SNAPSHOT'
@@ -392,6 +417,68 @@ def gather_output_pace_averages(
             "sampleDays": 0,
         }
 
+    bag_ids_pace: set[int] = set()
+    for r in rows:
+        payload = _payload_from_raw(r["payload"])
+        if str(payload.get("reason") or "").lower() != "final_submit":
+            continue
+        bid = r["bag_id"]
+        try:
+            if bid is not None:
+                bag_ids_pace.add(int(bid))
+        except (TypeError, ValueError):
+            pass
+
+    dpc_by_bag: dict[int, int] = {}
+    if bag_ids_pace:
+        ph = ",".join(["?"] * len(bag_ids_pace))
+        try:
+            for br in conn.execute(
+                f"""
+                SELECT wb.id, COALESCE(pd.displays_per_case, 0) AS dpc
+                FROM workflow_bags wb
+                LEFT JOIN product_details pd ON pd.id = wb.product_id
+                WHERE wb.id IN ({ph})
+                """,
+                tuple(bag_ids_pace),
+            ):
+                try:
+                    wid = int(br["id"])
+                    dpc_by_bag[wid] = int(br["dpc"] or 0)
+                except (TypeError, ValueError):
+                    continue
+        except sqlite3.OperationalError:
+            dpc_by_bag = {}
+
+    def _final_submit_display_equivalent(payload: dict[str, Any], bag_id: int | None) -> float:
+        """Match workflow_floor packaging normalization: loose-only display_count when case fields exist."""
+        p = payload or {}
+        case_breakdown = "case_count" in p or "loose_display_count" in p
+        if case_breakdown:
+            try:
+                cases = float(p.get("case_count") or 0)
+            except (TypeError, ValueError):
+                cases = 0.0
+            loose_raw = p.get("loose_display_count")
+            if loose_raw is None:
+                loose_raw = p.get("display_count")
+            try:
+                loose = float(loose_raw or 0)
+            except (TypeError, ValueError):
+                loose = 0.0
+            dpc = 0
+            if bag_id is not None:
+                try:
+                    dpc = dpc_by_bag.get(int(bag_id), 0)
+                except (TypeError, ValueError):
+                    dpc = 0
+            return max(0.0, cases * float(dpc) + loose)
+        raw_one = p.get("display_count", p.get("count_total"))
+        try:
+            return max(0.0, float(raw_one or 0))
+        except (TypeError, ValueError):
+            return 0.0
+
     for r in rows:
         try:
             at = int(r["at_ms"])
@@ -400,11 +487,12 @@ def gather_output_pace_averages(
         payload = _payload_from_raw(r["payload"])
         if str(payload.get("reason") or "").lower() != "final_submit":
             continue
-        raw_count = payload.get("display_count", payload.get("count_total"))
+        bid = r["bag_id"]
         try:
-            count = float(raw_count or 0)
+            bid_int = int(bid) if bid is not None else None
         except (TypeError, ValueError):
-            count = 0.0
+            bid_int = None
+        count = _final_submit_display_equivalent(payload, bid_int)
         if count <= 0:
             continue
         idx = int((at - day_start_ms) // (24 * 60 * 60_000))

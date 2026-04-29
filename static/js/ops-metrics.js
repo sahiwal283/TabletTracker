@@ -46,6 +46,25 @@
     return n != null && n >= 0 ? n : 0;
   }
 
+  /** Total displays for PACKAGING_SNAPSHOT final_submit: cases × displays_per_case + loose (bag.product). */
+  function finalSubmitDisplayTotal(ev, bagsById) {
+    var bagKey = eventBagId(ev);
+    var bag = bagKey != null ? (bagsById || {})[String(bagKey)] : null;
+    var dpc =
+      asNum(bag && (bag.displaysPerCase != null ? bag.displaysPerCase : bag.displays_per_case)) ||
+      asNum(ev && (ev.productDisplaysPerCase != null ? ev.productDisplaysPerCase : ev.product_displays_per_case)) ||
+      0;
+    var breakdown = !!(ev && ev.packagingCaseBreakdown);
+    if (breakdown) {
+      var cases = asNum(ev.caseCount);
+      if (cases == null || cases < 0) cases = 0;
+      var loose = asNum(ev.looseDisplayCount != null ? ev.looseDisplayCount : ev.displayCount);
+      if (loose == null || loose < 0) loose = 0;
+      return Math.max(0, cases * dpc + loose);
+    }
+    return displayCount(ev);
+  }
+
   function rejectUnits(ev) {
     var t = String((ev && ev.eventType) || "").toUpperCase();
     var looksReject = t.indexOf("REJECT") >= 0 || t.indexOf("REWORK") >= 0 || t === "CARD_FORCE_RELEASED";
@@ -379,7 +398,7 @@
         finalizedBagSet[String(bid)] = true;
       }
       if (isFinalPackagingSnapshot(e)) {
-        var dc = displayCount(e);
+        var dc = finalSubmitDisplayTotal(e, bagsById);
         displays += dc;
         if (dc > 0 && bid != null) {
           var bi = bagsById[String(bid)] || {};
@@ -439,7 +458,7 @@
     return {
       kpis: [
         { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
-        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit display_count", sparkline: displays ? [0, displays] : [] },
+        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit: case_count × product displays_per_case + loose displays", sparkline: displays ? [0, displays] : [] },
         { id: "cycles", value: Object.keys(flavorsWithDisplays).length, displayLabel: "Flavors Produced", formulaNote: "Flavor/display breakdown shown below" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
