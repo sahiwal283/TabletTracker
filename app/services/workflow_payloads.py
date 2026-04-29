@@ -21,6 +21,9 @@ _ALLOWED: dict[str, frozenset[str]] = {
     WC.EVENT_STATION_RESUMED: frozenset({"station_id", "station_kind", "note"}),
     WC.EVENT_BLISTER_COMPLETE: frozenset({"count_total", "employee_name"}),
     WC.EVENT_SEALING_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
+    WC.EVENT_BOTTLE_HANDPACK_COMPLETE: frozenset({"count_total", "employee_name", "qa_checked"}),
+    WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
+    WC.EVENT_BOTTLE_STICKER_COMPLETE: frozenset({"station_id", "count_total", "employee_name"}),
     WC.EVENT_PACKAGING_SNAPSHOT: frozenset(
         {"display_count", "reason", "employee_name", "packs_remaining", "cards_reopened"}
     ),

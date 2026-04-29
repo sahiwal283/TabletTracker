@@ -51,10 +51,35 @@ bp = Blueprint('admin', __name__)
 # QR / URL path–safe scan tokens (stations: /workflow/station/<token>; bag cards: floor API card_token)
 _STATION_SCAN_TOKEN_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 
-_VALID_STATION_KINDS = frozenset({"sealing", "blister", "packaging", "combined"})
-_STATION_KIND_ORDER = ["sealing", "blister", "packaging", "combined"]
+_VALID_STATION_KINDS = frozenset(
+    {
+        "sealing",
+        "blister",
+        "packaging",
+        "combined",
+        "bottle_handpack",
+        "bottle_cap_seal",
+        "bottle_stickering",
+    }
+)
+_STATION_KIND_ORDER = [
+    "sealing",
+    "blister",
+    "packaging",
+    "combined",
+    "bottle_handpack",
+    "bottle_cap_seal",
+    "bottle_stickering",
+]
 # Add-station dropdown: omit legacy "combined" (multi-step on one device).
-_STATION_KIND_ORDER_ADD = ["sealing", "blister", "packaging"]
+_STATION_KIND_ORDER_ADD = [
+    "sealing",
+    "blister",
+    "packaging",
+    "bottle_handpack",
+    "bottle_cap_seal",
+    "bottle_stickering",
+]
 
 
 def _workflow_inventory_bag_name(conn: sqlite3.Connection, inventory_bag_id: int | None) -> str:
@@ -1213,6 +1238,9 @@ def _station_scan_token_prefix(station_kind: str) -> str:
         "blister": "blister-",
         "packaging": "packaging-",
         "combined": "combined-",
+        "bottle_handpack": "bottle-handpack-",
+        "bottle_cap_seal": "bottle-seal-",
+        "bottle_stickering": "bottle-sticker-",
     }.get(k, "seal-")
 
 
@@ -1291,6 +1319,12 @@ def _machine_allowed_for_station_kind(
         return True
     if station_kind == "combined":
         return role in ("sealing", "blister")
+    if station_kind == "bottle_handpack":
+        return role == "bottle"
+    if station_kind == "bottle_cap_seal":
+        return role in ("bottle", "sealing")
+    if station_kind == "bottle_stickering":
+        return role == "stickering"
     return False
 
 @bp.route('/admin')
@@ -1660,6 +1694,32 @@ def workflow_qr_management():
                 blister_machines = [dict(r) for r in blister_machines]
             except sqlite3.OperationalError:
                 pass
+            bottle_machines = []
+            try:
+                bottle_machines = conn.execute(
+                    """
+                    SELECT id, machine_name
+                    FROM machines
+                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'bottle'
+                    ORDER BY machine_name
+                    """
+                ).fetchall()
+                bottle_machines = [dict(r) for r in bottle_machines]
+            except sqlite3.OperationalError:
+                pass
+            stickering_machines = []
+            try:
+                stickering_machines = conn.execute(
+                    """
+                    SELECT id, machine_name
+                    FROM machines
+                    WHERE COALESCE(is_active, 1) = 1 AND machine_role = 'stickering'
+                    ORDER BY machine_name
+                    """
+                ).fetchall()
+                stickering_machines = [dict(r) for r in stickering_machines]
+            except sqlite3.OperationalError:
+                pass
             all_machines = []
             try:
                 all_machines = conn.execute(
@@ -1808,6 +1868,8 @@ def workflow_qr_management():
                 stations_by_kind=stations_by_kind,
                 sealing_machines=sealing_machines,
                 blister_machines=blister_machines,
+                bottle_machines=bottle_machines,
+                stickering_machines=stickering_machines,
                 all_machines=all_machines,
                 station_kind_options=_STATION_KIND_ORDER_ADD,
                 cards=cards,
@@ -1829,6 +1891,8 @@ def workflow_qr_management():
             stations_by_kind=empty_k,
             sealing_machines=[],
             blister_machines=[],
+            bottle_machines=[],
+            stickering_machines=[],
             all_machines=[],
             station_kind_options=_STATION_KIND_ORDER_ADD,
             cards=[],

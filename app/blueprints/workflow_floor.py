@@ -18,6 +18,7 @@ from app.services.workflow_read import (
     display_stage_label,
     floor_bag_verification,
     mechanical_bag_facts,
+    production_flow_for_bag,
     progress_summary,
 )
 from app.services.workflow_txn import run_with_busy_retry
@@ -79,7 +80,13 @@ def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
     """True if this event represents an end-of-day / paused handoff at the station."""
     if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
         return (payload.get("reason") or "").strip() == "paused_end_of_day"
-    if event_type in (WC.EVENT_BLISTER_COMPLETE, WC.EVENT_SEALING_COMPLETE):
+    if event_type in (
+        WC.EVENT_BLISTER_COMPLETE,
+        WC.EVENT_SEALING_COMPLETE,
+        WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+        WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+        WC.EVENT_BOTTLE_STICKER_COMPLETE,
+    ):
         meta = payload.get("metadata")
         if isinstance(meta, dict):
             if meta.get("paused") or meta.get("reason") == "end_of_day":
@@ -140,6 +147,15 @@ def _occupancy_lane_finished_at_station(
                 return True
             if et == WC.EVENT_PACKAGING_SNAPSHOT and not _is_pause_workflow_event(et, pl):
                 return True
+        elif kind == "bottle_handpack":
+            if et == WC.EVENT_BOTTLE_HANDPACK_COMPLETE and not _is_pause_workflow_event(et, pl):
+                return True
+        elif kind == "bottle_cap_seal":
+            if et == WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE and not _is_pause_workflow_event(et, pl):
+                return True
+        elif kind == "bottle_stickering":
+            if et == WC.EVENT_BOTTLE_STICKER_COMPLETE and not _is_pause_workflow_event(et, pl):
+                return True
     return False
 
 
@@ -174,6 +190,9 @@ def _station_pause_at_ms(
         elif et in (
             WC.EVENT_BLISTER_COMPLETE,
             WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+            WC.EVENT_BOTTLE_STICKER_COMPLETE,
             WC.EVENT_PACKAGING_SNAPSHOT,
         ):
             if _is_pause_workflow_event(et, pl):
@@ -216,6 +235,9 @@ def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, statio
         elif et in (
             WC.EVENT_BLISTER_COMPLETE,
             WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+            WC.EVENT_BOTTLE_STICKER_COMPLETE,
             WC.EVENT_PACKAGING_SNAPSHOT,
         ):
             if _is_pause_workflow_event(et, pl):
@@ -358,6 +380,7 @@ def _station_facts_payload(
         "occupancy_started_at_ms": occupancy_started_at,
         "occupying_card_token": _assigned_card_token_for_bag(conn, workflow_bag_id),
         "bag_verification": floor_bag_verification(conn, workflow_bag_id),
+        "production_flow": production_flow_for_bag(conn, workflow_bag_id),
     }
 
 
@@ -371,8 +394,27 @@ def _is_event_allowed_for_station(station_kind: str, event_type: str) -> bool:
         "sealing": {WC.EVENT_SEALING_COMPLETE},
         "packaging": {WC.EVENT_PACKAGING_SNAPSHOT, WC.EVENT_PACKAGING_TAKEN_FOR_ORDER},
         "combined": {WC.EVENT_BLISTER_COMPLETE, WC.EVENT_SEALING_COMPLETE},
+        "bottle_handpack": {WC.EVENT_BOTTLE_HANDPACK_COMPLETE},
+        "bottle_cap_seal": {WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE},
+        "bottle_stickering": {WC.EVENT_BOTTLE_STICKER_COMPLETE},
     }
     return et in allowed.get(kind, set())
+
+
+def _event_flow(event_type: str) -> str | None:
+    et = (event_type or "").strip().upper()
+    if et in {
+        WC.EVENT_BLISTER_COMPLETE,
+        WC.EVENT_SEALING_COMPLETE,
+    }:
+        return "card"
+    if et in {
+        WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+        WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+        WC.EVENT_BOTTLE_STICKER_COMPLETE,
+    }:
+        return "bottle"
+    return None
 
 
 @bp.route("/manual")
@@ -515,6 +557,20 @@ def api_append_event():
                 },
                 status=400,
             )
+        bag_flow = production_flow_for_bag(conn, bag_id)
+        ev_flow = _event_flow(event_type)
+        if ev_flow and ev_flow != bag_flow:
+            return workflow_json(
+                "WORKFLOW_VALIDATION",
+                f"{event_type} is not allowed for {bag_flow} workflow bags.",
+                details={
+                    "reason": "wrong_production_flow",
+                    "production_flow": bag_flow,
+                    "event_flow": ev_flow,
+                    "event_type": event_type,
+                },
+                status=400,
+            )
         station_id = int(st["id"])
         station_claimed = _station_has_claimed_bag(conn, bag_id, station_id)
         if event_type != WC.EVENT_BAG_CLAIMED and not station_claimed:
@@ -542,6 +598,9 @@ def api_append_event():
         if station_needs_resume and event_type in (
             WC.EVENT_BLISTER_COMPLETE,
             WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+            WC.EVENT_BOTTLE_STICKER_COMPLETE,
             WC.EVENT_PACKAGING_SNAPSHOT,
             WC.EVENT_PACKAGING_TAKEN_FOR_ORDER,
         ):

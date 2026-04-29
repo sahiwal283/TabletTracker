@@ -4,6 +4,10 @@
 {% macro station_machine_cell(s) %}
   {% if s.station_kind == 'blister' %}
     {% set mlist = blister_machines %}
+  {% elif s.station_kind == 'bottle_handpack' or s.station_kind == 'bottle_cap_seal' %}
+    {% set mlist = bottle_machines %}
+  {% elif s.station_kind == 'bottle_stickering' %}
+    {% set mlist = stickering_machines %}
   {% elif s.station_kind == 'packaging' or s.station_kind == 'combined' %}
     {% set mlist = all_machines %}
   {% else %}
@@ -266,7 +270,7 @@
         <label class="block text-xs font-medium text-gray-700 mb-1">Station type <span class="text-red-600">*</span></label>
         <select name="station_kind" class="form-input text-sm max-w-md" required>
           {% for k in station_kind_options %}
-          <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% else %}packaging bench (machine link optional){% endif %}</option>
+          <option value="{{ k }}">{{ k }} — {% if k == 'sealing' %}sealing / machine count machines{% elif k == 'blister' %}blister lines{% elif k == 'bottle_handpack' %}bottle hand pack + QA{% elif k == 'bottle_cap_seal' %}bottle cap sealer{% elif k == 'bottle_stickering' %}bottle stickering{% else %}packaging bench (machine link optional){% endif %}</option>
           {% endfor %}
         </select>
       </div>
@@ -282,11 +286,11 @@
       <div>
         <label class="block text-xs font-medium text-gray-700 mb-1">Scan token</label>
         <input name="station_scan_token" type="text" maxlength="128" class="form-input text-sm font-mono" placeholder="Leave blank to auto-generate"/>
-        <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
+        <p class="text-xs text-gray-500 mt-1">Auto: <strong>seal-</strong> / <strong>blister-</strong> / <strong>packaging-</strong> / <strong>bottle-handpack-</strong> / <strong>bottle-seal-</strong> / <strong>bottle-sticker-</strong> + random hex from the station type you picked. Manual tokens must use that prefix; letters, numbers, <code class="text-xs">._-</code> only.</p>
       </div>
       <div class="md:col-span-2">
         <label class="block text-xs font-medium text-gray-700 mb-1">Production machine</label>
-        <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above (sealing vs blister). Packaging may leave blank or link any machine.</p>
+        <p class="text-xs text-gray-500 mb-1">Pick a machine that matches the station type above. Packaging may leave blank or link any machine.</p>
         {% if all_machines %}
         <select name="machine_id" class="form-input text-sm max-w-lg">
           <option value="">— Link later —</option>
@@ -308,6 +312,9 @@
     ('sealing', 'Sealing stations', 'Link to a machine with role <code class="text-xs">sealing</code> (same as Production Machine / full run).'),
     ('blister', 'Blister stations', 'Link to a machine with role <code class="text-xs">blister</code>. Add blister machines under Product configuration if needed. Any legacy multi-step (combined-type) stations are listed here too.'),
     ('packaging', 'Packaging stations', 'Final packaging / bench. Machine link is optional; you can use any machine row for reference.'),
+    ('bottle_handpack', 'Bottle hand pack stations', 'First bottle step. Link to a machine with role <code class="text-xs">bottle</code> if you track that station as a machine.'),
+    ('bottle_cap_seal', 'Bottle cap seal stations', 'Bottle sealer counter. Link to a machine with role <code class="text-xs">bottle</code>.'),
+    ('bottle_stickering', 'Bottle stickering stations', 'Bottle sticker counter. Link to a machine with role <code class="text-xs">stickering</code>.'),
   ] %}
 
   {% for kind, title, blurb in section_meta %}
@@ -353,6 +360,9 @@
                   {% if s.station_kind == 'packaging' %}<code class="text-[10px]">packaging-</code>
                   {% elif s.station_kind == 'blister' %}<code class="text-[10px]">blister-</code>
                   {% elif s.station_kind == 'combined' %}<code class="text-[10px]">combined-</code>
+                  {% elif s.station_kind == 'bottle_handpack' %}<code class="text-[10px]">bottle-handpack-</code>
+                  {% elif s.station_kind == 'bottle_cap_seal' %}<code class="text-[10px]">bottle-seal-</code>
+                  {% elif s.station_kind == 'bottle_stickering' %}<code class="text-[10px]">bottle-sticker-</code>
                   {% else %}<code class="text-[10px]">seal-</code>{% endif %}
                 </p>
                 <div class="flex flex-wrap gap-2">

@@ -99,6 +99,33 @@ def _event_occurred_at_ms(conn: sqlite3.Connection, event_id: int | None) -> int
     return int(dict(row).get("occurred_at") or 0) or None
 
 
+def _latest_event_count_total(
+    conn: sqlite3.Connection, workflow_bag_id: int, event_type: str
+) -> int:
+    try:
+        row = conn.execute(
+            """
+            SELECT payload
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND event_type = ?
+            ORDER BY occurred_at DESC, id DESC
+            LIMIT 1
+            """,
+            (int(workflow_bag_id), event_type),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return 0
+    if not row:
+        return 0
+    try:
+        import json
+
+        payload = json.loads(row["payload"] or "{}")
+        return max(0, int(payload.get("count_total") or 0))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return 0
+
+
 def _employee_name_from_payload(payload: dict[str, Any] | None) -> str:
     """Display name for warehouse_submissions.employee_name from floor event payload."""
     if not payload:
@@ -449,6 +476,196 @@ def upsert_packaged_from_workflow_packaging(
     }
 
 
+def upsert_bottle_from_workflow_packaging(
+    conn: sqlite3.Connection,
+    workflow_bag_id: int,
+    *,
+    displays_made: int,
+    bottles_remaining: int = 0,
+    station_row: dict[str, Any] | None = None,
+    event_id: int | None = None,
+    employee_name: str | None = None,
+) -> dict[str, Any]:
+    """Upsert the final bottle submission row for a QR bottle workflow bag."""
+    if displays_made < 0 or bottles_remaining < 0:
+        return {"ok": False, "reason": "invalid_bottle_counts", "skipped": True}
+
+    wb = conn.execute("SELECT * FROM workflow_bags WHERE id = ?", (workflow_bag_id,)).fetchone()
+    if not wb:
+        return {"ok": False, "reason": "workflow_bag_not_found", "skipped": True}
+    wb = dict(wb)
+    product_id = wb.get("product_id")
+    if not product_id:
+        return {"ok": False, "reason": "no_product_id", "skipped": True}
+
+    product = conn.execute(
+        """
+        SELECT pd.id, pd.product_name, pd.tablet_type_id, pd.tablets_per_bottle,
+               pd.bottles_per_display, COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+               tt.inventory_item_id, tt.id AS tablet_type_id
+        FROM product_details pd
+        JOIN tablet_types tt ON pd.tablet_type_id = tt.id
+        WHERE pd.id = ?
+        """,
+        (product_id,),
+    ).fetchone()
+    if not product:
+        return {"ok": False, "reason": "product_not_found", "skipped": True}
+    product = dict(product)
+    if int(product.get("is_bottle_product") or 0) != 1:
+        return {"ok": False, "reason": "not_bottle_product", "skipped": True}
+    tpb = int(product.get("tablets_per_bottle") or 0)
+    bpd = int(product.get("bottles_per_display") or 0)
+    if tpb <= 0 or bpd <= 0:
+        return {"ok": False, "reason": "incomplete_bottle_product_config", "skipped": True}
+
+    inv = product.get("inventory_item_id")
+    if not inv:
+        return {"ok": False, "reason": "no_inventory_item_id", "skipped": True}
+
+    bag_id = None
+    assigned_po_id = None
+    needs_review = False
+    box_number = wb.get("box_number")
+    bag_number = wb.get("bag_number")
+    box_i = _coerce_int_opt(box_number)
+    bag_i = _coerce_int_opt(bag_number)
+    inv_bid = wb.get("inventory_bag_id")
+    if inv_bid:
+        b = conn.execute(
+            """
+            SELECT b.id, r.po_id AS recv_po_id
+            FROM bags b
+            LEFT JOIN small_boxes sb ON b.small_box_id = sb.id
+            LEFT JOIN receiving r ON sb.receiving_id = r.id
+            WHERE b.id = ?
+            """,
+            (inv_bid,),
+        ).fetchone()
+        if b:
+            bd = dict(b)
+            bag_id = bd.get("id")
+            assigned_po_id = bd.get("recv_po_id")
+            try:
+                po_row = conn.execute("SELECT po_id FROM bags WHERE id = ?", (inv_bid,)).fetchone()
+                if po_row is not None and po_row[0] is not None:
+                    assigned_po_id = po_row[0]
+            except sqlite3.OperationalError:
+                pass
+    if bag_id is None and bag_i is not None:
+        bag, needs_review, _err = find_bag_for_submission_allowlist(
+            conn,
+            allowed_tablet_type_ids_for_product(conn, int(product_id)),
+            bag_i,
+            box_i,
+            submission_type="bottle",
+        )
+        if bag:
+            bag_id = bag["id"]
+            assigned_po_id = bag.get("po_id")
+            box_number = bag.get("box_number") or box_number
+            bag_number = bag.get("bag_number") or bag_number
+
+    if bag_id is None:
+        return {"ok": False, "reason": "no_bag_resolution", "skipped": True}
+
+    base = _receipt_base_for_workflow_bag(wb, workflow_bag_id)
+    receipt = base if _has_manual_receipt(wb) else (
+        f"{base}-pkg-e{int(event_id)}" if event_id is not None else base
+    )
+    if _has_manual_receipt(wb):
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE submission_type = 'bottle'
+              AND (receipt_number = ? OR receipt_number LIKE ?)
+            """,
+            (base, base + "-pkg-e%"),
+        )
+    elif event_id is None:
+        conn.execute(
+            "DELETE FROM warehouse_submissions WHERE receipt_number = ? AND submission_type = 'bottle'",
+            (receipt,),
+        )
+
+    try:
+        assert_receipt_product_chain(
+            conn, receipt_number=receipt, product_name=product["product_name"]
+        )
+    except ProductionSubmissionError as exc:
+        LOGGER.warning("workflow warehouse bridge: bottle receipt product chain %s", exc.body)
+        return {"ok": False, "reason": "receipt_product_mismatch", "detail": exc.body}
+
+    bottles_made = int(displays_made) * bpd + int(bottles_remaining)
+    bottle_sealing_machine_count = _latest_event_count_total(
+        conn, workflow_bag_id, WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE
+    )
+    emp = employee_name or "QR workflow"
+    submission_date = datetime.now().date().isoformat()
+
+    insert_values = (
+        emp,
+        product["product_name"],
+        inv,
+        box_number,
+        bag_number,
+        bag_id,
+        assigned_po_id,
+        1 if needs_review else 0,
+        bottles_made,
+        int(displays_made),
+        int(bottles_remaining),
+        submission_date,
+        receipt,
+        None,
+        bottle_sealing_machine_count,
+    )
+    try:
+        conn.execute(
+            """
+            INSERT INTO warehouse_submissions
+            (employee_name, product_name, inventory_item_id, box_number, bag_number,
+             bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
+             packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
+             bottle_sealing_machine_count, bag_end_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?, ?)
+            """,
+            (*insert_values, utc_now_naive_string()),
+        )
+    except sqlite3.OperationalError:
+        conn.execute(
+            """
+            INSERT INTO warehouse_submissions
+            (employee_name, product_name, inventory_item_id, box_number, bag_number,
+             bag_id, assigned_po_id, needs_review, bottles_made, displays_made,
+             packs_remaining, submission_date, receipt_number, admin_notes, submission_type,
+             bottle_sealing_machine_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bottle', ?)
+            """,
+            insert_values,
+        )
+    sid = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+    station_id = int(station_row.get("id")) if station_row and station_row.get("id") else None
+    end_ms = _event_occurred_at_ms(conn, event_id)
+    start_ms = _station_session_start_occurred_at_ms(conn, workflow_bag_id, station_id, end_ms)
+    _update_receipt_station_times(
+        conn,
+        receipt_number=receipt,
+        submission_type="bottle",
+        bag_start_time=_utc_naive_from_event_ms(start_ms),
+        bag_end_time=_utc_naive_from_event_ms(end_ms) or utc_now_naive_string(),
+    )
+    return {
+        "ok": True,
+        "warehouse_submission_id": sid,
+        "bag_id": bag_id,
+        "assigned_po_id": assigned_po_id,
+        "receipt_number": receipt,
+        "bottles_made": bottles_made,
+        "bottle_sealing_machine_count": bottle_sealing_machine_count,
+    }
+
+
 def sync_if_packaging_snapshot(
     conn: sqlite3.Connection,
     workflow_bag_id: int,
@@ -472,6 +689,28 @@ def sync_if_packaging_snapshot(
         dt = int(payload.get("cards_reopened") or 0)
     except (TypeError, ValueError):
         dt = 0
+    try:
+        flow_row = conn.execute(
+            """
+            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (int(workflow_bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        flow_row = None
+    if flow_row and int(dict(flow_row).get("is_bottle_product") or 0) == 1:
+        return upsert_bottle_from_workflow_packaging(
+            conn,
+            workflow_bag_id,
+            displays_made=dm,
+            bottles_remaining=pr,
+            station_row=station_row,
+            event_id=event_id,
+            employee_name=_employee_name_from_payload(payload),
+        )
     return upsert_packaged_from_workflow_packaging(
         conn,
         workflow_bag_id,
@@ -1082,7 +1321,7 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(conn: sqlite3.Connection,
     pkg_po = conn.execute(
         """
         SELECT assigned_po_id FROM warehouse_submissions
-        WHERE submission_type = 'packaged'
+        WHERE submission_type IN ('packaged', 'bottle')
           AND (
             receipt_number = ?
             OR receipt_number LIKE ?
@@ -1099,7 +1338,7 @@ def delete_synced_warehouse_artifacts_for_workflow_bag(conn: sqlite3.Connection,
     conn.execute(
         """
         DELETE FROM warehouse_submissions
-        WHERE submission_type = 'packaged'
+        WHERE submission_type IN ('packaged', 'bottle')
           AND (
             receipt_number = ?
             OR receipt_number LIKE ?

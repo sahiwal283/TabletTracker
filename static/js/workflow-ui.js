@@ -683,6 +683,10 @@
       /* */
     }
   }
+  function clearQaCheckedField() {
+    var el = document.getElementById('wf-qa-checked');
+    if (el) el.checked = false;
+  }
 
   function assertActionCooldown(actionKey) {
     var until = cooldownUntil[actionKey];
@@ -821,6 +825,13 @@
     }
     return n;
   }
+  function requiredQaChecked() {
+    var el = document.getElementById('wf-qa-checked');
+    if (el && !el.checked) {
+      throw new Error('Confirm the second-person bottle check before submitting.');
+    }
+    return true;
+  }
   function optionalNonNegativeInt(elementId, labelText) {
     var el = document.getElementById(elementId);
     var raw = el ? String(el.value || '').trim() : '';
@@ -931,10 +942,13 @@
     const resumeBtn = document.getElementById('wf-resume-bag');
     const empLabel = document.getElementById('wf-employee-name-label');
     const empInput = document.getElementById('wf-employee-name');
+    const qaLabel = document.getElementById('wf-qa-checked-label');
     if (!saveBtn || !pauseBtn || !claimBtn || !countTotal) return;
     if (resumeBtn) resumeBtn.classList.add('hidden');
     if (empLabel) empLabel.classList.add('hidden');
     if (empInput) empInput.classList.add('hidden');
+    if (qaLabel) qaLabel.classList.add('hidden');
+    if (qaLabel) qaLabel.classList.remove('flex');
     hidePackagingStationExtra();
     if (saveBlisterBtn) saveBlisterBtn.classList.add('hidden');
     if (handpackBtn) handpackBtn.classList.add('hidden');
@@ -1008,6 +1022,43 @@
         hint.textContent = occupancyGateIntentEndRun
           ? 'End run: enter the sealing count and tap Submit below.'
           : 'Sealing lane: submit sealing machine count, or pause with current count.';
+      }
+      if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
+    } else if (kind === 'bottle_handpack') {
+      saveBtn.textContent = 'Submit hand-pack count';
+      pauseBtn.textContent = 'Pause hand-pack bag';
+      if (countLabel) countLabel.textContent = 'Filled bottle count total';
+      if (qaLabel) {
+        qaLabel.classList.remove('hidden');
+        qaLabel.classList.add('flex');
+      }
+      if (hint) {
+        hint.classList.remove('hidden');
+        hint.textContent = occupancyGateIntentEndRun
+          ? 'End run: enter the filled bottle count and tap Submit below.'
+          : 'Hand pack: enter filled bottle count after packing and QA check, or pause with current count.';
+      }
+      if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
+    } else if (kind === 'bottle_cap_seal') {
+      saveBtn.textContent = 'Submit bottle seal count';
+      pauseBtn.textContent = 'Pause bottle seal bag';
+      if (countLabel) countLabel.textContent = 'Bottle sealer count total';
+      if (hint) {
+        hint.classList.remove('hidden');
+        hint.textContent = occupancyGateIntentEndRun
+          ? 'End run: enter the bottle sealer count and tap Submit below.'
+          : 'Bottle seal: submit the bottle sealer counter, or pause with current count.';
+      }
+      if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
+    } else if (kind === 'bottle_stickering') {
+      saveBtn.textContent = 'Submit sticker count';
+      pauseBtn.textContent = 'Pause sticker bag';
+      if (countLabel) countLabel.textContent = 'Stickering machine count total';
+      if (hint) {
+        hint.classList.remove('hidden');
+        hint.textContent = occupancyGateIntentEndRun
+          ? 'End run: enter the stickering count and tap Submit below.'
+          : 'Stickering: submit the sticker machine counter, or pause with current count.';
       }
       if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
     } else if (kind === 'packaging') {
@@ -1105,7 +1156,7 @@
         if (hint) {
           hint.classList.remove('hidden');
           hint.textContent =
-            'End run: enter packaging counts and tap Submit to finish this bag.';
+            'End run: enter packaging display count and remaining loose cards or bottles, then tap Submit to finish this bag.';
         }
       } else if (packagingUiPhase === 'pause') {
         occupancyGateIntentEndRun = false;
@@ -1115,7 +1166,7 @@
         if (hint) {
           hint.classList.remove('hidden');
           hint.textContent =
-            'Pause: enter current packaging counts, then tap Pause packaging bag.';
+            'Pause: enter current packaging display count and remaining loose cards or bottles, then tap Pause packaging bag.';
         }
       } else {
         packagingUiPhase = 'pick';
@@ -1489,6 +1540,53 @@
       fullscreenSubmitOk('Sealing count submitted.');
       return;
     }
+    if (kind === 'bottle_handpack') {
+      requiredQaChecked();
+      await emitEvent('BOTTLE_HANDPACK_COMPLETE', {
+        count_total: countTotal,
+        employee_name: requiredEmployeeName(),
+        qa_checked: true,
+      });
+      occupancyGateIntentEndRun = false;
+      clearCountField();
+      clearEmployeeNameField();
+      clearQaCheckedField();
+      configureStationActions();
+      startCooldownAfterSuccess('submit');
+      statusLine('Bottle hand-pack count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+      fullscreenSubmitOk('Bottle hand-pack saved.');
+      return;
+    }
+    if (kind === 'bottle_cap_seal') {
+      await emitEvent('BOTTLE_CAP_SEAL_COMPLETE', {
+        station_id: window.WF_STATION_ID || 1,
+        count_total: countTotal,
+        employee_name: requiredEmployeeName(),
+      });
+      occupancyGateIntentEndRun = false;
+      clearCountField();
+      clearEmployeeNameField();
+      configureStationActions();
+      startCooldownAfterSuccess('submit');
+      statusLine('Bottle seal count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+      fullscreenSubmitOk('Bottle seal count submitted.');
+      return;
+    }
+    if (kind === 'bottle_stickering') {
+      await emitEvent('BOTTLE_STICKER_COMPLETE', {
+        station_id: window.WF_STATION_ID || 1,
+        count_total: countTotal,
+        employee_name: requiredEmployeeName(),
+      });
+      occupancyGateIntentEndRun = false;
+      clearCountField();
+      clearEmployeeNameField();
+      configureStationActions();
+      startCooldownAfterSuccess('submit');
+      statusLine('Bottle sticker count submitted.' + MSG_SCAN_NEXT_CARD, 'success');
+      fullscreenSubmitOk('Bottle sticker count submitted.');
+      return;
+    }
     if (kind === 'packaging') {
       await submitPackagingAndFinalize();
       return;
@@ -1586,6 +1684,35 @@
       });
       clearCountField();
       clearEmployeeNameField();
+      configureStationActions();
+      startCooldownAfterSuccess('pause');
+      statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');
+      showFullscreenSuccess('Pause saved. Station is paused.', undefined, function () {
+        refreshStationOccupancy().catch(function () {});
+      });
+      return;
+    }
+    if (kind === 'bottle_handpack' || kind === 'bottle_cap_seal' || kind === 'bottle_stickering') {
+      var bottleEventType =
+        kind === 'bottle_handpack'
+          ? 'BOTTLE_HANDPACK_COMPLETE'
+          : kind === 'bottle_cap_seal'
+            ? 'BOTTLE_CAP_SEAL_COMPLETE'
+            : 'BOTTLE_STICKER_COMPLETE';
+      var bottlePayload = {
+        count_total: countTotal,
+        employee_name: requiredEmployeeName(),
+        metadata: { paused: true, reason: 'end_of_day' },
+      };
+      if (kind !== 'bottle_handpack') bottlePayload.station_id = window.WF_STATION_ID || 1;
+      if (kind === 'bottle_handpack') {
+        requiredQaChecked();
+        bottlePayload.qa_checked = true;
+      }
+      await emitEvent(bottleEventType, bottlePayload);
+      clearCountField();
+      clearEmployeeNameField();
+      clearQaCheckedField();
       configureStationActions();
       startCooldownAfterSuccess('pause');
       statusLine(MSG_PAUSE_RESUME_TOMORROW, 'success');

@@ -80,6 +80,25 @@ def mechanical_bag_facts(conn: sqlite3.Connection, workflow_bag_id: int) -> dict
     }
 
 
+def production_flow_for_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> str:
+    """Machine-readable flow derived from product config: ``card`` or ``bottle``."""
+    try:
+        row = conn.execute(
+            """
+            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (int(workflow_bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return "card"
+    if row and int(dict(row).get("is_bottle_product") or 0) == 1:
+        return "bottle"
+    return "card"
+
+
 def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> dict[str, Any]:
     """Human-readable bag identity for floor verification (product, box, bag, PO, shipment).
 
@@ -156,6 +175,7 @@ def floor_bag_verification(conn: sqlite3.Connection, workflow_bag_id: int) -> di
 
     return {
         "product_name": product_name,
+        "production_flow": production_flow_for_bag(conn, workflow_bag_id),
         "box_display": _fmt_box_bag("Box", box_s),
         "bag_display": _fmt_box_bag("Bag", bag_s),
         "po_number": po_number,
@@ -175,6 +195,9 @@ def display_stage_label(facts: dict[str, Any]) -> str:
         WC.EVENT_STATION_RESUMED: "Station resumed",
         WC.EVENT_BLISTER_COMPLETE: "Blister",
         WC.EVENT_SEALING_COMPLETE: "Sealing",
+        WC.EVENT_BOTTLE_HANDPACK_COMPLETE: "Bottle hand pack",
+        WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: "Bottle cap seal",
+        WC.EVENT_BOTTLE_STICKER_COMPLETE: "Bottle sticker",
         WC.EVENT_PACKAGING_SNAPSHOT: "Packaging",
         WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: "Taken for order",
         WC.EVENT_BAG_FINALIZED: "Complete",
@@ -193,6 +216,12 @@ def progress_summary(facts: dict[str, Any]) -> str:
         parts.append(f"blister×{c[WC.EVENT_BLISTER_COMPLETE]}")
     if c.get(WC.EVENT_SEALING_COMPLETE):
         parts.append(f"seal×{c[WC.EVENT_SEALING_COMPLETE]}")
+    if c.get(WC.EVENT_BOTTLE_HANDPACK_COMPLETE):
+        parts.append(f"bottle handpack×{c[WC.EVENT_BOTTLE_HANDPACK_COMPLETE]}")
+    if c.get(WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE):
+        parts.append(f"bottle seal×{c[WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE]}")
+    if c.get(WC.EVENT_BOTTLE_STICKER_COMPLETE):
+        parts.append(f"sticker×{c[WC.EVENT_BOTTLE_STICKER_COMPLETE]}")
     if c.get(WC.EVENT_PACKAGING_SNAPSHOT):
         parts.append(f"pkg×{c[WC.EVENT_PACKAGING_SNAPSHOT]}")
     if c.get(WC.EVENT_PACKAGING_TAKEN_FOR_ORDER):

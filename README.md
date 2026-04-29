@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.17.11** (Ops TV final-output KPIs and date picker)
+Current: **v4.18.0** (QR workflow bottle line: hand pack, cap seal, stickering, packaging)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

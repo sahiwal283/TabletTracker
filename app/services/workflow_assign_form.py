@@ -19,11 +19,11 @@ def load_workflow_products(conn) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
         SELECT pd.id, pd.product_name, pd.tablet_type_id,
-               COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category
+               COALESCE(NULLIF(TRIM(pd.category), ''), tt.category) AS category,
+               COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
         FROM product_details pd
         LEFT JOIN tablet_types tt ON pd.tablet_type_id = tt.id
         WHERE COALESCE(pd.is_variety_pack, 0) = 0
-        AND (pd.is_bottle_product = 0 OR pd.is_bottle_product IS NULL)
         ORDER BY COALESCE(NULLIF(TRIM(pd.category), ''), tt.category, 'ZZZ'), pd.product_name
         LIMIT 500
         """

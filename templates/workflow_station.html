@@ -107,7 +107,7 @@
   <div id="wf-workflow-fields">
   <label for="wf-count-total" id="wf-count-label" class="hidden block text-sm font-medium mb-1">Machine count total</label>
   <input id="wf-count-total" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="Enter end count (e.g. 240)" />
-  <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Cards remaining</label>
+  <label for="wf-packs-remaining" id="wf-packs-remaining-label" class="hidden block text-sm font-medium mb-1">Loose cards / bottles remaining</label>
   <input id="wf-packs-remaining" type="number" min="0" step="1" class="hidden form-input mb-1" placeholder="0" />
   <label for="wf-cards-reopened" id="wf-cards-reopened-label" class="hidden block text-sm font-medium mb-1">Cards re-opened</label>
   <p id="wf-cards-reopened-help" class="hidden text-xs text-gray-500 mb-1">Blister cards ripped or wasted (packaging loss), not tablet units.</p>
@@ -117,6 +117,10 @@
   <input id="wf-taken-displays" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="e.g. 12" />
   <label for="wf-employee-name" id="wf-employee-name-label" class="hidden block text-sm font-medium mb-1">Your name</label>
   <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="name / nombre" autocomplete="name" />
+  <label id="wf-qa-checked-label" class="hidden mb-3 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+    <input id="wf-qa-checked" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+    <span>Second person checked the bottles</span>
+  </label>
   </div>
   <input type="hidden" id="wf-station-token" value="{{ station_token }}" />
   <input type="hidden" id="wf-station-kind" value="{{ station_kind or 'sealing' }}" />

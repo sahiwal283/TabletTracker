@@ -8,6 +8,7 @@ from unittest.mock import patch
 from app.services import workflow_constants as WC
 from app.services.workflow_warehouse_bridge import (
     _station_session_start_occurred_at_ms,
+    upsert_bottle_from_workflow_packaging,
     upsert_machine_from_workflow_scan,
     upsert_packaged_from_workflow_packaging,
     workflow_machine_lane_receipt_number,
@@ -27,6 +28,9 @@ CREATE TABLE product_details (
     tablet_type_id INTEGER,
     packages_per_display INTEGER,
     tablets_per_package INTEGER,
+    tablets_per_bottle INTEGER,
+    bottles_per_display INTEGER,
+    is_bottle_product INTEGER DEFAULT 0,
     is_variety_pack INTEGER DEFAULT 0
 );
 CREATE TABLE purchase_orders (
@@ -82,6 +86,8 @@ CREATE TABLE warehouse_submissions (
     assigned_po_id INTEGER,
     needs_review INTEGER DEFAULT 0,
     receipt_number TEXT,
+    bottles_made INTEGER DEFAULT 0,
+    bottle_sealing_machine_count INTEGER,
     bag_end_time TEXT
 );
 """
@@ -193,6 +199,70 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
             (receipt,),
         ).fetchone()[0]
         self.assertEqual(dm, 4)
+
+    def test_bottle_packaging_upserts_bottle_submission(self):
+        self.conn.execute(
+            """
+            INSERT INTO product_details (
+                product_name, tablet_type_id, packages_per_display, tablets_per_package,
+                tablets_per_bottle, bottles_per_display, is_bottle_product
+            )
+            VALUES ('Bottle P', 1, 0, 1, 30, 12, 1)
+            """
+        )
+        pid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            INSERT INTO workflow_bags (created_at, product_id, box_number, bag_number, inventory_bag_id)
+            VALUES (1700000000000, ?, 1, 2, 1)
+            """,
+            (pid,),
+        )
+        wid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                workflow_bag_id INTEGER NOT NULL,
+                station_id INTEGER
+            )
+            """
+        )
+        self.conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, payload, occurred_at, workflow_bag_id, station_id)
+            VALUES (?, ?, 1700000000001, ?, 1)
+            """,
+            (WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE, '{"count_total": 95}', wid),
+        )
+        self.conn.commit()
+
+        r = upsert_bottle_from_workflow_packaging(
+            self.conn,
+            wid,
+            displays_made=7,
+            bottles_remaining=3,
+            station_row={"id": 1},
+            employee_name="QR",
+        )
+        self.assertTrue(r.get("ok"))
+        row = self.conn.execute(
+            """
+            SELECT submission_type, bottles_made, displays_made, packs_remaining,
+                   bottle_sealing_machine_count
+            FROM warehouse_submissions
+            WHERE id = ?
+            """,
+            (r["warehouse_submission_id"],),
+        ).fetchone()
+        self.assertEqual(row["submission_type"], "bottle")
+        self.assertEqual(row["bottles_made"], 87)
+        self.assertEqual(row["displays_made"], 7)
+        self.assertEqual(row["packs_remaining"], 3)
+        self.assertEqual(row["bottle_sealing_machine_count"], 95)
 
     def test_per_event_packaging_appends_distinct_receipts(self):
         wid = self._wf_bag_id

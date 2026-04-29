@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.18.0] - 2026-04-29
+
+### Added
+- **QR workflow → Bottles:** Bottle SKUs can now use the QR workflow as an adjacent line: hand pack + QA, bottle cap seal, stickering, and final packaging. The floor API validates bottle-vs-card flow events, bottle packaging syncs into `warehouse_submissions` with bottle math, and admin can create bottle station QR tokens for hand-pack, cap-seal, and stickering stations.
+
+---
+
 ## [4.17.11] - 2026-04-28
 
 ### Changed

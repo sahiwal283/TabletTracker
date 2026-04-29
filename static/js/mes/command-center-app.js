@@ -1150,11 +1150,11 @@
           ]} recentRun=${recentFinalRun} />
           <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
             { title: "BAG", sub: "Bag QR scanned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: "NOT_INTEGRATED" },
-            { title: "BOTTLE", sub: "Bottle station", detail: bottleIntegrated ? "Scan station + bag" : "Not integrated", icon: "bottle", status: bottleIntegrated ? "LIVE_QR" : "NOT_INTEGRATED" },
-            { title: "STAGE", sub: "Auto gap queue", detail: "After bottle, before sticker", icon: "bag" },
-            { title: "STICKER", sub: "Stickering station", detail: bottleIntegrated ? "Scan station + bag" : "Offline", icon: "sticker", status: machines[4].integrationStatus },
-            { title: "STAGE", sub: "Auto gap queue", detail: "After sticker, before seal", icon: "bag" },
-            { title: "HEAT SEAL", sub: "Bottle seal", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
+            { title: "HAND PACK", sub: "Fill + QA", detail: bottleIntegrated ? "Scan station + bag" : "Not integrated", icon: "bottle", status: bottleIntegrated ? "LIVE_QR" : "NOT_INTEGRATED" },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After fill, before seal", icon: "bag" },
+            { title: "CAP SEAL", sub: "Bottle sealer", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before sticker", icon: "bag" },
+            { title: "STICKER", sub: "Stickering station", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "sticker", status: machines[4].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
             { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagShortLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }

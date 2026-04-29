@@ -30,6 +30,11 @@ def _bootstrap(conn: sqlite3.Connection) -> None:
             receipt_number TEXT,
             inventory_bag_id INTEGER
         );
+        CREATE TABLE IF NOT EXISTS product_details (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_name TEXT,
+            is_bottle_product INTEGER DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS qr_cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             label TEXT,
@@ -142,6 +147,73 @@ class TestWorkflowCore(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row["status"], "idle")
         self.assertIsNone(row["assigned_workflow_bag_id"])
+
+    def test_finalize_bottle_path_requires_bottle_steps(self):
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (701, 'Bottle Product', 1)"
+        )
+        self.conn.commit()
+        bag_id, card_id = create_workflow_bag_with_card(
+            self.conn,
+            product_id=701,
+            box_number="1",
+            bag_number="23",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(
+            self.conn, "BOTTLE_HANDPACK_COMPLETE", {"count_total": 100, "qa_checked": True}, bag_id
+        )
+        append_workflow_event(
+            self.conn, "BOTTLE_CAP_SEAL_COMPLETE", {"station_id": 1, "count_total": 96}, bag_id
+        )
+        append_workflow_event(
+            self.conn, "BOTTLE_STICKER_COMPLETE", {"station_id": 1, "count_total": 94}, bag_id
+        )
+        append_workflow_event(
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "x"}, bag_id
+        )
+        self.conn.commit()
+
+        st, body = try_finalize(self.conn, bag_id, station_id=1)
+        self.assertEqual(st, "ok")
+        self.assertFalse(body.get("idempotent_duplicate"))
+        row = self.conn.execute(
+            "SELECT status, assigned_workflow_bag_id FROM qr_cards WHERE id = ?",
+            (card_id,),
+        ).fetchone()
+        self.assertEqual(row["status"], "idle")
+        self.assertIsNone(row["assigned_workflow_bag_id"])
+
+    def test_finalize_bottle_rejects_card_only_steps(self):
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (702, 'Bottle Product B', 1)"
+        )
+        self.conn.commit()
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=702,
+            box_number="1",
+            bag_number="24",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 10}, bag_id)
+        append_workflow_event(self.conn, "SEALING_COMPLETE", {"station_id": 1, "count_total": 10}, bag_id)
+        append_workflow_event(
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "x"}, bag_id
+        )
+        self.conn.commit()
+
+        st, body = try_finalize(self.conn, bag_id, station_id=1)
+        self.assertEqual(st, "reject")
+        self.assertIn("missing_bottle_handpack", body["details"]["reasons"])
 
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event

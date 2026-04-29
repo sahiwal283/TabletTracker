@@ -21,11 +21,30 @@ from app.utils.db_utils import BagRepository
 LOGGER = logging.getLogger(__name__)
 
 
-def evaluate_finalization(events: list) -> tuple[bool, str, dict[str, Any]]:
+def evaluate_finalization(events: list, production_flow: str = "card") -> tuple[bool, str, dict[str, Any]]:
     """Pure: may emit BAG_FINALIZED?"""
     type_set = {e["event_type"] for e in events}
     if WC.EVENT_BAG_FINALIZED in type_set:
         return False, "already_finalized", {}
+    flow = (production_flow or "card").strip().lower()
+    if flow == "bottle":
+        has_handpack = WC.EVENT_BOTTLE_HANDPACK_COMPLETE in type_set
+        has_cap_seal = WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE in type_set
+        has_sticker = WC.EVENT_BOTTLE_STICKER_COMPLETE in type_set
+        has_pack = WC.EVENT_PACKAGING_SNAPSHOT in type_set
+        if has_handpack and has_cap_seal and has_sticker and has_pack:
+            return True, "eligible", {}
+        reasons = []
+        if not has_handpack:
+            reasons.append("missing_bottle_handpack")
+        if not has_cap_seal:
+            reasons.append("missing_bottle_cap_seal")
+        if not has_sticker:
+            reasons.append("missing_bottle_sticker")
+        if not has_pack:
+            reasons.append("missing_packaging")
+        return False, "not_eligible", {"reasons": reasons, "production_flow": "bottle"}
+
     hand_packed = False
     for e in events:
         if e["event_type"] != WC.EVENT_CARD_ASSIGNED:
@@ -53,6 +72,25 @@ def evaluate_finalization(events: list) -> tuple[bool, str, dict[str, Any]]:
     if hand_packed:
         reasons.append("hand_packed_blister_bypassed")
     return False, "not_eligible", {"reasons": reasons}
+
+
+def _production_flow_for_workflow_bag(conn: sqlite3.Connection, workflow_bag_id: int) -> str:
+    """Derive the QR production flow from the assigned product config."""
+    try:
+        row = conn.execute(
+            """
+            SELECT COALESCE(pd.is_bottle_product, 0) AS is_bottle_product
+            FROM workflow_bags wb
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
+            WHERE wb.id = ?
+            """,
+            (int(workflow_bag_id),),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return "card"
+    if row and int(dict(row).get("is_bottle_product") or 0) == 1:
+        return "bottle"
+    return "card"
 
 
 def _qr_card_id_for_bag_assignment(events: list) -> int | None:
@@ -88,7 +126,8 @@ def try_finalize(
             try:
                 with immediate_transaction(conn):
                     events = load_events_for_bag(conn, workflow_bag_id)
-                    ok, reason, details = evaluate_finalization(events)
+                    production_flow = _production_flow_for_workflow_bag(conn, workflow_bag_id)
+                    ok, reason, details = evaluate_finalization(events, production_flow)
                     if reason == "already_finalized":
                         LOGGER.info("workflow_finalize idempotent_duplicate bag_id=%s", workflow_bag_id)
                         return ("duplicate", _dup_finalize_payload(conn, workflow_bag_id))
@@ -311,7 +350,6 @@ def assign_inventory_bag_to_card(
         """
         SELECT tablet_type_id FROM product_details
         WHERE id = ? AND COALESCE(is_variety_pack, 0) = 0
-        AND (is_bottle_product = 0 OR is_bottle_product IS NULL)
         """,
         (product_id,),
     ).fetchone()
