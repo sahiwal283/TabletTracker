@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.packaged_submission_display import normalize_packaged_case_fields_for_ui
 from app.services.submission_query_service import common_receive_label_from_deductions
 
 
@@ -36,6 +37,8 @@ def enrich_submission_row_running_totals(
 
     individual_calc = sub_dict.get("calculated_total", 0) or 0
     submission_type = sub_dict.get("submission_type", "packaged")
+    if submission_type == "packaged":
+        normalize_packaged_case_fields_for_ui(sub_dict)
 
     bag_cumulative_packaged = state["bag_cumulative_packaged"]
     bag_totals_bag = state["bag_totals_bag"]

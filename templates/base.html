@@ -3820,19 +3820,26 @@ async function viewSubmissionDetails(submissionId) {
                                     <p class="text-xs text-gray-500 mt-1">${sub.case_count == null ? 'Not captured on this legacy submission.' : 'Cases are stakeholder-facing final output.'}</p>
                                 </div>
                                 <div class="rounded-xl p-4 border border-sky-200 bg-sky-50">
-                                    <label class="text-xs text-gray-500 uppercase">Displays not in full case</label>
+                                    <label class="text-xs text-gray-500 uppercase">${sub.packaged_legacy_displays_only ? 'Displays made' : 'Displays not in full case'}</label>
                                     <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${(() => {
-                                        const explicitLoose = Number(sub.loose_display_count);
-                                        if (!Number.isNaN(explicitLoose) && explicitLoose >= 0) return explicitLoose;
+                                        if (sub.packaged_legacy_displays_only) {
+                                            return Number(sub.displays_made || 0);
+                                        }
+                                        const rawLoose = sub.loose_display_count;
+                                        if (rawLoose != null && rawLoose !== '') {
+                                            const explicitLoose = Number(rawLoose);
+                                            if (!Number.isNaN(explicitLoose) && explicitLoose >= 0) return explicitLoose;
+                                        }
                                         const dpc = Number(sub.displays_per_case || 0);
                                         const displays = Number(sub.displays_made || 0);
-                                        const cases = Number(sub.case_count || 0);
+                                        const cases = Number(sub.case_count != null && sub.case_count !== '' ? sub.case_count : 0);
                                         if (dpc > 0 && displays >= 0 && cases >= 0) {
                                             const remainder = displays - (cases * dpc);
                                             return remainder >= 0 ? remainder : 0;
                                         }
                                         return displays || 0;
                                     })()}</div>
+                                    ${sub.packaged_legacy_displays_only ? '<p class="text-xs text-gray-500 mt-1">As entered on the historical packaging form (single display count).</p>' : ''}
                                 </div>
                                 <div class="rounded-xl p-4 border border-violet-200 bg-violet-50">
                                     <label class="text-xs text-gray-500 uppercase">Cards Remaining</label>

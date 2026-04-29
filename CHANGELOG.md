@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.22.11] - 2026-04-29
+
+### Fixed
+- **Historical packaged submissions:** Rows created before case capture had `displays_made` populated but `case_count` / `loose_display_count` backfilled as zero; submission details and lists now detect that pattern and show the entered display count (and cases as not captured) instead of zeros.
+
+---
+
 ## [4.22.2] - 2026-04-29
 
 ### Fixed

@@ -10,6 +10,7 @@ from app.services.repack_allocation_service import (
     allocate_repack_tablets,
     allocation_payload_to_json,
 )
+from app.services.packaged_submission_display import normalize_packaged_case_fields_for_ui
 from app.services.submission_calculator import calculate_repack_output_good
 from app.utils.auth_utils import (
     WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS,
@@ -354,22 +355,18 @@ def get_submission_details(submission_id):
                 )
                 submission_dict['individual_calc'] = calculated_total
                 submission_dict['total_tablets'] = calculated_total
-                dpc = int(submission_dict.get('displays_per_case') or 0)
-                explicit_case_count = submission_dict.get('case_count')
-                explicit_loose_display_count = submission_dict.get('loose_display_count')
-                has_explicit_case_fields = (
-                    explicit_case_count is not None or explicit_loose_display_count is not None
-                )
-                if has_explicit_case_fields:
-                    submission_dict['case_count'] = int(explicit_case_count or 0)
-                    if explicit_loose_display_count is not None:
-                        submission_dict['loose_display_count'] = int(explicit_loose_display_count or 0)
+                normalize_packaged_case_fields_for_ui(submission_dict)
+                if submission_dict.get('packaged_legacy_displays_only'):
+                    pass
+                elif 'case_count' in ws_columns and 'loose_display_count' in ws_columns:
+                    submission_dict['case_count'] = int(submission_dict.get('case_count') or 0)
+                    elc = submission_dict.get('loose_display_count')
+                    if elc is not None:
+                        submission_dict['loose_display_count'] = int(elc or 0)
                     else:
-                        # Transitional rows: preserve pre-case behavior for display field.
                         submission_dict['loose_display_count'] = int(displays_made or 0)
                     submission_dict['cases_made_total'] = int(submission_dict['case_count'])
                 else:
-                    # Legacy packaged rows before case capture: show original fields only.
                     submission_dict['case_count'] = None
                     submission_dict['loose_display_count'] = int(displays_made or 0)
                     submission_dict['cases_made_total'] = None
