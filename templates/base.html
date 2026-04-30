@@ -3382,10 +3382,10 @@ async function viewSubmissionDetails(submissionId) {
         }
         const qrCorrections = Array.isArray(sub.qr_corrections) ? sub.qr_corrections : [];
         const qrWorkflowNotice = sub.is_qr_synced ? `
-            <div class="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
-                <div class="font-semibold">QR workflow source</div>
-                <div class="mt-1">Edits to this row are saved as workflow correction events, then the warehouse sync row is refreshed.</div>
-                <div class="mt-2 text-xs text-cyan-800 font-mono">workflow bag #${sub.qr_workflow_bag_id || '—'} · event #${sub.qr_target_event_id || '—'}${qrCorrections.length ? ' · corrections ' + qrCorrections.length : ''}</div>
+            <div class="tt-sd-qr-source rounded-xl px-4 py-3 text-sm">
+                <div class="font-semibold text-slate-100">QR workflow source</div>
+                <div class="mt-1 text-slate-300">Edits to this row are saved as workflow correction events, then the warehouse sync row is refreshed.</div>
+                <div class="mt-2 text-xs text-cyan-200 font-mono">workflow bag #${sub.qr_workflow_bag_id || '—'} · event #${sub.qr_target_event_id || '—'}${qrCorrections.length ? ' · corrections ' + qrCorrections.length : ''}</div>
             </div>
         ` : '';
         

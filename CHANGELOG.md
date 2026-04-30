@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.1] - 2026-04-30
+
+### Fixed
+- **Submission details modal:** The QR workflow source notice no longer renders as a washed-out light cyan panel with unreadable copy. It now uses a dedicated dark modal surface (`tt-sd-qr-source`) with high-contrast heading/body/meta text that matches Command Center styling.
+
+---
+
 ## [4.24.0] - 2026-04-30
 
 ### Added
