@@ -22,6 +22,7 @@
     { label: "Team", tab: "team" },
     { label: "Materials", tab: "materials" },
   ];
+  var MACHINE_SETTINGS_PANEL_LABELS = ["BLISTER LINE MACHINES", "BOTTLE LINE MACHINES", "CARD LINE MACHINES"];
 
   function readBoot() {
     try {
@@ -117,6 +118,20 @@
     if (p == null) return "—";
     var adj = refLabel ? " vs " + refLabel : "";
     return (p >= 0 ? "+" : "") + p.toFixed(0) + "%" + adj;
+  }
+
+  function fmtSignedPct(v) {
+    var n = asNum(v);
+    return n == null ? "—" : (n >= 0 ? "+" : "") + n.toFixed(1) + "%";
+  }
+
+  function fmtDurationMin(v) {
+    var n = asNum(v);
+    if (n == null) return "N/A";
+    if (n < 60) return n.toFixed(1) + " min";
+    var h = Math.floor(n / 60);
+    var m = Math.round(n - h * 60);
+    return h + "h " + String(m).padStart(2, "0") + "m";
   }
 
   function fmtTime(ms, seconds) {
@@ -572,6 +587,126 @@
       })}</div>
       <p>Final displays/day: previous 7-day average, selected day so far, and current projected finish.</p>
     </section>`;
+  }
+
+  function StationStatusPie(props) {
+    var machines = props.machines || [];
+    var running = machines.filter(function (m) { return m.integrationStatus === "LIVE_QR"; }).length;
+    var paused = machines.filter(function (m) { return m.integrationStatus === "LIVE_PAUSED"; }).length;
+    var idle = machines.filter(function (m) { return m.integrationStatus === "NO_ACTIVITY_TODAY"; }).length;
+    var other = Math.max(0, machines.length - running - paused - idle);
+    var total = Math.max(1, machines.length);
+    var parts = [
+      { label: "Running", value: running, color: "#5fcf54", tone: "run" },
+      { label: "Paused", value: paused, color: "#ffbe1b", tone: "idle" },
+      { label: "Idle", value: idle, color: "#6ea8ff", tone: "off" },
+      { label: "Offline", value: other, color: "#637489", tone: "off" },
+    ];
+    var offset = 25;
+    return html`<section className="wall-panel station-pie-panel"><h3>MACHINE STATUS MIX</h3>
+      <div className="station-pie-wrap">
+        <svg viewBox="0 0 42 42" role="img" aria-label="Machine status mix">
+          <circle cx="21" cy="21" r="15.9" className="pie-base" />
+          ${parts.map(function (p) {
+            var len = p.value / total * 100;
+            var dash = len + " " + (100 - len);
+            var node = html`<circle key=${p.label} cx="21" cy="21" r="15.9" className="pie-slice" stroke=${p.color} strokeDasharray=${dash} strokeDashoffset=${offset} />`;
+            offset -= len;
+            return node;
+          })}
+        </svg>
+        <strong>${running}/${machines.length || 0}</strong>
+      </div>
+      <div className="station-status-list">${parts.map(function (p) {
+        return html`<span key=${p.label}><i style=${{ background: p.color }}></i>${p.label}<b>${p.value}</b></span>`;
+      })}</div>
+    </section>`;
+  }
+
+  function StationTrendPanel(props) {
+    var a = props.analytics || {};
+    var vals = (a.dailyTrend30 || []).map(function (v) { return Number(v || 0); });
+    if (!vals.length) vals = [0];
+    var max = Math.max.apply(null, [1, asNum(a.avg7Output) || 0, asNum(a.avg30Output) || 0].concat(vals));
+    var pts = vals.map(function (v, i) {
+      var x = 34 + (i / Math.max(1, vals.length - 1)) * 392;
+      var y = 128 - (v / max) * 106;
+      return { x: x, y: y, v: v };
+    });
+    var path = pts.map(function (p, i) { return (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" ");
+    var n = vals.length;
+    var sx = 0, sy = 0, sxx = 0, sxy = 0;
+    vals.forEach(function (v, i) { sx += i; sy += v; sxx += i * i; sxy += i * v; });
+    var denom = n * sxx - sx * sx;
+    var slope = denom ? (n * sxy - sx * sy) / denom : 0;
+    var intercept = n ? (sy - slope * sx) / n : 0;
+    function regY(i) { return 128 - (Math.max(0, intercept + slope * i) / max) * 106; }
+    var regPath = "M34 " + regY(0).toFixed(1) + " L426 " + regY(vals.length - 1).toFixed(1);
+    return html`<section className="wall-panel station-trend-panel"><h3>${props.title || "OUTPUT TREND"} (30D + REGRESSION)</h3>
+      <div className="trend-legend"><span className="s0">Actual</span><span className="s1">7D avg</span><span className="s2">Regression</span></div>
+      <svg viewBox="0 0 460 156" className="station-trend-svg" role="img" aria-label="Station output trend">
+        ${[0, 1, 2, 3].map(function (i) {
+          var y = 128 - i * 35;
+          var val = Math.round((max / 3) * i);
+          return html`<g key=${i}><path d=${"M34 " + y + "H426"} /><text x="4" y=${y + 3}>${fmtNumber(val)}</text></g>`;
+        })}
+        <path className="station-line actual" d=${path} />
+        <path className="station-line reg" d=${regPath} />
+        ${a.avg7Output != null ? html`<path className="station-line avg" d=${"M34 " + (128 - (Number(a.avg7Output || 0) / max) * 106).toFixed(1) + "H426"} />` : null}
+        ${pts.map(function (p, i) { return html`<circle key=${i} cx=${p.x} cy=${p.y} r="2" />`; })}
+        <text className="x-label" x="34" y="150">30D</text><text className="x-label" x="426" y="150">Today</text>
+      </svg>
+      <p className="trend-note">${fmtNumber(a.todayOutput)} ${a.outputUnit || "units"} today · ${fmtSignedPct(a.vs7Pct)} vs 7D · ${fmtSignedPct(a.vs30Pct)} vs 30D</p>
+    </section>`;
+  }
+
+  function StationHourlyPanel(props) {
+    var a = props.analytics || {};
+    var vals = (a.hourlyToday || []).map(function (v) { return Number(v || 0); });
+    var max = Math.max.apply(null, [1, asNum(a.avg7Output) || 0].concat(vals));
+    return html`<section className="wall-panel station-hourly-panel"><h3>HOURLY OUTPUT (DAY)</h3>
+      <div className="station-hour-bars">${vals.map(function (v, i) {
+        var h = Math.max(3, Math.round((v / max) * 100));
+        return html`<span key=${i} title=${String(i).padStart(2, "0") + ":00 · " + fmtNumber(v)}><i style=${{ height: h + "%" }}></i></span>`;
+      })}</div>
+      <p className="trend-note">Projected finish: ${fmtNumber(a.projectedOutput)} ${a.outputUnit || "units"} if the current pace holds.</p>
+    </section>`;
+  }
+
+  function StationOperatorPanel(props) {
+    var a = props.analytics || {};
+    var rows = (a.operatorRows || []).map(function (r) {
+      return [r.operator || "N/A", fmtNumber(r.output), fmtNumber(r.cycles), fmtDurationMin(r.avgDurationMinutes)];
+    });
+    return html`<section className="wall-panel"><h3>OPERATOR PERFORMANCE (DAY)</h3>
+      <${DataTable} headers=${["OPERATOR", "OUTPUT", "CYCLES", "AVG DURATION"]} rows=${rows} emptyLabel="No operator output for this station today." />
+    </section>`;
+  }
+
+  function StationFocusedDashboard(props) {
+    var machines = props.machines || [];
+    var analytics = props.analytics || {};
+    var detailRows = props.detailRows || [];
+    var assignmentRows = props.assignmentRows || [];
+    var unit = analytics.outputUnit || "units";
+    return html`<div>
+      <section className="occ-machine-grid station-grid"><${MachineBand} title=${props.machineTitle} tone=${props.tone} machines=${machines} shiftConfig=${props.shiftConfig || {}} nowMs=${props.nowMs} /></section>
+      <section className="occ-kpis station-kpis">
+        <${KpiCard} label="OUTPUT TODAY" value=${fmtNumber(analytics.todayOutput)} note=${unit} icon="bars" />
+        <${KpiCard} label="VS 7-DAY AVERAGE" value=${fmtSignedPct(analytics.vs7Pct)} note=${fmtNumber(analytics.avg7Output) + " " + unit + " avg"} icon="gauge" tone=${asNum(analytics.vs7Pct) != null && asNum(analytics.vs7Pct) < 0 ? "amber" : "green"} />
+        <${KpiCard} label="VS 30-DAY AVERAGE" value=${fmtSignedPct(analytics.vs30Pct)} note=${fmtNumber(analytics.avg30Output) + " " + unit + " avg"} icon="cycle" />
+        <${KpiCard} label="AVG OPERATOR DURATION" value=${fmtDurationMin(analytics.avgDurationTodayMinutes)} note=${"7D " + fmtDurationMin(analytics.avgDuration7dMinutes)} icon="clock" tone="amber" />
+      </section>
+      <section className="occ-wall station-analytics-wall">
+        <${StationStatusPie} machines=${machines} />
+        <${StationTrendPanel} analytics=${analytics} title=${props.shortTitle || "OUTPUT"} />
+        <${StationHourlyPanel} analytics=${analytics} />
+        <${StationOperatorPanel} analytics=${analytics} />
+        ${props.materialPanel || null}
+        <section className="wall-panel"><h3>${props.shortTitle || "STATION"} DETAIL (DAY)</h3><${DataTable} headers=${["TIME", "STATION", "EVENT", "BAG", "FLAVOR", "QTY", "DURATION"]} rows=${detailRows} /></section>
+        <section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "STATUS", "ELAPSED"]} rows=${assignmentRows} emptyLabel=${props.assignmentEmpty || "No active station assignments."} /></section>
+      </section>
+    </div>`;
   }
 
   function TracePanel(props) {
@@ -1114,6 +1249,86 @@
       return [bagDisplayLabel(r.workflowBagId), r.displayName || r.stationLabel || "N/A", r.status || "N/A", elapsedSince(r.occupancyStartedAtMs)];
     });
 
+    var stationAnalyticsById = ((inp.stationAnalytics || {}).stations) || {};
+    function stationAnalyticsForMachines(machineRows) {
+      var rows = (machineRows || []).map(function (m) {
+        return stationAnalyticsById[String(m.stationId)] || stationAnalyticsById[String(m.id)] || null;
+      }).filter(Boolean);
+      if (!rows.length) return {};
+      if (rows.length === 1) return rows[0];
+      function sumField(k) {
+        return rows.reduce(function (acc, r) { return acc + (asNum(r[k]) || 0); }, 0);
+      }
+      function weightedAvgField(k) {
+        var total = 0;
+        var samples = 0;
+        rows.forEach(function (r) {
+          var v = asNum(r[k]);
+          var s = asNum(r.eventCountToday) || 1;
+          if (v != null) {
+            total += v * s;
+            samples += s;
+          }
+        });
+        return samples ? total / samples : null;
+      }
+      function sumSeries(k, len) {
+        var out = Array.from({ length: len }, function () { return 0; });
+        rows.forEach(function (r) {
+          (r[k] || []).forEach(function (v, i) {
+            if (i < out.length) out[i] += Number(v || 0);
+          });
+        });
+        return out.map(function (v) { return Math.round(v * 100) / 100; });
+      }
+      var opMap = {};
+      rows.forEach(function (r) {
+        (r.operatorRows || []).forEach(function (op) {
+          var key = op.operator || "N/A";
+          var b = opMap[key] || { operator: key, output: 0, cycles: 0, durationTotal: 0, durationSamples: 0 };
+          b.output += Number(op.output || 0);
+          b.cycles += Number(op.cycles || 0);
+          if (op.avgDurationMinutes != null && op.cycles) {
+            b.durationTotal += Number(op.avgDurationMinutes || 0) * Number(op.cycles || 0);
+            b.durationSamples += Number(op.cycles || 0);
+          }
+          opMap[key] = b;
+        });
+      });
+      var opRows = Object.keys(opMap).map(function (k) {
+        var b = opMap[k];
+        return {
+          operator: b.operator,
+          output: b.output,
+          cycles: b.cycles,
+          avgDurationMinutes: b.durationSamples ? b.durationTotal / b.durationSamples : null,
+        };
+      }).sort(function (a, b) { return Number(b.output || 0) - Number(a.output || 0); });
+      var today = sumField("todayOutput");
+      var avg7 = sumField("avg7Output");
+      var avg30 = sumField("avg30Output");
+      return {
+        name: rows.map(function (r) { return r.name; }).join(" / "),
+        outputUnit: rows[0].outputUnit || "units",
+        todayOutput: today,
+        projectedOutput: sumField("projectedOutput"),
+        avg7Output: avg7,
+        avg30Output: avg30,
+        vs7Pct: avg7 > 0 ? (today - avg7) / avg7 * 100 : null,
+        vs30Pct: avg30 > 0 ? (today - avg30) / avg30 * 100 : null,
+        dailyTrend30: sumSeries("dailyTrend30", 31),
+        hourlyToday: sumSeries("hourlyToday", 24),
+        avgDurationTodayMinutes: weightedAvgField("avgDurationTodayMinutes"),
+        avgDuration7dMinutes: weightedAvgField("avgDuration7dMinutes"),
+        avgDuration30dMinutes: weightedAvgField("avgDuration30dMinutes"),
+        operatorRows: opRows.slice(0, 8),
+        eventCountToday: sumField("eventCountToday"),
+      };
+    }
+    var blisterAnalytics = stationAnalyticsForMachines(blisterMachines);
+    var cardAnalytics = stationAnalyticsForMachines(heatSealMachines);
+    var packagingAnalytics = stationAnalyticsForMachines(packagingMachines);
+
     var rawBottleFlowMachines = machines.filter(function (m) { return m.flow === "bottle"; });
     var bottleIntegrated = rawBottleFlowMachines.some(function (m) { return m.integrationStatus !== "NOT_INTEGRATED"; });
     var blisterSku = (blisterCardMachines.find(function (m) { return m.sku && m.sku !== "N/A"; }) || {}).sku || "N/A";
@@ -1132,6 +1347,7 @@
       });
     }
     var bottleLineMachines = bottleIntegrated ? rawBottleFlowMachines : rawBottleFlowMachines.map(offlineCopy);
+    var bottleAnalytics = stationAnalyticsForMachines(bottleLineMachines);
     var oeeTargetNote = inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "configured" ? "Target configured" : (inp.shiftConfig && inp.shiftConfig.targetThroughputSource === "historical" ? "Historical pace estimate" : "No target set");
     var dailyDisplayTarget = asNum(inp.shiftConfig && inp.shiftConfig.dailyDisplayTarget);
     var targetThroughput = asNum(inp.shiftConfig && inp.shiftConfig.targetThroughputPerHour);
@@ -1309,7 +1525,7 @@
     function renderFocusedTab() {
       if (activeTab === "alerts") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL ALERTS</h3><${DataTable} headers=${["TIME", "SEVERITY", "MESSAGE"]} rows=${allAlertRows} /></section><section className="wall-panel"><h3>PRODUCTION TIMELINE (LATEST ACTIVITY)</h3><${DataTable} headers=${["TIME", "LINE", "MACHINE", "EVENT", "BAG ID"]} rows=${timelineRows} /></section></section>`;
       if (activeTab === "machines") return html`<div><section className="wall-panel"><h3>ALL MACHINE DATA</h3><${DataTable} headers=${["MACHINE", "TYPE", "STATION", "STATUS", "CURRENT BAG", "THROUGHPUT"]} rows=${allMachineRows} /><div className="trace-meta" style=${{ marginTop: "10px", gridTemplateColumns: "max-content" }}><a className="mes-link-btn" href=${machineSettingsUrl}>Open Machine Settings</a></div></section><section className="occ-machine-grid three-bands"><${MachineBand} title="BLISTER / CARD MACHINES" tone="blue" machines=${blisterCardMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="PACKAGING QR STATION" tone="purple" machines=${packagingMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /><${MachineBand} title="BOTTLE FLOW MACHINES" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="wall-panel"><h3>COMPRESSORS</h3><${DataTable} headers=${["COMPRESSOR", "STATUS", "CONNECTED MACHINE"]} rows=${compressorRows} /></section></div>`;
-      if (activeTab === "packaging") return html`<div><section className="occ-machine-grid station-grid"><${MachineBand} title="PACKAGING STATION" tone="purple" machines=${packagingMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="occ-wall"><section className="wall-panel"><h3>PACKAGING SUMMARY</h3><${DataTable} headers=${["METRIC", "VALUE"]} rows=${packagingSummaryRows} /></section><section className="wall-panel"><h3>RECENT FINAL PACKAGING RUNS</h3><${DataTable} headers=${["TIME", "BAG", "FLAVOR", "TOTAL DISPLAYS", "CASES", "LOOSE", "DAMAGED"]} rows=${packagingRunRows} emptyLabel="No final packaging runs for this date." /></section><section className="wall-panel"><h3>PACKAGING STATION DETAIL (DAY)</h3><${DataTable} headers=${["TIME", "STATION", "EVENT", "BAG", "FLAVOR", "QTY", "DURATION"]} rows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("pack") >= 0; })} /></section><section className="wall-panel"><h3>LIVE PACKAGING BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "STATUS", "ELAPSED"]} rows=${packagingAssignmentRows} emptyLabel="No active packaging station assignments." /></section><section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section></section></div>`;
+      if (activeTab === "packaging") return html`<${StationFocusedDashboard} machineTitle="PACKAGING STATION" shortTitle="PACKAGING" tone="purple" machines=${packagingMachines} analytics=${packagingAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("pack") >= 0; })} assignmentRows=${packagingAssignmentRows} assignmentEmpty="No active packaging station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} materialPanel=${html`<section className="wall-panel"><h3>RECENT FINAL PACKAGING RUNS</h3><${DataTable} headers=${["TIME", "BAG", "FLAVOR", "TOTAL DISPLAYS", "CASES", "LOOSE", "DAMAGED"]} rows=${packagingRunRows} emptyLabel="No final packaging runs for this date." /></section>`} />`;
       if (activeTab === "staging") return html`<section className="occ-wall"><section className="wall-panel"><h3>ALL BAGS IN STAGING</h3><${DataTable} headers=${["BAG", "TIME IN STAGING", "LAST STATION", "LAST EVENT"]} rows=${stagingBagRows} /></section><section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section></section>`;
       if (activeTab === "bags")
         return html`<section className="occ-wall"><section className="wall-panel"><div className="occ-po-bar"><label className="occ-po-label" htmlFor="occ-po-select">Purchase order</label><select id="occ-po-select" className="occ-po-select" value=${selectedInventoryPo} onChange=${function (e) { setSelectedInventoryPo(e.target.value); }}><option value="">All POs</option>${inventoryPoOptionKeys.map(function (p) {
@@ -1317,9 +1533,9 @@
           var lab = vn ? p + " — " + vn : p;
           return html`<option key=${p} value=${p}>${lab}</option>`;
         })}</select></div><h3>BAGS / INVENTORY</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRowsBagsTab} emptyLabel=${bagsInventoryEmptyLabel} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
-      if (activeTab === "blister") return html`<div><section className="occ-machine-grid station-grid"><${MachineBand} title="BLISTER STATION" tone="blue" machines=${blisterMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="occ-wall"><section className="wall-panel"><h3>BLISTER STATION DETAIL (DAY)</h3><${DataTable} headers=${["TIME", "STATION", "EVENT", "BAG", "FLAVOR", "QTY", "DURATION"]} rows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("blister") >= 0; })} /></section><section className="wall-panel"><h3>LIVE BLISTER BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "STATUS", "ELAPSED"]} rows=${blisterAssignmentRows} emptyLabel="No active blister station assignments." /></section></section></div>`;
-      if (activeTab === "card") return html`<div><section className="occ-machine-grid station-grid"><${MachineBand} title="CARD STATION" tone="blue" machines=${heatSealMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="occ-wall"><section className="wall-panel"><h3>CARD STATION DETAIL (DAY)</h3><${DataTable} headers=${["TIME", "STATION", "EVENT", "BAG", "FLAVOR", "QTY", "DURATION"]} rows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("heat") >= 0 || String(r[1] || "").toLowerCase().indexOf("seal") >= 0; })} /></section><section className="wall-panel"><h3>LIVE CARD BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "STATUS", "ELAPSED"]} rows=${cardAssignmentRows} emptyLabel="No active card station assignments." /></section></section></div>`;
-      if (activeTab === "bottle") return html`<div><section className="occ-machine-grid station-grid"><${MachineBand} title="BOTTLE STATION" tone="green" machines=${bottleLineMachines} shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} /></section><section className="occ-wall"><section className="wall-panel"><h3>BOTTLE STATION DETAIL (DAY)</h3><${DataTable} headers=${["TIME", "STATION", "EVENT", "BAG", "FLAVOR", "QTY", "DURATION"]} rows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("bottle") >= 0 || String(r[1] || "").toLowerCase().indexOf("sticker") >= 0; })} /></section><section className="wall-panel"><h3>LIVE BOTTLE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "STATUS", "ELAPSED"]} rows=${bottleAssignmentRows} emptyLabel="No active bottle station assignments." /></section></section></div>`;
+      if (activeTab === "blister") return html`<${StationFocusedDashboard} machineTitle="BLISTER STATION" shortTitle="BLISTER" tone="blue" machines=${blisterMachines} analytics=${blisterAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("blister") >= 0; })} assignmentRows=${blisterAssignmentRows} assignmentEmpty="No active blister station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} materialPanel=${html`<${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} rollMessage=${rollMessage} onChangeRoll=${changeRoll} />`} />`;
+      if (activeTab === "card") return html`<${StationFocusedDashboard} machineTitle="CARD STATION" shortTitle="CARD / HEAT SEAL" tone="blue" machines=${heatSealMachines} analytics=${cardAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("heat") >= 0 || String(r[1] || "").toLowerCase().indexOf("seal") >= 0; })} assignmentRows=${cardAssignmentRows} assignmentEmpty="No active card station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />`;
+      if (activeTab === "bottle") return html`<${StationFocusedDashboard} machineTitle="BOTTLE STATION" shortTitle="BOTTLE" tone="green" machines=${bottleLineMachines} analytics=${bottleAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("bottle") >= 0 || String(r[1] || "").toLowerCase().indexOf("sticker") >= 0; })} assignmentRows=${bottleAssignmentRows} assignmentEmpty="No active bottle station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${PaceAveragePanel} pace=${inp.shiftConfig && inp.shiftConfig.outputPaceAverages} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
       if (activeTab === "team") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
       if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} rollMessage=${rollMessage} onChangeRoll=${changeRoll} /></section>`;

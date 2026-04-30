@@ -22,6 +22,14 @@ _PAYLOAD_NUM = (
 
 _START_EVENTS = {"BAG_CLAIMED", "STATION_RESUMED", "PACKAGING_START"}
 _COMPLETE_EVENTS = {"BLISTER_COMPLETE", "SEALING_COMPLETE", "PACKAGING_SNAPSHOT", "BAG_FINALIZED"}
+_STATION_OUTPUT_EVENTS = {
+    "BLISTER_COMPLETE",
+    "SEALING_COMPLETE",
+    "BOTTLE_HANDPACK_COMPLETE",
+    "BOTTLE_CAP_SEAL_COMPLETE",
+    "BOTTLE_STICKER_COMPLETE",
+    "PACKAGING_SNAPSHOT",
+}
 
 # PACKAGING_SNAPSHOT reasons that carry operator-entered counts for ops TV / station rollups.
 WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS: tuple[str, ...] = ("final_submit", "paused_end_of_day")
@@ -536,6 +544,201 @@ def gather_output_pace_averages(
     }
 
 
+def gather_station_analytics(
+    conn: sqlite3.Connection,
+    machines: list[dict],
+    *,
+    day_start_ms: int,
+    now_ms: int,
+) -> dict[str, Any]:
+    """Station-specific current vs historical stats for focused command-center tabs."""
+    station_meta: dict[int, dict[str, Any]] = {}
+    for m in machines or []:
+        try:
+            sid = int(m["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        kind = str(m.get("station_kind") or "").lower()
+        role = str(m.get("machine_role") or "").lower()
+        factor = float(m.get("cards_per_turn") or 1)
+        unit = "displays" if kind == "packaging" else "units"
+        if kind == "blister" or role == "blister":
+            unit = "blisters"
+        elif kind == "sealing" or role == "sealing":
+            unit = "sealed cards"
+        elif role in {"bottle", "stickering"} or kind in {"bottle", "combined"}:
+            unit = "bottles"
+        station_meta[sid] = {
+            "id": sid,
+            "name": str(m.get("display_name") or m.get("machine_name") or m.get("station_label") or f"Station {sid}"),
+            "stationKind": kind,
+            "machineRole": role,
+            "cardsPerTurn": factor,
+            "outputUnit": unit,
+            "status": str(m.get("status") or "idle"),
+        }
+
+    if not station_meta:
+        return {"stations": {}}
+
+    start_30d = day_start_ms - (30 * 24 * 60 * 60_000)
+    end_ms = max(now_ms + 60_000, day_start_ms + 60_000)
+    try:
+        rows = conn.execute(
+            """
+            SELECT we.occurred_at AS at_ms,
+                   we.workflow_bag_id AS bag_id,
+                   we.station_id,
+                   we.event_type,
+                   we.user_id,
+                   COALESCE(NULLIF(trim(e.full_name), ''), NULLIF(trim(e.username), '')) AS op_label,
+                   we.payload
+            FROM workflow_events we
+            LEFT JOIN employees e ON e.id = we.user_id
+            WHERE we.occurred_at >= ? AND we.occurred_at < ?
+              AND we.station_id IS NOT NULL
+              AND we.workflow_bag_id IS NOT NULL
+            ORDER BY we.station_id, we.workflow_bag_id, we.occurred_at
+            """,
+            (start_30d, end_ms),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {"stations": {str(k): dict(v) for k, v in station_meta.items()}}
+
+    one_day = 24 * 60 * 60_000
+    daily: dict[int, list[float]] = {sid: [0.0] * 31 for sid in station_meta}
+    hourly_today: dict[int, list[float]] = {sid: [0.0] * 24 for sid in station_meta}
+    operator: dict[int, dict[str, dict[str, float | int | str]]] = {sid: {} for sid in station_meta}
+    durations_today: dict[int, list[float]] = {sid: [] for sid in station_meta}
+    durations_7d: dict[int, list[float]] = {sid: [] for sid in station_meta}
+    durations_30d: dict[int, list[float]] = {sid: [] for sid in station_meta}
+    events_today: dict[int, int] = {sid: 0 for sid in station_meta}
+    starts: dict[tuple[int, int], tuple[int, str]] = {}
+
+    def _event_output(sid: int, event_type: str, payload: dict[str, Any]) -> float:
+        meta = station_meta.get(sid) or {}
+        kind = str(meta.get("stationKind") or "")
+        role = str(meta.get("machineRole") or "")
+        factor = float(meta.get("cardsPerTurn") or 1)
+        et = event_type.upper()
+        if et == "PACKAGING_SNAPSHOT":
+            if str(payload.get("reason") or "").lower() not in _OPS_PKG_REASONS_LOWER:
+                return 0.0
+            try:
+                return max(0.0, float(payload.get("display_count", payload.get("count_total")) or 0))
+            except (TypeError, ValueError):
+                return 0.0
+        try:
+            count = float(payload.get("count_total") or 0)
+        except (TypeError, ValueError):
+            count = 0.0
+        if count <= 0:
+            return 0.0
+        if kind in {"blister", "sealing"} or role in {"blister", "sealing"}:
+            return count * factor
+        return count
+
+    for r in rows:
+        try:
+            sid = int(r["station_id"])
+            bid = int(r["bag_id"])
+            at_ms = int(r["at_ms"])
+        except (TypeError, ValueError):
+            continue
+        if sid not in station_meta:
+            continue
+        et = str(r["event_type"] or "").upper()
+        op = str(r["op_label"] or "").strip() or "N/A"
+        payload = _payload_from_raw(r["payload"])
+        if at_ms >= day_start_ms:
+            events_today[sid] += 1
+        key = (sid, bid)
+        if et in _START_EVENTS:
+            starts[key] = (at_ms, op)
+            continue
+        if et not in _STATION_OUTPUT_EVENTS:
+            continue
+        output = _event_output(sid, et, payload)
+        day_idx = int((at_ms - day_start_ms) // one_day)
+        if -30 <= day_idx <= 0:
+            daily[sid][day_idx + 30] += output
+        if day_start_ms <= at_ms < day_start_ms + one_day:
+            hr = int((at_ms - day_start_ms) // 3600000)
+            if 0 <= hr < 24:
+                hourly_today[sid][hr] += output
+        started = starts.pop(key, None)
+        duration_min = None
+        start_op = op
+        if started is not None and at_ms > started[0]:
+            duration_min = (at_ms - started[0]) / 60000.0
+            start_op = started[1] or op
+            if 0.25 <= duration_min <= 24 * 60:
+                durations_30d[sid].append(duration_min)
+                if at_ms >= day_start_ms - (7 * one_day):
+                    durations_7d[sid].append(duration_min)
+                if at_ms >= day_start_ms:
+                    durations_today[sid].append(duration_min)
+        if at_ms >= day_start_ms:
+            bucket = operator[sid].setdefault(
+                op,
+                {"operator": op, "output": 0.0, "cycles": 0, "durationMinutes": 0.0},
+            )
+            bucket["output"] = float(bucket["output"]) + output
+            bucket["cycles"] = int(bucket["cycles"]) + 1
+            if duration_min is not None:
+                bucket["durationMinutes"] = float(bucket["durationMinutes"]) + duration_min
+            elif start_op and start_op != op:
+                prior = operator[sid].setdefault(
+                    start_op,
+                    {"operator": start_op, "output": 0.0, "cycles": 0, "durationMinutes": 0.0},
+                )
+                prior["durationMinutes"] = float(prior["durationMinutes"])
+
+    def _avg(vals: list[float]) -> float | None:
+        return round(sum(vals) / len(vals), 2) if vals else None
+
+    out: dict[str, Any] = {}
+    elapsed_h = max(0.25, (now_ms - day_start_ms) / 3600000.0)
+    for sid, meta in station_meta.items():
+        today_output = round(daily[sid][30], 2)
+        last7 = daily[sid][23:30]
+        last30 = daily[sid][0:30]
+        avg7 = round(sum(last7) / 7.0, 2)
+        avg30 = round(sum(last30) / 30.0, 2)
+        projected = round(today_output / elapsed_h * 24.0, 2) if today_output > 0 else 0.0
+        op_rows = []
+        for row in operator[sid].values():
+            cycles = int(row.get("cycles") or 0)
+            dur = float(row.get("durationMinutes") or 0.0)
+            op_rows.append(
+                {
+                    "operator": str(row.get("operator") or "N/A"),
+                    "output": round(float(row.get("output") or 0.0), 2),
+                    "cycles": cycles,
+                    "avgDurationMinutes": round(dur / cycles, 2) if cycles and dur > 0 else None,
+                }
+            )
+        op_rows.sort(key=lambda x: float(x.get("output") or 0), reverse=True)
+        trend = [round(x, 2) for x in daily[sid]]
+        out[str(sid)] = {
+            **meta,
+            "todayOutput": today_output,
+            "projectedOutput": projected,
+            "avg7Output": avg7,
+            "avg30Output": avg30,
+            "vs7Pct": round((today_output - avg7) / avg7 * 100.0, 1) if avg7 > 0 else None,
+            "vs30Pct": round((today_output - avg30) / avg30 * 100.0, 1) if avg30 > 0 else None,
+            "dailyTrend30": trend,
+            "hourlyToday": [round(x, 2) for x in hourly_today[sid]],
+            "avgDurationTodayMinutes": _avg(durations_today[sid]),
+            "avgDuration7dMinutes": _avg(durations_7d[sid]),
+            "avgDuration30dMinutes": _avg(durations_30d[sid]),
+            "operatorRows": op_rows[:8],
+            "eventCountToday": events_today[sid],
+        }
+    return {"stations": out}
+
+
 def pick_default_bag_id(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> int | None:
     """Most recently active workflow bag having events in window."""
     try:
@@ -710,6 +913,12 @@ def build_metrics_inputs_bundle(
         "bags": bags,
         "slots": slots,
         "blisterStationId": blister_station_id,
+        "stationAnalytics": gather_station_analytics(
+            conn,
+            machines,
+            day_start_ms=day_start_ms,
+            now_ms=now_ms,
+        ),
         "shiftConfig": shift_cfg,
         "genealogySelectedBagId": default_bag,
     }

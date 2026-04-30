@@ -1073,6 +1073,20 @@ input {
   grid-template-columns: 1.45fr 0.82fr 1.15fr 1.05fr;
 }
 
+.station-kpis {
+  margin: 8px 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.station-analytics-wall {
+  grid-template-columns: minmax(220px, 0.54fr) minmax(340px, 1.18fr) minmax(260px, 0.8fr);
+  align-items: stretch;
+}
+
+.station-analytics-wall > .mes-material-stack {
+  display: contents;
+}
+
 .wall-panel,
 .trace-panel {
   min-width: 0;
@@ -1278,6 +1292,147 @@ input {
 .pace-panel p {
   margin: 8px 0 0;
   line-height: 1.35;
+}
+
+.station-pie-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.station-pie-wrap {
+  position: relative;
+  min-height: 126px;
+  display: grid;
+  place-items: center;
+}
+
+.station-pie-wrap svg {
+  width: 112px;
+  height: 112px;
+  transform: rotate(-90deg);
+}
+
+.station-pie-wrap circle {
+  fill: none;
+  stroke-width: 7;
+}
+
+.station-pie-wrap .pie-base {
+  stroke: #143856;
+}
+
+.station-pie-wrap .pie-slice {
+  stroke-linecap: butt;
+}
+
+.station-pie-wrap strong {
+  position: absolute;
+  color: #f7fbff;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.station-status-list {
+  display: grid;
+  gap: 6px;
+}
+
+.station-status-list span {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 7px;
+  color: #cbd8e8;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.station-status-list i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.station-status-list b {
+  color: #f7fbff;
+}
+
+.station-trend-panel,
+.station-hourly-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.station-trend-svg {
+  width: 100%;
+  min-height: 156px;
+  flex: 1 1 auto;
+}
+
+.station-trend-svg path {
+  fill: none;
+  stroke: rgba(65, 121, 157, 0.28);
+  stroke-width: 1;
+}
+
+.station-trend-svg text {
+  fill: #9eb2c9;
+  font-size: calc(9px * var(--occ-ui-scale));
+  font-weight: 800;
+}
+
+.station-trend-svg circle {
+  fill: #22a8ff;
+  opacity: 0.92;
+}
+
+.station-trend-svg .station-line {
+  stroke-width: 3;
+}
+
+.station-trend-svg .station-line.actual {
+  stroke: #22a8ff;
+}
+
+.station-trend-svg .station-line.avg {
+  stroke: #63d74f;
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+
+.station-trend-svg .station-line.reg {
+  stroke: #ffd166;
+  stroke-width: 2;
+}
+
+.station-trend-svg .x-label {
+  text-anchor: middle;
+}
+
+.station-hour-bars {
+  min-height: 145px;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(3px, 1fr));
+  gap: 3px;
+  align-items: end;
+  padding-top: 8px;
+  border-bottom: 1px solid rgba(132, 180, 211, 0.35);
+}
+
+.station-hour-bars span {
+  height: 128px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+}
+
+.station-hour-bars i {
+  width: 100%;
+  min-height: 3px;
+  display: block;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #6ea8ff, #1f8def);
+  box-shadow: 0 0 16px rgba(34, 168, 255, 0.18);
 }
 
 .donut-wrap {
@@ -1521,6 +1676,7 @@ input {
   .occ-kpis,
   .occ-life-grid,
   .occ-machine-grid,
+  .station-analytics-wall,
   .wall-row-a,
   .wall-row-b {
     grid-template-columns: 1fr;

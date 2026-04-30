@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.23.0] - 2026-04-30
+
+### Added
+- **Command Center station analytics:** Blister, card, bottle, and packaging station tabs now use the overview dashboard styling with station-specific KPIs, machine status mix, 30-day trend/regression charts, hourly output bars, operator output/duration stats, live assignments, and station detail tables.
+- **Blister material visibility:** The blister station analytics view includes roll usage/material tracking alongside station output and operator comparisons.
+
+---
+
 ## [4.22.19] - 2026-04-30
 
 ### Fixed
