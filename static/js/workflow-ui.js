@@ -317,8 +317,7 @@
       stationHasOccupantApi &&
       occupantCardTokensList().length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen &&
-      !packagingAllowsSecondFlowScan();
+      !occupancyVerifyOpen;
     if (showChoice) {
       clearFeedback();
       return;
@@ -344,8 +343,7 @@
       stationHasOccupantApi &&
       occupantCardTokensList().length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen &&
-      !packagingAllowsSecondFlowScan();
+      !occupancyVerifyOpen;
     var show =
       !stationHasOccupantApi &&
       !hasLoadedBag &&
@@ -368,8 +366,7 @@
       stationHasOccupantApi &&
       tokens.length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen &&
-      !packagingAllowsSecondFlowScan();
+      !occupancyVerifyOpen;
 
     var cardEntry = document.getElementById('wf-card-entry');
     var fields = document.getElementById('wf-workflow-fields');
@@ -1809,6 +1806,11 @@
         if (reason === 'no_product_mapping') {
           throw new Error('No product is configured for this tablet on this station type. Update Product Configuration, then scan again.');
         }
+      }
+      if (code === 'WORKFLOW_BAG_NOT_FOUND') {
+        throw new Error(
+          'Unknown bag card token. Scan the bag card QR (not the station QR or product label) and try again.'
+        );
       }
       throw new Error((data.message || (code + ': ' + r.status)).toString());
     }
