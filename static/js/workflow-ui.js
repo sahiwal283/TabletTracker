@@ -1104,10 +1104,7 @@
     const takenIntentBtn = document.getElementById('wf-intent-taken');
     function applyPauseTone(btn, enabled) {
       if (!btn) return;
-      btn.classList.toggle('!bg-amber-400', !!enabled);
-      btn.classList.toggle('!border-amber-300', !!enabled);
-      btn.classList.toggle('!text-slate-900', !!enabled);
-      btn.classList.toggle('hover:!bg-amber-300', !!enabled);
+      btn.classList.toggle('tt-wf-pause-btn', !!enabled);
     }
     function applyEndTone(btn, enabled) {
       if (!btn) return;

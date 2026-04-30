@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.22.19] - 2026-04-30
+
+### Fixed
+- **Workflow stations (all kinds):** Pause button styling now uses a dedicated class (`tt-wf-pause-btn`) instead of dynamic `!` utility toggles, so the amber pause action renders consistently across blister, sealing, bottle, packaging, and combined lanes.
+- **Workflow hand-pack station:** The “Variety source bag cards” block no longer renders as a washed-out light panel; it now uses a dark station panel (`tt-wf-source-bags-panel`) with readable heading/help text contrast.
+
+---
+
 ## [4.22.16] - 2026-04-29
 
 ### Changed
