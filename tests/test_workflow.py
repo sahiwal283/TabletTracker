@@ -566,6 +566,95 @@ class TestWorkflowCore(unittest.TestCase):
             )
         )
 
+    def test_packaging_claim_allows_second_flow_rejects_same_flow(self):
+        from app.blueprints.workflow_floor import _validate_packaging_station_claim
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (801, 'Card Product', 0)"
+        )
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (802, 'Bottle Product', 1)"
+        )
+        self.conn.commit()
+
+        card_bag_1, _ = create_workflow_bag_with_card(
+            self.conn, product_id=801, box_number="1", bag_number="40", receipt_number=None, user_id=None
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "packaging", "note": "claimed"},
+            card_bag_1,
+            station_id=1,
+        )
+        self.conn.commit()
+        card_bag_2, _ = create_workflow_bag_with_card(
+            self.conn, product_id=801, box_number="1", bag_number="41", receipt_number=None, user_id=None
+        )
+        bottle_bag_1, _ = create_workflow_bag_with_card(
+            self.conn, product_id=802, box_number="1", bag_number="42", receipt_number=None, user_id=None
+        )
+        self.conn.commit()
+
+        same_flow = _validate_packaging_station_claim(
+            self.conn, station_id=1, workflow_bag_id=card_bag_2
+        )
+        self.assertIsNotNone(same_flow)
+        self.assertEqual(same_flow[0], "WORKFLOW_VALIDATION")
+        self.assertIn("already has a card run in progress", same_flow[1])
+
+        cross_flow = _validate_packaging_station_claim(
+            self.conn, station_id=1, workflow_bag_id=bottle_bag_1
+        )
+        self.assertIsNone(cross_flow)
+
+    def test_packaging_claim_rejects_third_active_bag(self):
+        from app.blueprints.workflow_floor import _validate_packaging_station_claim
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (811, 'Card Product B', 0)"
+        )
+        self.conn.execute(
+            "INSERT INTO product_details (id, product_name, is_bottle_product) VALUES (812, 'Bottle Product B', 1)"
+        )
+        self.conn.commit()
+
+        card_bag, _ = create_workflow_bag_with_card(
+            self.conn, product_id=811, box_number="1", bag_number="50", receipt_number=None, user_id=None
+        )
+        bottle_bag, _ = create_workflow_bag_with_card(
+            self.conn, product_id=812, box_number="1", bag_number="51", receipt_number=None, user_id=None
+        )
+        next_bag, _ = create_workflow_bag_with_card(
+            self.conn, product_id=811, box_number="1", bag_number="52", receipt_number=None, user_id=None
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "packaging", "note": "claimed"},
+            card_bag,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "packaging", "note": "claimed"},
+            bottle_bag,
+            station_id=1,
+        )
+        self.conn.commit()
+
+        rejected = _validate_packaging_station_claim(
+            self.conn, station_id=1, workflow_bag_id=next_bag
+        )
+        self.assertIsNotNone(rejected)
+        self.assertEqual(rejected[0], "WORKFLOW_VALIDATION")
+        self.assertIn("card and bottle runs in progress", rejected[1])
+
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card

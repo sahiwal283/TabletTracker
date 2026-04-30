@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.4] - 2026-04-30
+
+### Fixed
+- **Workflow packaging occupancy gate:** Packaging stations now track up to two active slots (one card-line bag and one bottle-line bag) and reject a new claim when the same flow type is already in progress, preventing duplicate same-flow claims on a single station.
+- **Workflow station pause action:** Pause buttons now force high-contrast white label text for the dedicated pause tone, so the Pause label remains legible even when secondary button cascade rules are active.
+
+---
+
 ## [4.24.3] - 2026-04-30
 
 ### Added

@@ -20,6 +20,9 @@
   let occupancyPauseDetails = null;
   /** Expected bag card scan_token for this station occupancy. */
   let expectedOccupantCardToken = null;
+  /** Packaging can hold two active slots: one card run + one bottle run. */
+  let expectedOccupantCardTokens = [];
+  let packagingOccupancySlots = [];
   /** Showing scan/input to verify card after Pause / End / Resume. */
   let occupancyVerifyOpen = false;
   let lastOccupancyVerifyMode = null;
@@ -270,33 +273,52 @@
     pausedUiTimer = setInterval(tick, 1000);
   }
 
+  function occupantCardTokensList() {
+    if (expectedOccupantCardTokens && expectedOccupantCardTokens.length) {
+      return expectedOccupantCardTokens;
+    }
+    return expectedOccupantCardToken ? [expectedOccupantCardToken] : [];
+  }
+
+  /** Packaging may hold one card bag and one bottle bag; allow scanning the second flow. */
+  function packagingAllowsSecondFlowScan() {
+    return stationKind() === 'packaging' && packagingOccupancySlots.length === 1;
+  }
+
   /** True when this station has no active occupant or the loaded card matches that bag. */
   function sessionMatchesStationOccupant() {
-    if (!stationHasOccupantApi || !expectedOccupantCardToken) {
+    var tokens = occupantCardTokensList();
+    if (!stationHasOccupantApi || !tokens.length) {
       return true;
     }
     var cur = productInput() ? String(productInput().value || '').trim() : '';
-    return hasLoadedBag && cur === expectedOccupantCardToken;
+    return hasLoadedBag && tokens.indexOf(cur) >= 0;
   }
 
   function syncOccupancyGateFlags() {
+    var tokens = occupantCardTokensList();
     stationOccupancyGate =
       stationHasOccupantApi &&
-      !!expectedOccupantCardToken &&
+      tokens.length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen;
+      !occupancyVerifyOpen &&
+      !packagingAllowsSecondFlowScan();
   }
 
   /** Info hint for idle stations; hidden when Pause/End/Verify gate is showing (no scan slot yet). */
   function maybeRefreshBagHint() {
     var hideMain =
       occupancyVerifyOpen ||
-      (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
+      (stationHasOccupantApi &&
+        occupantCardTokensList().length > 0 &&
+        !sessionMatchesStationOccupant() &&
+        !packagingAllowsSecondFlowScan());
     var showChoice =
       stationHasOccupantApi &&
-      !!expectedOccupantCardToken &&
+      occupantCardTokensList().length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen;
+      !occupancyVerifyOpen &&
+      !packagingAllowsSecondFlowScan();
     if (showChoice) {
       clearFeedback();
       return;
@@ -314,12 +336,16 @@
     if (!idleBanner || pausedScreenVisible()) return;
     var hideMain =
       occupancyVerifyOpen ||
-      (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
+      (stationHasOccupantApi &&
+        occupantCardTokensList().length > 0 &&
+        !sessionMatchesStationOccupant() &&
+        !packagingAllowsSecondFlowScan());
     var showChoice =
       stationHasOccupantApi &&
-      !!expectedOccupantCardToken &&
+      occupantCardTokensList().length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen;
+      !occupancyVerifyOpen &&
+      !packagingAllowsSecondFlowScan();
     var show =
       !stationHasOccupantApi &&
       !hasLoadedBag &&
@@ -331,14 +357,19 @@
 
   function applyOccupancyGateUi() {
     syncOccupancyGateFlags();
+    var tokens = occupantCardTokensList();
     var hideMain =
       occupancyVerifyOpen ||
-      (stationHasOccupantApi && !!expectedOccupantCardToken && !sessionMatchesStationOccupant());
+      (stationHasOccupantApi &&
+        tokens.length > 0 &&
+        !sessionMatchesStationOccupant() &&
+        !packagingAllowsSecondFlowScan());
     var showChoice =
       stationHasOccupantApi &&
-      !!expectedOccupantCardToken &&
+      tokens.length > 0 &&
       !sessionMatchesStationOccupant() &&
-      !occupancyVerifyOpen;
+      !occupancyVerifyOpen &&
+      !packagingAllowsSecondFlowScan();
 
     var cardEntry = document.getElementById('wf-card-entry');
     var fields = document.getElementById('wf-workflow-fields');
@@ -1726,16 +1757,17 @@
     }
     if (
       stationHasOccupantApi &&
-      expectedOccupantCardToken &&
-      cardToken !== expectedOccupantCardToken
+      occupantCardTokensList().length > 0 &&
+      occupantCardTokensList().indexOf(cardToken) < 0 &&
+      !packagingAllowsSecondFlowScan()
     ) {
       statusLine('This QR code does not match the current bag at this station.', 'error');
       return;
     }
     var bypassGateForOccupantLoad =
       stationHasOccupantApi &&
-      expectedOccupantCardToken &&
-      cardToken === expectedOccupantCardToken;
+      occupantCardTokensList().length > 0 &&
+      occupantCardTokensList().indexOf(cardToken) >= 0;
     if (stationOccupancyGate && !bypassGateForOccupantLoad) {
       statusLine(
         'This station has a bag in progress. Use Pause or End run and verify the card first.',
@@ -1795,6 +1827,8 @@
       occupancyIsPaused = false;
       occupancyPauseDetails = null;
       expectedOccupantCardToken = null;
+      expectedOccupantCardTokens = [];
+      packagingOccupancySlots = [];
       occupancyVerifyOpen = false;
       occupancyGateIntentEndRun = false;
       stopOccupancyTimer();
@@ -1808,6 +1842,12 @@
     }
     stationHasOccupantApi = true;
     occupancyIsPaused = occ.status === 'paused';
+    packagingOccupancySlots = Array.isArray(occ.packaging_slots) ? occ.packaging_slots : [];
+    expectedOccupantCardTokens = packagingOccupancySlots
+      .map(function (slot) {
+        return slot && slot.card_token ? String(slot.card_token).trim() : '';
+      })
+      .filter(Boolean);
     expectedOccupantCardToken = occ.card_token ? String(occ.card_token).trim() : null;
     lastOccStartMs = Number(occ.occupancy_started_at_ms) || 0;
     pausedScreenStartMs = Number(occ.paused_at_ms) || 0;

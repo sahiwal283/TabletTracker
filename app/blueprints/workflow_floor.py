@@ -435,6 +435,73 @@ def _assigned_card_token_for_bag(conn: sqlite3.Connection, workflow_bag_id: int)
     return str(token).strip() if token else None
 
 
+def _packaging_active_incomplete_bags(
+    conn: sqlite3.Connection, station_id: int
+) -> list[int]:
+    """Bag IDs with an open packaging session at this station (claimed, lane not finished)."""
+    rows = conn.execute(
+        """
+        SELECT DISTINCT we.workflow_bag_id AS wid
+        FROM workflow_events we
+        INNER JOIN qr_cards qc
+          ON qc.assigned_workflow_bag_id = we.workflow_bag_id
+         AND qc.status = ?
+        WHERE we.station_id = ?
+          AND we.event_type IN (?, ?)
+        """,
+        (
+            WC.QR_CARD_STATUS_ASSIGNED,
+            station_id,
+            WC.EVENT_BAG_CLAIMED,
+            WC.EVENT_STATION_RESUMED,
+        ),
+    ).fetchall()
+    active: list[int] = []
+    for row in rows:
+        wid = int(row["wid"])
+        if _occupancy_lane_finished_at_station(
+            conn,
+            station_id=station_id,
+            workflow_bag_id=wid,
+            station_kind="packaging",
+        ):
+            continue
+        active.append(wid)
+    return active
+
+
+def _validate_packaging_station_claim(
+    conn: sqlite3.Connection,
+    *,
+    station_id: int,
+    workflow_bag_id: int,
+) -> tuple[str, str] | None:
+    """
+    Packaging may hold one card-line bag and one bottle-line bag at a time.
+    Return (WORKFLOW_VALIDATION, message) when a new claim must be rejected.
+    """
+    if _station_has_claimed_bag(conn, workflow_bag_id, station_id):
+        return None
+    active = _packaging_active_incomplete_bags(conn, station_id)
+    if len(active) >= 2:
+        return (
+            "WORKFLOW_VALIDATION",
+            "Packaging station already has card and bottle runs in progress. Finish one before claiming another bag.",
+        )
+    new_flow = production_flow_for_bag(conn, workflow_bag_id)
+    for bid in active:
+        if bid == workflow_bag_id:
+            continue
+        if production_flow_for_bag(conn, bid) == new_flow:
+            return (
+                "WORKFLOW_VALIDATION",
+                "Packaging station already has a "
+                + ("bottle" if new_flow == "bottle" else "card")
+                + " run in progress. Finish or release that run before starting another of the same type.",
+            )
+    return None
+
+
 def _current_station_occupancy(conn: sqlite3.Connection, station_id: int) -> dict | None:
     sk_row = conn.execute(
         """
@@ -445,6 +512,55 @@ def _current_station_occupancy(conn: sqlite3.Connection, station_id: int) -> dic
         (station_id,),
     ).fetchone()
     station_kind = (sk_row["station_kind"] if sk_row else None) or "sealing"
+
+    if station_kind == "packaging":
+        active_ids = _packaging_active_incomplete_bags(conn, station_id)
+        if not active_ids:
+            return None
+
+        def _slot_sort_key(wid: int) -> tuple[int, int]:
+            st = _station_occupancy_started_at(conn, wid, station_id)
+            return (st if st is not None else 0, wid)
+
+        slots: list[dict] = []
+        for wid in sorted(active_ids, key=_slot_sort_key):
+            facts = _station_facts_payload(conn, wid, station_id)
+            tok = _assigned_card_token_for_bag(conn, wid)
+            started = _station_occupancy_started_at(conn, wid, station_id)
+            st_ms = int(started) if started is not None else 0
+            slot_status = "paused" if facts.get("resume_required") else "occupied"
+            pause_at_slot = (
+                _station_pause_at_ms(conn, wid, station_id)
+                if facts.get("resume_required")
+                else None
+            )
+            slots.append(
+                {
+                    "workflow_bag_id": wid,
+                    "card_token": tok,
+                    "production_flow": production_flow_for_bag(conn, wid),
+                    "occupancy_started_at_ms": st_ms,
+                    "paused_at_ms": pause_at_slot,
+                    "facts": facts,
+                    "status": slot_status,
+                }
+            )
+        primary = slots[0]
+        overall_paused = any(s["facts"].get("resume_required") for s in slots)
+        pause_primary = (
+            _station_pause_at_ms(conn, primary["workflow_bag_id"], station_id)
+            if overall_paused
+            else None
+        )
+        return {
+            "status": "paused" if overall_paused else "occupied",
+            "workflow_bag_id": primary["workflow_bag_id"],
+            "card_token": primary["card_token"],
+            "occupancy_started_at_ms": primary["occupancy_started_at_ms"],
+            "paused_at_ms": pause_primary,
+            "facts": primary["facts"],
+            "packaging_slots": slots,
+        }
 
     row = conn.execute(
         """
@@ -961,6 +1077,13 @@ def api_append_event():
                 status=400,
             )
         station_id = int(st["id"])
+        if event_type == WC.EVENT_BAG_CLAIMED and station_kind == "packaging":
+            claim_err = _validate_packaging_station_claim(
+                conn, station_id=station_id, workflow_bag_id=bag_id
+            )
+            if claim_err:
+                err_code, err_msg = claim_err
+                return workflow_json(err_code, err_msg, status=400)
         if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
             payload = _normalize_packaging_snapshot_payload(conn, bag_id, payload)
         if event_type == WC.EVENT_BOTTLE_HANDPACK_COMPLETE:
