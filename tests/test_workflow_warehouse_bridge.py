@@ -696,6 +696,73 @@ class TestWorkflowWarehouseMachineBridge(unittest.TestCase):
         self.assertEqual("R-777", m_exec.call_args[0][1].get("receipt_number"))
 
     @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
+    def test_manual_receipt_event_mode_preserves_multiple_machine_segments(self, m_exec):
+        wid = self._wf_bag_id
+        self.conn.execute(
+            "UPDATE workflow_bags SET receipt_number = ? WHERE id = ?",
+            ("R-777", wid),
+        )
+        self.conn.commit()
+        st = {"id": 1, "machine_id": self._machine_id, "station_kind": "sealing"}
+
+        def _mock_exec(conn, data, employee_name, entries):
+            conn.execute(
+                """
+                INSERT INTO warehouse_submissions (
+                    employee_name, product_name, inventory_item_id, box_number, bag_number,
+                    displays_made, packs_remaining, tablets_pressed_into_cards, submission_date,
+                    submission_type, bag_id, assigned_po_id, needs_review, machine_id,
+                    receipt_number
+                ) VALUES (?, 'P', 'inv-x', ?, ?, ?, 0, 10, '2026-01-01',
+                    'machine', 1, 1, 0, ?, ?)
+                """,
+                (
+                    employee_name,
+                    data.get("box_number"),
+                    data.get("bag_number"),
+                    int(entries[0]["machine_count"]),
+                    int(data.get("machine_id")),
+                    data.get("receipt_number"),
+                ),
+            )
+            return {"success": True}
+
+        m_exec.side_effect = _mock_exec
+
+        r1 = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=1140,
+            station_row=st,
+            lane="seal",
+            expected_machine_role="sealing",
+            event_id=318,
+        )
+        r2 = upsert_machine_from_workflow_scan(
+            self.conn,
+            wid,
+            count_total=952,
+            station_row=st,
+            lane="seal",
+            expected_machine_role="sealing",
+            event_id=320,
+        )
+        self.assertTrue(r1.get("ok"), r1)
+        self.assertTrue(r2.get("ok"), r2)
+
+        rows = self.conn.execute(
+            """
+            SELECT id, displays_made, receipt_number
+            FROM warehouse_submissions
+            WHERE submission_type = 'machine' AND machine_id = ? AND receipt_number = 'R-777'
+            ORDER BY id ASC
+            """,
+            (self._machine_id,),
+        ).fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([int(r["displays_made"] or 0) for r in rows], [1140, 952])
+
+    @patch("app.services.workflow_warehouse_bridge.execute_machine_submission")
     def test_blister_handpack_rest_sets_needs_review(self, m_exec):
         wid = self._wf_bag_id
         self.conn.execute(

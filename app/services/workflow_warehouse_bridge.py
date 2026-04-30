@@ -1500,7 +1500,9 @@ def upsert_machine_from_workflow_scan(
         return {"ok": False, "reason": "invalid_count_total", "skipped": True}
 
     exact_receipt = _has_manual_receipt(wb)
-    if exact_receipt:
+    # For manual receipts, legacy mode historically kept one machine row per lane by replacing.
+    # Keep that behavior only when event_id is absent; with event_id, preserve per-event history rows.
+    if exact_receipt and event_id is None:
         legacy_rows = conn.execute(
             """
             SELECT DISTINCT receipt_number
@@ -1531,7 +1533,8 @@ def upsert_machine_from_workflow_scan(
     emp = employee_name or "QR workflow"
     box_number = wb.get("box_number")
     bag_number = wb.get("bag_number")
-    if event_id is None or exact_receipt:
+    # Replace existing lane row only in legacy mode (no event_id). With event_id, keep all segments.
+    if event_id is None:
         _delete_workflow_machine_lane_rows(
             conn,
             receipt,

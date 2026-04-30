@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.23.2] - 2026-04-30
+
+### Fixed
+- **Workflow machine segment history:** Manual-receipt workflow machine sync no longer deletes prior lane rows when syncing per-event counts. Pause + final segments now both remain under the same receipt, so submissions history shows all machine segments for that receipt.
+
+---
+
 ## [4.23.1] - 2026-04-30
 
 ### Fixed
