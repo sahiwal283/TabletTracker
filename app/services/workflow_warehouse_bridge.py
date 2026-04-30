@@ -133,6 +133,10 @@ def _handpack_source_inventory_bag_ids(conn: sqlite3.Connection, workflow_bag_id
     return [int(x) for x in source_payload_for_parent(conn, workflow_bag_id)["source_inventory_bag_ids"]]
 
 
+def _norm_flavor_name(raw: Any) -> str:
+    return str(raw or "").strip().lower()
+
+
 def _bag_remaining_tablets(conn: sqlite3.Connection, bag_id: int) -> int:
     try:
         bag = conn.execute(
@@ -914,6 +918,7 @@ def upsert_bottle_from_workflow_packaging(
                 if nm:
                     flavor_name_by_id[tid] = nm
         source_by_flavor: dict[int, list[dict[str, Any]]] = {}
+        source_by_flavor_name: dict[str, list[dict[str, Any]]] = {}
         for row in source_rows:
             b = dict(row)
             try:
@@ -921,6 +926,9 @@ def upsert_bottle_from_workflow_packaging(
             except (TypeError, ValueError):
                 continue
             source_by_flavor.setdefault(flavor_id, []).append(b)
+            nm = _norm_flavor_name(b.get("tablet_type_name"))
+            if nm:
+                source_by_flavor_name.setdefault(nm, []).append(b)
 
         deduction_details: list[dict[str, Any]] = []
         for flavor in contents:
@@ -935,7 +943,16 @@ def upsert_bottle_from_workflow_packaging(
             if tablets_needed <= 0:
                 continue
             tablets_still_needed = tablets_needed
-            for bag in source_by_flavor.get(flavor_tt_id, []):
+            configured_label = str(flavor.get("tablet_type_name") or "").strip()
+            resolved_label = configured_label or flavor_name_by_id.get(flavor_tt_id) or ""
+            flavor_bags = list(source_by_flavor.get(flavor_tt_id, []))
+            if not flavor_bags:
+                flavor_bags = list(source_by_flavor_name.get(_norm_flavor_name(resolved_label), []))
+            # Compatibility fallback: if configured flavor ids drifted, but exactly one source flavor
+            # was scanned, allow deduction from that scanned pool instead of blocking packaging.
+            if not flavor_bags and resolved_label == "" and len(source_by_flavor) == 1:
+                flavor_bags = next(iter(source_by_flavor.values()))
+            for bag in flavor_bags:
                 if tablets_still_needed <= 0:
                     break
                 remaining = _bag_remaining_tablets(conn, int(bag["id"]))
@@ -954,12 +971,9 @@ def upsert_bottle_from_workflow_packaging(
                     }
                 )
             if tablets_still_needed > 0:
-                configured_label = str(flavor.get("tablet_type_name") or "").strip()
                 source_label = ""
-                if source_by_flavor.get(flavor_tt_id):
-                    source_label = str(
-                        source_by_flavor[flavor_tt_id][0].get("tablet_type_name") or ""
-                    ).strip()
+                if flavor_bags:
+                    source_label = str(flavor_bags[0].get("tablet_type_name") or "").strip()
                 label = (
                     configured_label
                     or source_label

@@ -455,6 +455,10 @@
     var notIntegrated = m.integrationStatus === "NOT_INTEGRATED";
     var avg = stationAverageFor(m, props.shiftConfig);
     var latest = m.latestEvent || {};
+    var latestAt = asNum(latest.atMs || latest.at_ms);
+    var lastScanAt = m.lastScanMs != null ? m.lastScanMs : latestAt;
+    var isLiveOrPaused = m.integrationStatus === "LIVE_QR" || m.integrationStatus === "LIVE_PAUSED";
+    var startAnchor = isLiveOrPaused ? (m.occupancyStartedAtMs || lastScanAt) : null;
     var done = m.counterEvent || {};
     var start = done.counterStart != null ? done.counterStart : latest.counterStart;
     var end = done.counterEnd != null ? done.counterEnd : latest.counterEnd;
@@ -480,10 +484,10 @@
         <div><dt>SKU</dt><dd>${m.sku || "N/A"}</dd></div>
       </dl></div>
       <div className="machine-grid-data">
-        <div><span>Start Time</span><b>${notIntegrated ? "N/A" : fmtTime(m.occupancyStartedAtMs || m.lastScanMs)}</b></div>
-        <div><span>Elapsed Time</span><b>${notIntegrated ? "N/A" : (m.occupancyStartedAtMs || m.lastScanMs ? durationClock(m.occupancyStartedAtMs || m.lastScanMs) : "N/A")}</b></div>
+        <div><span>Start Time</span><b>${notIntegrated ? "N/A" : (startAnchor ? fmtTime(startAnchor) : "N/A")}</b></div>
+        <div><span>Elapsed Time</span><b>${notIntegrated ? "N/A" : (startAnchor ? durationClock(startAnchor) : "N/A")}</b></div>
         <div><span>Counter</span><b>${counter}</b></div>
-        <div><span>Last Scan</span><b>${notIntegrated ? "N/A" : fmtTime(m.lastScanMs)}</b></div>
+        <div><span>Last Scan</span><b>${notIntegrated ? "N/A" : fmtTime(lastScanAt)}</b></div>
         <div><span>Throughput</span><b>${throughputLabel}</b></div>
         <div><span>${unitsTodayLabelForMachine(m)}</span><b>${notIntegrated ? "N/A" : fmtNumber(unitsTodayVal)}</b></div>
         <div><span>7D Avg Cycle</span><b>${notIntegrated ? "N/A" : (avg ? avg.avgMinutes.toFixed(1) + " min" : "Insufficient data")}</b></div>
