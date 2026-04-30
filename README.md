@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.24.0** (QR-first submissions with workflow correction events)
+Current: **v4.24.5** (expandable QR submissions timeline and editable synced rows)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

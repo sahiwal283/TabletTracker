@@ -267,6 +267,274 @@ def progress_summary(facts: dict[str, Any]) -> str:
     return ", ".join(parts)
 
 
+_SUBMISSION_EVENT_TYPES = {
+    WC.EVENT_BLISTER_COMPLETE,
+    WC.EVENT_SEALING_COMPLETE,
+    WC.EVENT_OPERATOR_CHANGE,
+    WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+    WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+    WC.EVENT_BOTTLE_STICKER_COMPLETE,
+    WC.EVENT_PACKAGING_SNAPSHOT,
+    WC.EVENT_PACKAGING_TAKEN_FOR_ORDER,
+    WC.EVENT_SUBMISSION_CORRECTED,
+}
+
+
+def _format_event_time_ms(ms: Any) -> str:
+    if ms is None:
+        return "—"
+    try:
+        dt = datetime.fromtimestamp(int(ms) / 1000.0, tz=timezone.utc)
+        return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    except (TypeError, ValueError, OSError):
+        return str(ms)
+
+
+def _payload_pause_reason(event_type: str, payload: dict[str, Any]) -> str | None:
+    meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    reason = str(payload.get("reason") or payload.get("pause_reason") or meta.get("reason") or "").strip()
+    if bool(meta.get("paused")):
+        return reason or "paused"
+    if reason in {"paused_end_of_day", "end_of_day", "out_of_packaging", "material_change"}:
+        return reason
+    if event_type == WC.EVENT_BLISTER_COMPLETE and payload.get("pause_reason"):
+        return str(payload.get("pause_reason"))
+    return None
+
+
+def _event_entry_kind(event_type: str, payload: dict[str, Any]) -> str:
+    pause_reason = _payload_pause_reason(event_type, payload)
+    if pause_reason:
+        return f"Pause: {pause_reason.replace('_', ' ')}"
+    if event_type == WC.EVENT_PACKAGING_SNAPSHOT and payload.get("reason") == "final_submit":
+        return "End submit"
+    if event_type == WC.EVENT_BAG_FINALIZED:
+        return "Finalized"
+    if event_type == WC.EVENT_CARD_ASSIGNED:
+        return "Assignment"
+    if event_type == WC.EVENT_BAG_CLAIMED:
+        return "Claim"
+    if event_type == WC.EVENT_STATION_RESUMED:
+        return "Resume"
+    if event_type == WC.EVENT_SUBMISSION_CORRECTED:
+        return "Correction"
+    if event_type == WC.EVENT_CARD_FORCE_RELEASED:
+        return "Admin release"
+    if event_type in _SUBMISSION_EVENT_TYPES:
+        return "Submit"
+    return "Event"
+
+
+def _payload_detail_parts(payload: dict[str, Any]) -> list[str]:
+    parts: list[str] = []
+    labels = (
+        ("count_total", "count"),
+        ("display_count", "displays"),
+        ("case_count", "cases"),
+        ("loose_display_count", "loose displays"),
+        ("packs_remaining", "packs remaining"),
+        ("loose_tablets", "loose tablets"),
+        ("cards_reopened", "cards reopened"),
+        ("bottles_made", "bottles"),
+        ("bottle_sealing_machine_count", "bottle machine"),
+        ("displays_taken", "displays taken"),
+    )
+    for key, label in labels:
+        val = payload.get(key)
+        if val is not None and str(val).strip() != "":
+            parts.append(f"{label}: {val}")
+    employee = payload.get("employee_name")
+    if employee:
+        parts.append(f"employee: {employee}")
+    reason = payload.get("reason") or payload.get("pause_reason")
+    if reason:
+        parts.append(f"reason: {str(reason).replace('_', ' ')}")
+    meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    if meta.get("material_type"):
+        parts.append(f"material: {meta.get('material_type')}")
+    if payload.get("corrected_event_type"):
+        parts.append(f"corrected: {payload.get('corrected_event_type')}")
+    if payload.get("target_event_id"):
+        parts.append(f"target event: {payload.get('target_event_id')}")
+    return parts
+
+
+def _event_count_summary(event_type: str, payload: dict[str, Any]) -> str | None:
+    if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
+        displays = payload.get("display_count")
+        if displays is not None:
+            reason = str(payload.get("reason") or "").replace("_", " ")
+            suffix = f" ({reason})" if reason else ""
+            return f"pkg {displays} displays{suffix}"
+    if event_type == WC.EVENT_PACKAGING_TAKEN_FOR_ORDER and payload.get("displays_taken") is not None:
+        return f"taken {payload.get('displays_taken')} displays"
+    if event_type in {
+        WC.EVENT_BLISTER_COMPLETE,
+        WC.EVENT_SEALING_COMPLETE,
+        WC.EVENT_OPERATOR_CHANGE,
+        WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+        WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+        WC.EVENT_BOTTLE_STICKER_COMPLETE,
+    } and payload.get("count_total") is not None:
+        label = {
+            WC.EVENT_BLISTER_COMPLETE: "blister",
+            WC.EVENT_SEALING_COMPLETE: "seal",
+            WC.EVENT_OPERATOR_CHANGE: "operator",
+            WC.EVENT_BOTTLE_HANDPACK_COMPLETE: "handpack",
+            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: "bottle seal",
+            WC.EVENT_BOTTLE_STICKER_COMPLETE: "sticker",
+        }.get(event_type, event_type.lower())
+        return f"{label} {payload.get('count_total')}"
+    return None
+
+
+def _fetch_workflow_event_rows(conn: sqlite3.Connection, workflow_bag_id: int) -> list[dict[str, Any]]:
+    try:
+        rows = conn.execute(
+            """
+            SELECT we.id, we.event_type, we.payload, we.occurred_at, we.workflow_bag_id,
+                   we.station_id, we.user_id, we.device_id,
+                   ws.label AS station_label,
+                   ws.station_kind AS station_kind,
+                   ws.station_code AS station_code
+            FROM workflow_events we
+            LEFT JOIN workflow_stations ws ON ws.id = we.station_id
+            WHERE we.workflow_bag_id = ?
+            ORDER BY we.occurred_at ASC, we.id ASC
+            """,
+            (int(workflow_bag_id),),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = conn.execute(
+            """
+            SELECT id, event_type, payload, occurred_at, workflow_bag_id,
+                   station_id, user_id, device_id
+            FROM workflow_events
+            WHERE workflow_bag_id = ?
+            ORDER BY occurred_at ASC, id ASC
+            """,
+            (int(workflow_bag_id),),
+        ).fetchall()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        d = dict(row)
+        payload = json.loads(d.get("payload") or "{}")
+        station_id = d.get("station_id") or payload.get("station_id")
+        station_label = d.get("station_label") or None
+        station_kind = d.get("station_kind") or payload.get("station_kind") or None
+        if station_label and station_kind:
+            station_display = f"{station_label} ({station_kind})"
+        elif station_label:
+            station_display = str(station_label)
+        elif station_kind:
+            station_display = str(station_kind).replace("_", " ").title()
+        elif station_id:
+            station_display = f"Station #{station_id}"
+        else:
+            station_display = "—"
+        out.append(
+            {
+                "id": d.get("id"),
+                "event_type": d.get("event_type"),
+                "label": display_stage_label({"latest_event_type": d.get("event_type")}),
+                "payload": payload,
+                "occurred_at": d.get("occurred_at"),
+                "occurred_display": _format_event_time_ms(d.get("occurred_at")),
+                "station_id": station_id,
+                "station_display": station_display,
+                "entry_kind": _event_entry_kind(str(d.get("event_type") or ""), payload),
+                "detail_parts": _payload_detail_parts(payload),
+                "count_summary": _event_count_summary(str(d.get("event_type") or ""), payload),
+            }
+        )
+    return out
+
+
+def _submission_row_summary(row: dict[str, Any]) -> str:
+    stype = str(row.get("submission_type") or "packaged")
+    parts: list[str] = []
+    if stype == "machine":
+        for key, label in (
+            ("tablets_pressed_into_cards", "pressed"),
+            ("packs_remaining", "packs remaining"),
+            ("loose_tablets", "loose tablets"),
+        ):
+            val = row.get(key)
+            if val is not None and str(val).strip() != "":
+                parts.append(f"{label}: {val}")
+    elif stype == "bottle":
+        for key, label in (
+            ("bottles_made", "bottles"),
+            ("bottle_sealing_machine_count", "machine count"),
+            ("packs_remaining", "packs remaining"),
+            ("loose_tablets", "loose tablets"),
+        ):
+            val = row.get(key)
+            if val is not None and str(val).strip() != "":
+                parts.append(f"{label}: {val}")
+    else:
+        for key, label in (
+            ("displays_made", "displays"),
+            ("case_count", "cases"),
+            ("loose_display_count", "loose displays"),
+            ("packs_remaining", "packs remaining"),
+            ("loose_tablets", "loose tablets"),
+        ):
+            val = row.get(key)
+            if val is not None and str(val).strip() != "":
+                parts.append(f"{label}: {val}")
+    return ", ".join(parts) if parts else "No count fields"
+
+
+def _fetch_synced_submission_rows(conn: sqlite3.Connection, workflow_bag_id: int, receipt_number: str | None) -> list[dict[str, Any]]:
+    base_receipt = (receipt_number or f"WORKFLOW-{workflow_bag_id}").strip()
+    try:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM warehouse_submissions
+            WHERE receipt_number = ?
+               OR receipt_number LIKE ?
+               OR receipt_number LIKE ?
+               OR receipt_number LIKE ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (
+                base_receipt,
+                base_receipt + "-pkg-e%",
+                base_receipt + "-seal%",
+                base_receipt + "-blister%",
+            ),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        d = dict(row)
+        d["type_display"] = str(d.get("submission_type") or "packaged").replace("_", " ").title()
+        d["summary"] = _submission_row_summary(d)
+        d["created_display"] = d.get("created_at") or d.get("submission_date") or "—"
+        out.append(d)
+    return out
+
+
+def workflow_submission_details(conn: sqlite3.Connection, workflow_bag_id: int, receipt_number: str | None = None) -> dict[str, Any]:
+    """Timeline + editable synced rows for the QR submissions page."""
+    events = _fetch_workflow_event_rows(conn, int(workflow_bag_id))
+    submission_events = [e for e in events if e["event_type"] in _SUBMISSION_EVENT_TYPES]
+    count_parts = [e["count_summary"] for e in submission_events if e.get("count_summary")]
+    synced_rows = _fetch_synced_submission_rows(conn, int(workflow_bag_id), receipt_number)
+    return {
+        "timeline_events": events,
+        "submission_events": submission_events,
+        "submission_event_count": len(submission_events),
+        "count_summary": ", ".join(count_parts[-4:]) if count_parts else "No entered counts yet",
+        "latest_entry_display": count_parts[-1] if count_parts else "—",
+        "synced_rows": synced_rows,
+        "synced_row_count": len(synced_rows),
+    }
+
+
 def card_lifecycle_events_for_card(conn: sqlite3.Connection, qr_card_id: int) -> list[dict[str, Any]]:
     """Union of bag timelines for bags that had this card + standalone force-release rows."""
     rows = conn.execute(

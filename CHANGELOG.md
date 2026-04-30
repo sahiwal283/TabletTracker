@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.5] - 2026-04-30
+
+### Fixed
+- **QR submissions drilldown:** QR workflow rows now expand in place to show the full event timeline, including timestamps, stations, pause/end labels, and count details.
+- **Live workflow counts:** The QR submissions table now displays entered counts directly from workflow events instead of relying only on synced warehouse rows, so in-progress bags show current submission data.
+- **Editable synced rows:** Expanded QR rows now list the warehouse mirror rows with View/Edit actions, keeping corrections reachable from the primary submissions page.
+- **QR table clarity:** Removed the separate Machine summary column from the QR workflow table.
+
+---
+
 ## [4.24.4] - 2026-04-30
 
 ### Fixed

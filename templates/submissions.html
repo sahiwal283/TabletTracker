@@ -149,45 +149,52 @@
         <p class="px-8 py-10 text-gray-500 text-center">No workflow bags yet. Assign a bag to a QR card from the staff workflow flow.</p>
         {% else %}
         <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt / Workflow</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bag</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Output</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Machine</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sync</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-100">
-                {% for w in workflow_bags %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-3 text-sm">
-                        <div class="font-mono text-gray-900">{{ w.receipt_number or ('WORKFLOW-' ~ w.id) }}</div>
-                        <div class="text-xs text-gray-500">workflow #{{ w.id }} · {{ w.created_at_display }}</div>
-                    </td>
-                    <td class="px-6 py-3 text-sm text-gray-800">{{ w.product_name or '—' }}</td>
-                    <td class="px-6 py-3 text-sm font-mono text-gray-800">{{ w.bag_name or '—' }}</td>
-                    <td class="px-6 py-3 text-sm">
-                        <div class="text-gray-800">{{ w.stage_label }}</div>
-                        <div class="text-xs text-gray-500 max-w-xs">{{ w.progress_summary }}</div>
-                    </td>
-                    <td class="px-6 py-3 text-sm font-semibold text-gray-900">{{ w.output_total }}</td>
-                    <td class="px-6 py-3 text-sm text-gray-800">{{ w.machine_total }}</td>
-                    <td class="px-6 py-3 text-sm">
-                        {% if w.synced_row_count %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800">{{ w.synced_row_count }} row{{ '' if w.synced_row_count == 1 else 's' }}</span>
-                        {% else %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">No sync row</span>
-                        {% endif %}
-                        {% if w.is_finalized %}<div class="text-xs text-green-700 mt-1">Finalized</div>{% endif %}
-                    </td>
-                    <td class="px-6 py-3 text-sm">
-                        {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}
-                        <form method="post"
-                              action="{{ url_for('submissions.delete_workflow_bag', workflow_bag_id=w.id) }}"
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt / Workflow</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bag</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entered Counts</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rows</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                    {% for w in workflow_bags %}
+                    <tr class="hover:bg-gray-50 cursor-pointer" data-workflow-toggle="{{ w.id }}">
+                        <td class="px-6 py-3 text-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex h-6 w-6 items-center justify-center rounded border border-cyan-200 text-cyan-700 text-xs font-semibold" data-workflow-caret="{{ w.id }}">+</span>
+                                <span class="font-mono text-gray-900">{{ w.receipt_number or ('WORKFLOW-' ~ w.id) }}</span>
+                            </div>
+                            <div class="text-xs text-gray-500">workflow #{{ w.id }} · {{ w.created_at_display }}</div>
+                        </td>
+                        <td class="px-6 py-3 text-sm text-gray-800">{{ w.product_name or '—' }}</td>
+                        <td class="px-6 py-3 text-sm font-mono text-gray-800">{{ w.bag_name or '—' }}</td>
+                        <td class="px-6 py-3 text-sm">
+                            <div class="text-gray-800">{{ w.stage_label }}</div>
+                            <div class="text-xs text-gray-500 max-w-xs">{{ w.progress_summary }}</div>
+                        </td>
+                        <td class="px-6 py-3 text-sm">
+                            <div class="font-semibold text-gray-900">{{ w.latest_entry_display }}</div>
+                            <div class="text-xs text-gray-500 max-w-sm">{{ w.count_summary }}</div>
+                        </td>
+                        <td class="px-6 py-3 text-sm">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                                {{ w.submission_event_count }} event{{ '' if w.submission_event_count == 1 else 's' }}
+                            </span>
+                            {% if w.synced_row_count %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800 mt-1">{{ w.synced_row_count }} editable row{{ '' if w.synced_row_count == 1 else 's' }}</span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 mt-1">No editable row yet</span>
+                            {% endif %}
+                            {% if w.is_finalized %}<div class="text-xs text-green-700 mt-1">Finalized</div>{% endif %}
+                        </td>
+                        <td class="px-6 py-3 text-sm" onclick="event.stopPropagation();">
+                            {% if session.get('employee_role') in ['admin', 'manager'] or session.get('admin_authenticated') %}
+                            <form method="post"
+                                  action="{{ url_for('submissions.delete_workflow_bag', workflow_bag_id=w.id) }}"
                               onsubmit="return confirm('Delete workflow bag {{ w.id }} for testing? This removes its workflow timeline and unblocks re-using the same inventory bag.');"
                               class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -200,13 +207,86 @@
                             </button>
                         </form>
                         {% else %}
-                        <span class="text-gray-400">—</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                            <span class="text-gray-400">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr id="workflow-detail-{{ w.id }}" class="hidden bg-slate-50">
+                        <td colspan="7" class="px-6 py-5">
+                            <div class="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.8fr)]">
+                                <div class="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                                    <div class="px-4 py-3 border-b border-slate-200">
+                                        <div class="font-semibold text-slate-900">Workflow timeline</div>
+                                        <div class="text-xs text-slate-500">Every QR event for this bag, including pauses, resumes, stations, and entered counts.</div>
+                                    </div>
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-slate-200">
+                                            <thead class="bg-slate-50">
+                                                <tr>
+                                                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Time</th>
+                                                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Event</th>
+                                                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Pause / End</th>
+                                                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Station</th>
+                                                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Details</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-slate-100">
+                                                {% for ev in w.timeline_events %}
+                                                <tr>
+                                                    <td class="px-4 py-2 text-xs font-mono text-slate-600 whitespace-nowrap">{{ ev.occurred_display }}</td>
+                                                    <td class="px-4 py-2 text-sm text-slate-900">
+                                                        <div class="font-medium">{{ ev.label }}</div>
+                                                        <div class="text-xs text-slate-500">event #{{ ev.id }}</div>
+                                                    </td>
+                                                    <td class="px-4 py-2 text-sm text-slate-800">{{ ev.entry_kind }}</td>
+                                                    <td class="px-4 py-2 text-sm text-slate-800">{{ ev.station_display }}</td>
+                                                    <td class="px-4 py-2 text-sm text-slate-700">
+                                                        {% if ev.detail_parts %}
+                                                            {{ ev.detail_parts | join(', ') }}
+                                                        {% else %}
+                                                            <span class="text-slate-400">—</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                                    <div class="px-4 py-3 border-b border-slate-200">
+                                        <div class="font-semibold text-slate-900">Editable synced rows</div>
+                                        <div class="text-xs text-slate-500">These are the warehouse rows created from QR submissions. Editing one records a workflow correction.</div>
+                                    </div>
+                                    {% if w.synced_submission_rows %}
+                                    <div class="divide-y divide-slate-100">
+                                        {% for sr in w.synced_submission_rows %}
+                                        <div class="p-4">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div class="text-sm font-semibold text-slate-900">{{ sr.type_display }} row #{{ sr.id }}</div>
+                                                    <div class="text-xs font-mono text-slate-500">{{ sr.receipt_number }}</div>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <button type="button" class="text-xs py-1 px-2 rounded border border-cyan-200 text-cyan-700 hover:bg-cyan-50" data-view-submission-row="{{ sr.id }}">View</button>
+                                                    <button type="button" class="text-xs py-1 px-2 rounded border border-amber-200 text-amber-700 hover:bg-amber-50" data-edit-submission-row="{{ sr.id }}">Edit</button>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 text-sm text-slate-700">{{ sr.summary }}</div>
+                                            <div class="mt-1 text-xs text-slate-500">{{ sr.created_display }}{% if sr.employee_name %} · {{ sr.employee_name }}{% endif %}</div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <div class="p-4 text-sm text-slate-500">No warehouse mirror rows have been created for this workflow yet. The live QR timeline on the left is still the source of truth.</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         {% endif %}
     </div>
     {% if pagination.total_pages > 1 %}
@@ -1413,6 +1493,33 @@ function openReassignFromDetails(submissionId, poNumber, productName) {
 }
 
 document.addEventListener('click', function (event) {
+    const workflowToggle = event.target.closest('[data-workflow-toggle]');
+    if (workflowToggle) {
+        const id = workflowToggle.dataset.workflowToggle;
+        const detail = document.getElementById(`workflow-detail-${id}`);
+        const caret = document.querySelector(`[data-workflow-caret="${id}"]`);
+        if (detail) {
+            const opening = detail.classList.contains('hidden');
+            detail.classList.toggle('hidden');
+            if (caret) {
+                caret.textContent = opening ? '-' : '+';
+            }
+        }
+        return;
+    }
+
+    const viewSyncedRow = event.target.closest('[data-view-submission-row]');
+    if (viewSyncedRow) {
+        viewSubmissionDetails(parseInt(viewSyncedRow.dataset.viewSubmissionRow, 10));
+        return;
+    }
+
+    const editSyncedRow = event.target.closest('[data-edit-submission-row]');
+    if (editSyncedRow) {
+        openEditSubmissionModal(parseInt(editSyncedRow.dataset.editSubmissionRow, 10));
+        return;
+    }
+
     const closeReassignBtn = event.target.closest('[data-close-reassign-modal]');
     if (closeReassignBtn) {
         closeReassignModal();

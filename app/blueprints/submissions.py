@@ -32,7 +32,12 @@ from app.services.submissions_view_service import (
     append_submission_common_filters,
     append_submission_sort,
 )
-from app.services.workflow_read import display_stage_label, mechanical_bag_facts, progress_summary
+from app.services.workflow_read import (
+    display_stage_label,
+    mechanical_bag_facts,
+    progress_summary,
+    workflow_submission_details,
+)
 from app.services.workflow_txn import is_sqlite_busy_retryable, run_with_busy_retry
 from app.services.workflow_warehouse_bridge import delete_synced_warehouse_artifacts_for_workflow_bag
 from app.utils.auth_utils import role_required
@@ -155,44 +160,13 @@ def _workflow_submissions_page(conn):
             d["bag_name"] = _bag_display_name(conn, int(inv_id))
         else:
             d["bag_name"] = "—"
-        base_receipt = (d.get("receipt_number") or f"WORKFLOW-{bid}").strip()
-        sync = conn.execute(
-            """
-            SELECT
-                COUNT(*) AS row_count,
-                COALESCE(SUM(CASE WHEN COALESCE(submission_type, 'packaged') = 'machine' THEN calculated ELSE 0 END), 0) AS machine_total,
-                COALESCE(SUM(CASE WHEN COALESCE(submission_type, 'packaged') IN ('packaged', 'bottle', 'repack') THEN calculated ELSE 0 END), 0) AS output_total,
-                COALESCE(MAX(created_at), '') AS latest_sync_at
-            FROM (
-                SELECT ws.created_at, COALESCE(ws.submission_type, 'packaged') AS submission_type,
-                       CASE COALESCE(ws.submission_type, 'packaged')
-                         WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.packs_remaining, ws.loose_tablets, 0)
-                         WHEN 'bottle' THEN COALESCE(
-                            (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
-                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0),
-                            0
-                         )
-                         ELSE (
-                            COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)
-                            + COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)
-                            + COALESCE(ws.loose_tablets, 0)
-                         )
-                       END AS calculated
-                FROM warehouse_submissions ws
-                LEFT JOIN product_details pd ON pd.product_name = ws.product_name
-                WHERE ws.receipt_number = ?
-                   OR ws.receipt_number LIKE ?
-                   OR ws.receipt_number LIKE ?
-                   OR ws.receipt_number LIKE ?
-            )
-            """,
-            (base_receipt, base_receipt + "-pkg-e%", base_receipt + "-seal%", base_receipt + "-blister%"),
-        ).fetchone()
-        sd = dict(sync) if sync else {}
-        d["synced_row_count"] = int(sd.get("row_count") or 0)
-        d["machine_total"] = int(sd.get("machine_total") or 0)
-        d["output_total"] = int(sd.get("output_total") or 0)
-        d["latest_sync_at"] = sd.get("latest_sync_at") or None
+        details = workflow_submission_details(conn, bid, d.get("receipt_number"))
+        d["timeline_events"] = details["timeline_events"]
+        d["submission_event_count"] = details["submission_event_count"]
+        d["count_summary"] = details["count_summary"]
+        d["latest_entry_display"] = details["latest_entry_display"]
+        d["synced_submission_rows"] = details["synced_rows"]
+        d["synced_row_count"] = details["synced_row_count"]
         workflow_bags.append(d)
 
     tp = total_pages
