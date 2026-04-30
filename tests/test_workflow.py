@@ -430,6 +430,8 @@ class TestWorkflowCore(unittest.TestCase):
             "BLISTER_COMPLETE",
             {
                 "count_total": 22,
+                "reason": "material_change",
+                "pause_reason": "material_change",
                 "metadata": {
                     "paused": True,
                     "reason": "material_change",
@@ -443,6 +445,17 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertTrue(facts["resume_required"])
         self.assertEqual(facts["pause_details"]["reason"], "material_change")
         self.assertEqual(facts["pause_details"]["material_type"], "foil")
+        row = self.conn.execute(
+            """
+            SELECT json_extract(payload, '$.reason') AS reason,
+                   json_extract(payload, '$.pause_reason') AS pause_reason
+            FROM workflow_events
+            WHERE workflow_bag_id = ? AND event_type = 'BLISTER_COMPLETE'
+            """,
+            (bag_id,),
+        ).fetchone()
+        self.assertEqual(row["reason"], "material_change")
+        self.assertEqual(row["pause_reason"], "material_change")
 
         append_workflow_event(
             self.conn,

@@ -2095,6 +2095,8 @@
     await emitEvent('BLISTER_COMPLETE', {
       count_total: countTotal,
       employee_name: requiredEmployeeName(),
+      reason: 'material_change',
+      pause_reason: 'material_change',
       metadata: {
         paused: true,
         material_change: true,
