@@ -276,6 +276,13 @@ def _ensure_packaging_case_columns(conn: sqlite3.Connection) -> dict[str, bool]:
     return {"case_count": has_case_count, "loose_display_count": has_loose_display_count}
 
 
+def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    try:
+        return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    except sqlite3.OperationalError:
+        return set()
+
+
 def _display_count_from_packaging_payload(
     conn: sqlite3.Connection, workflow_bag_id: int, payload: dict[str, Any]
 ) -> int:
@@ -865,34 +872,23 @@ def upsert_bottle_from_workflow_packaging(
                 {"error": "Scan the variety source bag QR cards at hand pack before packaging."},
             )
         qmarks = ",".join("?" for _ in source_bag_ids)
-        try:
-            source_rows = conn.execute(
-                f"""
-                SELECT b.id, b.bag_number, b.bag_label_count, b.pill_count, b.tablet_type_id,
-                       sb.box_number, tt.tablet_type_name, COALESCE(b.po_id, r.po_id) AS po_id
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN receiving r ON sb.receiving_id = r.id
-                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE b.id IN ({qmarks})
-                  AND COALESCE(b.status, 'Available') != 'Closed'
-                """,
-                tuple(source_bag_ids),
-            ).fetchall()
-        except sqlite3.OperationalError:
-            source_rows = conn.execute(
-                f"""
-                SELECT b.id, b.bag_number, b.bag_label_count, NULL AS pill_count, b.tablet_type_id,
-                       sb.box_number, tt.tablet_type_name, COALESCE(b.po_id, r.po_id) AS po_id
-                FROM bags b
-                JOIN small_boxes sb ON b.small_box_id = sb.id
-                JOIN receiving r ON sb.receiving_id = r.id
-                LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
-                WHERE b.id IN ({qmarks})
-                  AND COALESCE(b.status, 'Available') != 'Closed'
-                """,
-                tuple(source_bag_ids),
-            ).fetchall()
+        bag_cols = _table_columns(conn, "bags")
+        pill_expr = "b.pill_count" if "pill_count" in bag_cols else "NULL"
+        po_expr = "COALESCE(b.po_id, r.po_id)" if "po_id" in bag_cols else "r.po_id"
+        status_filter = "COALESCE(b.status, 'Available') != 'Closed'" if "status" in bag_cols else "1=1"
+        source_rows = conn.execute(
+            f"""
+            SELECT b.id, b.bag_number, b.bag_label_count, {pill_expr} AS pill_count,
+                   b.tablet_type_id, sb.box_number, tt.tablet_type_name, {po_expr} AS po_id
+            FROM bags b
+            JOIN small_boxes sb ON b.small_box_id = sb.id
+            JOIN receiving r ON sb.receiving_id = r.id
+            LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
+            WHERE b.id IN ({qmarks})
+              AND {status_filter}
+            """,
+            tuple(source_bag_ids),
+        ).fetchall()
         source_by_flavor: dict[int, list[dict[str, Any]]] = {}
         for row in source_rows:
             b = dict(row)

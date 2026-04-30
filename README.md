@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.24.5** (expandable QR submissions timeline and editable synced rows)
+Current: **v4.24.9** (variety-pack workflow warehouse sync compatibility)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

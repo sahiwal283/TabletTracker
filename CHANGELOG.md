@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.9] - 2026-04-30
+
+### Fixed
+- **Variety-pack QR closeout:** Workflow bottle/variety packaging sync now handles schemas where `bags.po_id` is not present by using the receive PO, so packaging can submit final counts without the generic warehouse sync failure.
+
+---
+
 ## [4.24.5] - 2026-04-30
 
 ### Fixed

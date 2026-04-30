@@ -386,6 +386,99 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
         self.assertEqual(ws["submission_type"], "bottle")
         self.assertEqual(ws["bottles_made"], 21)
 
+    def test_variety_bottle_packaging_uses_receiving_po_when_bags_has_no_po_id(self):
+        path = tempfile.mkstemp(suffix=".db")[1]
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        schema = _MINIMAL_SCHEMA.replace(
+            "    status TEXT,\n    po_id INTEGER\n);",
+            "    status TEXT\n);",
+        )
+        conn.executescript(schema)
+        conn.execute("INSERT INTO tablet_types (tablet_type_name, inventory_item_id) VALUES ('T1', 'inv-x')")
+        t1 = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute("INSERT INTO tablet_types (tablet_type_name, inventory_item_id) VALUES ('T2', 'inv-y')")
+        t2 = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute("INSERT INTO purchase_orders (po_number, closed) VALUES ('PO1', 0)")
+        poid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO receiving (po_id, receive_name, received_date) VALUES (?, 'R', '2026-01-01')",
+            (poid,),
+        )
+        rid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute("INSERT INTO small_boxes (receiving_id, box_number) VALUES (?, 1)", (rid,))
+        sbid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status) VALUES (?, 1, 5000, ?, 'Available')",
+            (sbid, t1),
+        )
+        bag1 = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO bags (small_box_id, bag_number, bag_label_count, tablet_type_id, status) VALUES (?, 2, 5000, ?, 'Available')",
+            (sbid, t2),
+        )
+        bag2 = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            """
+            INSERT INTO product_details (
+                product_name, tablet_type_id, tablets_per_bottle, bottles_per_display,
+                is_variety_pack, variety_pack_contents
+            )
+            VALUES ('Variety Bottle', NULL, 0, 10, 1, ?)
+            """,
+            (
+                '[{"tablet_type_id": %d, "tablets_per_bottle": 2}, '
+                '{"tablet_type_id": %d, "tablets_per_bottle": 3}]' % (t1, t2),
+            ),
+        )
+        pid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO workflow_bags (created_at, product_id, receipt_number) VALUES (1700000000000, ?, 'VP-1')",
+            (pid,),
+        )
+        wid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            """
+            CREATE TABLE workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                workflow_bag_id INTEGER NOT NULL,
+                station_id INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, payload, occurred_at, workflow_bag_id, station_id)
+            VALUES (?, ?, 1700000000001, ?, 1)
+            """,
+            (
+                WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+                '{"source_inventory_bag_ids": [%d, %d], "count_total": 10}' % (bag1, bag2),
+                wid,
+            ),
+        )
+        conn.commit()
+        try:
+            result = upsert_bottle_from_workflow_packaging(
+                conn,
+                wid,
+                displays_made=1,
+                station_row={"id": 1},
+                employee_name="QR",
+            )
+            self.assertTrue(result.get("ok"))
+            self.assertEqual(result.get("assigned_po_id"), poid)
+            self.assertEqual(result.get("deduction_count"), 2)
+        finally:
+            conn.close()
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
     def test_per_event_packaging_appends_distinct_receipts(self):
         wid = self._wf_bag_id
         r1 = upsert_packaged_from_workflow_packaging(
