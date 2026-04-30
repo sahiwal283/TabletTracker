@@ -718,7 +718,9 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
                    COALESCE(m.cards_per_turn, 1) AS cards_per_turn,
                    COALESCE(ws.station_kind, 'sealing') AS station_kind
             FROM workflow_stations ws
-            LEFT JOIN machines m ON m.id = ws.machine_id
+            LEFT JOIN machines m
+              ON m.id = ws.machine_id
+             AND COALESCE(m.is_active, 1) = 1
             ORDER BY ws.station_kind, ws.id
             """
         ).fetchall()

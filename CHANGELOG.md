@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.23.1] - 2026-04-30
+
+### Fixed
+- **Command Center station tabs:** Card station no longer shows the operator performance panel, removed/unassigned machine settings no longer appear as station cards, and inactive machine assignments are ignored when building the command-center station map.
+- **Blister station analytics:** Replaced the single-machine status mix with a run/idle/pause time breakdown for today compared with the 7-day average.
+
+---
+
 ## [4.23.0] - 2026-04-30
 
 ### Added

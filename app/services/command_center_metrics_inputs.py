@@ -544,6 +544,100 @@ def gather_output_pace_averages(
     }
 
 
+def _station_event_pause_reason(event_type: str, payload: dict[str, Any]) -> str | None:
+    et = event_type.upper()
+    if et == "PACKAGING_SNAPSHOT":
+        return "end_of_day" if str(payload.get("reason") or "").strip() == "paused_end_of_day" else None
+    if et not in {
+        "BLISTER_COMPLETE",
+        "SEALING_COMPLETE",
+        "BOTTLE_HANDPACK_COMPLETE",
+        "BOTTLE_CAP_SEAL_COMPLETE",
+        "BOTTLE_STICKER_COMPLETE",
+    }:
+        return None
+    meta = payload.get("metadata") if isinstance(payload, dict) else None
+    meta = meta if isinstance(meta, dict) else {}
+    reason = str(meta.get("reason") or "").strip()
+    if reason == "material_change" and et == "BLISTER_COMPLETE":
+        return "material_change"
+    if meta.get("paused") or reason == "end_of_day":
+        return reason or "end_of_day"
+    return None
+
+
+def _station_runtime_breakdown(
+    rows: list[sqlite3.Row],
+    station_ids: set[int],
+    *,
+    day_start_ms: int,
+    now_ms: int,
+) -> dict[int, dict[str, Any]]:
+    one_day = 24 * 60 * 60_000
+    start_7d = day_start_ms - (7 * one_day)
+    end_ms = max(now_ms, day_start_ms)
+    out: dict[int, dict[str, Any]] = {}
+
+    for sid in station_ids:
+        station_rows = []
+        for r in rows:
+            try:
+                if int(r["station_id"]) != sid:
+                    continue
+                at_ms = int(r["at_ms"])
+            except (TypeError, ValueError):
+                continue
+            if start_7d <= at_ms <= end_ms:
+                station_rows.append(r)
+        station_rows.sort(key=lambda x: int(x["at_ms"] or 0))
+
+        day_minutes = {
+            idx: {"running": 0.0, "paused": 0.0, "idle": 0.0}
+            for idx in range(-7, 1)
+        }
+        state = "idle"
+        cursor = start_7d
+
+        def _add_span(span_start: int, span_end: int, state_name: str) -> None:
+            if span_end <= span_start:
+                return
+            pos = span_start
+            while pos < span_end:
+                idx = int((pos - day_start_ms) // one_day)
+                next_boundary = day_start_ms + (idx + 1) * one_day
+                piece_end = min(span_end, next_boundary)
+                if idx in day_minutes:
+                    day_minutes[idx][state_name] += max(0.0, (piece_end - pos) / 60000.0)
+                pos = piece_end
+
+        for r in station_rows:
+            at = int(r["at_ms"] or 0)
+            if at < cursor:
+                continue
+            _add_span(cursor, at, state)
+            et = str(r["event_type"] or "").upper()
+            payload = _payload_from_raw(r["payload"])
+            if et in _START_EVENTS:
+                state = "running"
+            elif et in _STATION_OUTPUT_EVENTS:
+                state = "paused" if _station_event_pause_reason(et, payload) else "idle"
+            cursor = at
+        _add_span(cursor, end_ms, state)
+
+        today = day_minutes[0]
+        prev = [day_minutes[idx] for idx in range(-7, 0)]
+        avg7 = {
+            key: round(sum(float(d[key]) for d in prev) / 7.0, 2)
+            for key in ("running", "paused", "idle")
+        }
+        out[sid] = {
+            "todayMinutes": {k: round(float(v), 2) for k, v in today.items()},
+            "avg7Minutes": avg7,
+            "sampleDays": 7,
+        }
+    return out
+
+
 def gather_station_analytics(
     conn: sqlite3.Connection,
     machines: list[dict],
@@ -614,6 +708,12 @@ def gather_station_analytics(
     durations_30d: dict[int, list[float]] = {sid: [] for sid in station_meta}
     events_today: dict[int, int] = {sid: 0 for sid in station_meta}
     starts: dict[tuple[int, int], tuple[int, str]] = {}
+    runtime_by_station = _station_runtime_breakdown(
+        rows,
+        set(station_meta.keys()),
+        day_start_ms=day_start_ms,
+        now_ms=now_ms,
+    )
 
     def _event_output(sid: int, event_type: str, payload: dict[str, Any]) -> float:
         meta = station_meta.get(sid) or {}
@@ -733,6 +833,12 @@ def gather_station_analytics(
             "avgDurationTodayMinutes": _avg(durations_today[sid]),
             "avgDuration7dMinutes": _avg(durations_7d[sid]),
             "avgDuration30dMinutes": _avg(durations_30d[sid]),
+            "runtime": runtime_by_station.get(sid)
+            or {
+                "todayMinutes": {"running": 0.0, "paused": 0.0, "idle": 0.0},
+                "avg7Minutes": {"running": 0.0, "paused": 0.0, "idle": 0.0},
+                "sampleDays": 0,
+            },
             "operatorRows": op_rows[:8],
             "eventCountToday": events_today[sid],
         }
@@ -828,7 +934,7 @@ def build_metrics_inputs_bundle(
 
     demo_mode = os.environ.get("MES_COMMAND_CENTER_DEMO_MODE", "").lower() in ("1", "true", "yes")
 
-    machines = list(machines or []) + gather_unmapped_machine_settings(conn, machines or [])
+    machines = list(machines or [])
     slots = build_slot_map(machines)
     blister_station_id = _first_blister_station_id(machines)
 

@@ -1358,7 +1358,8 @@ input {
 }
 
 .station-trend-panel,
-.station-hourly-panel {
+.station-hourly-panel,
+.station-runtime-panel {
   display: flex;
   flex-direction: column;
 }
@@ -1433,6 +1434,78 @@ input {
   border-radius: 3px 3px 0 0;
   background: linear-gradient(180deg, #6ea8ff, #1f8def);
   box-shadow: 0 0 16px rgba(34, 168, 255, 0.18);
+}
+
+.station-runtime-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.runtime-row {
+  display: grid;
+  grid-template-columns: 86px minmax(90px, 1fr) 62px minmax(90px, 1fr) 62px;
+  gap: 8px;
+  align-items: center;
+}
+
+.runtime-row b {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #dce9f8;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.runtime-row b i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.runtime-row span {
+  height: 12px;
+  border: 1px solid rgba(65, 121, 157, 0.45);
+  border-radius: 999px;
+  background: rgba(3, 13, 24, 0.82);
+  overflow: hidden;
+}
+
+.runtime-row em {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+}
+
+.runtime-row em.avg {
+  opacity: 0.55;
+}
+
+.runtime-row strong {
+  color: #f7fbff;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.runtime-key {
+  display: grid;
+  grid-template-columns: 86px 1fr 62px 1fr 62px;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.runtime-key span {
+  color: #9eb2c9;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.runtime-key span:first-child {
+  grid-column: 2 / 4;
 }
 
 .donut-wrap {
