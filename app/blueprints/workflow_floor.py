@@ -86,10 +86,15 @@ def _resolve_card(conn, card_token: str):
     ).fetchone()
 
 
-def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
-    """True if this event represents an end-of-day / paused handoff at the station."""
+def _pause_metadata(payload: dict) -> dict:
+    meta = payload.get("metadata") if isinstance(payload, dict) else None
+    return meta if isinstance(meta, dict) else {}
+
+
+def _pause_reason_for_event(event_type: str, payload: dict) -> str | None:
+    """Machine-readable pause reason, when this event pauses station occupancy."""
     if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
-        return (payload.get("reason") or "").strip() == "paused_end_of_day"
+        return "end_of_day" if (payload.get("reason") or "").strip() == "paused_end_of_day" else None
     if event_type in (
         WC.EVENT_BLISTER_COMPLETE,
         WC.EVENT_SEALING_COMPLETE,
@@ -97,12 +102,19 @@ def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
         WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
         WC.EVENT_BOTTLE_STICKER_COMPLETE,
     ):
-        meta = payload.get("metadata")
-        if isinstance(meta, dict):
-            if meta.get("paused") or meta.get("reason") == "end_of_day":
-                return True
-        return False
-    return False
+        meta = _pause_metadata(payload)
+        reason = str(meta.get("reason") or "").strip()
+        if reason == "material_change" and event_type == WC.EVENT_BLISTER_COMPLETE:
+            return "material_change"
+        if meta.get("paused") or reason == "end_of_day":
+            return reason or "end_of_day"
+        return None
+    return None
+
+
+def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
+    """True if this event represents a paused handoff at the station."""
+    return _pause_reason_for_event(event_type, payload) is not None
 
 
 def _occupancy_lane_finished_at_station(
@@ -213,6 +225,45 @@ def _station_pause_at_ms(
             else:
                 last_pause = None
     return last_pause
+
+
+def _station_pause_details(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
+) -> dict[str, str] | None:
+    """Details from the pause-style event that currently requires resume."""
+    if not _station_needs_resume(conn, workflow_bag_id, station_id):
+        return None
+    rows = conn.execute(
+        """
+        SELECT event_type, payload
+        FROM workflow_events
+        WHERE workflow_bag_id = ? AND station_id = ?
+        ORDER BY occurred_at ASC, id ASC
+        """,
+        (workflow_bag_id, station_id),
+    ).fetchall()
+    last: dict[str, str] | None = None
+    for row in rows:
+        et = row["event_type"]
+        try:
+            pl = json.loads(row["payload"]) if row["payload"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pl = {}
+        if not isinstance(pl, dict):
+            pl = {}
+        if et in (WC.EVENT_BAG_CLAIMED, WC.EVENT_STATION_RESUMED):
+            last = None
+            continue
+        reason = _pause_reason_for_event(et, pl)
+        if reason is None:
+            continue
+        meta = _pause_metadata(pl)
+        out = {"reason": reason}
+        material_type = str(meta.get("material_type") or "").strip().lower()
+        if material_type:
+            out["material_type"] = material_type
+        last = out
+    return last
 
 
 def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> bool:
@@ -378,6 +429,7 @@ def _station_facts_payload(
     station_claimed = _station_has_claimed_bag(conn, workflow_bag_id, station_id)
     station_needs_resume = _station_needs_resume(conn, workflow_bag_id, station_id)
     occupancy_started_at = _station_occupancy_started_at(conn, workflow_bag_id, station_id)
+    pause_details = _station_pause_details(conn, workflow_bag_id, station_id)
     return {
         "event_counts_by_type": facts["event_counts_by_type"],
         "latest_event_type": facts["latest_event_type"],
@@ -387,6 +439,7 @@ def _station_facts_payload(
         "claim_required": not station_claimed,
         "station_needs_resume": station_needs_resume,
         "resume_required": bool(station_claimed and station_needs_resume),
+        "pause_details": pause_details,
         "occupancy_started_at_ms": occupancy_started_at,
         "occupying_card_token": _assigned_card_token_for_bag(conn, workflow_bag_id),
         "bag_verification": floor_bag_verification(conn, workflow_bag_id),

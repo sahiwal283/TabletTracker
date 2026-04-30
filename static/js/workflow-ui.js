@@ -17,6 +17,7 @@
   let stationOccupancyGate = false;
   /** Server reports bag paused at this station (resume required). */
   let occupancyIsPaused = false;
+  let occupancyPauseDetails = null;
   /** Expected bag card scan_token for this station occupancy. */
   let expectedOccupantCardToken = null;
   /** Showing scan/input to verify card after Pause / End / Resume. */
@@ -232,6 +233,7 @@
     var inner = document.getElementById('wf-paused-bag-body');
     var src = document.getElementById('wf-bag-verification-body');
     var elapsed = document.getElementById('wf-paused-elapsed');
+    var copy = document.getElementById('wf-paused-copy');
     if (!ps || !elapsed) return;
     stopPausedUiTimer();
     if (inner && src) inner.innerHTML = src.innerHTML;
@@ -239,6 +241,17 @@
     if (aw) aw.classList.add('hidden');
     var ob = document.getElementById('wf-occupied-banner');
     if (ob) ob.classList.add('hidden');
+    if (copy) {
+      var reason = occupancyPauseDetails && occupancyPauseDetails.reason;
+      if (reason === 'material_change') {
+        var material = String((occupancyPauseDetails && occupancyPauseDetails.material_type) || '').toUpperCase();
+        copy.textContent = material
+          ? 'Material change saved for ' + material + '. Resume this bag after the machine is ready.'
+          : 'Material change saved. Resume this bag after the machine is ready.';
+      } else {
+        copy.textContent = 'Your pause counts are saved. Have a good evening — see you tomorrow.';
+      }
+    }
     stopOccupancyTimer();
     var startMs = Number(pausedScreenStartMs);
     if (!Number.isFinite(startMs) || startMs <= 0) {
@@ -727,6 +740,7 @@
       stationClaimed = !!data.facts.station_claimed;
     }
     stationNeedsResume = !!data.facts.resume_required;
+    occupancyPauseDetails = data.facts.pause_details || occupancyPauseDetails;
     renderBagVerification(data.facts);
     renderLoadedBagHeader(data.facts);
     renderOccupancyBanner(data.facts, data.workflow_bag_id);
@@ -1743,6 +1757,7 @@
     if (!occ || occ.status === 'idle') {
       stationHasOccupantApi = false;
       occupancyIsPaused = false;
+      occupancyPauseDetails = null;
       expectedOccupantCardToken = null;
       occupancyVerifyOpen = false;
       occupancyGateIntentEndRun = false;
@@ -1765,6 +1780,7 @@
         stationClaimed = !!occ.facts.station_claimed;
       }
       stationNeedsResume = !!occ.facts.resume_required;
+      occupancyPauseDetails = occ.facts.pause_details || null;
       renderBagVerification(occ.facts);
       if (occ.status === 'paused') {
         stopOccupancyTimer();
@@ -2080,6 +2096,7 @@
       count_total: countTotal,
       employee_name: requiredEmployeeName(),
       metadata: {
+        paused: true,
         material_change: true,
         reason: 'material_change',
         material_type: materialType,
@@ -2091,7 +2108,7 @@
     closeMaterialChangePanel();
     startCooldownAfterSuccess('materialChange');
     statusLine(
-      'Material change saved (' + materialType.toUpperCase() + '). Continue running this bag.',
+      'Material change saved (' + materialType.toUpperCase() + '). Station is paused until Resume.',
       'success'
     );
     showFullscreenSuccess('Material change saved.', undefined, function () {

@@ -405,6 +405,56 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertEqual(st, "ok")
         self.assertIsNone(_active_variety_parent_for_source_bag(self.conn, source_id))
 
+    def test_blister_material_change_requires_resume(self):
+        from app.blueprints.workflow_floor import _station_facts_payload
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="31",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "blister", "note": "claimed"},
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "BLISTER_COMPLETE",
+            {
+                "count_total": 22,
+                "metadata": {
+                    "paused": True,
+                    "reason": "material_change",
+                    "material_type": "foil",
+                },
+            },
+            bag_id,
+            station_id=1,
+        )
+        facts = _station_facts_payload(self.conn, bag_id, 1)
+        self.assertTrue(facts["resume_required"])
+        self.assertEqual(facts["pause_details"]["reason"], "material_change")
+        self.assertEqual(facts["pause_details"]["material_type"], "foil")
+
+        append_workflow_event(
+            self.conn,
+            "STATION_RESUMED",
+            {"station_id": 1, "station_kind": "blister", "note": "resumed"},
+            bag_id,
+            station_id=1,
+        )
+        facts = _station_facts_payload(self.conn, bag_id, 1)
+        self.assertFalse(facts["resume_required"])
+        self.assertIsNone(facts["pause_details"])
+
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card
