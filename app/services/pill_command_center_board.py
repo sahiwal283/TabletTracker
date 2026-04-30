@@ -15,6 +15,7 @@ from statistics import median
 from zoneinfo import ZoneInfo
 
 from app.services.command_center_metrics_inputs import (
+    final_packaging_snapshot_reasons_sql_in,
     ops_packaging_snapshot_reasons_sql_in,
     sql_packaging_equiv_displays,
 )
@@ -149,7 +150,7 @@ def _sum_tablets_blister_sealing(conn: sqlite3.Connection, start_ms: int, end_ms
 
 def _sum_tablets_packaging_final(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> float:
     """Displays finalized × tablets-per-display from linked product_details."""
-    rin = ops_packaging_snapshot_reasons_sql_in()
+    rin = final_packaging_snapshot_reasons_sql_in()
     eq = sql_packaging_equiv_displays()
     try:
         r = conn.execute(

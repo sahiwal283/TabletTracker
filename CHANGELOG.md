@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.2] - 2026-04-30
+
+### Fixed
+- **Command Center final displays:** Final display KPIs, recent-final-run selection, and finalized display rollups now count only `final_submit` packaging snapshots so pause/resume workflows do not double count paused counts after a bag is closed.
+
+---
+
 ## [4.25.1] - 2026-04-30
 
 ### Fixed

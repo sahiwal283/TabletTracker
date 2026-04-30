@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.1** (workflow machine resume closeout receipts)
+Current: **v4.25.2** (final display KPI excludes pause snapshots)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

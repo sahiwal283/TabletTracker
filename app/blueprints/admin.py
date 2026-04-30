@@ -39,6 +39,7 @@ from app.services.workflow_assign_form import (
     load_workflow_tablet_types,
 )
 from app.services.command_center_metrics_inputs import (
+    final_packaging_snapshot_reasons_sql_in,
     ops_packaging_snapshot_reasons_sql_in,
     sql_packaging_equiv_displays,
 )
@@ -423,9 +424,9 @@ def _ops_tv_daily_target_tablets(conn: sqlite3.Connection) -> int:
 
 
 def _displays_finalize_sum_range(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> float:
-    """Sum packaging displays for final submit + pause snapshots (cases×DPC+loose)."""
+    """Sum finalized packaging displays only (cases×DPC+loose)."""
     eq = sql_packaging_equiv_displays()
-    rin = ops_packaging_snapshot_reasons_sql_in()
+    rin = final_packaging_snapshot_reasons_sql_in()
     try:
         r = conn.execute(
             f"""

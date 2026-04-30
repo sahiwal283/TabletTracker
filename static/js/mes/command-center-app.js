@@ -1116,7 +1116,7 @@
     var topSkuCaseRows = (mes.sku_table || []).slice(0, 10).map(function (r) {
       return [r.sku || "N/A", r.line || r.product_type || "N/A", fmtNumber(r.cases != null ? r.cases : (r.case_count != null ? r.case_count : 0)), fmtNumber(r.bags), fmtNumber(r.cycles)];
     });
-    var finalPackagingEvents = (events || []).filter(isOpsPackagingOutputSnapshot).sort(function (a, b) {
+    var finalPackagingEvents = (events || []).filter(isFinalPackagingSnapshot).sort(function (a, b) {
       return (eventAt(b) || 0) - (eventAt(a) || 0);
     });
     var recentFinalEvent = finalPackagingEvents[0] || null;

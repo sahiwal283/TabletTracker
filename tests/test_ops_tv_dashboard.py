@@ -86,6 +86,15 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn("Math.min(100", source)
         self.assertIn("Insufficient data", source)
 
+    def test_final_displays_excludes_pause_snapshots(self):
+        metrics = Path("static/js/ops-metrics.js").read_text(encoding="utf-8")
+        self.assertIn("if (isFinalPackagingSnapshot(e))", metrics)
+        self.assertIn("PACKAGING_SNAPSHOT final_submit: case_count", metrics)
+        self.assertNotIn("final_submit or pause", metrics)
+
+        app_source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
+        self.assertIn("filter(isFinalPackagingSnapshot)", app_source)
+
     def test_unintegrated_machine_shows_not_integrated_and_na(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
         self.assertIn("NOT_INTEGRATED", source)

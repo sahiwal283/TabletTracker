@@ -408,7 +408,7 @@
       if ((String(e.eventType || "").toUpperCase() === "BAG_FINALIZED" || isFinalPackagingSnapshot(e)) && bid != null) {
         finalizedBagSet[String(bid)] = true;
       }
-      if (isOpsPackagingOutputSnapshot(e)) {
+      if (isFinalPackagingSnapshot(e)) {
         var dc = finalSubmitDisplayTotal(e, bagsById);
         displays += dc;
         if (dc > 0 && bid != null) {
@@ -469,7 +469,7 @@
     return {
       kpis: [
         { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
-        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit or pause: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [] },
+        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [] },
         { id: "cycles", value: Object.keys(flavorsWithDisplays).length, displayLabel: "Flavors Produced", formulaNote: "Flavor/display breakdown shown below" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
