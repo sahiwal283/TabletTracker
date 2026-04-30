@@ -56,7 +56,7 @@
       </select>
       <div class="flex flex-col gap-1">
         <input id="cards" class="form-input" type="number" min="1" value="1" placeholder="Cards/turn" />
-        <p id="cards-help" class="text-xs text-gray-500">Cards per turn</p>
+        <p id="cards-help" class="text-xs text-gray-500">Cards per press</p>
       </div>
       <input id="area" class="form-input" placeholder="Area (e.g. Post-Blister)" />
       <input id="category" class="form-input" placeholder="Category (Primary/Secondary)" />
@@ -146,7 +146,7 @@
     if (r === 'bottle') return 'bottles/cycle';
     if (r === 'packaging') return 'displays/cycle';
     if (r === 'stickering') return 'units/cycle';
-    return 'cards/turn';
+    return 'cards/press';
   }
 
   function refreshCardsFieldCopy() {
@@ -161,7 +161,7 @@
       bottle: ['Bottles per cycle', 'Bottle units completed per cycle'],
       packaging: ['Displays per cycle', 'Display cartons completed per packaging cycle'],
       stickering: ['Units per cycle', 'Stickered units completed per cycle'],
-      sealing: ['Cards per turn', 'Cards sealed per heat-press turn'],
+      sealing: ['Cards per press', 'Cards sealed per press'],
     };
     const copy = labels[role] || labels.sealing;
     cardsEl.placeholder = copy[0];

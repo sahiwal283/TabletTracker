@@ -13,6 +13,7 @@ from app.services.repack_allocation_service import (
 )
 from app.services.packaged_submission_display import normalize_packaged_case_fields_for_ui
 from app.services.submission_calculator import calculate_repack_output_good
+from app.services.submission_semantics import add_submission_semantic_aliases
 from app.services import workflow_constants as WC
 from app.services.workflow_submission_corrections import (
     apply_qr_submission_correction,
@@ -311,7 +312,7 @@ def get_submission_details(submission_id):
 
             # Calculate based on submission type
             if submission_type == 'machine':
-                # Blister: one operator count (displays_made); never turns × cards × tablets.
+                # Blister: one operator count (displays_made); never presses × cards × tablets.
                 if machine_role_norm == 'blister':
                     bc = submission_dict.get('displays_made', 0) or 0
                     tpp = int(tablets_per_package or 0)
@@ -381,6 +382,8 @@ def get_submission_details(submission_id):
                     submission_dict['case_count'] = None
                     submission_dict['loose_display_count'] = int(displays_made or 0)
                     submission_dict['cases_made_total'] = None
+
+            add_submission_semantic_aliases(submission_dict)
 
             # Repack rows store allocated bag_id but INSERT leaves box_number/bag_number NULL on the row.
             # Hydrate from bags/small_boxes so receive_name and bag running totals match the physical bag.
@@ -461,9 +464,9 @@ def get_submission_details(submission_id):
                                                    bag_sub_dict.get('tablets_per_package') or 0)
                         machine_role = (bag_sub_dict.get('machine_role') or 'sealing').strip().lower()
                         if machine_role == 'blister':
-                            cuts = bag_sub_dict.get('displays_made', 0) or 0
+                            presses = bag_sub_dict.get('displays_made', 0) or 0
                             tpp = int(bag_tablets_per_package or 0)
-                            blisters_made = cuts * BLISTER_BLISTERS_PER_CUT
+                            blisters_made = presses * BLISTER_BLISTERS_PER_CUT
                             individual_total = (
                                 blisters_made * tpp
                                 if tpp
@@ -1787,8 +1790,9 @@ def get_po_submissions(po_id):
                 if submission_type == 'machine':
                     role = (sub_dict.get('machine_role') or 'sealing').strip().lower()
                     if role == 'blister':
-                        cuts = sub_dict.get('displays_made', 0) or 0
-                        sub_dict['blisters_made'] = cuts * BLISTER_BLISTERS_PER_CUT
+                        presses = sub_dict.get('displays_made', 0) or 0
+                        sub_dict['press_count'] = presses
+                        sub_dict['blisters_made'] = presses * BLISTER_BLISTERS_PER_CUT
                         sub_dict['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
                         tpp = int(sub_dict.get('tablets_per_package') or 0)
                         computed = sub_dict['blisters_made'] * tpp if tpp else 0
@@ -1858,6 +1862,7 @@ def get_po_submissions(po_id):
                     sub_dict['cumulative_bag_tablets'] = total_tablets
                     sub_dict['count_status'] = None
 
+                add_submission_semantic_aliases(sub_dict)
                 submissions.append(sub_dict)
 
             # Reverse to show newest first in modal

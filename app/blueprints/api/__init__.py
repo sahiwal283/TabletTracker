@@ -6,7 +6,7 @@ from flask import Blueprint
 
 bp = Blueprint("api", __name__)
 
-# Blister machine: each counter increment (cut) produces this many blister units (display: blisters_made = cuts × this).
+# Blister machine: each press produces this many blister units (display: blisters_made = presses × this).
 BLISTER_BLISTERS_PER_CUT = 2
 
 from . import (

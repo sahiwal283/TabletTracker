@@ -100,7 +100,7 @@ def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
 
     # Physical/counter unit accumulators (card flow: 1 machine blister = 1 sealed card in normal flow)
     blisters_from_blister_counter = 0
-    # Sealing: sum packs_remaining on sealing rows (same field the floor uses for "cards" / turns result)
+    # Sealing: sum packs_remaining on sealing rows (same field the floor uses for cards from presses)
     cards_from_sealing_counter = 0
     # Packaged: full displays + partial packs as cards; repack uses same (no loose in repack "good" cards)
     cards_in_packaged_output = 0
@@ -131,9 +131,9 @@ def compute_bag_check_totals(conn, bag_id: int) -> dict[str, Any]:
             if machine_role == 'blister':
                 if primary_blister_machine_id is None and bag_sub_dict.get('machine_id'):
                     primary_blister_machine_id = int(bag_sub_dict['machine_id'])
-                cuts = bag_sub_dict.get('displays_made', 0) or 0
+                presses = bag_sub_dict.get('displays_made', 0) or 0
                 tpp = int(bag_tablets_per_package or 0)
-                blisters_made = cuts * BLISTER_BLISTERS_PER_CUT
+                blisters_made = presses * BLISTER_BLISTERS_PER_CUT
                 blisters_from_blister_counter += blisters_made
                 individual_total = blisters_made * tpp if tpp else (bag_sub_dict.get('tablets_pressed_into_cards') or 0)
                 machine_blister_tablets_total += individual_total

@@ -66,11 +66,11 @@ def manage_cards_per_turn():
                     conn.execute('''
                         INSERT INTO app_settings (setting_key, setting_value, description)
                         VALUES (?, ?, ?)
-                    ''', ('cards_per_turn', str(cards_per_turn), 'Number of cards produced in one turn of the machine'))
+                    ''', ('cards_per_turn', str(cards_per_turn), 'Number of cards produced in one press of the machine'))
 
                 return jsonify({
                     'success': True,
-                    'message': f'Cards per turn updated to {cards_per_turn}'
+                    'message': f'Cards per press updated to {cards_per_turn}'
                 })
     except Exception as e:
         current_app.logger.error(f"Error managing cards_per_turn: {str(e)}")

@@ -688,7 +688,7 @@
                 '<div><em>Runs</em><b>' + fmt(row.submissions || 0) + '</b></div>' +
                 '<div><em>Rate</em><b>' + escapeHtml(dph) + '</b></div>' +
                 '<div><em>Cycle</em><b>' + escapeHtml(avg) + '</b></div>' +
-                '<div><em>Damaged</em><b>' + fmt(row.ripped_cards || 0) + '</b></div>' +
+                '<div><em>Ripped cards</em><b>' + fmt(row.ripped_cards || 0) + '</b></div>' +
                 '</div>';
         }
         function fill(host, rows, empty, showOperators) {

@@ -2153,7 +2153,7 @@
       await emitEvent('PACKAGING_SNAPSHOT', {
         case_count: selectedPackagingCaseCount(),
         display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
-        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
+        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Single cards / bottles remaining'),
         cards_reopened: selectedCardsReopenedCount(),
         reason: 'paused_end_of_day',
         employee_name: requiredEmployeeName(),
@@ -2245,7 +2245,7 @@
       await emitEvent('PACKAGING_SNAPSHOT', {
         case_count: selectedPackagingCaseCount(),
         display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
-        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
+        packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Single cards / bottles remaining'),
         cards_reopened: selectedCardsReopenedCount(),
         reason: 'out_of_packaging',
         employee_name: requiredEmployeeName(),
@@ -2350,7 +2350,7 @@
     await emitEvent('PACKAGING_SNAPSHOT', {
       case_count: selectedPackagingCaseCount(),
       display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
-      packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
+      packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Single cards / bottles remaining'),
       cards_reopened: selectedCardsReopenedCount(),
       reason: 'final_submit',
       employee_name: requiredEmployeeName(),

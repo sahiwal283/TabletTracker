@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.0] - 2026-04-30
+
+### Added
+- **Submission count semantics:** API responses now expose explicit aliases for overloaded warehouse columns, including `total_displays_made`, `cards_remaining`, `bottles_remaining`, `singles_remaining`, `press_count`, and `bag_count_tablets`.
+
+### Changed
+- **Packaging display math:** Command Center and ops metrics now use derived case/display totals (`case_count × displays_per_case + loose_display_count`) instead of reading packaging `display_count` as total displays when case fields are present.
+- **Machine language:** Card-line machine counts now display as **Presses** and cards-per-output copy now says **cards per press**. Bottle sealing remains a generic sealing machine counter because its increment semantics are device-specific.
+- **Packaging labels:** Card and bottle packaging labels now consistently refer to cases, displays, and single cards/bottles remaining. Packaging loss copy now says **Ripped cards** / **Cards reopened** instead of damages.
+
+### Fixed
+- **Workflow timeline clarity:** Packaging event summaries now show case count plus loose displays for case-based payloads, avoiding the old impression that `display_count` was total displays.
+
+---
+
 ## [4.24.11] - 2026-04-30
 
 ### Fixed

@@ -430,7 +430,7 @@ def execute_machine_submission(conn, data, employee_name: str, entries: list) ->
         cards_per_turn = cards_per_turn_for(machine_id)
         machine_role = _machine_role_for_id(conn, machine_id)
         if machine_role == 'blister':
-            # Blister: cuts × blisters/cut × tablets per blister (product tablets_per_package).
+            # Blister: presses × blisters/press × tablets per blister (product tablets_per_package).
             blisters_made = machine_count_int * BLISTER_BLISTERS_PER_CUT
             tablets_pressed_into_cards = blisters_made * tablets_per_package
             cards_made = 0

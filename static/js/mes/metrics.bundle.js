@@ -43,8 +43,9 @@
         acc += e.countTotal;
         any = true;
       }
-      if (e.displayCount != null && e.displayCount > 0) {
-        acc += e.displayCount;
+      var displayTotal = e.totalDisplayCount != null ? e.totalDisplayCount : e.displayCount;
+      if (displayTotal != null && displayTotal > 0) {
+        acc += displayTotal;
         any = true;
       }
     }
@@ -57,7 +58,7 @@
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
       if (e.eventType === "CARD_REJECT" || e.eventType === "CARD_FORCE_RELEASED") rejects += 1;
-      var u = e.countTotal != null ? e.countTotal : e.displayCount != null ? e.displayCount : null;
+      var u = e.countTotal != null ? e.countTotal : e.totalDisplayCount != null ? e.totalDisplayCount : e.displayCount != null ? e.displayCount : null;
       if (u != null && u > 0) total += u;
     }
     if (total <= 0) return { qualityPct: null, rejectRate: null };
@@ -476,6 +477,7 @@
             " → " +
             String(row.counterEnd != null ? row.counterEnd : "—");
         else if (row.countTotal != null) ctr = String(row.countTotal);
+        else if (row.totalDisplayCount != null) ctr = "disp " + row.totalDisplayCount;
         else if (row.displayCount != null) ctr = "disp " + row.displayCount;
       }
       traceLines.push({

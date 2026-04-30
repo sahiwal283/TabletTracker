@@ -14,7 +14,10 @@ from datetime import timedelta
 from statistics import median
 from zoneinfo import ZoneInfo
 
-from app.services.command_center_metrics_inputs import ops_packaging_snapshot_reasons_sql_in
+from app.services.command_center_metrics_inputs import (
+    ops_packaging_snapshot_reasons_sql_in,
+    sql_packaging_equiv_displays,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,11 +150,12 @@ def _sum_tablets_blister_sealing(conn: sqlite3.Connection, start_ms: int, end_ms
 def _sum_tablets_packaging_final(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> float:
     """Displays finalized × tablets-per-display from linked product_details."""
     rin = ops_packaging_snapshot_reasons_sql_in()
+    eq = sql_packaging_equiv_displays()
     try:
         r = conn.execute(
             f"""
             SELECT COALESCE(SUM(
-              CAST(json_extract(we.payload, '$.display_count') AS REAL) *
+              ({eq}) *
               COALESCE(CAST(pd.tablets_per_package AS REAL), 0) *
               COALESCE(CAST(pd.packages_per_display AS REAL), 1)
             ), 0) AS v
@@ -161,7 +165,6 @@ def _sum_tablets_packaging_final(conn: sqlite3.Connection, start_ms: int, end_ms
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.event_type = 'PACKAGING_SNAPSHOT'
               AND json_extract(we.payload, '$.reason') IN ({rin})
-              AND json_extract(we.payload, '$.display_count') IS NOT NULL
             """,
             (start_ms, end_ms),
         ).fetchone()

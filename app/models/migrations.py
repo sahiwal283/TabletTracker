@@ -196,7 +196,7 @@ class MigrationRunner:
         self._add_column_if_not_exists('warehouse_submissions', 'machine_id', 'INTEGER REFERENCES machines(id)')
 
         # Add tablets_pressed_into_cards column for machine submissions
-        # This properly stores the total tablets pressed into cards (turns × cards_per_turn × tablets_per_package)
+        # This properly stores the total tablets pressed into cards (presses × cards_per_turn × tablets_per_package)
         # Previously stored in loose_tablets which was misleading for machine submissions
         if not self._column_exists('warehouse_submissions', 'tablets_pressed_into_cards'):
             try:

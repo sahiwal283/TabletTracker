@@ -18,6 +18,7 @@ export interface WorkflowEventRow {
   operatorLabel: string | null;
   countTotal: number | null;
   displayCount: number | null;
+  totalDisplayCount?: number | null;
   counterStart: number | null;
   counterEnd: number | null;
 }
@@ -203,8 +204,9 @@ function sumCounterDeltas(events: WorkflowEventRow[]): number | null {
       acc += e.countTotal;
       any = true;
     }
-    if (e.displayCount != null && e.displayCount > 0) {
-      acc += e.displayCount;
+    const displayTotal = e.totalDisplayCount ?? e.displayCount;
+    if (displayTotal != null && displayTotal > 0) {
+      acc += displayTotal;
       any = true;
     }
   }
@@ -232,7 +234,9 @@ function completedCycleMinutes(events: WorkflowEventRow[]): number[] {
     xs.sort((a, b) => a.atMs - b.atMs);
     const claim = xs.find((e) => e.eventType === "BAG_CLAIMED");
     const fin = xs.find(
-      (e) => e.eventType === "BAG_FINALIZED" || (e.eventType === "PACKAGING_SNAPSHOT" && e.displayCount != null),
+      (e) =>
+        e.eventType === "BAG_FINALIZED" ||
+        (e.eventType === "PACKAGING_SNAPSHOT" && (e.totalDisplayCount != null || e.displayCount != null)),
     );
     if (claim && fin && fin.atMs > claim.atMs) {
       out.push((fin.atMs - claim.atMs) / 60000);
@@ -395,7 +399,7 @@ function rejectStats(events: WorkflowEventRow[]): { rejectUnits: number; totalAp
   let totalApprox = 0;
   for (const e of events) {
     if (e.eventType === "CARD_REJECT" || e.eventType === "CARD_FORCE_RELEASED") rejects += 1;
-    const u = e.countTotal ?? e.displayCount ?? null;
+    const u = e.countTotal ?? e.totalDisplayCount ?? e.displayCount ?? null;
     if (u != null && u > 0) totalApprox += u;
   }
   if (totalApprox <= 0) return { rejectUnits: rejects, totalApprox: 0, qualityPct: null };
@@ -642,6 +646,7 @@ export function deriveBagGenealogy(bagId: number, eventsAll: WorkflowEventRow[],
       if (row.counterStart != null || row.counterEnd != null)
         ctr = `${row.counterStart ?? "—"} → ${row.counterEnd ?? "—"}`;
       else if (row.countTotal != null) ctr = String(row.countTotal);
+      else if (row.totalDisplayCount != null) ctr = `disp ${row.totalDisplayCount}`;
       else if (row.displayCount != null) ctr = `disp ${row.displayCount}`;
     }
     return {

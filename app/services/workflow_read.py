@@ -327,6 +327,7 @@ def _event_entry_kind(event_type: str, payload: dict[str, Any]) -> str:
 
 def _payload_detail_parts(payload: dict[str, Any]) -> list[str]:
     parts: list[str] = []
+    has_case_breakdown = "case_count" in payload or "loose_display_count" in payload
     labels = (
         ("count_total", "count"),
         ("display_count", "displays"),
@@ -340,6 +341,8 @@ def _payload_detail_parts(payload: dict[str, Any]) -> list[str]:
         ("displays_taken", "displays taken"),
     )
     for key, label in labels:
+        if key == "display_count" and has_case_breakdown:
+            continue
         val = payload.get(key)
         if val is not None and str(val).strip() != "":
             parts.append(f"{label}: {val}")
@@ -361,6 +364,12 @@ def _payload_detail_parts(payload: dict[str, Any]) -> list[str]:
 
 def _event_count_summary(event_type: str, payload: dict[str, Any]) -> str | None:
     if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
+        if "case_count" in payload or "loose_display_count" in payload:
+            cases = payload.get("case_count", 0)
+            loose = payload.get("loose_display_count", payload.get("display_count", 0))
+            reason = str(payload.get("reason") or "").replace("_", " ")
+            suffix = f" ({reason})" if reason else ""
+            return f"pkg {cases} cases + {loose} loose displays{suffix}"
         displays = payload.get("display_count")
         if displays is not None:
             reason = str(payload.get("reason") or "").replace("_", " ")

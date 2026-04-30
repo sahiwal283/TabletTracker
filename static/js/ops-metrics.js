@@ -50,7 +50,10 @@
   }
 
   function displayCount(ev) {
-    var n = asNum(ev && (ev.displayCount != null ? ev.displayCount : ev.countTotal));
+    var n = asNum(ev && (
+      ev.totalDisplayCount != null ? ev.totalDisplayCount :
+      ev.displayCount != null ? ev.displayCount : ev.countTotal
+    ));
     return n != null && n >= 0 ? n : 0;
   }
 
@@ -471,7 +474,7 @@
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
         { id: "on_time", value: shiftConfig && shiftConfig.productionDueMs ? (completeTotal ? clamp((onTimeTotal / completeTotal) * 100, 0, 100).toFixed(1) + "%" : "Insufficient data") : "No target set", displayLabel: "On-Time Completion" },
-        { id: "rework", value: hasRejectData ? rejectTotal : "No reject data", displayLabel: "Packaging Damages" },
+        { id: "rework", value: hasRejectData ? rejectTotal : "No reject data", displayLabel: "Ripped Cards" },
       ],
       machines: machineMetrics,
       queues: q,

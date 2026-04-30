@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.24.9** (variety-pack workflow warehouse sync compatibility)
+Current: **v4.25.0** (clear count semantics for packaging, machines, and reporting)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

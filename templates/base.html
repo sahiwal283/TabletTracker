@@ -616,7 +616,7 @@ function closeAdminNotesModal(event) {
     }
 }
 
-// Keep machine submission cards/tablets in sync (edit modal): sealing = turns × CPT; blister = cuts × 2 × tablets/blister
+// Keep machine submission cards/tablets in sync (edit modal): sealing = presses × CPT; blister = presses × 2 × tablets/blister
 function wireEditMachineDerivedSync() {
     const sel = document.getElementById('edit-machine-id');
     const cnt = document.getElementById('edit-machine-count');
@@ -1156,15 +1156,15 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
             const tabLabel = document.getElementById('edit-tablets-pressed-label');
             const tabHint = document.getElementById('edit-machine-tablets-hint');
             if (isBlisterEdit) {
-                if (recHint) recHint.textContent = 'Blister: total tablets = cuts × 2 blisters/cut × tablets per blister (from product).';
-                if (countHint) countHint.textContent = 'Blister machine counter (cuts)';
+                if (recHint) recHint.textContent = 'Blister: total tablets = presses × 2 blisters/press × tablets per blister (from product).';
+                if (countHint) countHint.textContent = 'Blister machine presses';
                 if (tabLabel) tabLabel.textContent = 'Total tablets (blister)';
-                if (tabHint) tabHint.textContent = 'Read-only: cuts × 2 × tablets per blister; server saves this total.';
+                if (tabHint) tabHint.textContent = 'Read-only: presses × 2 × tablets per blister; server saves this total.';
             } else {
-                if (recHint) recHint.textContent = 'Changing machine recalculates cards and total tablets as turns × this machine\'s cards per turn.';
-                if (countHint) countHint.textContent = 'The counter number from the machine';
+                if (recHint) recHint.textContent = 'Changing machine recalculates cards and total tablets as presses × this machine\'s cards per press.';
+                if (countHint) countHint.textContent = 'Number of machine presses';
                 if (tabLabel) tabLabel.textContent = 'Total Tablets Pressed';
-                if (tabHint) tabHint.textContent = 'Read-only: turns × selected machine\'s cards per turn (saved totals use this)';
+                if (tabHint) tabHint.textContent = 'Read-only: presses × selected machine\'s cards per press (saved totals use this)';
             }
             if (editTablets) {
                 if (isBlisterEdit) {
@@ -2423,19 +2423,19 @@ async function convertToTwoLevelDropdown(selectElement) {
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Loading machines…</option>
                         </select>
-                        <p id="edit-machine-recompute-hint" class="text-xs text-gray-500 mt-1">Changing machine recalculates cards and total tablets as turns × this machine&rsquo;s cards per turn.</p>
+                        <p id="edit-machine-recompute-hint" class="text-xs text-gray-500 mt-1">Changing machine recalculates cards and total tablets as presses × this machine&rsquo;s cards per press.</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Machine Counter Reading</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Machine Presses</label>
                         <input type="number" id="edit-machine-count" min="0" 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p id="edit-machine-count-hint" class="text-xs text-gray-500 mt-1">The counter number from the machine</p>
+                        <p id="edit-machine-count-hint" class="text-xs text-gray-500 mt-1">Number of machine presses</p>
                     </div>
                     <div>
                         <label id="edit-tablets-pressed-label" class="block text-sm font-medium text-gray-700 mb-1">Total Tablets Pressed</label>
                         <input type="number" id="edit-tablets-pressed" min="0" readonly
                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
-                        <p id="edit-machine-tablets-hint" class="text-xs text-gray-500 mt-1">Read-only: turns × selected machine&rsquo;s cards per turn (saved totals use this)</p>
+                        <p id="edit-machine-tablets-hint" class="text-xs text-gray-500 mt-1">Read-only: presses × selected machine&rsquo;s cards per press (saved totals use this)</p>
                     </div>
                 </div>
 
@@ -2443,12 +2443,12 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <div id="bottle-fields" class="hidden space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Displays Made</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Full displays made</label>
                             <input type="number" id="edit-bottle-displays" min="0" 
                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Single Bottles Remaining</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Single bottles remaining</label>
                             <input type="number" id="edit-bottle-remaining" min="0" 
                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
                         </div>
@@ -2466,12 +2466,12 @@ async function convertToTwoLevelDropdown(selectElement) {
                 <div id="edit-packaging-count-fields" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Displays Made</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Displays made</label>
                         <input type="number" id="edit-displays" min="0" 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Cards Remaining</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Single cards remaining</label>
                         <input type="number" id="edit-packs" min="0" 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
@@ -2481,7 +2481,7 @@ async function convertToTwoLevelDropdown(selectElement) {
                     <label class="block text-sm font-medium text-gray-700 mb-1">Machine count (optional)</label>
                     <input type="number" id="edit-repack-machine-count" min="0" step="1"
                            class="w-full px-3 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400">
-                    <p class="text-xs text-gray-500 mt-1">Machine counter / turns for this repack — for operational tracking only; not added to PO good totals.</p>
+                    <p class="text-xs text-gray-500 mt-1">Machine counter for this repack — for operational tracking only; not added to PO good totals.</p>
                 </div>
                 
                 <div id="edit-packaging-loose-damaged-block" class="grid grid-cols-2 gap-4">
@@ -3212,8 +3212,8 @@ function isBlisterMachineSubmission(sub) {
 function blisterBlistersMadeFromSubmission(sub) {
     if (!sub) return 0;
     if (sub.blisters_made != null && sub.blisters_made !== '') return Number(sub.blisters_made);
-    const cuts = Number(sub.displays_made) || 0;
-    return cuts * BLISTER_BLISTERS_PER_CUT;
+    const presses = Number(sub.press_count ?? sub.displays_made) || 0;
+    return presses * BLISTER_BLISTERS_PER_CUT;
 }
 
 // Global submission details modal functions (available on all pages)
@@ -3473,17 +3473,17 @@ async function viewSubmissionDetails(submissionId) {
                         <div>
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Counts</h4>
                             ${sub.submission_type === 'machine' ? (isBlisterMachine ? `
-                            <!-- Blister machine: cuts (counter), blisters made = cuts × ${BLISTER_BLISTERS_PER_CUT} -->
+                            <!-- Blister machine: presses, blisters made = presses × ${BLISTER_BLISTERS_PER_CUT} -->
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div class="rounded-xl p-4 border border-sky-200 bg-sky-50">
-                                    <label class="text-xs text-gray-500 uppercase">Cuts</label>
-                                    <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${(sub.blister_machine_count != null ? sub.blister_machine_count : sub.displays_made) || 0}</div>
-                                    <div class="text-xs text-gray-500 mt-1">Machine counter (one count per cut)</div>
+                                    <label class="text-xs text-gray-500 uppercase">Presses</label>
+                                    <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${(sub.press_count != null ? sub.press_count : (sub.blister_machine_count != null ? sub.blister_machine_count : sub.displays_made)) || 0}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Machine counter (one count per press)</div>
                                 </div>
                                 <div class="rounded-xl p-4 border border-teal-200 bg-teal-50">
                                     <label class="text-xs text-gray-500 uppercase">Blisters made</label>
                                     <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${(sub.blisters_made != null && sub.blisters_made !== '') ? Number(sub.blisters_made) : blisterBlistersMadeFromSubmission(sub)}</div>
-                                    <div class="text-xs text-gray-500 mt-1">Cuts × ${sub.blisters_per_cut != null ? sub.blisters_per_cut : BLISTER_BLISTERS_PER_CUT} blisters per cut</div>
+                                    <div class="text-xs text-gray-500 mt-1">Presses × ${sub.blisters_per_cut != null ? sub.blisters_per_cut : BLISTER_BLISTERS_PER_CUT} blisters per press</div>
                                 </div>
                                 <div class="rounded-xl p-4 border border-slate-200 bg-slate-50">
                                     <label class="text-xs text-gray-500 uppercase">Total tablets</label>
@@ -3502,7 +3502,7 @@ async function viewSubmissionDetails(submissionId) {
                                 <div class="rounded-xl p-4 border border-violet-200 bg-violet-50">
                                     <label class="text-xs text-gray-500 uppercase">Cards Sealed</label>
                                     <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${sub.cards_made || sub.packs_remaining || 0}</div>
-                                    <div class="text-xs text-gray-500 mt-1">Presses × Cards Per Turn</div>
+                                    <div class="text-xs text-gray-500 mt-1">Presses × cards per press</div>
                                 </div>
                                 <div class="rounded-xl p-4 border border-slate-200 bg-slate-50">
                                     <label class="text-xs text-gray-500 uppercase">Total Tablets</label>
@@ -3515,13 +3515,13 @@ async function viewSubmissionDetails(submissionId) {
                                     <span class="font-medium text-gray-800">Machine:</span>
                                     <span>${sub.machine_name || 'Not specified'}</span>
                                     <span class="text-gray-300" aria-hidden="true">|</span>
-                                    <span class="font-medium text-gray-800">Cards per turn:</span>
+                                    <span class="font-medium text-gray-800">Cards per press:</span>
                                     <span class="tabular-nums">${(() => {
                                         if (sub.cards_per_turn) return sub.cards_per_turn;
-                                        const turns = sub.displays_made || 0;
+                                        const presses = sub.press_count ?? sub.displays_made ?? 0;
                                         const cards = sub.cards_made || sub.packs_remaining || 0;
-                                        if (turns > 0 && cards > 0) {
-                                            return Math.round(cards / turns);
+                                        if (presses > 0 && cards > 0) {
+                                            return Math.round(cards / presses);
                                         }
                                         return 'N/A';
                                     })()}</span>
@@ -3552,11 +3552,11 @@ async function viewSubmissionDetails(submissionId) {
                             <!-- Bottle Submission -->
                             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                                 <div class="bg-amber-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Displays Made</label>
+                                    <label class="text-xs text-gray-500 uppercase">Full displays made</label>
                                     <div class="mt-1 text-2xl font-bold text-amber-600">${sub.displays_made || 0}</div>
                                 </div>
                                 <div class="bg-amber-50 rounded-lg p-4">
-                                    <label class="text-xs text-gray-500 uppercase">Single Bottles Remaining</label>
+                                    <label class="text-xs text-gray-500 uppercase">Single bottles remaining</label>
                                     <div class="mt-1 text-2xl font-bold text-amber-600">${(sub.bottles_remaining ?? sub.packs_remaining ?? 0)}</div>
                                 </div>
                                 <div class="bg-amber-50 rounded-lg p-4">
@@ -3636,7 +3636,7 @@ async function viewSubmissionDetails(submissionId) {
                                     ${sub.packaged_legacy_displays_only ? '<p class="text-xs text-gray-500 mt-1">As entered on the historical packaging form (single display count).</p>' : ''}
                                 </div>
                                 <div class="rounded-xl p-4 border border-violet-200 bg-violet-50">
-                                    <label class="text-xs text-gray-500 uppercase">Cards Remaining</label>
+                                    <label class="text-xs text-gray-500 uppercase">Single cards remaining</label>
                                     <div class="mt-1 text-2xl font-bold tabular-nums text-slate-900">${sub.packs_remaining || 0}</div>
                                 </div>
                                 <div class="rounded-xl p-4 border border-red-200 bg-red-50">

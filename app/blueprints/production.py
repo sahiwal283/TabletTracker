@@ -345,7 +345,7 @@ def get_machine_count_by_receipt():
             # Join with product_details and tablet_types to get tablet type info
             machine_counts = conn.execute('''
             SELECT ws.id, ws.box_number, ws.bag_number, ws.product_name,
-                   ws.displays_made as turns, ws.employee_name, ws.submission_date,
+                   ws.displays_made as presses, ws.displays_made as turns, ws.employee_name, ws.submission_date,
                    ws.inventory_item_id, ws.bag_id, ws.machine_id, ws.bag_start_time,
                    pd.tablet_type_id, tt.tablet_type_name
             FROM warehouse_submissions ws

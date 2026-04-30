@@ -58,6 +58,33 @@ def sql_packaging_equiv_displays(
     )
 
 
+def packaging_display_total_from_payload(payload: dict[str, Any], displays_per_case: Any = 0) -> float:
+    """Total displays for a packaging payload: cases × displays/case + loose, or legacy display_count."""
+    p = payload or {}
+    has_case_breakdown = "case_count" in p or "loose_display_count" in p
+    if has_case_breakdown:
+        try:
+            cases = float(p.get("case_count") or 0)
+        except (TypeError, ValueError):
+            cases = 0.0
+        loose_raw = p.get("loose_display_count")
+        if loose_raw is None:
+            loose_raw = p.get("display_count")
+        try:
+            loose = float(loose_raw or 0)
+        except (TypeError, ValueError):
+            loose = 0.0
+        try:
+            dpc = float(displays_per_case or 0)
+        except (TypeError, ValueError):
+            dpc = 0.0
+        return max(0.0, (cases * dpc) + loose)
+    try:
+        return max(0.0, float(p.get("display_count", p.get("count_total")) or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _payload_from_raw(raw: str | None) -> dict[str, Any]:
     if not raw:
         return {}
@@ -304,6 +331,9 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                 prod_dpc = int(row.get("product_displays_per_case") or 0)
             except (TypeError, ValueError):
                 prod_dpc = 0
+            total_display_num = None
+            if str(row["etype"] or "").upper() == "PACKAGING_SNAPSHOT":
+                total_display_num = packaging_display_total_from_payload(payload_obj, prod_dpc)
             rows_out.append(
                 {
                     "atMs": int(row["at_ms"] or 0),
@@ -314,6 +344,7 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                     "operatorLabel": str(row.get("op_label") or ""),
                     "countTotal": nums["count_total"],
                     "displayCount": nums["display_count"],
+                    "totalDisplayCount": total_display_num,
                     "caseCount": nums["case_count"],
                     "looseDisplayCount": loose_display_num,
                     "productDisplaysPerCase": prod_dpc,
@@ -485,33 +516,11 @@ def gather_output_pace_averages(
             dpc_by_bag = {}
 
     def _final_submit_display_equivalent(payload: dict[str, Any], bag_id: int | None) -> float:
-        """Match workflow_floor packaging normalization: loose-only display_count when case fields exist."""
-        p = payload or {}
-        case_breakdown = "case_count" in p or "loose_display_count" in p
-        if case_breakdown:
-            try:
-                cases = float(p.get("case_count") or 0)
-            except (TypeError, ValueError):
-                cases = 0.0
-            loose_raw = p.get("loose_display_count")
-            if loose_raw is None:
-                loose_raw = p.get("display_count")
-            try:
-                loose = float(loose_raw or 0)
-            except (TypeError, ValueError):
-                loose = 0.0
-            dpc = 0
-            if bag_id is not None:
-                try:
-                    dpc = dpc_by_bag.get(int(bag_id), 0)
-                except (TypeError, ValueError):
-                    dpc = 0
-            return max(0.0, cases * float(dpc) + loose)
-        raw_one = p.get("display_count", p.get("count_total"))
         try:
-            return max(0.0, float(raw_one or 0))
+            dpc = dpc_by_bag.get(int(bag_id), 0) if bag_id is not None else 0
         except (TypeError, ValueError):
-            return 0.0
+            dpc = 0
+        return packaging_display_total_from_payload(payload, dpc)
 
     for r in rows:
         try:
@@ -694,9 +703,12 @@ def gather_station_analytics(
                    we.event_type,
                    we.user_id,
                    COALESCE(NULLIF(trim(e.full_name), ''), NULLIF(trim(e.username), '')) AS op_label,
-                   we.payload
+                   we.payload,
+                   COALESCE(pd.displays_per_case, 0) AS product_displays_per_case
             FROM workflow_events we
             LEFT JOIN employees e ON e.id = we.user_id
+            LEFT JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+            LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE we.occurred_at >= ? AND we.occurred_at < ?
               AND we.station_id IS NOT NULL
               AND we.workflow_bag_id IS NOT NULL
@@ -723,7 +735,9 @@ def gather_station_analytics(
         now_ms=now_ms,
     )
 
-    def _event_output(sid: int, event_type: str, payload: dict[str, Any]) -> float:
+    def _event_output(
+        sid: int, event_type: str, payload: dict[str, Any], displays_per_case: Any = 0
+    ) -> float:
         meta = station_meta.get(sid) or {}
         kind = str(meta.get("stationKind") or "")
         role = str(meta.get("machineRole") or "")
@@ -732,10 +746,7 @@ def gather_station_analytics(
         if et == "PACKAGING_SNAPSHOT":
             if str(payload.get("reason") or "").lower() not in _OPS_PKG_REASONS_LOWER:
                 return 0.0
-            try:
-                return max(0.0, float(payload.get("display_count", payload.get("count_total")) or 0))
-            except (TypeError, ValueError):
-                return 0.0
+            return packaging_display_total_from_payload(payload, displays_per_case)
         try:
             count = float(payload.get("count_total") or 0)
         except (TypeError, ValueError):
@@ -766,7 +777,7 @@ def gather_station_analytics(
             continue
         if et not in _STATION_OUTPUT_EVENTS:
             continue
-        output = _event_output(sid, et, payload)
+        output = _event_output(sid, et, payload, r["product_displays_per_case"])
         day_idx = int((at_ms - day_start_ms) // one_day)
         if -30 <= day_idx <= 0:
             daily[sid][day_idx + 30] += output

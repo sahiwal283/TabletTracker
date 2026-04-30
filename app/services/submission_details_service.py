@@ -138,8 +138,9 @@ def get_bag_submissions_payload(conn, bag_id: int) -> dict[str, Any]:
             if role not in ('sealing', 'blister'):
                 role = 'sealing'
             if role == 'blister':
-                cuts = sub.get('displays_made') or 0
-                blisters_made = cuts * BLISTER_BLISTERS_PER_CUT
+                presses = sub.get('displays_made') or 0
+                sub['press_count'] = presses
+                blisters_made = presses * BLISTER_BLISTERS_PER_CUT
                 sub['blisters_made'] = blisters_made
                 sub['blisters_per_cut'] = BLISTER_BLISTERS_PER_CUT
                 tpp = int(tpp or 0)

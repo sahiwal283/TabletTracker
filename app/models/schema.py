@@ -331,7 +331,7 @@ class SchemaManager:
     def _initialize_default_settings(self, c):
         """Initialize default app settings"""
         default_settings = [
-            ('cards_per_turn', '1', 'Number of cards produced in one turn of the machine')
+            ('cards_per_turn', '1', 'Number of cards produced in one press of the machine')
         ]
         for key, value, description in default_settings:
             existing = c.execute('SELECT id FROM app_settings WHERE setting_key = ?', (key,)).fetchone()

@@ -214,7 +214,10 @@
   }
 
   function eventDisplayCount(e) {
-    var n = asNum(e && (e.displayCount != null ? e.displayCount : e.countTotal));
+    var n = asNum(e && (
+      e.totalDisplayCount != null ? e.totalDisplayCount :
+      e.displayCount != null ? e.displayCount : e.countTotal
+    ));
     return n != null && n >= 0 ? n : null;
   }
 
@@ -422,7 +425,7 @@
       <span><em>Bag</em>${r.bag || "N/A"}</span>
       <span><em>Flavor</em>${r.sku || "N/A"}</span>
       <span><em>Displays</em>${r.displays != null ? fmtNumber(r.displays) : "Insufficient data"}</span>
-      <span><em>Damaged</em>${r.damaged != null ? fmtNumber(r.damaged) : "No reject data"}</span>
+      <span><em>Ripped cards</em>${r.damaged != null ? fmtNumber(r.damaged) : "No reject data"}</span>
       <span><em>Completed</em>${r.at ? fmtTime(r.at) : "N/A"}</span>
     </div>`;
   }
@@ -1409,7 +1412,7 @@
       : "Packaging final submit";
     var packagingSummaryRows = [
       ["Final displays", kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"],
-      ["Damaged / ripped cards", kpiBy.rework ? (typeof kpiBy.rework.value === "number" ? fmtNumber(kpiBy.rework.value) : kpiBy.rework.value) : "No reject data"],
+      ["Ripped cards", kpiBy.rework ? (typeof kpiBy.rework.value === "number" ? fmtNumber(kpiBy.rework.value) : kpiBy.rework.value) : "No reject data"],
       ["Most recent final run", recentFinalRun && recentFinalRun.at ? fmtTime(recentFinalRun.at) : "N/A"],
       ["Packaging station status", packagingMachines.length ? statusText(packagingMachines[0].integrationStatus) : "No configured station"],
     ];
