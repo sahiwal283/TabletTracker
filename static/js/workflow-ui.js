@@ -496,8 +496,8 @@
       statusLine('Scan or enter the bag card token.', 'error');
       return;
     }
-    var exp = expectedOccupantCardToken && String(expectedOccupantCardToken).trim();
-    if (!exp || tok !== exp) {
+    var allowed = occupantCardTokensList();
+    if (!allowed.length || allowed.indexOf(tok) < 0) {
       statusLine('This QR code does not match the current bag at this station.', 'error');
       return;
     }
