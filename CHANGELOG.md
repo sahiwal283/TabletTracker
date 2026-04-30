@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.11] - 2026-04-30
+
+### Fixed
+- **Variety-pack packaging validation:** Workflow bottle/variety packaging now uses explicitly scanned source bags even if those `bags` rows are marked `Closed`, preventing false "not enough tablets" blocks when source bags already ran through bottle stations.
+- **Variety-pack error clarity:** Shortage errors now prefer resolved tablet/flavor names from source/config rows instead of only raw `flavor ID <n>` fallbacks when names are available.
+- **Packaging form behavior:** Bottle-flow packaging no longer treats "cards re-opened" as required input; the field is hidden and submitted as `0` for bottle runs.
+- **Out-of-packaging handoff coverage:** Added regression coverage proving sealing hold-and-release can hand off to packaging for partial-count submission without a resume lock.
+
+---
+
 ## [4.24.9] - 2026-04-30
 
 ### Fixed

@@ -32,6 +32,8 @@
   let occupancyGateForcedAction = null;
   /** Packaging: pick = choose End / Pause / Taken; then only fields for that path. */
   let packagingUiPhase = 'pick';
+  /** Loaded bag flow from backend facts (`card` or `bottle`). */
+  let loadedBagProductionFlow = null;
   let pendingProductMapProductId = null;
   const isAdminUser = !!Number(window.WF_IS_ADMIN_USER || 0);
 
@@ -850,6 +852,7 @@
       stationClaimed = !!data.facts.station_claimed;
     }
     stationNeedsResume = !!data.facts.resume_required;
+    loadedBagProductionFlow = data.facts.production_flow || loadedBagProductionFlow;
     occupancyPauseDetails = data.facts.pause_details || occupancyPauseDetails;
     renderBagVerification(data.facts);
     renderLoadedBagHeader(data.facts);
@@ -970,6 +973,7 @@
     occupancyGateIntentEndRun = false;
     occupancyGateForcedAction = null;
     packagingUiPhase = 'pick';
+    loadedBagProductionFlow = null;
     renderBagVerification(null);
     setScanSuccessVisible(false);
     clearAllActionCooldowns();
@@ -1118,17 +1122,20 @@
     if (tb) tb.classList.add('hidden');
   }
   function showPackagingStationExtra() {
+    var isBottlePackagingFlow = String(loadedBagProductionFlow || '').toLowerCase() === 'bottle';
     [
       'wf-packs-remaining-label',
       'wf-packs-remaining',
       'wf-loose-displays-label',
       'wf-loose-displays',
-      'wf-cards-reopened-label',
-      'wf-cards-reopened-help',
-      'wf-cards-reopened',
     ].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.classList.remove('hidden');
+    });
+    ['wf-cards-reopened-label', 'wf-cards-reopened-help', 'wf-cards-reopened'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('hidden', isBottlePackagingFlow);
     });
   }
   function showPackagingTakenFields() {
@@ -1142,6 +1149,11 @@
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
+  }
+  function selectedCardsReopenedCount() {
+    var isBottlePackagingFlow = String(loadedBagProductionFlow || '').toLowerCase() === 'bottle';
+    if (isBottlePackagingFlow) return 0;
+    return optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened');
   }
   function setSourceScanUi(scanning) {
     var wrap = document.getElementById('wf-source-reader-wrap');
@@ -1901,6 +1913,7 @@
       packagingOccupancySlots = [];
       occupancyVerifyOpen = false;
       occupancyGateIntentEndRun = false;
+      loadedBagProductionFlow = null;
       stopOccupancyTimer();
       hidePausedStationUi();
       lastOccStartMs = 0;
@@ -2141,7 +2154,7 @@
         case_count: selectedPackagingCaseCount(),
         display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
         packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
-        cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+        cards_reopened: selectedCardsReopenedCount(),
         reason: 'paused_end_of_day',
         employee_name: requiredEmployeeName(),
       });
@@ -2233,7 +2246,7 @@
         case_count: selectedPackagingCaseCount(),
         display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
         packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
-        cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+        cards_reopened: selectedCardsReopenedCount(),
         reason: 'out_of_packaging',
         employee_name: requiredEmployeeName(),
       });
@@ -2338,7 +2351,7 @@
       case_count: selectedPackagingCaseCount(),
       display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
       packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Loose cards / bottles remaining'),
-      cards_reopened: optionalNonNegativeInt('wf-cards-reopened', 'Cards re-opened'),
+      cards_reopened: selectedCardsReopenedCount(),
       reason: 'final_submit',
       employee_name: requiredEmployeeName(),
     });

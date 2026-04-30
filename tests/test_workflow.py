@@ -1,5 +1,6 @@
 
 """Workflow subsystem tests (SQLite temp file)."""
+import json
 import os
 import sqlite3
 import tempfile
@@ -565,6 +566,82 @@ class TestWorkflowCore(unittest.TestCase):
                 station_kind="packaging",
             )
         )
+
+    def test_sealing_hold_allows_packaging_team_to_claim_and_submit_counts(self):
+        from app.blueprints.workflow_floor import _station_facts_payload
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="34",
+            receipt_number=None,
+            user_id=None,
+        )
+        # Sealing team claims and then holds for packaging.
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "sealing", "note": "claimed"},
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {
+                "station_id": 1,
+                "count_total": 53,
+                "employee_name": "Juan",
+                "metadata": {"paused": True, "reason": "out_of_packaging"},
+            },
+            bag_id,
+            station_id=1,
+        )
+
+        # Packaging team can still claim and submit whatever counts are available.
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 2, "station_kind": "packaging", "note": "claimed"},
+            bag_id,
+            station_id=2,
+        )
+        append_workflow_event(
+            self.conn,
+            "PACKAGING_SNAPSHOT",
+            {
+                "case_count": 0,
+                "loose_display_count": 3,
+                "packs_remaining": 2,
+                "cards_reopened": 0,
+                "reason": "partial_packaging",
+                "employee_name": "Packer",
+            },
+            bag_id,
+            station_id=2,
+        )
+        self.conn.commit()
+
+        facts = _station_facts_payload(self.conn, bag_id, 2)
+        self.assertFalse(facts["resume_required"])
+        row = self.conn.execute(
+            """
+            SELECT event_type, payload
+            FROM workflow_events
+            WHERE workflow_bag_id = ?
+              AND station_id = 2
+              AND event_type = 'PACKAGING_SNAPSHOT'
+            ORDER BY occurred_at DESC, id DESC
+            LIMIT 1
+            """,
+            (bag_id,),
+        ).fetchone()
+        self.assertIsNotNone(row)
+        payload = json.loads(row["payload"] or "{}")
+        self.assertEqual(int(payload.get("loose_display_count") or 0), 3)
 
     def test_packaging_claim_allows_second_flow_rejects_same_flow(self):
         from app.blueprints.workflow_floor import _validate_packaging_station_claim

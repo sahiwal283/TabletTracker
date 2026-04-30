@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from app.services import workflow_constants as WC
 from app.services.workflow_warehouse_bridge import (
+    ProductionSubmissionError,
     _station_session_start_occurred_at_ms,
     sync_if_packaging_snapshot,
     upsert_bottle_from_workflow_packaging,
@@ -385,6 +386,121 @@ class TestWorkflowWarehouseBridge(unittest.TestCase):
         self.assertIsNone(ws["bag_id"])
         self.assertEqual(ws["submission_type"], "bottle")
         self.assertEqual(ws["bottles_made"], 21)
+
+    def test_variety_packaging_allows_scanned_source_bags_even_if_closed(self):
+        self.conn.execute(
+            """
+            INSERT INTO product_details (
+                product_name, tablet_type_id, tablets_per_bottle, bottles_per_display,
+                is_variety_pack, variety_pack_contents
+            )
+            VALUES ('Variety Closed Source', NULL, 0, 10, 1, ?)
+            """,
+            ('[{"tablet_type_id": 1, "tablets_per_bottle": 2}]',),
+        )
+        pid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            INSERT INTO workflow_bags (created_at, product_id, box_number, bag_number, inventory_bag_id)
+            VALUES (1700000000000, ?, 1, 2, 1)
+            """,
+            (pid,),
+        )
+        wid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute("UPDATE bags SET status = 'Closed' WHERE id = 1")
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                workflow_bag_id INTEGER NOT NULL,
+                station_id INTEGER
+            )
+            """
+        )
+        self.conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, payload, occurred_at, workflow_bag_id, station_id)
+            VALUES (?, ?, 1700000000001, ?, 1)
+            """,
+            (
+                WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+                '{"count_total": 10, "qa_checked": true, "source_inventory_bag_ids": [1]}',
+                wid,
+            ),
+        )
+        self.conn.commit()
+
+        r = upsert_bottle_from_workflow_packaging(
+            self.conn,
+            wid,
+            displays_made=1,
+            bottles_remaining=0,
+            station_row={"id": 1},
+            employee_name="QR",
+        )
+        self.assertTrue(r.get("ok"))
+        self.assertEqual(r.get("deduction_count"), 1)
+
+    def test_variety_packaging_error_uses_flavor_name_not_id_when_available(self):
+        self.conn.execute(
+            """
+            INSERT INTO product_details (
+                product_name, tablet_type_id, tablets_per_bottle, bottles_per_display,
+                is_variety_pack, variety_pack_contents
+            )
+            VALUES ('Variety Named Error', NULL, 0, 10, 1, ?)
+            """,
+            ('[{"tablet_type_id": 1, "tablets_per_bottle": 9999}]',),
+        )
+        pid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            INSERT INTO workflow_bags (created_at, product_id, box_number, bag_number, inventory_bag_id)
+            VALUES (1700000000000, ?, 1, 2, 1)
+            """,
+            (pid,),
+        )
+        wid = self.conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                workflow_bag_id INTEGER NOT NULL,
+                station_id INTEGER
+            )
+            """
+        )
+        self.conn.execute(
+            """
+            INSERT INTO workflow_events (event_type, payload, occurred_at, workflow_bag_id, station_id)
+            VALUES (?, ?, 1700000000001, ?, 1)
+            """,
+            (
+                WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+                '{"count_total": 1, "qa_checked": true, "source_inventory_bag_ids": [1]}',
+                wid,
+            ),
+        )
+        self.conn.commit()
+
+        with self.assertRaises(ProductionSubmissionError) as cm:
+            upsert_bottle_from_workflow_packaging(
+                self.conn,
+                wid,
+                displays_made=1,
+                bottles_remaining=0,
+                station_row={"id": 1},
+                employee_name="QR",
+            )
+        msg = (cm.exception.body or {}).get("error", "")
+        self.assertIn("for T", msg)
+        self.assertNotIn("flavor ID 1", msg)
 
     def test_variety_bottle_packaging_uses_receiving_po_when_bags_has_no_po_id(self):
         path = tempfile.mkstemp(suffix=".db")[1]

@@ -875,7 +875,6 @@ def upsert_bottle_from_workflow_packaging(
         bag_cols = _table_columns(conn, "bags")
         pill_expr = "b.pill_count" if "pill_count" in bag_cols else "NULL"
         po_expr = "COALESCE(b.po_id, r.po_id)" if "po_id" in bag_cols else "r.po_id"
-        status_filter = "COALESCE(b.status, 'Available') != 'Closed'" if "status" in bag_cols else "1=1"
         source_rows = conn.execute(
             f"""
             SELECT b.id, b.bag_number, b.bag_label_count, {pill_expr} AS pill_count,
@@ -885,10 +884,35 @@ def upsert_bottle_from_workflow_packaging(
             JOIN receiving r ON sb.receiving_id = r.id
             LEFT JOIN tablet_types tt ON b.tablet_type_id = tt.id
             WHERE b.id IN ({qmarks})
-              AND {status_filter}
             """,
             tuple(source_bag_ids),
         ).fetchall()
+        flavor_ids: set[int] = set()
+        for flavor in contents:
+            if not isinstance(flavor, dict):
+                continue
+            try:
+                flavor_ids.add(int(flavor.get("tablet_type_id")))
+            except (TypeError, ValueError):
+                continue
+        flavor_name_by_id: dict[int, str] = {}
+        if flavor_ids:
+            tid_qmarks = ",".join("?" for _ in flavor_ids)
+            for row in conn.execute(
+                f"""
+                SELECT id, tablet_type_name
+                FROM tablet_types
+                WHERE id IN ({tid_qmarks})
+                """,
+                tuple(flavor_ids),
+            ).fetchall():
+                try:
+                    tid = int(row["id"])
+                except (TypeError, ValueError):
+                    continue
+                nm = str(row["tablet_type_name"] or "").strip()
+                if nm:
+                    flavor_name_by_id[tid] = nm
         source_by_flavor: dict[int, list[dict[str, Any]]] = {}
         for row in source_rows:
             b = dict(row)
@@ -930,7 +954,18 @@ def upsert_bottle_from_workflow_packaging(
                     }
                 )
             if tablets_still_needed > 0:
-                label = flavor.get("tablet_type_name") or f"flavor ID {flavor_tt_id}"
+                configured_label = str(flavor.get("tablet_type_name") or "").strip()
+                source_label = ""
+                if source_by_flavor.get(flavor_tt_id):
+                    source_label = str(
+                        source_by_flavor[flavor_tt_id][0].get("tablet_type_name") or ""
+                    ).strip()
+                label = (
+                    configured_label
+                    or source_label
+                    or flavor_name_by_id.get(flavor_tt_id)
+                    or f"flavor ID {flavor_tt_id}"
+                )
                 raise ProductionSubmissionError(
                     400,
                     {
