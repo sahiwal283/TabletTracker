@@ -38,6 +38,7 @@ from app.utils.db_utils import get_db
 LOGGER = logging.getLogger(__name__)
 
 bp = Blueprint("workflow_floor", __name__, url_prefix="/workflow")
+_HOLD_RELEASE_REASON = "out_of_packaging"
 
 
 def _log_floor_correlation(route: str, data: dict) -> None:
@@ -94,7 +95,12 @@ def _pause_metadata(payload: dict) -> dict:
 def _pause_reason_for_event(event_type: str, payload: dict) -> str | None:
     """Machine-readable pause reason, when this event pauses station occupancy."""
     if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
-        return "end_of_day" if (payload.get("reason") or "").strip() == "paused_end_of_day" else None
+        reason = str(payload.get("reason") or "").strip()
+        if reason == "paused_end_of_day":
+            return "end_of_day"
+        if reason == _HOLD_RELEASE_REASON:
+            return _HOLD_RELEASE_REASON
+        return None
     if event_type in (
         WC.EVENT_BLISTER_COMPLETE,
         WC.EVENT_SEALING_COMPLETE,
@@ -104,12 +110,28 @@ def _pause_reason_for_event(event_type: str, payload: dict) -> str | None:
     ):
         meta = _pause_metadata(payload)
         reason = str(meta.get("reason") or "").strip()
+        if reason == _HOLD_RELEASE_REASON:
+            return _HOLD_RELEASE_REASON
         if reason == "material_change" and event_type == WC.EVENT_BLISTER_COMPLETE:
             return "material_change"
         if meta.get("paused") or reason == "end_of_day":
             return reason or "end_of_day"
         return None
     return None
+
+
+def _is_resume_lock_pause_reason(reason: str | None) -> bool:
+    if reason is None:
+        return False
+    return reason != _HOLD_RELEASE_REASON
+
+
+def _is_resume_lock_pause_event(event_type: str, payload: dict) -> bool:
+    return _is_resume_lock_pause_reason(_pause_reason_for_event(event_type, payload))
+
+
+def _is_hold_release_pause_event(event_type: str, payload: dict) -> bool:
+    return _pause_reason_for_event(event_type, payload) == _HOLD_RELEASE_REASON
 
 
 def _is_pause_workflow_event(event_type: str, payload: dict) -> bool:
@@ -156,27 +178,27 @@ def _occupancy_lane_finished_at_station(
         if not session_active:
             continue
         if kind == "blister":
-            if et == WC.EVENT_BLISTER_COMPLETE and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_BLISTER_COMPLETE and not _is_resume_lock_pause_event(et, pl):
                 return True
         elif kind == "sealing":
-            if et == WC.EVENT_SEALING_COMPLETE and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_SEALING_COMPLETE and not _is_resume_lock_pause_event(et, pl):
                 return True
         elif kind == "combined":
-            if et == WC.EVENT_SEALING_COMPLETE and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_SEALING_COMPLETE and not _is_resume_lock_pause_event(et, pl):
                 return True
         elif kind == "packaging":
             if et == WC.EVENT_PACKAGING_TAKEN_FOR_ORDER:
                 return True
-            if et == WC.EVENT_PACKAGING_SNAPSHOT and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_PACKAGING_SNAPSHOT and not _is_resume_lock_pause_event(et, pl):
                 return True
         elif kind == "bottle_handpack":
-            if et == WC.EVENT_BOTTLE_HANDPACK_COMPLETE and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_BOTTLE_HANDPACK_COMPLETE and not _is_resume_lock_pause_event(et, pl):
                 return True
         elif kind == "bottle_cap_seal":
-            if et == WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE and not _is_resume_lock_pause_event(et, pl):
                 return True
         elif kind == "bottle_stickering":
-            if et == WC.EVENT_BOTTLE_STICKER_COMPLETE and not _is_pause_workflow_event(et, pl):
+            if et == WC.EVENT_BOTTLE_STICKER_COMPLETE and not _is_resume_lock_pause_event(et, pl):
                 return True
     return False
 
@@ -217,7 +239,7 @@ def _station_pause_at_ms(
             WC.EVENT_BOTTLE_STICKER_COMPLETE,
             WC.EVENT_PACKAGING_SNAPSHOT,
         ):
-            if _is_pause_workflow_event(et, pl):
+            if _is_resume_lock_pause_event(et, pl):
                 try:
                     last_pause = int(row["occurred_at"])
                 except (TypeError, ValueError):
@@ -225,6 +247,92 @@ def _station_pause_at_ms(
             else:
                 last_pause = None
     return last_pause
+
+
+def _station_hold_details(
+    conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
+) -> dict[str, str] | None:
+    """Details from the latest hold-and-release event for the current station session."""
+    rows = conn.execute(
+        """
+        SELECT event_type, payload
+        FROM workflow_events
+        WHERE workflow_bag_id = ? AND station_id = ?
+        ORDER BY occurred_at ASC, id ASC
+        """,
+        (workflow_bag_id, station_id),
+    ).fetchall()
+    last: dict[str, str] | None = None
+    for row in rows:
+        et = row["event_type"]
+        try:
+            pl = json.loads(row["payload"]) if row["payload"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pl = {}
+        if not isinstance(pl, dict):
+            pl = {}
+        if et in (WC.EVENT_BAG_CLAIMED, WC.EVENT_STATION_RESUMED):
+            last = None
+            continue
+        reason = _pause_reason_for_event(et, pl)
+        if reason == _HOLD_RELEASE_REASON:
+            last = {"reason": _HOLD_RELEASE_REASON}
+            continue
+        # Any normal completion clears hold state for this session.
+        if et in (
+            WC.EVENT_BLISTER_COMPLETE,
+            WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+            WC.EVENT_BOTTLE_STICKER_COMPLETE,
+            WC.EVENT_PACKAGING_SNAPSHOT,
+            WC.EVENT_PACKAGING_TAKEN_FOR_ORDER,
+        ) and not _is_pause_workflow_event(et, pl):
+            last = None
+            continue
+    return last
+
+
+def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> bool:
+    """
+    After a resume-lock pause submit, operators must emit STATION_RESUMED before more counts.
+    Walk station-scoped events in order; last resume-lock pause without a later resume means resume is required.
+    """
+    rows = conn.execute(
+        """
+        SELECT event_type, payload
+        FROM workflow_events
+        WHERE workflow_bag_id = ? AND station_id = ?
+        ORDER BY occurred_at ASC, id ASC
+        """,
+        (workflow_bag_id, station_id),
+    ).fetchall()
+    needs_resume = False
+    for row in rows:
+        et = row["event_type"]
+        try:
+            pl = json.loads(row["payload"]) if row["payload"] else {}
+        except (json.JSONDecodeError, TypeError):
+            pl = {}
+        if not isinstance(pl, dict):
+            pl = {}
+        if et == WC.EVENT_BAG_CLAIMED:
+            needs_resume = False
+        elif et == WC.EVENT_STATION_RESUMED:
+            needs_resume = False
+        elif et in (
+            WC.EVENT_BLISTER_COMPLETE,
+            WC.EVENT_SEALING_COMPLETE,
+            WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
+            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
+            WC.EVENT_BOTTLE_STICKER_COMPLETE,
+            WC.EVENT_PACKAGING_SNAPSHOT,
+        ):
+            if _is_resume_lock_pause_event(et, pl):
+                needs_resume = True
+            else:
+                needs_resume = False
+    return needs_resume
 
 
 def _station_pause_details(
@@ -257,6 +365,9 @@ def _station_pause_details(
         reason = _pause_reason_for_event(et, pl)
         if reason is None:
             continue
+        if not _is_resume_lock_pause_reason(reason):
+            continue
+        assert reason is not None
         meta = _pause_metadata(pl)
         out = {"reason": reason}
         material_type = str(meta.get("material_type") or "").strip().lower()
@@ -264,48 +375,6 @@ def _station_pause_details(
             out["material_type"] = material_type
         last = out
     return last
-
-
-def _station_needs_resume(conn: sqlite3.Connection, workflow_bag_id: int, station_id: int) -> bool:
-    """
-    After a pause-style count/snapshot, operators must emit STATION_RESUMED before more counts.
-    Walk station-scoped events in order; last pause without a later resume means resume is required.
-    """
-    rows = conn.execute(
-        """
-        SELECT event_type, payload
-        FROM workflow_events
-        WHERE workflow_bag_id = ? AND station_id = ?
-        ORDER BY occurred_at ASC, id ASC
-        """,
-        (workflow_bag_id, station_id),
-    ).fetchall()
-    needs_resume = False
-    for row in rows:
-        et = row["event_type"]
-        try:
-            pl = json.loads(row["payload"]) if row["payload"] else {}
-        except (json.JSONDecodeError, TypeError):
-            pl = {}
-        if not isinstance(pl, dict):
-            pl = {}
-        if et == WC.EVENT_BAG_CLAIMED:
-            needs_resume = False
-        elif et == WC.EVENT_STATION_RESUMED:
-            needs_resume = False
-        elif et in (
-            WC.EVENT_BLISTER_COMPLETE,
-            WC.EVENT_SEALING_COMPLETE,
-            WC.EVENT_BOTTLE_HANDPACK_COMPLETE,
-            WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE,
-            WC.EVENT_BOTTLE_STICKER_COMPLETE,
-            WC.EVENT_PACKAGING_SNAPSHOT,
-        ):
-            if _is_pause_workflow_event(et, pl):
-                needs_resume = True
-            else:
-                needs_resume = False
-    return needs_resume
 
 
 def _station_has_claimed_bag(
@@ -430,6 +499,7 @@ def _station_facts_payload(
     station_needs_resume = _station_needs_resume(conn, workflow_bag_id, station_id)
     occupancy_started_at = _station_occupancy_started_at(conn, workflow_bag_id, station_id)
     pause_details = _station_pause_details(conn, workflow_bag_id, station_id)
+    hold_details = _station_hold_details(conn, workflow_bag_id, station_id)
     return {
         "event_counts_by_type": facts["event_counts_by_type"],
         "latest_event_type": facts["latest_event_type"],
@@ -440,6 +510,7 @@ def _station_facts_payload(
         "station_needs_resume": station_needs_resume,
         "resume_required": bool(station_claimed and station_needs_resume),
         "pause_details": pause_details,
+        "hold_details": hold_details,
         "occupancy_started_at_ms": occupancy_started_at,
         "occupying_card_token": _assigned_card_token_for_bag(conn, workflow_bag_id),
         "bag_verification": floor_bag_verification(conn, workflow_bag_id),

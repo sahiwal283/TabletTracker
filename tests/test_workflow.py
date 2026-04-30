@@ -468,6 +468,104 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertFalse(facts["resume_required"])
         self.assertIsNone(facts["pause_details"])
 
+    def test_out_of_packaging_hold_releases_occupancy_without_resume_lock(self):
+        from app.blueprints.workflow_floor import (
+            _occupancy_lane_finished_at_station,
+            _station_facts_payload,
+        )
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="32",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "sealing", "note": "claimed"},
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {
+                "station_id": 1,
+                "count_total": 53,
+                "employee_name": "Juan",
+                "metadata": {"paused": True, "reason": "out_of_packaging"},
+            },
+            bag_id,
+            station_id=1,
+        )
+        facts = _station_facts_payload(self.conn, bag_id, 1)
+        self.assertFalse(facts["resume_required"])
+        self.assertIsNone(facts["pause_details"])
+        self.assertEqual((facts.get("hold_details") or {}).get("reason"), "out_of_packaging")
+        self.assertTrue(
+            _occupancy_lane_finished_at_station(
+                self.conn,
+                station_id=1,
+                workflow_bag_id=bag_id,
+                station_kind="sealing",
+            )
+        )
+
+    def test_packaging_out_of_packaging_hold_does_not_require_resume(self):
+        from app.blueprints.workflow_floor import (
+            _occupancy_lane_finished_at_station,
+            _station_facts_payload,
+        )
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="33",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 1, "station_kind": "packaging", "note": "claimed"},
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "PACKAGING_SNAPSHOT",
+            {
+                "case_count": 1,
+                "loose_display_count": 2,
+                "packs_remaining": 0,
+                "cards_reopened": 0,
+                "reason": "out_of_packaging",
+                "employee_name": "Packer",
+            },
+            bag_id,
+            station_id=1,
+        )
+        facts = _station_facts_payload(self.conn, bag_id, 1)
+        self.assertFalse(facts["resume_required"])
+        self.assertIsNone(facts["pause_details"])
+        self.assertEqual((facts.get("hold_details") or {}).get("reason"), "out_of_packaging")
+        self.assertTrue(
+            _occupancy_lane_finished_at_station(
+                self.conn,
+                station_id=1,
+                workflow_bag_id=bag_id,
+                station_kind="packaging",
+            )
+        )
+
     def test_payload_reject_unknown_key(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card

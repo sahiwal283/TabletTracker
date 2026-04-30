@@ -547,7 +547,13 @@ def gather_output_pace_averages(
 def _station_event_pause_reason(event_type: str, payload: dict[str, Any]) -> str | None:
     et = event_type.upper()
     if et == "PACKAGING_SNAPSHOT":
-        return "end_of_day" if str(payload.get("reason") or "").strip() == "paused_end_of_day" else None
+        reason = str(payload.get("reason") or "").strip()
+        if reason == "paused_end_of_day":
+            return "end_of_day"
+        # Hold-and-release should transition station to idle, not paused runtime.
+        if reason == "out_of_packaging":
+            return None
+        return None
     if et not in {
         "BLISTER_COMPLETE",
         "SEALING_COMPLETE",
@@ -559,6 +565,8 @@ def _station_event_pause_reason(event_type: str, payload: dict[str, Any]) -> str
     meta = payload.get("metadata") if isinstance(payload, dict) else None
     meta = meta if isinstance(meta, dict) else {}
     reason = str(meta.get("reason") or "").strip()
+    if reason == "out_of_packaging":
+        return None
     if reason == "material_change" and et == "BLISTER_COMPLETE":
         return "material_change"
     if meta.get("paused") or reason == "end_of_day":

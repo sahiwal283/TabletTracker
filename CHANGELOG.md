@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.3] - 2026-04-30
+
+### Added
+- **Out of Packaging hold (workflow server):** Hold-and-release pause reason `out_of_packaging` does not set `resume_required`, frees sealing/packaging station occupancy immediately, exposes `hold_details` on station facts for dashboards, and excludes this hold from paused-runtime metrics. Completes server-side behavior for the station UI added in v4.24.2.
+
+---
+
 ## [4.24.1] - 2026-04-30
 
 ### Fixed
