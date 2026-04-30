@@ -719,8 +719,9 @@ def build_pill_command_center_board_payload(
             "sku": sku_bo[:32],
             "steps": [
                 {"n": 1, "label": "Raw Material Receipt", "staging": False},
-                {"n": 2, "label": "Bottle Sealing", "staging": True},
+                {"n": 2, "label": "Bottle Hand Pack", "staging": True},
                 {"n": 3, "label": "Stickering", "staging": False},
+                {"n": 4, "label": "Bottle Sealing", "staging": False},
             ],
             "footer_ok": seal_share > 0,
         },

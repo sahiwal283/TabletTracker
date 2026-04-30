@@ -1176,7 +1176,7 @@
         if (sid != null && bid != null && at != null) latestStartByStationBag[key] = at;
         return;
       }
-      if (!(t === "BLISTER_COMPLETE" || t === "SEALING_COMPLETE" || t === "BOTTLE_HANDPACK_COMPLETE" || t === "BOTTLE_CAP_SEAL_COMPLETE" || t === "BOTTLE_STICKER_COMPLETE" || isOpsPackagingOutputSnapshot(e) || t === "BAG_FINALIZED")) return;
+      if (!(t === "BLISTER_COMPLETE" || t === "SEALING_COMPLETE" || t === "BOTTLE_HANDPACK_COMPLETE" || t === "BOTTLE_STICKER_COMPLETE" || t === "BOTTLE_CAP_SEAL_COMPLETE" || isOpsPackagingOutputSnapshot(e) || t === "BAG_FINALIZED")) return;
       var m = machines.find(function (row) { return asNum(row.stationId) === sid; }) || {};
       var role = String(m.machineRole || "").toLowerCase();
       var kind = String(m.stationKind || "").toLowerCase();
@@ -1191,7 +1191,7 @@
           var converted = raw * ((role === "blister" || kind === "blister" || role === "sealing" || kind === "sealing") ? factor : 1);
           qty = fmtNumber(converted) + (factor !== 1 ? " (" + fmtNumber(raw) + " × " + factor + ")" : "");
         }
-      } else if (t === "BOTTLE_HANDPACK_COMPLETE" || t === "BOTTLE_CAP_SEAL_COMPLETE" || t === "BOTTLE_STICKER_COMPLETE") {
+      } else if (t === "BOTTLE_HANDPACK_COMPLETE" || t === "BOTTLE_STICKER_COMPLETE" || t === "BOTTLE_CAP_SEAL_COMPLETE") {
         raw = asNum(e.countTotal);
         qty = raw != null ? fmtNumber(raw) : "N/A";
       } else if (isOpsPackagingOutputSnapshot(e)) {
@@ -1582,7 +1582,7 @@
         })}</select></div><h3>BAGS / INVENTORY</h3><${DataTable} headers=${invTableHeaders} rows=${inventoryRowsBagsTab} emptyLabel=${bagsInventoryEmptyLabel} /></section><section className="wall-panel"><h3>LIVE BAG ASSIGNMENTS</h3><${DataTable} headers=${["BAG", "STATION", "KIND", "STATUS", "ELAPSED"]} rows=${bagAssignmentRows} /></section></section>`;
       if (activeTab === "blister") return html`<${StationFocusedDashboard} machineTitle="BLISTER STATION" shortTitle="BLISTER" tone="blue" machines=${blisterMachines} analytics=${blisterAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("blister") >= 0; })} assignmentRows=${blisterAssignmentRows} assignmentEmpty="No active blister station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} showRuntime=${true} materialPanel=${html`<${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} rollMessage=${rollMessage} onChangeRoll=${changeRoll} />`} />`;
       if (activeTab === "card") return html`<${StationFocusedDashboard} machineTitle="CARD STATION" shortTitle="CARD / HEAT SEAL" tone="blue" machines=${heatSealMachines} analytics=${cardAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("heat") >= 0 || String(r[1] || "").toLowerCase().indexOf("seal") >= 0; })} assignmentRows=${cardAssignmentRows} assignmentEmpty="No active card station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} showOperator=${false} />`;
-      if (activeTab === "bottle") return html`<${StationFocusedDashboard} machineTitle="BOTTLE STATION" shortTitle="BOTTLE" tone="green" machines=${bottleLineMachines} analytics=${bottleAnalytics} detailRows=${productionDetailRows.filter(function (r) { return String(r[1] || "").toLowerCase().indexOf("bottle") >= 0 || String(r[1] || "").toLowerCase().indexOf("sticker") >= 0; })} assignmentRows=${bottleAssignmentRows} assignmentEmpty="No active bottle station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />`;
+      if (activeTab === "bottle") return html`<${StationFocusedDashboard} machineTitle="BOTTLE STATION" shortTitle="BOTTLE" tone="green" machines=${bottleLineMachines} analytics=${bottleAnalytics} detailRows=${productionDetailRows.filter(function (r) { var s = String(r[1] || "").toLowerCase(); return s.indexOf("bottle") >= 0 || s.indexOf("sticker") >= 0 || s.indexOf("seal") >= 0; })} assignmentRows=${bottleAssignmentRows} assignmentEmpty="No active bottle station assignments." shiftConfig=${inp.shiftConfig || {}} nowMs=${now.getTime()} />`;
       if (activeTab === "analytics") return html`<section className="occ-wall"><${TrendPanel} trend=${mes.trend || {}} /><section className="wall-panel"><h3>DISPLAYS BY FLAVOR (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "DISPLAYS", "BAGS", "CYCLES"]} rows=${topSkuRows} /></section><${PaceAveragePanel} pace=${inp.shiftConfig && inp.shiftConfig.outputPaceAverages} /><section className="wall-panel"><h3>DOWNTIME SUMMARY (TODAY)</h3><${DataTable} headers=${["LINE", "DOWNTIME", "REASON", "IMPACT"]} rows=${downtimeRows} /></section></section>`;
       if (activeTab === "team") return html`<section className="occ-wall"><section className="wall-panel"><h3>TEAM PERFORMANCE (TODAY)</h3><${DataTable} headers=${["TEAM", "LINE", "CYCLES", "UNITS"]} rows=${teamRows} /></section></section>`;
       if (activeTab === "materials") return html`<section className="occ-wall"><${BlisterMaterialPanel} summary=${materialSummary} stationId=${blisterStationId} busy=${materialBusy} rollMessage=${rollMessage} onChangeRoll=${changeRoll} /></section>`;
@@ -1620,10 +1620,10 @@
           <${LifecycleLane} tone="green" title="BOTTLE FLOW" sku=${bottleSku} dimmed=${!bottleIntegrated} steps=${[
             { title: "BAG", sub: "Bag QR scanned", detail: bottleIntegrated ? "Received qty N/A" : "Bottle line not integrated yet", icon: "bag", status: "NOT_INTEGRATED" },
             { title: "HAND PACK", sub: "Fill + QA", detail: bottleIntegrated ? "Scan station + bag" : "Not integrated", icon: "bottle", status: bottleIntegrated ? "LIVE_QR" : "NOT_INTEGRATED" },
-            { title: "STAGE", sub: "Auto gap queue", detail: "After fill, before seal", icon: "bag" },
-            { title: "CAP SEAL", sub: "Bottle sealer", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
-            { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before sticker", icon: "bag" },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After fill, before sticker", icon: "bag" },
             { title: "STICKER", sub: "Stickering station", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "sticker", status: machines[4].integrationStatus },
+            { title: "STAGE", sub: "Auto gap queue", detail: "After sticker, before seal", icon: "bag" },
+            { title: "CAP SEAL", sub: "Bottle sealer", detail: bottleIntegrated ? "Counter required" : "Offline", icon: "heat", status: machines[4].integrationStatus },
             { title: "STAGE", sub: "Auto gap queue", detail: "After seal, before packing", icon: "bag" },
             { title: "PACKAGING", sub: "Shared QR timer station", detail: packagingMachines[0] && (packagingMachines[0].workflowBagId != null || packagingMachines[0].currentBagId != null) ? bagShortLabel(packagingMachines[0].workflowBagId != null ? packagingMachines[0].workflowBagId : packagingMachines[0].currentBagId) : "Waiting for scan", icon: "pack", status: packagingMachines[0] && packagingMachines[0].integrationStatus, attention: packagingMachines.some(function (m) { return overAverage(m, inp.shiftConfig || {}, now.getTime()); }) },
             { title: "FINAL", sub: "Lifecycle complete", detail: "Finished goods", icon: "bag" }

@@ -229,8 +229,8 @@ def display_stage_label(facts: dict[str, Any]) -> str:
         WC.EVENT_BLISTER_COMPLETE: "Blister",
         WC.EVENT_SEALING_COMPLETE: "Sealing",
         WC.EVENT_BOTTLE_HANDPACK_COMPLETE: "Bottle hand pack",
-        WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: "Bottle cap seal",
         WC.EVENT_BOTTLE_STICKER_COMPLETE: "Bottle sticker",
+        WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE: "Bottle cap seal",
         WC.EVENT_PACKAGING_SNAPSHOT: "Packaging",
         WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: "Taken for order",
         WC.EVENT_SUBMISSION_CORRECTED: "Submission corrected",
@@ -252,10 +252,10 @@ def progress_summary(facts: dict[str, Any]) -> str:
         parts.append(f"seal×{c[WC.EVENT_SEALING_COMPLETE]}")
     if c.get(WC.EVENT_BOTTLE_HANDPACK_COMPLETE):
         parts.append(f"bottle handpack×{c[WC.EVENT_BOTTLE_HANDPACK_COMPLETE]}")
-    if c.get(WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE):
-        parts.append(f"bottle seal×{c[WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE]}")
     if c.get(WC.EVENT_BOTTLE_STICKER_COMPLETE):
         parts.append(f"sticker×{c[WC.EVENT_BOTTLE_STICKER_COMPLETE]}")
+    if c.get(WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE):
+        parts.append(f"bottle seal×{c[WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE]}")
     if c.get(WC.EVENT_PACKAGING_SNAPSHOT):
         parts.append(f"pkg×{c[WC.EVENT_PACKAGING_SNAPSHOT]}")
     if c.get(WC.EVENT_PACKAGING_TAKEN_FOR_ORDER):

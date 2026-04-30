@@ -73,8 +73,8 @@ _STATION_KIND_ORDER = [
     "packaging",
     "combined",
     "bottle_handpack",
-    "bottle_cap_seal",
     "bottle_stickering",
+    "bottle_cap_seal",
 ]
 # Add-station dropdown: omit legacy "combined" (multi-step on one device).
 _STATION_KIND_ORDER_ADD = [
@@ -82,8 +82,8 @@ _STATION_KIND_ORDER_ADD = [
     "blister",
     "packaging",
     "bottle_handpack",
-    "bottle_cap_seal",
     "bottle_stickering",
+    "bottle_cap_seal",
 ]
 
 

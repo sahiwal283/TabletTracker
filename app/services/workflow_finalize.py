@@ -38,10 +38,10 @@ def evaluate_finalization(events: list, production_flow: str = "card") -> tuple[
         reasons = []
         if not has_handpack:
             reasons.append("missing_bottle_handpack")
-        if not has_cap_seal:
-            reasons.append("missing_bottle_cap_seal")
         if not has_sticker:
             reasons.append("missing_bottle_sticker")
+        if not has_cap_seal:
+            reasons.append("missing_bottle_cap_seal")
         if not has_pack:
             reasons.append("missing_packaging")
         return False, "not_eligible", {"reasons": reasons, "production_flow": "bottle"}
