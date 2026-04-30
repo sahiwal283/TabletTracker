@@ -7,7 +7,7 @@ Semantic versioning (https://semver.org/):
   PATCH — backward-compatible bug fixes only
 """
 
-__version__ = "4.24.1"
+__version__ = "4.24.2"
 __title__ = "TabletTracker"
 __description__ = (
     "Tablet manufacturing intake, warehouse submissions, Zoho integration, QR workflow, "

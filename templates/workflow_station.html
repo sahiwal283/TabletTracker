@@ -67,7 +67,8 @@
   </div>
 
   <div id="wf-occupied-choice" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-    <button type="button" id="wf-gate-pause" class="btn-secondary px-6 py-4 text-lg !bg-amber-400 !border-amber-300 !text-slate-900 hover:!bg-amber-300">Pause</button>
+    <button type="button" id="wf-gate-pause" class="btn-secondary tt-wf-pause-btn px-6 py-4 text-lg">Pause</button>
+    <button type="button" id="wf-gate-hold" class="btn-secondary px-6 py-4 text-lg">Out of Packaging hold</button>
     <button type="button" id="wf-gate-end" class="btn-secondary px-6 py-4 text-lg !bg-red-600 !border-red-500 !text-white hover:!bg-red-500">End run</button>
     <button type="button" id="wf-gate-operator" class="btn-secondary px-6 py-4 text-lg">Operator change</button>
     <button type="button" id="wf-gate-material" class="btn-secondary px-6 py-4 text-lg">Material change</button>
@@ -76,9 +77,10 @@
 
   <div id="wf-packaging-intent" class="hidden mb-4 p-4 rounded-xl border border-slate-200 bg-white">
     <p class="text-sm font-semibold text-slate-900 mb-3">What are you doing with this bag?</p>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
       <button type="button" id="wf-intent-end" class="btn-primary px-5 py-4 text-base">End run · finish bag</button>
       <button type="button" id="wf-intent-pause" class="btn-secondary px-5 py-4 text-base">Pause · handoff</button>
+      <button type="button" id="wf-intent-hold" class="btn-secondary px-5 py-4 text-base">Out of Packaging hold</button>
       <button type="button" id="wf-intent-taken" class="btn-secondary px-5 py-4 text-base">Taken for delivery</button>
     </div>
   </div>
@@ -135,14 +137,10 @@
   <input id="wf-taken-displays" type="number" min="0" step="1" class="hidden form-input mb-3" placeholder="e.g. 12" />
   <label for="wf-employee-name" id="wf-employee-name-label" class="hidden block text-sm font-medium mb-1">Your name</label>
   <input id="wf-employee-name" type="text" maxlength="128" class="hidden form-input mb-3" placeholder="name / nombre" autocomplete="name" />
-  <label id="wf-qa-checked-label" class="hidden mb-3 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-    <input id="wf-qa-checked" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
-    <span>Second person checked the bottles</span>
-  </label>
   <div id="wf-source-bags-panel" class="hidden mb-3 rounded-xl p-3 tt-wf-source-bags-panel">
     <label for="wf-source-card-tokens" class="block text-sm font-semibold text-slate-100 mb-1">Variety source bag cards (scan multiple)</label>
     <p id="wf-source-bags-help" class="text-xs text-slate-300 mb-2">
-      1) Load the active bag above. 2) Tap <strong>Scan source bag QR</strong>. 3) Scan each source bag one by one. 4) Submit hand-pack count.
+      1) Load the active bag above. 2) Tap <strong>Scan source bag QR</strong>. 3) Scan each source bag one by one. 4) Submit hand-pack checkpoint.
     </p>
     <div class="flex flex-wrap gap-3 mb-2">
       <button type="button" id="wf-source-scan" class="btn-secondary px-4 py-3 text-base">Scan source bag QR</button>
@@ -164,6 +162,7 @@
     <button type="button" id="wf-save-blister" class="btn-secondary px-6 py-4 text-lg hidden">Submit blister count</button>
     <button type="button" id="wf-save-seal" class="btn-secondary px-6 py-4 text-lg hidden">Submit sealing count</button>
     <button type="button" id="wf-pause-count" class="hidden btn-secondary px-6 py-4 text-lg">Pause bag (end of day)</button>
+    <button type="button" id="wf-hold-release" class="hidden btn-secondary px-6 py-4 text-lg">Out of Packaging (Hold &amp; Release)</button>
     <button type="button" id="wf-taken-delivery" class="hidden btn-secondary px-6 py-4 text-lg">Taken for delivery / order</button>
     <button type="button" id="wf-resume-bag" class="hidden btn-primary px-6 py-4 text-lg">Resume bag</button>
   </div>
