@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.1] - 2026-04-30
+
+### Fixed
+- **Workflow machine resume closeout:** Final machine submissions after a pause/resume now sync under per-event workflow receipts, preventing the legacy duplicate receipt guard from blocking bag closeout.
+
+---
+
 ## [4.25.0] - 2026-04-30
 
 ### Added

@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.0** (clear count semantics for packaging, machines, and reporting)
+Current: **v4.25.1** (workflow machine resume closeout receipts)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

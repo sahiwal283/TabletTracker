@@ -1246,11 +1246,11 @@ def workflow_machine_lane_receipt_number(
     if key not in ("seal", "blister"):
         raise ValueError("lane must be 'seal' or 'blister'")
     base = _receipt_base_for_workflow_bag(workflow_bag, workflow_bag_id)
-    if _has_manual_receipt(workflow_bag):
-        return base
     root = f"{base}-{key}"
     if event_id is not None:
         return f"{root}-e{int(event_id)}"
+    if _has_manual_receipt(workflow_bag):
+        return base
     return root
 
 
