@@ -720,12 +720,55 @@
       document.getElementById('wf-taken-displays'),
     ].filter(Boolean);
   }
-  function renderBagVerification(facts) {
+  function renderBagVerification(facts, slotsOverride) {
     var wrap = document.getElementById('wf-bag-verification');
     var inner = document.getElementById('wf-bag-verification-body');
     if (!wrap || !inner) return;
     var bv = facts && facts.bag_verification;
+    var slots = Array.isArray(slotsOverride) ? slotsOverride : packagingOccupancySlots;
     inner.innerHTML = '';
+    if (stationKind() === 'packaging' && slots.length > 0) {
+      var hasAnySlot = false;
+      slots.forEach(function (slot, idx) {
+        var slotFacts = slot && slot.facts ? slot.facts : null;
+        var slotBv = slotFacts && slotFacts.bag_verification ? slotFacts.bag_verification : null;
+        if (!slotBv) return;
+        hasAnySlot = true;
+        var flow = String(slot.production_flow || '').toLowerCase() === 'bottle' ? 'Bottle' : 'Card';
+        var slotTitle = document.createElement('dt');
+        slotTitle.className = 'text-slate-600 font-semibold';
+        slotTitle.textContent = 'Run ' + String(idx + 1);
+        inner.appendChild(slotTitle);
+        var slotTitleVal = document.createElement('dd');
+        slotTitleVal.className = 'text-slate-900 font-semibold';
+        slotTitleVal.textContent = flow + ' flow';
+        inner.appendChild(slotTitleVal);
+
+        var slotRows = [
+          ['Product', slotBv.product_name],
+          ['Tablet', slotBv.tablet_type_name],
+          ['Receipt #', (slotBv.receipt_number || slotBv.shipment_label || '').trim()],
+          ['Box', slotBv.box_display],
+          ['Bag', slotBv.bag_display],
+          ['PO #', slotBv.po_number],
+        ];
+        slotRows.forEach(function (pair) {
+          if (!pair[1]) return;
+          var dt = document.createElement('dt');
+          dt.className = 'text-slate-500';
+          dt.textContent = pair[0];
+          inner.appendChild(dt);
+          var dd = document.createElement('dd');
+          dd.className = 'text-slate-900 font-medium';
+          dd.textContent = String(pair[1]);
+          inner.appendChild(dd);
+        });
+      });
+      if (hasAnySlot) {
+        wrap.classList.remove('hidden');
+        return;
+      }
+    }
     if (!bv) {
       wrap.classList.add('hidden');
       return;
@@ -1836,7 +1879,7 @@
       lastOccStartMs = 0;
       pausedScreenStartMs = 0;
       renderOccupancyBanner(null, null);
-      renderBagVerification(null);
+      renderBagVerification(null, []);
       applyOccupancyGateUi();
       return;
     }
@@ -1857,7 +1900,7 @@
       }
       stationNeedsResume = !!occ.facts.resume_required;
       occupancyPauseDetails = occ.facts.pause_details || null;
-      renderBagVerification(occ.facts);
+      renderBagVerification(occ.facts, packagingOccupancySlots);
       if (occ.status === 'paused') {
         stopOccupancyTimer();
         var ob0 = document.getElementById('wf-occupied-banner');
