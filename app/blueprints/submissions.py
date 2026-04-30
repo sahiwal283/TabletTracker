@@ -70,6 +70,7 @@ def _workflow_submissions_page(conn):
     page = max(1, page)
     per_page = 15
     wf_status = (request.args.get("wf_status") or "").strip().lower()
+    wf_q = (request.args.get("q") or "").strip()
     if wf_status not in ("", "active", "finalized"):
         wf_status = ""
 
@@ -80,7 +81,32 @@ def _workflow_submissions_page(conn):
             "EXISTS (SELECT 1 FROM workflow_events we WHERE we.workflow_bag_id = wb.id AND we.event_type = ?)"
         )
         params.append(WC.EVENT_BAG_FINALIZED)
-    elif wf_status == "active":
+    if wf_q:
+        like = f"%{wf_q}%"
+        where_clauses.append(
+            """
+            (
+                CAST(wb.id AS TEXT) LIKE ?
+                OR COALESCE(wb.receipt_number, '') LIKE ?
+                OR COALESCE(pd.product_name, '') LIKE ?
+                OR EXISTS (
+                    SELECT 1
+                    FROM bags b
+                    LEFT JOIN small_boxes sb ON sb.id = b.small_box_id
+                    LEFT JOIN receiving r ON r.id = sb.receiving_id
+                    LEFT JOIN purchase_orders po ON po.id = r.po_id
+                    WHERE b.id = wb.inventory_bag_id
+                      AND (
+                        COALESCE(po.po_number, '') LIKE ?
+                        OR CAST(COALESCE(sb.box_number, '') AS TEXT) LIKE ?
+                        OR CAST(COALESCE(b.bag_number, '') AS TEXT) LIKE ?
+                      )
+                )
+            )
+            """
+        )
+        params.extend([like, like, like, like, like, like])
+    if wf_status == "active":
         where_clauses.append(
             "NOT EXISTS (SELECT 1 FROM workflow_events we WHERE we.workflow_bag_id = wb.id AND we.event_type = ?)"
         )
@@ -88,7 +114,12 @@ def _workflow_submissions_page(conn):
 
     where_sql = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
 
-    count_sql = f"SELECT COUNT(*) AS c FROM workflow_bags wb WHERE 1=1{where_sql}"
+    count_sql = f"""
+        SELECT COUNT(*) AS c
+        FROM workflow_bags wb
+        LEFT JOIN product_details pd ON wb.product_id = pd.id
+        WHERE 1=1{where_sql}
+    """
     total = conn.execute(count_sql, params).fetchone()["c"]
 
     total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
@@ -124,6 +155,44 @@ def _workflow_submissions_page(conn):
             d["bag_name"] = _bag_display_name(conn, int(inv_id))
         else:
             d["bag_name"] = "—"
+        base_receipt = (d.get("receipt_number") or f"WORKFLOW-{bid}").strip()
+        sync = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS row_count,
+                COALESCE(SUM(CASE WHEN COALESCE(submission_type, 'packaged') = 'machine' THEN calculated ELSE 0 END), 0) AS machine_total,
+                COALESCE(SUM(CASE WHEN COALESCE(submission_type, 'packaged') IN ('packaged', 'bottle', 'repack') THEN calculated ELSE 0 END), 0) AS output_total,
+                COALESCE(MAX(created_at), '') AS latest_sync_at
+            FROM (
+                SELECT ws.created_at, COALESCE(ws.submission_type, 'packaged') AS submission_type,
+                       CASE COALESCE(ws.submission_type, 'packaged')
+                         WHEN 'machine' THEN COALESCE(ws.tablets_pressed_into_cards, ws.packs_remaining, ws.loose_tablets, 0)
+                         WHEN 'bottle' THEN COALESCE(
+                            (SELECT SUM(sbd.tablets_deducted) FROM submission_bag_deductions sbd WHERE sbd.submission_id = ws.id),
+                            COALESCE(ws.bottles_made, 0) * COALESCE(pd.tablets_per_bottle, 0),
+                            0
+                         )
+                         ELSE (
+                            COALESCE(ws.displays_made, 0) * COALESCE(pd.packages_per_display, 0) * COALESCE(pd.tablets_per_package, 0)
+                            + COALESCE(ws.packs_remaining, 0) * COALESCE(pd.tablets_per_package, 0)
+                            + COALESCE(ws.loose_tablets, 0)
+                         )
+                       END AS calculated
+                FROM warehouse_submissions ws
+                LEFT JOIN product_details pd ON pd.product_name = ws.product_name
+                WHERE ws.receipt_number = ?
+                   OR ws.receipt_number LIKE ?
+                   OR ws.receipt_number LIKE ?
+                   OR ws.receipt_number LIKE ?
+            )
+            """,
+            (base_receipt, base_receipt + "-pkg-e%", base_receipt + "-seal%", base_receipt + "-blister%"),
+        ).fetchone()
+        sd = dict(sync) if sync else {}
+        d["synced_row_count"] = int(sd.get("row_count") or 0)
+        d["machine_total"] = int(sd.get("machine_total") or 0)
+        d["output_total"] = int(sd.get("output_total") or 0)
+        d["latest_sync_at"] = sd.get("latest_sync_at") or None
         workflow_bags.append(d)
 
     tp = total_pages
@@ -138,16 +207,17 @@ def _workflow_submissions_page(conn):
         "next_page": page + 1 if page < tp else None,
     }
 
-    return {"workflow_bags": workflow_bags, "wf_status": wf_status, "pagination": pagination}
+    return {"workflow_bags": workflow_bags, "wf_status": wf_status, "wf_q": wf_q, "pagination": pagination}
 
 
-def _workflow_submissions_template_kwargs(workflow_bags, wf_status, pagination):
+def _workflow_submissions_template_kwargs(workflow_bags, wf_status, wf_q, pagination):
     return {
         "view": "workflow",
         "submissions": [],
         "receipt_groups": [],
         "workflow_bags": workflow_bags,
         "wf_status": wf_status,
+        "wf_q": wf_q,
         "pagination": pagination,
         "filter_info": {},
         "unverified_count": 0,
@@ -670,7 +740,7 @@ def sort_receipt_groups(groups, sort_by, sort_order):
 @role_required('submissions')
 def submissions_list():
     """Full submissions page: warehouse submissions or QR workflow bags."""
-    view = (request.args.get('view') or 'warehouse').strip().lower()
+    view = (request.args.get('view') or 'workflow').strip().lower()
     if view not in ('warehouse', 'workflow'):
         view = 'warehouse'
 
@@ -685,13 +755,13 @@ def submissions_list():
                         "warning",
                     )
                     kwargs = _workflow_submissions_template_kwargs(
-                        [], "", _empty_pagination()
+                        [], "", "", _empty_pagination()
                     )
                     return render_template("submissions.html", **kwargs)
 
                 w = _workflow_submissions_page(conn)
                 kwargs = _workflow_submissions_template_kwargs(
-                    w["workflow_bags"], w["wf_status"], w["pagination"]
+                    w["workflow_bags"], w["wf_status"], w["wf_q"], w["pagination"]
                 )
                 return render_template("submissions.html", **kwargs)
         except Exception as e:
@@ -702,7 +772,7 @@ def submissions_list():
                 "error",
             )
             kwargs = _workflow_submissions_template_kwargs(
-                [], "", _empty_pagination()
+                [], "", "", _empty_pagination()
             )
             return render_template("submissions.html", **kwargs)
 
@@ -720,6 +790,10 @@ def submissions_list():
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
             active_tab = request.args.get('tab', 'packaged_machine', type=str)
+            if active_tab == 'bottles':
+                active_tab = 'packaged_machine'
+            if active_tab not in ('packaged_machine', 'bag'):
+                active_tab = 'packaged_machine'
 
             # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')  # Default sort by created_at
@@ -968,8 +1042,6 @@ def submissions_list():
             # Apply tab filter to unverified count
             if active_tab == 'packaged_machine':
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') IN (\'packaged\', \'machine\', \'repack\')'
-            elif active_tab == 'bottles':
-                unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bottle\''
             elif active_tab == 'bag':
                 unverified_query += ' AND COALESCE(ws.submission_type, \'packaged\') = \'bag\''
 
@@ -1085,6 +1157,10 @@ def export_submissions_csv():
             # Get archive and tab parameters
             show_archived = request.args.get('show_archived', 'false', type=str).lower() == 'true'
             active_tab = request.args.get('tab', 'packaged_machine', type=str)
+            if active_tab == 'bottles':
+                active_tab = 'packaged_machine'
+            if active_tab not in ('packaged_machine', 'bag'):
+                active_tab = 'packaged_machine'
 
             # Get sort parameters
             sort_by = request.args.get('sort_by', 'created_at')
@@ -1336,4 +1412,3 @@ def export_submissions_csv():
         traceback.print_exc()
         flash('An error occurred while exporting submissions. Please try again.', 'error')
         return redirect(url_for('submissions.submissions_list'))
-

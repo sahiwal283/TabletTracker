@@ -66,6 +66,16 @@ _ALLOWED: dict[str, frozenset[str]] = {
         }
     ),
     WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: frozenset({"displays_taken", "employee_name", "note"}),
+    WC.EVENT_SUBMISSION_CORRECTED: frozenset(
+        {
+            "target_event_id",
+            "corrected_event_type",
+            "corrected_payload",
+            "warehouse_submission_id",
+            "corrected_by",
+            "note",
+        }
+    ),
     WC.EVENT_BAG_FINALIZED: frozenset({"finalization_rule_version"}),
     WC.EVENT_CARD_FORCE_RELEASED: frozenset(
         {"qr_card_id", "workflow_bag_id", "reason", "released_by_workflow_bag_id"}

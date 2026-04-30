@@ -1,6 +1,7 @@
 """
 API routes - all /api/* endpoints
 """
+import json
 import sqlite3
 from datetime import datetime
 
@@ -12,6 +13,11 @@ from app.services.repack_allocation_service import (
 )
 from app.services.packaged_submission_display import normalize_packaged_case_fields_for_ui
 from app.services.submission_calculator import calculate_repack_output_good
+from app.services import workflow_constants as WC
+from app.services.workflow_submission_corrections import (
+    apply_qr_submission_correction,
+    resolve_qr_synced_submission,
+)
 from app.utils.auth_utils import (
     WAREHOUSE_SUBMISSION_EDIT_UNLOCK_TTL_SECONDS,
     admin_required,
@@ -561,6 +567,45 @@ def get_submission_details(submission_id):
                         submission_dict['individual_calc'] = bottles_made * tablets_per_bottle
                         submission_dict['total_tablets'] = bottles_made * tablets_per_bottle
 
+            qr_ctx = resolve_qr_synced_submission(conn, submission_id)
+            if qr_ctx:
+                target_event = qr_ctx.get('event') or {}
+                submission_dict['qr_workflow_bag_id'] = qr_ctx.get('workflow_bag_id')
+                submission_dict['qr_target_event_id'] = target_event.get('id')
+                submission_dict['qr_target_event_type'] = qr_ctx.get('event_type')
+                corrections = conn.execute(
+                    '''
+                    SELECT id, payload, occurred_at
+                    FROM workflow_events
+                    WHERE workflow_bag_id = ?
+                      AND event_type = ?
+                      AND CAST(json_extract(payload, '$.target_event_id') AS INTEGER) = ?
+                    ORDER BY occurred_at ASC, id ASC
+                    ''',
+                    (
+                        int(qr_ctx.get('workflow_bag_id')),
+                        WC.EVENT_SUBMISSION_CORRECTED,
+                        int(target_event.get('id')),
+                    ),
+                ).fetchall()
+                correction_rows = []
+                for cr in corrections:
+                    cd = dict(cr)
+                    try:
+                        payload = json.loads(cd.get('payload') or '{}')
+                    except Exception:
+                        payload = {}
+                    correction_rows.append({
+                        'id': cd.get('id'),
+                        'occurred_at': cd.get('occurred_at'),
+                        'corrected_by': payload.get('corrected_by'),
+                        'note': payload.get('note'),
+                    })
+                submission_dict['qr_corrections'] = correction_rows
+                submission_dict['is_qr_synced'] = True
+            else:
+                submission_dict['is_qr_synced'] = False
+
             return jsonify({
                 'success': True,
                 'submission': submission_dict,
@@ -677,6 +722,25 @@ def edit_submission(submission_id):
             # Convert Row to dict for safe access
             submission = dict(submission)
             ws_columns = {row['name'] for row in conn.execute("PRAGMA table_info(warehouse_submissions)").fetchall()}
+
+            corrected_by = (
+                session.get('employee_name')
+                or session.get('employee_username')
+                or session.get('employee_role')
+                or 'Submission edit'
+            )
+            qr_correction = apply_qr_submission_correction(
+                conn,
+                submission_id,
+                data or {},
+                corrected_by=str(corrected_by),
+            )
+            if qr_correction is not None:
+                return jsonify({
+                    'success': True,
+                    'message': 'QR workflow correction saved and warehouse sync refreshed.',
+                    'qr_correction': qr_correction,
+                })
 
             old_po_id = submission['assigned_po_id']
             inventory_item_id = submission['inventory_item_id']
@@ -1842,4 +1906,3 @@ def delete_submission_alt(submission_id):
             })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-

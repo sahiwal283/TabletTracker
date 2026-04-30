@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.21.0** (tablet-first QR assignment with deferred product mapping)
+Current: **v4.24.0** (QR-first submissions with workflow correction events)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

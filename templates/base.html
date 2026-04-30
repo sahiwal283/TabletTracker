@@ -1053,6 +1053,23 @@ async function openEditSubmissionModal(submissionId, poId = null, inventoryItemI
         }
         
         const sub = data.submission;
+        let qrEditNotice = document.getElementById('edit-qr-workflow-correction-notice');
+        const editModalBody = document.querySelector('#edit-submission-modal .p-6');
+        if (!qrEditNotice && editModalBody) {
+            qrEditNotice = document.createElement('div');
+            qrEditNotice.id = 'edit-qr-workflow-correction-notice';
+            qrEditNotice.className = 'hidden mb-4 rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950';
+            editModalBody.insertBefore(qrEditNotice, editModalBody.firstChild);
+        }
+        if (qrEditNotice) {
+            if (sub.is_qr_synced) {
+                qrEditNotice.innerHTML = '<strong>QR workflow correction:</strong> Saving changes will append a correction event to the QR timeline and refresh the mirrored warehouse row.';
+                qrEditNotice.classList.remove('hidden');
+            } else {
+                qrEditNotice.classList.add('hidden');
+                qrEditNotice.innerHTML = '';
+            }
+        }
         const submissionType = sub.submission_type || 'packaged';
         const editSubmissionTypeEl = document.getElementById('edit-submission-type');
         if (editSubmissionTypeEl) {
@@ -3363,6 +3380,14 @@ async function viewSubmissionDetails(submissionId) {
         } else {
             typeBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Packaged</span>';
         }
+        const qrCorrections = Array.isArray(sub.qr_corrections) ? sub.qr_corrections : [];
+        const qrWorkflowNotice = sub.is_qr_synced ? `
+            <div class="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
+                <div class="font-semibold">QR workflow source</div>
+                <div class="mt-1">Edits to this row are saved as workflow correction events, then the warehouse sync row is refreshed.</div>
+                <div class="mt-2 text-xs text-cyan-800 font-mono">workflow bag #${sub.qr_workflow_bag_id || '—'} · event #${sub.qr_target_event_id || '—'}${qrCorrections.length ? ' · corrections ' + qrCorrections.length : ''}</div>
+            </div>
+        ` : '';
         
         // Build back button HTML if there's a parent modal
         const backButtonHTML = hasParentModal ? `
@@ -3395,6 +3420,7 @@ async function viewSubmissionDetails(submissionId) {
                     
                     <!-- Content -->
                     <div class="tt-sd-body p-6 pt-7 space-y-8">
+                        ${qrWorkflowNotice}
                         <!-- Basic Info -->
                         <div>
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h4>

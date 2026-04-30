@@ -233,6 +233,7 @@ def display_stage_label(facts: dict[str, Any]) -> str:
         WC.EVENT_BOTTLE_STICKER_COMPLETE: "Bottle sticker",
         WC.EVENT_PACKAGING_SNAPSHOT: "Packaging",
         WC.EVENT_PACKAGING_TAKEN_FOR_ORDER: "Taken for order",
+        WC.EVENT_SUBMISSION_CORRECTED: "Submission corrected",
         WC.EVENT_BAG_FINALIZED: "Complete",
         WC.EVENT_CARD_FORCE_RELEASED: "Card released (admin)",
     }
@@ -259,6 +260,8 @@ def progress_summary(facts: dict[str, Any]) -> str:
         parts.append(f"pkg×{c[WC.EVENT_PACKAGING_SNAPSHOT]}")
     if c.get(WC.EVENT_PACKAGING_TAKEN_FOR_ORDER):
         parts.append(f"taken×{c[WC.EVENT_PACKAGING_TAKEN_FOR_ORDER]}")
+    if c.get(WC.EVENT_SUBMISSION_CORRECTED):
+        parts.append(f"corrected×{c[WC.EVENT_SUBMISSION_CORRECTED]}")
     if not parts:
         return "No progress events yet"
     return ", ".join(parts)

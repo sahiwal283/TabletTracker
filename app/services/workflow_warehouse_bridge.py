@@ -600,6 +600,14 @@ def upsert_packaged_from_workflow_packaging(
             """,
             (receipt,),
         )
+    else:
+        conn.execute(
+            """
+            DELETE FROM warehouse_submissions
+            WHERE receipt_number = ? AND submission_type = 'packaged'
+            """,
+            (receipt,),
+        )
 
     try:
         assert_receipt_product_chain(conn, receipt_number=receipt, product_name=product_name)
@@ -822,6 +830,8 @@ def upsert_bottle_from_workflow_packaging(
             [str(r["receipt_number"]) for r in legacy_rows if r["receipt_number"]],
         )
     elif event_id is None:
+        _delete_bottle_submissions_for_receipts(conn, [receipt])
+    else:
         _delete_bottle_submissions_for_receipts(conn, [receipt])
 
     try:
@@ -1541,6 +1551,8 @@ def upsert_machine_from_workflow_scan(
             tablet_type_id,
             machine_id=machine_id if exact_receipt else None,
         )
+    elif not exact_receipt:
+        _delete_workflow_machine_lane_rows(conn, receipt, tablet_type_id)
 
     data: dict[str, Any] = {
         "product_id": int(product_id),

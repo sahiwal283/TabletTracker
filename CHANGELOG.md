@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.24.0] - 2026-04-30
+
+### Added
+- **QR-first submissions:** The submissions page now opens on QR workflow submissions, with search, workflow status filtering, synced output totals, machine totals, and clearer legacy navigation for old production-form rows / bag counts.
+- **Workflow-aware edits:** QR-synced submission edits now append a `SUBMISSION_CORRECTED` workflow event and refresh the mirrored warehouse row instead of silently editing only `warehouse_submissions`.
+- **Correction visibility:** Submission details and the edit modal now identify QR-synced rows and show that changes are saved as workflow corrections.
+
+### Changed
+- **Bottles navigation:** Removed the standalone legacy Bottles tab from submissions; bottle output now belongs to QR workflow submissions.
+
+---
+
 ## [4.23.2] - 2026-04-30
 
 ### Fixed
