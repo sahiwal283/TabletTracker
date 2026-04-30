@@ -674,10 +674,24 @@
     }
     function tick() {
       elapsed.textContent = formatElapsedMs(Date.now() - startMs);
+      refreshPackagingSlotElapsedTimers();
     }
     tick();
     banner.classList.remove('hidden');
     occupancyTimerHandle = setInterval(tick, 1000);
+  }
+  function refreshPackagingSlotElapsedTimers() {
+    var nodes = document.querySelectorAll('[data-wf-slot-elapsed][data-start-ms]');
+    if (!nodes || !nodes.length) return;
+    var now = Date.now();
+    nodes.forEach(function (node) {
+      var raw = Number(node.getAttribute('data-start-ms') || 0);
+      if (!Number.isFinite(raw) || raw <= 0) {
+        node.textContent = '—';
+        return;
+      }
+      node.textContent = formatElapsedMs(now - raw);
+    });
   }
   function actionButtons() {
     /* Resume is not in this list so a submit/pause cooldown cannot block the next-day Resume action. */
@@ -743,6 +757,16 @@
         slotTitleVal.className = 'text-slate-900 font-semibold';
         slotTitleVal.textContent = flow + ' flow';
         inner.appendChild(slotTitleVal);
+        var timerLabel = document.createElement('dt');
+        timerLabel.className = 'text-slate-500';
+        timerLabel.textContent = 'Elapsed';
+        inner.appendChild(timerLabel);
+        var timerValue = document.createElement('dd');
+        timerValue.className = 'text-cyan-300 font-semibold';
+        timerValue.setAttribute('data-wf-slot-elapsed', '1');
+        timerValue.setAttribute('data-start-ms', String(Number(slot.occupancy_started_at_ms) || 0));
+        timerValue.textContent = '—';
+        inner.appendChild(timerValue);
 
         var slotRows = [
           ['Product', slotBv.product_name],
@@ -765,6 +789,7 @@
         });
       });
       if (hasAnySlot) {
+        refreshPackagingSlotElapsedTimers();
         wrap.classList.remove('hidden');
         return;
       }
