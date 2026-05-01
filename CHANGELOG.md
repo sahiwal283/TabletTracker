@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.8] - 2026-05-01
+
+### Fixed
+- **Out-of-packaging overview visibility:** The Command Center overview now shows an `Out of Packaging` KPI, alert entries, and a bag list for active sealing/card or packaging/box shortages even after the station is released.
+- **Out-of-packaging staging:** Out-of-packaging holds remain visible in staging/overview instead of being cleared like normal packaging submissions.
+
+---
+
 ## [4.25.7] - 2026-05-01
 
 ### Fixed

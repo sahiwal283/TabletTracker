@@ -327,6 +327,7 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
             raw_payload = dict(r)["payload"]
             nums = _float_from_payload(str(raw_payload) if raw_payload not in (None, "") else None)
             payload_obj = _payload_from_raw(str(raw_payload) if raw_payload not in (None, "") else None)
+            payload_meta = payload_obj.get("metadata") if isinstance(payload_obj.get("metadata"), dict) else {}
             row = dict(r)
             sid = row.get("sid")
             bid = row.get("bag_id")
@@ -365,7 +366,13 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                     "counterStart": nums["counter_start"],
                     "counterEnd": nums["counter_end"],
                     "cardsReopened": nums["cards_reopened"],
-                    "reason": str(payload_obj.get("reason") or ""),
+                    "reason": str(
+                        payload_obj.get("reason")
+                        or payload_obj.get("pause_reason")
+                        or payload_meta.get("reason")
+                        or ""
+                    ),
+                    "materialType": str(payload_meta.get("material_type") or ""),
                 }
             )
     except sqlite3.OperationalError:

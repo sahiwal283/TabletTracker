@@ -1074,6 +1074,16 @@
     var alerts = (mes.alerts || []).filter(function (a) { return String(a.severity || "info").toLowerCase() !== "info"; });
     var timeline = (mes.timeline || []).slice(0, 7);
     var staging = derived.stagingBags || [];
+    var outOfPackagingBags = derived.outOfPackagingBags || [];
+    alerts = outOfPackagingBags.map(function (b) {
+      var stage = String(b.stage || "").toLowerCase();
+      var material = String(b.material || "").replace(/_/g, " ");
+      return {
+        at_ms: b.atMs,
+        message: bagDisplayLabel(b.bagId) + ": out of packaging at " + (stage || "workflow") + (material ? " (" + material + ")" : ""),
+        severity: "warn",
+      };
+    }).concat(alerts);
     var inventoryRaw = mes.inventory || [];
     function inventoryRowPo(r) {
       if (!r) return "";
@@ -1161,6 +1171,11 @@
     var stagingRows = staging.slice(0, 6).map(function (r) {
       var ctx = stagingContext(r);
       return [ctx.line, ctx.area, bagDisplayLabel(r.bagId), elapsedSince(r.enteredAtMs)];
+    });
+    var outOfPackagingRows = outOfPackagingBags.slice(0, 8).map(function (r) {
+      var stage = String(r.stage || "").toLowerCase();
+      var material = String(r.material || "").replace(/_/g, " ");
+      return [bagDisplayLabel(r.bagId), stage === "sealing" ? "Sealing" : "Packaging", material || "N/A", r.productLabel || skuForBag(r.bagId), elapsedSince(r.atMs)];
     });
     var timelineRows = timeline.map(function (r) {
       return [fmtTime(r.at_ms || r.atMs), r.line || "N/A", r.machine || r.station || "N/A", r.event || r.message || "Activity", bagDisplayLabel(r.bag_id)];
@@ -1618,6 +1633,7 @@
         ${activeTab === "overview" ? html`
         <section className="occ-kpis">
           <${KpiCard} label="COMPLETED BAGS (DAY)" value=${kpiBy.bags ? fmtNumber(kpiBy.bags.value) : "0"} note="Bag to final only" icon="bag" />
+          <${KpiCard} label="OUT OF PACKAGING" value=${kpiBy.out_of_packaging ? fmtNumber(kpiBy.out_of_packaging.value) : "0"} hideNote=${true} icon="warn" tone="amber" />
           <${KpiCard} label="CARD DISPLAYS PRODUCED" value=${kpiBy.card_displays ? fmtNumber(kpiBy.card_displays.value) : "0"} hideNote=${true} icon="bars" editable=${true} editing=${targetEditing === "daily"} editLabel="Daily card display target" editValue=${dailyDisplayTarget != null ? String(dailyDisplayTarget) : ""} editStep="1" onEdit=${function () { toggleTargetEditor("daily"); }} onSave=${function (e) { saveOpsTarget("daily", e); }} />
           <${KpiCard} label="BOTTLE DISPLAYS PRODUCED" value=${kpiBy.bottle_displays ? fmtNumber(kpiBy.bottle_displays.value) : "0"} hideNote=${true} icon="bars" />
           <${KpiCard} label="PRODUCTS PRODUCED (DAY)" value=${kpiBy.cycles ? fmtNumber(kpiBy.cycles.value) : "0"} hideNote=${true} icon="cycle" />
@@ -1659,6 +1675,7 @@
           <${TrendPanel} trend=${mes.trend || {}} />
           <${FlavorBarPanel} rows=${mes.sku_table || []} />
           <section className="wall-panel"><h3>FLAVOR OUTPUT DETAIL (DAY)</h3><${DataTable} headers=${["FLAVOR", "LINE", "CASES", "BAGS", "CYCLES"]} rows=${topSkuCaseRows} /></section>
+          <section className="wall-panel"><h3>OUT OF PACKAGING BAGS</h3><${DataTable} headers=${["BAG", "STAGE", "MATERIAL", "PRODUCT", "WAITING"]} rows=${outOfPackagingRows} emptyLabel="No out-of-packaging bags." /></section>
           <section className="wall-panel"><h3>STAGING AREA STATUS</h3><${DataTable} headers=${["LINE", "QUEUE STAGE", "BAG (PO-SHIPMENT-BOX-BAG + FLAVOR)", "TIME IN AREA"]} rows=${stagingRows} /></section>
         </section>
         <section className="occ-wall wall-row-b">

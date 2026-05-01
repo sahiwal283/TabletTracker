@@ -41,11 +41,15 @@
     return t === "PACKAGING_SNAPSHOT" && String((ev && ev.reason) || "").toLowerCase() === "final_submit";
   }
 
+  function eventReason(ev) {
+    return String((ev && (ev.reason || ev.pauseReason || ev.pause_reason)) || "").toLowerCase();
+  }
+
   /** Packaging snapshots that represent operator-entered output segments for Command Center. */
   function isOpsPackagingOutputSnapshot(ev) {
     var t = String((ev && ev.eventType) || "").toUpperCase();
     if (t !== "PACKAGING_SNAPSHOT") return false;
-    var r = String((ev && ev.reason) || "").toLowerCase();
+    var r = eventReason(ev);
     return r === "final_submit" || r === "paused_end_of_day" || r === "partial_packaging";
   }
 
@@ -115,6 +119,42 @@
       (bpd != null && bpd > 0) ||
       (tpb != null && tpb > 0)
     );
+  }
+
+  function outOfPackagingShortages(events, bagsById) {
+    var active = {};
+    (events || []).slice().sort(function (a, b) {
+      return (asNum(a && a.atMs) || 0) - (asNum(b && b.atMs) || 0);
+    }).forEach(function (e) {
+      var bid = eventBagId(e);
+      if (bid == null) return;
+      var et = String(e.eventType || "").toUpperCase();
+      var keyBase = String(bid) + ":";
+      if (et === "BAG_FINALIZED") {
+        delete active[keyBase + "sealing"];
+        delete active[keyBase + "packaging"];
+        return;
+      }
+      var reason = eventReason(e);
+      if (reason === "out_of_packaging" && (et === "SEALING_COMPLETE" || et === "PACKAGING_SNAPSHOT")) {
+        var stage = et === "SEALING_COMPLETE" ? "sealing" : "packaging";
+        var material = String((e && (e.materialType || e.material_type)) || (stage === "sealing" ? "cards" : "display_boxes"));
+        var bag = (bagsById || {})[String(bid)] || {};
+        active[keyBase + stage] = {
+          bagId: bid,
+          stage: stage,
+          material: material,
+          atMs: asNum(e.atMs),
+          productLabel: bag.sku || bag.productLabel || bag.product_label || "N/A",
+        };
+        return;
+      }
+      if (et === "SEALING_COMPLETE") delete active[keyBase + "sealing"];
+      if (et === "PACKAGING_SNAPSHOT") delete active[keyBase + "packaging"];
+    });
+    return Object.keys(active).map(function (k) { return active[k]; }).sort(function (a, b) {
+      return (b.atMs || 0) - (a.atMs || 0);
+    });
   }
 
   function getMachineIntegrationStatus(machineId, events, config) {
@@ -259,8 +299,13 @@
       if (et === "BLISTER_COMPLETE" || et === "SEALING_COMPLETE" || et.indexOf("STAGING") >= 0) {
         row.enteredAtMs = at;
       }
+      if ((et === "SEALING_COMPLETE" || et === "PACKAGING_SNAPSHOT") && eventReason(e) === "out_of_packaging") {
+        row.enteredAtMs = at;
+      }
       if (et === "BAG_CLAIMED" || et === "PACKAGING_SNAPSHOT" || et === "BAG_FINALIZED") {
-        row.enteredAtMs = null;
+        if (!(et === "PACKAGING_SNAPSHOT" && eventReason(e) === "out_of_packaging")) {
+          row.enteredAtMs = null;
+        }
       }
       byBag[String(bagId)] = row;
     });
@@ -419,6 +464,7 @@
     var completeTotal = 0;
     var onTimeTotal = 0;
     var finalizedBagSet = {};
+    var outOfPackaging = outOfPackagingShortages(todays, bagsById);
     var displayCaseTotal = 0;
     var cardDisplayCaseTotal = 0;
     var bottleDisplayCaseTotal = 0;
@@ -516,6 +562,7 @@
     return {
       kpis: [
         { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
+        { id: "out_of_packaging", value: outOfPackaging.length, displayLabel: "Out of Packaging Bags", formulaNote: "Active sealing/packaging material holds", sparkline: outOfPackaging.length ? [0, outOfPackaging.length] : [] },
         { id: "card_displays", value: cardDisplays, displayLabel: "Card Displays", formulaNote: "Card-line PACKAGING_SNAPSHOT count segments", sparkline: cardDisplays ? [0, cardDisplays] : [], caseCount: cardDisplayCaseTotal, displaysPerCaseValues: dpcValues(cardDisplayCaseDpcValues) },
         { id: "bottle_displays", value: bottleDisplays, displayLabel: "Bottle Displays", formulaNote: "Bottle/variety PACKAGING_SNAPSHOT count segments", sparkline: bottleDisplays ? [0, bottleDisplays] : [], caseCount: bottleDisplayCaseTotal, displaysPerCaseValues: dpcValues(bottleDisplayCaseDpcValues) },
         { id: "units", value: displays, displayLabel: "All Packaging Displays", formulaNote: "PACKAGING_SNAPSHOT count segments: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [], caseCount: displayCaseTotal, displaysPerCaseValues: dpcValues(displayCaseDpcValues) },
@@ -529,6 +576,7 @@
       queues: q,
       bottleneck: bottleneck,
       stagingBags: deriveStagingBags(todays),
+      outOfPackagingBags: outOfPackaging,
       genealogySelectedBagId: Object.keys(bagSet).length ? Number(Object.keys(bagSet).pop()) : null,
       oeeDonut: {
         total: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data",

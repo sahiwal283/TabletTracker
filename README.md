@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.7** (Command Center KPI cleanup)
+Current: **v4.25.8** (out-of-packaging overview visibility)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 
