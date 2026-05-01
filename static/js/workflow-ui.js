@@ -1891,6 +1891,11 @@
         if (reason === 'resume_required') {
           throw new Error('Resume this bag before submitting more counts.');
         }
+        if (reason === 'upstream_out_of_packaging') {
+          throw new Error(
+            'Limited cards are active for this bag. Submit a partial packaging count; do not finalize yet.'
+          );
+        }
         var msg = String(data.message || '').toLowerCase();
         if (msg.includes('cannot finalize')) {
           var finalReasons = (((data.details || {}).reasons) || []).map(String);

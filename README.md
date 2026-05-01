@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.3** (out-of-packaging closeout safety)
+Current: **v4.25.4** (out-of-packaging final-submit guard)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

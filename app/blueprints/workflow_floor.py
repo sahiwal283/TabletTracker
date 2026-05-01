@@ -769,6 +769,21 @@ def _workflow_bag_has_product(conn: sqlite3.Connection, workflow_bag_id: int) ->
     return bool(row and row["product_id"] is not None)
 
 
+def _blocking_upstream_shortage_for_packaging_submit(
+    conn: sqlite3.Connection, workflow_bag_id: int, payload: dict
+) -> dict | None:
+    """Reject final packaging submit when upstream card shortage is still active."""
+    if not isinstance(payload, dict):
+        return None
+    if str(payload.get("reason") or "").strip() != "final_submit":
+        return None
+    facts = mechanical_bag_facts(conn, workflow_bag_id)
+    for shortage in active_out_of_packaging_shortages(facts["events"]):
+        if str(shortage.get("stage") or "").lower() == "sealing":
+            return shortage
+    return None
+
+
 def _list_from_payload(raw) -> list[str]:
     if raw is None:
         return []
@@ -1123,6 +1138,20 @@ def api_append_event():
                 "facts": _station_facts_payload(conn, bag_id, station_id),
                 "idempotent_duplicate": True,
             }
+        if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
+            shortage = _blocking_upstream_shortage_for_packaging_submit(conn, bag_id, payload)
+            if shortage:
+                return workflow_json(
+                    "WORKFLOW_VALIDATION",
+                    "This bag has limited cards from sealing. Submit a partial packaging count; do not finalize yet.",
+                    details={
+                        "reason": "upstream_out_of_packaging",
+                        "stage": shortage.get("stage"),
+                        "material": shortage.get("material"),
+                        "state": shortage.get("state"),
+                    },
+                    status=409,
+                )
         station_needs_resume = _station_needs_resume(conn, bag_id, station_id)
         if event_type == WC.EVENT_STATION_RESUMED and not station_needs_resume:
             return {

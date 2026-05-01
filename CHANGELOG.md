@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.4] - 2026-05-01
+
+### Fixed
+- **Out-of-packaging API guard:** Packaging `final_submit` events are now rejected before write/sync when sealing still has an unresolved out-of-cards shortage, preventing stale clients from recording final packaging output for partial-card batches.
+- **Kiosk error clarity:** Stale finalize attempts on limited-card bags now tell operators to submit a partial packaging count instead of showing a generic validation error.
+
+---
+
 ## [4.25.3] - 2026-05-01
 
 ### Fixed
