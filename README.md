@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.5** (packaging segment KPI case context)
+Current: **v4.25.6** (card and bottle display KPIs split)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

@@ -1419,19 +1419,25 @@
     var dailyDisplayTarget = asNum(inp.shiftConfig && inp.shiftConfig.dailyDisplayTarget);
     var targetThroughput = asNum(inp.shiftConfig && inp.shiftConfig.targetThroughputPerHour);
     var dueTimeValue = timeInputValue(inp.shiftConfig && inp.shiftConfig.productionDueMs);
-    var finalDisplaysValue = kpiBy.units ? asNum(kpiBy.units.value) : null;
-    var finalCasesValue = kpiBy.units ? asNum(kpiBy.units.caseCount) : null;
-    var finalDpcValues = kpiBy.units && Array.isArray(kpiBy.units.displaysPerCaseValues)
-      ? kpiBy.units.displaysPerCaseValues.filter(function (v) { return asNum(v) != null && asNum(v) > 0; })
-      : [];
-    var finalCaseNote = finalCasesValue != null && finalCasesValue > 0
-      ? fmtNumber(finalCasesValue) + " cases" + (finalDpcValues.length === 1 ? " @ " + fmtNumber(finalDpcValues[0]) + "/case" : (finalDpcValues.length > 1 ? " mixed case sizes" : ""))
-      : null;
-    var finalDisplayNote = finalDisplaysValue != null
-      ? (finalCaseNote ? finalCaseNote + " / " : "") + fmtNumber(finalDisplaysValue) + (dailyDisplayTarget != null ? " / " + fmtNumber(dailyDisplayTarget) + " target" : "")
-      : "Packaging count segments";
+    function displayKpiNote(kpi, includeTarget) {
+      if (!kpi) return "Packaging count segments";
+      var val = asNum(kpi.value);
+      var cases = asNum(kpi.caseCount);
+      var dpcs = Array.isArray(kpi.displaysPerCaseValues)
+        ? kpi.displaysPerCaseValues.filter(function (v) { return asNum(v) != null && asNum(v) > 0; })
+        : [];
+      var caseNote = cases != null && cases > 0
+        ? fmtNumber(cases) + " cases" + (dpcs.length === 1 ? " @ " + fmtNumber(dpcs[0]) + "/case" : (dpcs.length > 1 ? " mixed case sizes" : ""))
+        : null;
+      if (val == null) return caseNote || "Packaging count segments";
+      return (caseNote ? caseNote + " / " : "") + fmtNumber(val) + (includeTarget && dailyDisplayTarget != null ? " / " + fmtNumber(dailyDisplayTarget) + " target" : "");
+    }
+    var cardDisplayNote = displayKpiNote(kpiBy.card_displays, true);
+    var bottleDisplayNote = displayKpiNote(kpiBy.bottle_displays, false);
     var packagingSummaryRows = [
-      ["Final displays", kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"],
+      ["Card displays", kpiBy.card_displays ? fmtNumber(kpiBy.card_displays.value) : "0"],
+      ["Bottle displays", kpiBy.bottle_displays ? fmtNumber(kpiBy.bottle_displays.value) : "0"],
+      ["All packaging displays", kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"],
       ["Ripped cards", kpiBy.rework ? (typeof kpiBy.rework.value === "number" ? fmtNumber(kpiBy.rework.value) : kpiBy.rework.value) : "No reject data"],
       ["Most recent final run", recentFinalRun && recentFinalRun.at ? fmtTime(recentFinalRun.at) : "N/A"],
       ["Packaging station status", packagingMachines.length ? statusText(packagingMachines[0].integrationStatus) : "No configured station"],
@@ -1627,7 +1633,8 @@
         ${activeTab === "overview" ? html`
         <section className="occ-kpis">
           <${KpiCard} label="COMPLETED BAGS (DAY)" value=${kpiBy.bags ? fmtNumber(kpiBy.bags.value) : "0"} note="Bag to final only" icon="bag" />
-          <${KpiCard} label="FINAL DISPLAYS PRODUCED" value=${kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"} note=${finalDisplayNote} icon="bars" editable=${true} editing=${targetEditing === "daily"} editLabel="Daily display target" editValue=${dailyDisplayTarget != null ? String(dailyDisplayTarget) : ""} editStep="1" onEdit=${function () { toggleTargetEditor("daily"); }} onSave=${function (e) { saveOpsTarget("daily", e); }} />
+          <${KpiCard} label="CARD DISPLAYS PRODUCED" value=${kpiBy.card_displays ? fmtNumber(kpiBy.card_displays.value) : "0"} note=${cardDisplayNote} icon="bars" editable=${true} editing=${targetEditing === "daily"} editLabel="Daily card display target" editValue=${dailyDisplayTarget != null ? String(dailyDisplayTarget) : ""} editStep="1" onEdit=${function () { toggleTargetEditor("daily"); }} onSave=${function (e) { saveOpsTarget("daily", e); }} />
+          <${KpiCard} label="BOTTLE DISPLAYS PRODUCED" value=${kpiBy.bottle_displays ? fmtNumber(kpiBy.bottle_displays.value) : "0"} note=${bottleDisplayNote} icon="bars" />
           <${KpiCard} label="FLAVORS PRODUCED (DAY)" value=${kpiBy.cycles ? fmtNumber(kpiBy.cycles.value) : "0"} note="Displays by flavor below" icon="cycle" />
           <${KpiCard} label="AVERAGE CYCLE TIME (ALL)" value=${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"} note=${kpiBy.avg_cycle && kpiBy.avg_cycle.value !== "Insufficient data" ? "From completed operations" : "Insufficient data"} icon="clock" tone="amber" />
           <${KpiCard} label="OEE (OVERALL)" value=${kpiBy.oee ? kpiBy.oee.value : "Insufficient data"} note=${oeeTargetNote} icon="gauge" tone="green" editable=${true} editing=${targetEditing === "throughput"} editLabel="Target output/hour" editValue=${targetThroughput != null ? String(targetThroughput) : ""} editStep="0.01" onEdit=${function () { toggleTargetEditor("throughput"); }} onSave=${function (e) { saveOpsTarget("throughput", e); }} />

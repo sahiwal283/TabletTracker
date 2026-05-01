@@ -308,7 +308,9 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                    we.user_id AS user_id,
                    COALESCE(NULLIF(trim(e.full_name), ''), NULLIF(trim(e.username), '')) AS op_label,
                    we.payload AS payload,
-                   COALESCE(pd.displays_per_case, 0) AS product_displays_per_case
+                   COALESCE(pd.displays_per_case, 0) AS product_displays_per_case,
+                   COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
             FROM workflow_events we
             LEFT JOIN employees e ON e.id = we.user_id
             LEFT JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
@@ -353,6 +355,8 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                     "caseCount": nums["case_count"],
                     "looseDisplayCount": loose_display_num,
                     "productDisplaysPerCase": prod_dpc,
+                    "isBottleProduct": int(row.get("is_bottle_product") or 0) == 1,
+                    "isVarietyPack": int(row.get("is_variety_pack") or 0) == 1,
                     "packagingCaseBreakdown": packaging_case_breakdown,
                     "counterStart": nums["counter_start"],
                     "counterEnd": nums["counter_end"],
@@ -377,7 +381,9 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
                    wb.receipt_number,
                    substr(upper(trim(replace(coalesce(pd.product_name,''),' ','-'))),1,48) AS sku,
                    NULL AS qty_received,
-                   COALESCE(pd.displays_per_case, 0) AS displays_per_case
+                   COALESCE(pd.displays_per_case, 0) AS displays_per_case,
+                   COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
+                   COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
             FROM workflow_bags wb
             LEFT JOIN product_details pd ON pd.id = wb.product_id
             WHERE wb.id IN ({placeholders})
@@ -400,6 +406,8 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
                     "qtyReceived": rr.get("qty_received"),
                     "productLabel": str(rr.get("sku") or "—"),
                     "displaysPerCase": dpc,
+                    "isBottleProduct": int(rr.get("is_bottle_product") or 0) == 1,
+                    "isVarietyPack": int(rr.get("is_variety_pack") or 0) == 1,
                 }
             )
     except sqlite3.OperationalError:

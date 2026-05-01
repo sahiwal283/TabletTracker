@@ -102,6 +102,13 @@
     return m;
   }
 
+  function isBottleFlowBag(bag, ev) {
+    return !!(
+      (bag && (bag.isBottleProduct || bag.is_bottle_product || bag.isVarietyPack || bag.is_variety_pack)) ||
+      (ev && (ev.isBottleProduct || ev.is_bottle_product || ev.isVarietyPack || ev.is_variety_pack))
+    );
+  }
+
   function getMachineIntegrationStatus(machineId, events, config) {
     var mid = asNum(machineId);
     if (mid == null) return "NOT_INTEGRATED";
@@ -395,6 +402,8 @@
     var bagSet = {};
     var units = 0;
     var displays = 0;
+    var cardDisplays = 0;
+    var bottleDisplays = 0;
     var flavorsWithDisplays = {};
     var cycles = [];
     var rejectTotal = 0;
@@ -403,27 +412,43 @@
     var onTimeTotal = 0;
     var finalizedBagSet = {};
     var displayCaseTotal = 0;
+    var cardDisplayCaseTotal = 0;
+    var bottleDisplayCaseTotal = 0;
     var displayCaseDpcValues = {};
+    var cardDisplayCaseDpcValues = {};
+    var bottleDisplayCaseDpcValues = {};
     todays.forEach(function (e) {
       var bid = eventBagId(e);
+      var bagInfo = bid != null ? (bagsById[String(bid)] || {}) : {};
       if (bid != null) bagSet[String(bid)] = true;
       if ((String(e.eventType || "").toUpperCase() === "BAG_FINALIZED" || isFinalPackagingSnapshot(e)) && bid != null) {
         finalizedBagSet[String(bid)] = true;
       }
       if (isOpsPackagingOutputSnapshot(e)) {
         var dc = finalSubmitDisplayTotal(e, bagsById);
+        var isBottleFlow = isBottleFlowBag(bagInfo, e);
         displays += dc;
+        if (isBottleFlow) bottleDisplays += dc;
+        else cardDisplays += dc;
         if (e && e.packagingCaseBreakdown) {
           var cases = asNum(e.caseCount);
-          if (cases != null && cases >= 0) displayCaseTotal += cases;
-          var b = bid != null ? (bagsById[String(bid)] || {}) : {};
+          if (cases != null && cases >= 0) {
+            displayCaseTotal += cases;
+            if (isBottleFlow) bottleDisplayCaseTotal += cases;
+            else cardDisplayCaseTotal += cases;
+          }
+          var b = bagInfo;
           var dpc =
             asNum(b.displaysPerCase != null ? b.displaysPerCase : b.displays_per_case) ||
             asNum(e.productDisplaysPerCase != null ? e.productDisplaysPerCase : e.product_displays_per_case);
-          if (dpc != null && dpc > 0) displayCaseDpcValues[String(dpc)] = true;
+          if (dpc != null && dpc > 0) {
+            displayCaseDpcValues[String(dpc)] = true;
+            if (isBottleFlow) bottleDisplayCaseDpcValues[String(dpc)] = true;
+            else cardDisplayCaseDpcValues[String(dpc)] = true;
+          }
         }
         if (dc > 0 && bid != null) {
-          var bi = bagsById[String(bid)] || {};
+          var bi = bagInfo;
           flavorsWithDisplays[String(bi.sku || bi.productLabel || bid)] = true;
         }
       }
@@ -476,11 +501,16 @@
       aggregateOee = clamp((availabilityEstimate / 100) * (performanceEstimate / 100) * (qualityEstimate / 100) * 100, 0, 100);
     }
     if (aggregateOee != null) oeeAvg = aggregateOee;
+    function dpcValues(obj) {
+      return Object.keys(obj).map(function (v) { return Number(v); }).filter(function (v) { return Number.isFinite(v); }).sort(function (a, b) { return a - b; });
+    }
 
     return {
       kpis: [
         { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
-        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT count segments: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [], caseCount: displayCaseTotal, displaysPerCaseValues: Object.keys(displayCaseDpcValues).map(function (v) { return Number(v); }).filter(function (v) { return Number.isFinite(v); }).sort(function (a, b) { return a - b; }) },
+        { id: "card_displays", value: cardDisplays, displayLabel: "Card Displays", formulaNote: "Card-line PACKAGING_SNAPSHOT count segments", sparkline: cardDisplays ? [0, cardDisplays] : [], caseCount: cardDisplayCaseTotal, displaysPerCaseValues: dpcValues(cardDisplayCaseDpcValues) },
+        { id: "bottle_displays", value: bottleDisplays, displayLabel: "Bottle Displays", formulaNote: "Bottle/variety PACKAGING_SNAPSHOT count segments", sparkline: bottleDisplays ? [0, bottleDisplays] : [], caseCount: bottleDisplayCaseTotal, displaysPerCaseValues: dpcValues(bottleDisplayCaseDpcValues) },
+        { id: "units", value: displays, displayLabel: "All Packaging Displays", formulaNote: "PACKAGING_SNAPSHOT count segments: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [], caseCount: displayCaseTotal, displaysPerCaseValues: dpcValues(displayCaseDpcValues) },
         { id: "cycles", value: Object.keys(flavorsWithDisplays).length, displayLabel: "Flavors Produced", formulaNote: "Flavor/display breakdown shown below" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },

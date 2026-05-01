@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.6] - 2026-05-01
+
+### Fixed
+- **Command Center display split:** The overview now separates card-line displays from bottle/variety displays instead of combining both into one top-level production KPI.
+- **Workflow metrics feed:** QR workflow events and bag DTOs now carry product flow flags so client-side display totals can split card and bottle output without guessing from labels.
+
+---
+
 ## [4.25.5] - 2026-05-01
 
 ### Fixed
