@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.8** (out-of-packaging overview visibility)
+Current: **v4.25.9** (persistent out-of-packaging visibility)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

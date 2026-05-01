@@ -1074,13 +1074,25 @@
     var alerts = (mes.alerts || []).filter(function (a) { return String(a.severity || "info").toLowerCase() !== "info"; });
     var timeline = (mes.timeline || []).slice(0, 7);
     var staging = derived.stagingBags || [];
-    var outOfPackagingBags = derived.outOfPackagingBags || [];
+    var serverOutOfPackagingBags = (mes.out_of_packaging_bags || []).map(function (b) {
+      var bagId = b.bag_id != null ? b.bag_id : b.bagId;
+      return {
+        bagId: bagId,
+        receiptNumber: b.receipt_number || b.receiptNumber || "",
+        stage: b.stage || "",
+        material: b.material || "",
+        atMs: b.occurred_at != null ? b.occurred_at : (b.at_ms != null ? b.at_ms : b.atMs),
+        productLabel: b.product_label || b.productLabel || "",
+      };
+    });
+    var outOfPackagingBags = serverOutOfPackagingBags.length ? serverOutOfPackagingBags : (derived.outOfPackagingBags || []);
     alerts = outOfPackagingBags.map(function (b) {
       var stage = String(b.stage || "").toLowerCase();
       var material = String(b.material || "").replace(/_/g, " ");
+      var label = b.receiptNumber || bagDisplayLabel(b.bagId);
       return {
         at_ms: b.atMs,
-        message: bagDisplayLabel(b.bagId) + ": out of packaging at " + (stage || "workflow") + (material ? " (" + material + ")" : ""),
+        message: label + ": out of packaging at " + (stage || "workflow") + (material ? " (" + material + ")" : ""),
         severity: "warn",
       };
     }).concat(alerts);
@@ -1175,7 +1187,7 @@
     var outOfPackagingRows = outOfPackagingBags.slice(0, 8).map(function (r) {
       var stage = String(r.stage || "").toLowerCase();
       var material = String(r.material || "").replace(/_/g, " ");
-      return [bagDisplayLabel(r.bagId), stage === "sealing" ? "Sealing" : "Packaging", material || "N/A", r.productLabel || skuForBag(r.bagId), elapsedSince(r.atMs)];
+      return [r.receiptNumber || bagDisplayLabel(r.bagId), stage === "sealing" ? "Sealing" : "Packaging", material || "N/A", r.productLabel || skuForBag(r.bagId), elapsedSince(r.atMs)];
     });
     var timelineRows = timeline.map(function (r) {
       return [fmtTime(r.at_ms || r.atMs), r.line || "N/A", r.machine || r.station || "N/A", r.event || r.message || "Activity", bagDisplayLabel(r.bag_id)];

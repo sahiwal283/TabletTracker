@@ -107,6 +107,8 @@ class TestOpsTvDashboard(unittest.TestCase):
         app_source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
         self.assertIn("OUT OF PACKAGING", app_source)
         self.assertIn("OUT OF PACKAGING BAGS", app_source)
+        self.assertIn("mes.out_of_packaging_bags", app_source)
+        self.assertIn("serverOutOfPackagingBags", app_source)
         self.assertIn("CARD DISPLAYS PRODUCED", app_source)
         self.assertIn("BOTTLE DISPLAYS PRODUCED", app_source)
         self.assertIn("PRODUCTS PRODUCED (DAY)", app_source)

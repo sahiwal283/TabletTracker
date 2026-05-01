@@ -665,6 +665,22 @@ def _ops_smart_alerts(
         msg = reason if not hint else f"{reason} — {hint}"
         out.append({"at_ms": now_ms, "message": msg, "severity": sev})
 
+    for hold in (flow_intel or {}).get("out_of_packaging_bags") or []:
+        bag_label = str(hold.get("receipt_number") or "").strip()
+        if not bag_label:
+            bag_id = hold.get("bag_id")
+            bag_label = f"Bag {bag_id}" if bag_id is not None else "Workflow bag"
+        stage = str(hold.get("stage") or "workflow").replace("_", " ").strip()
+        material = str(hold.get("material") or "").replace("_", " ").strip()
+        suffix = f" ({material})" if material else ""
+        out.append(
+            {
+                "at_ms": int(hold.get("occurred_at") or now_ms),
+                "message": f"{bag_label}: out of packaging at {stage or 'workflow'}{suffix}",
+                "severity": "warn",
+            }
+        )
+
     for m in machines:
         if m.get("perf_tier") == "below" and m.get("status") == "running":
             hint = str(m.get("perf_hint") or "Below 7d avg rate")

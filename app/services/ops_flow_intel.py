@@ -112,6 +112,7 @@ def compute_production_flow_intel(
     delays_bs_samples: list[tuple[float, int]] = []
     out_cards_wip = 0
     out_boxes_wip = 0
+    out_of_packaging_bags: list[dict] = []
 
     if ids:
         qmarks = ",".join("?" * len(ids))
@@ -120,9 +121,13 @@ def compute_production_flow_intel(
                 f"""
                 SELECT we.id, we.workflow_bag_id, we.event_type, we.payload, we.occurred_at, we.station_id,
                        COALESCE(ws.station_kind, '') AS skind,
-                       json_extract(we.payload, '$.reason') AS preason
+                       json_extract(we.payload, '$.reason') AS preason,
+                       COALESCE(wb.receipt_number, '') AS receipt_number,
+                       COALESCE(pd.product_name, '') AS product_name
                 FROM workflow_events we
                 LEFT JOIN workflow_stations ws ON ws.id = we.station_id
+                LEFT JOIN workflow_bags wb ON wb.id = we.workflow_bag_id
+                LEFT JOIN product_details pd ON pd.id = wb.product_id
                 WHERE we.workflow_bag_id IN ({qmarks})
                 ORDER BY we.workflow_bag_id, we.occurred_at, we.id
                 """,
@@ -152,6 +157,20 @@ def compute_production_flow_intel(
                 out_cards_wip += 1
             if any(str(s.get("stage") or "") == "packaging" for s in shortages):
                 out_boxes_wip += 1
+            if shortages:
+                receipt_number = next((str(r["receipt_number"] or "") for r in evs if r["receipt_number"]), "")
+                product_name = next((str(r["product_name"] or "") for r in evs if r["product_name"]), "")
+                for shortage in shortages:
+                    out_of_packaging_bags.append(
+                        {
+                            "bag_id": int(bid),
+                            "receipt_number": receipt_number,
+                            "product_label": product_name,
+                            "stage": str(shortage.get("stage") or ""),
+                            "material": str(shortage.get("material") or ""),
+                            "occurred_at": int(shortage.get("occurred_at") or 0),
+                        }
+                    )
             if any(r["event_type"] == "BAG_FINALIZED" for r in evs):
                 continue
             t_blister = None
@@ -294,9 +313,12 @@ def compute_production_flow_intel(
             reason = f"High WIP at {bottleneck_node['label']}"
             hint = "Balance crew or relieve upstream delay."
 
+    out_of_packaging_bags.sort(key=lambda x: int(x.get("occurred_at") or 0), reverse=True)
+
     return {
         "thresholds": {"warn_min": WARN_MIN, "crit_min": CRIT_MIN},
         "pipeline": pipeline,
+        "out_of_packaging_bags": out_of_packaging_bags,
         "bottleneck": {
             "stage_id": bottleneck_id,
             "label": bottleneck_node.get("label"),

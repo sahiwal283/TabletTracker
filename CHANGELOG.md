@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.9] - 2026-05-01
+
+### Fixed
+- **Persistent out-of-packaging visibility:** Active out-of-packaging holds now come from the server's wider workflow lookback, so holds that started before the selected dashboard date still appear on the Command Center.
+- **Out-of-packaging alert backstop:** The server now includes active out-of-packaging holds in the MES alert feed, giving operators a visible warning even if a browser is still running an older frontend bundle.
+
+---
+
 ## [4.25.8] - 2026-05-01
 
 ### Fixed

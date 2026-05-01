@@ -263,6 +263,7 @@ def build_mes_dashboard(
         "lanes": lanes,
         "scada_machines": [],
         "alerts": alerts,
+        "out_of_packaging_bags": (flow_intel or {}).get("out_of_packaging_bags") or [],
         "pill_board": pb,
         "trend": trend_out if trend_out else pb.get("trend") or {},
         "cycle_analysis": pb.get("cycle_analysis") or {},
