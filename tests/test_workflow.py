@@ -771,6 +771,77 @@ class TestWorkflowCore(unittest.TestCase):
             )
         )
 
+    def test_upstream_shortage_converts_packaging_pause_to_partial_release(self):
+        from app.blueprints.workflow_floor import (
+            _normalize_packaging_snapshot_for_upstream_shortage,
+            _occupancy_lane_finished_at_station,
+            _station_facts_payload,
+        )
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="35C",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 100}, bag_id, station_id=1)
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {
+                "station_id": 1,
+                "count_total": 40,
+                "employee_name": "Juan",
+                "metadata": {
+                    "paused": True,
+                    "reason": "out_of_packaging",
+                    "material_type": "cards",
+                },
+            },
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "BAG_CLAIMED",
+            {"station_id": 2, "station_kind": "packaging", "note": "claimed"},
+            bag_id,
+            station_id=2,
+        )
+
+        payload, shortage = _normalize_packaging_snapshot_for_upstream_shortage(
+            self.conn,
+            bag_id,
+            {
+                "case_count": 2,
+                "loose_display_count": 0,
+                "packs_remaining": 0,
+                "cards_reopened": 0,
+                "reason": "paused_end_of_day",
+                "employee_name": "Packer",
+            },
+        )
+        self.assertIsNotNone(shortage)
+        self.assertEqual(payload["reason"], "partial_packaging")
+        self.assertEqual(payload["metadata"]["original_reason"], "paused_end_of_day")
+
+        append_workflow_event(self.conn, "PACKAGING_SNAPSHOT", payload, bag_id, station_id=2)
+        self.conn.commit()
+        facts = _station_facts_payload(self.conn, bag_id, 2)
+        self.assertFalse(facts["resume_required"])
+        self.assertTrue(
+            _occupancy_lane_finished_at_station(
+                self.conn,
+                station_id=2,
+                workflow_bag_id=bag_id,
+                station_kind="packaging",
+            )
+        )
+
     def test_packaging_out_of_boxes_blocks_finalize_until_final_submit(self):
         from app.services.workflow_append import append_workflow_event
         from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize

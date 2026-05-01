@@ -784,6 +784,34 @@ def _blocking_upstream_shortage_for_packaging_submit(
     return None
 
 
+def _normalize_packaging_snapshot_for_upstream_shortage(
+    conn: sqlite3.Connection, workflow_bag_id: int, payload: dict
+) -> tuple[dict, dict | None]:
+    """Save downstream end-session counts as partial when sealing is waiting on cards."""
+    out = dict(payload or {})
+    reason = str(out.get("reason") or "").strip()
+    if reason not in {"final_submit", "paused_end_of_day"}:
+        return out, None
+    facts = mechanical_bag_facts(conn, workflow_bag_id)
+    for shortage in active_out_of_packaging_shortages(facts["events"]):
+        if str(shortage.get("stage") or "").lower() != "sealing":
+            continue
+        meta = out.get("metadata") if isinstance(out.get("metadata"), dict) else {}
+        meta = dict(meta)
+        meta.update(
+            {
+                "original_reason": reason,
+                "converted_reason": "partial_packaging",
+                "upstream_shortage_stage": "sealing",
+                "upstream_shortage_material": shortage.get("material") or "cards",
+            }
+        )
+        out["reason"] = "partial_packaging"
+        out["metadata"] = meta
+        return out, shortage
+    return out, None
+
+
 def _list_from_payload(raw) -> list[str]:
     if raw is None:
         return []
@@ -1108,6 +1136,9 @@ def api_append_event():
                 return workflow_json(err_code, err_msg, status=400)
         if event_type == WC.EVENT_PACKAGING_SNAPSHOT:
             payload = _normalize_packaging_snapshot_payload(conn, bag_id, payload)
+            payload, _converted_upstream_shortage = _normalize_packaging_snapshot_for_upstream_shortage(
+                conn, bag_id, payload
+            )
         if event_type == WC.EVENT_BOTTLE_HANDPACK_COMPLETE:
             try:
                 payload = _normalize_bottle_handpack_sources(

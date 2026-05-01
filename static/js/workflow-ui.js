@@ -1457,7 +1457,7 @@
         if (el) el.classList.add('hidden');
       });
       if (takenBtn) takenBtn.classList.add('hidden');
-      pauseBtn.textContent = 'Pause packaging bag';
+      pauseBtn.textContent = limitedCardsMode ? 'Save partial count' : 'Pause packaging bag';
       saveBtn.textContent = 'Submit';
       if (countLabel) countLabel.textContent = 'Cases made';
       if (!hasLoadedBag) {
@@ -1561,8 +1561,9 @@
         if (takenBtn) takenBtn.classList.add('hidden');
         if (hint) {
           hint.classList.remove('hidden');
-          hint.textContent =
-            'Pause: enter current cases, displays not in a full case, and remaining loose cards or bottles, then tap Pause packaging bag.';
+          hint.textContent = limitedCardsMode
+            ? 'Limited cards: enter what packaging made from the sealed cards available here. This releases the station and keeps the bag open.'
+            : 'Pause: enter current cases, displays not in a full case, and remaining loose cards or bottles, then tap Pause packaging bag.';
         }
       } else if (packagingUiPhase === 'hold') {
         occupancyGateIntentEndRun = false;
@@ -2260,6 +2261,30 @@
     assertActionCooldown('pause');
     const kind = stationKind();
     if (kind === 'packaging') {
+      if (hasOutOfPackagingShortage('sealing')) {
+        await emitEvent('PACKAGING_SNAPSHOT', {
+          case_count: selectedPackagingCaseCount(),
+          display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
+          packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Single cards / bottles remaining'),
+          cards_reopened: selectedCardsReopenedCount(),
+          reason: 'partial_packaging',
+          employee_name: requiredEmployeeName(),
+          metadata: { upstream_shortage_stage: 'sealing', upstream_shortage_material: 'cards' },
+        });
+        clearCountField();
+        clearEmployeeNameField();
+        clearPackagingSnapshotFields();
+        var partialInput = productInput();
+        if (partialInput) partialInput.value = '';
+        resetLoadedBagState(false);
+        packagingUiPhase = 'pick';
+        configureStationActions();
+        refreshStationOccupancy().catch(function () {});
+        startCooldownAfterSuccess('pause');
+        statusLine(MSG_PARTIAL_PACKAGING_SAVED + MSG_SCAN_NEXT_CARD, 'success');
+        fullscreenSubmitOk('Partial packaging count saved.');
+        return;
+      }
       await emitEvent('PACKAGING_SNAPSHOT', {
         case_count: selectedPackagingCaseCount(),
         display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),

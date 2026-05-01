@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.10] - 2026-05-01
+
+### Fixed
+- **Downstream partial packaging release:** When sealing is on an out-of-cards hold, packaging pause/end-session submissions now save as `partial_packaging`, release the packaging station, keep the bag open, and preserve the operator-entered counts for KPIs and submissions.
+- **Server-side safety net:** Packaging `final_submit` or `paused_end_of_day` payloads are normalized to partial packaging while an upstream sealing/card shortage is active, preventing stale clients from station-locking the packaging bench.
+
+---
+
 ## [4.25.9] - 2026-05-01
 
 ### Fixed
