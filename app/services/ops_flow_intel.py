@@ -6,9 +6,12 @@ Models Blister → (staging) → Sealing → (staging) → Packaging using workf
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from itertools import groupby
 from statistics import mean
+
+from app.services.workflow_shortages import active_out_of_packaging_shortages
 
 WARN_MIN = 45.0
 CRIT_MIN = 120.0
@@ -107,13 +110,15 @@ def compute_production_flow_intel(
     ids = list(bag_ids)[:400]
     delays_bs: list[float] = []
     delays_bs_samples: list[tuple[float, int]] = []
+    out_cards_wip = 0
+    out_boxes_wip = 0
 
     if ids:
         qmarks = ",".join("?" * len(ids))
         try:
             rows = conn.execute(
                 f"""
-                SELECT we.workflow_bag_id, we.event_type, we.occurred_at, we.station_id,
+                SELECT we.id, we.workflow_bag_id, we.event_type, we.payload, we.occurred_at, we.station_id,
                        COALESCE(ws.station_kind, '') AS skind,
                        json_extract(we.payload, '$.reason') AS preason
                 FROM workflow_events we
@@ -128,6 +133,25 @@ def compute_production_flow_intel(
 
         for bid, group in groupby(rows, key=lambda r: int(r["workflow_bag_id"])):
             evs = list(group)
+            parsed_events = []
+            for r in evs:
+                try:
+                    payload = json.loads(r["payload"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    payload = {}
+                parsed_events.append(
+                    {
+                        "id": r["id"],
+                        "event_type": r["event_type"],
+                        "payload": payload,
+                        "occurred_at": r["occurred_at"],
+                    }
+                )
+            shortages = active_out_of_packaging_shortages(parsed_events)
+            if any(str(s.get("stage") or "") == "sealing" for s in shortages):
+                out_cards_wip += 1
+            if any(str(s.get("stage") or "") == "packaging" for s in shortages):
+                out_boxes_wip += 1
             if any(r["event_type"] == "BAG_FINALIZED" for r in evs):
                 continue
             t_blister = None
@@ -208,6 +232,17 @@ def compute_production_flow_intel(
             "alert": "crit" if wip_seal >= 4 else ("warn" if wip_seal >= 2 else "ok"),
         },
         {
+            "id": "out_cards",
+            "label": "Out of Cards",
+            "wip": out_cards_wip,
+            "subtitle": "blistered · not fully sealed",
+            "avg_delay_min": None,
+            "max_delay_min": None,
+            "delay_trend": "flat",
+            "perf_insight": "Needs sealing cards" if out_cards_wip else None,
+            "alert": "crit" if out_cards_wip >= 3 else ("warn" if out_cards_wip >= 1 else "ok"),
+        },
+        {
             "id": "packaging",
             "label": "Packaging",
             "wip": wip_pack,
@@ -219,6 +254,17 @@ def compute_production_flow_intel(
                 "High bench WIP" if wip_pack >= 3 else ("WIP building" if wip_pack >= 1 else None)
             ),
             "alert": "crit" if wip_pack >= 3 else ("warn" if wip_pack >= 1 else "ok"),
+        },
+        {
+            "id": "out_boxes",
+            "label": "Out of Boxes",
+            "wip": out_boxes_wip,
+            "subtitle": "sealed · not fully packed",
+            "avg_delay_min": None,
+            "max_delay_min": None,
+            "delay_trend": "flat",
+            "perf_insight": "Needs display boxes" if out_boxes_wip else None,
+            "alert": "crit" if out_boxes_wip >= 3 else ("warn" if out_boxes_wip >= 1 else "ok"),
         },
     ]
 
@@ -238,6 +284,12 @@ def compute_production_flow_intel(
         if bottleneck_id == "staging_bs":
             reason = "Batches waiting after blister"
             hint = "Free sealing capacity or move work to sealing."
+        elif bottleneck_id == "out_cards":
+            reason = "Batches waiting on sealing cards"
+            hint = "Restock cards before finalizing these bags."
+        elif bottleneck_id == "out_boxes":
+            reason = "Batches waiting on display boxes"
+            hint = "Restock display boxes before packaging closeout."
         elif bottleneck_id in ("blister", "sealing", "packaging"):
             reason = f"High WIP at {bottleneck_node['label']}"
             hint = "Balance crew or relieve upstream delay."

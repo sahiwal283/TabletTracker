@@ -92,7 +92,7 @@ class TestWorkflowCore(unittest.TestCase):
         bag_id, card_id = create_workflow_bag_with_card(self.conn, product_id=None, box_number="1", bag_number="1", receipt_number=None, user_id=None)
         append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 10}, bag_id)
         append_workflow_event(self.conn, "SEALING_COMPLETE", {"station_id": 1, "count_total": 10}, bag_id)
-        append_workflow_event(self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "x"}, bag_id)
+        append_workflow_event(self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "final_submit"}, bag_id)
         self.conn.commit()
 
         st, body = try_finalize(self.conn, bag_id, station_id=1)
@@ -111,7 +111,7 @@ class TestWorkflowCore(unittest.TestCase):
         bag_id, _ = create_workflow_bag_with_card(self.conn, product_id=None, box_number="1", bag_number="2", receipt_number=None, user_id=None)
         append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 1}, bag_id)
         append_workflow_event(self.conn, "SEALING_COMPLETE", {"station_id": 1, "count_total": 1}, bag_id)
-        append_workflow_event(self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "x"}, bag_id)
+        append_workflow_event(self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "final_submit"}, bag_id)
         self.conn.commit()
         st1, _ = try_finalize(self.conn, bag_id, station_id=1)
         self.assertEqual(st1, "ok")
@@ -136,7 +136,7 @@ class TestWorkflowCore(unittest.TestCase):
             self.conn, "SEALING_COMPLETE", {"station_id": 1, "count_total": 10}, bag_id
         )
         append_workflow_event(
-            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "x"}, bag_id
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "final_submit"}, bag_id
         )
         self.conn.commit()
 
@@ -176,7 +176,7 @@ class TestWorkflowCore(unittest.TestCase):
             self.conn, "BOTTLE_STICKER_COMPLETE", {"station_id": 1, "count_total": 94}, bag_id
         )
         append_workflow_event(
-            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "x"}, bag_id
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "final_submit"}, bag_id
         )
         self.conn.commit()
 
@@ -209,7 +209,7 @@ class TestWorkflowCore(unittest.TestCase):
         append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 10}, bag_id)
         append_workflow_event(self.conn, "SEALING_COMPLETE", {"station_id": 1, "count_total": 10}, bag_id)
         append_workflow_event(
-            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "x"}, bag_id
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 1, "reason": "final_submit"}, bag_id
         )
         self.conn.commit()
 
@@ -258,7 +258,7 @@ class TestWorkflowCore(unittest.TestCase):
             self.conn, "BOTTLE_STICKER_COMPLETE", {"station_id": 1, "count_total": 94}, main_id
         )
         append_workflow_event(
-            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "x"}, main_id
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "final_submit"}, main_id
         )
         self.conn.commit()
 
@@ -399,7 +399,7 @@ class TestWorkflowCore(unittest.TestCase):
             self.conn, "BOTTLE_STICKER_COMPLETE", {"station_id": 1, "count_total": 94}, parent_id
         )
         append_workflow_event(
-            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "x"}, parent_id
+            self.conn, "PACKAGING_SNAPSHOT", {"display_count": 4, "reason": "final_submit"}, parent_id
         )
         self.conn.commit()
         st, _body = try_finalize(self.conn, parent_id, station_id=1)
@@ -642,6 +642,181 @@ class TestWorkflowCore(unittest.TestCase):
         self.assertIsNotNone(row)
         payload = json.loads(row["payload"] or "{}")
         self.assertEqual(int(payload.get("loose_display_count") or 0), 3)
+
+    def test_sealing_out_of_cards_blocks_packaging_finalize_until_resolved(self):
+        from app.blueprints.workflow_floor import _station_facts_payload
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        bag_id, card_id = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="35",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 100}, bag_id, station_id=1)
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {
+                "station_id": 1,
+                "count_total": 40,
+                "employee_name": "Juan",
+                "metadata": {
+                    "paused": True,
+                    "reason": "out_of_packaging",
+                    "material_type": "cards",
+                },
+            },
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "PACKAGING_SNAPSHOT",
+            {
+                "case_count": 1,
+                "loose_display_count": 1,
+                "packs_remaining": 0,
+                "cards_reopened": 0,
+                "reason": "final_submit",
+                "employee_name": "Packer",
+            },
+            bag_id,
+            station_id=2,
+        )
+        self.conn.commit()
+
+        facts = _station_facts_payload(self.conn, bag_id, 2)
+        shortages = facts.get("out_of_packaging_shortages") or []
+        self.assertEqual(shortages[0]["stage"], "sealing")
+        self.assertEqual(shortages[0]["material"], "cards")
+
+        status, body = try_finalize(self.conn, bag_id, station_id=2)
+        self.assertEqual(status, "reject")
+        self.assertEqual(body["details"]["reason"], "out_of_packaging_hold")
+        row = self.conn.execute(
+            "SELECT status, assigned_workflow_bag_id FROM qr_cards WHERE id = ?",
+            (card_id,),
+        ).fetchone()
+        self.assertEqual(row["status"], "assigned")
+        self.assertEqual(row["assigned_workflow_bag_id"], bag_id)
+
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {"station_id": 1, "count_total": 100, "employee_name": "Juan"},
+            bag_id,
+            station_id=1,
+        )
+        self.conn.commit()
+        status, _body = try_finalize(self.conn, bag_id, station_id=2)
+        self.assertEqual(status, "ok")
+
+    def test_packaging_out_of_boxes_blocks_finalize_until_final_submit(self):
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="36",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 100}, bag_id, station_id=1)
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {"station_id": 1, "count_total": 100, "employee_name": "Juan"},
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "PACKAGING_SNAPSHOT",
+            {
+                "case_count": 1,
+                "loose_display_count": 0,
+                "packs_remaining": 0,
+                "cards_reopened": 0,
+                "reason": "out_of_packaging",
+                "employee_name": "Packer",
+                "metadata": {
+                    "paused": True,
+                    "reason": "out_of_packaging",
+                    "material_type": "display_boxes",
+                },
+            },
+            bag_id,
+            station_id=2,
+        )
+        self.conn.commit()
+        status, body = try_finalize(self.conn, bag_id, station_id=2)
+        self.assertEqual(status, "reject")
+        self.assertEqual(body["details"]["shortages"][0]["stage"], "packaging")
+        self.assertEqual(body["details"]["shortages"][0]["material"], "display_boxes")
+
+        append_workflow_event(
+            self.conn,
+            "PACKAGING_SNAPSHOT",
+            {
+                "case_count": 2,
+                "loose_display_count": 0,
+                "packs_remaining": 0,
+                "cards_reopened": 0,
+                "reason": "final_submit",
+                "employee_name": "Packer",
+            },
+            bag_id,
+            station_id=2,
+        )
+        self.conn.commit()
+        status, _body = try_finalize(self.conn, bag_id, station_id=2)
+        self.assertEqual(status, "ok")
+
+    def test_partial_packaging_snapshot_never_satisfies_final_packaging(self):
+        from app.services.workflow_append import append_workflow_event
+        from app.services.workflow_finalize import create_workflow_bag_with_card, try_finalize
+
+        bag_id, _ = create_workflow_bag_with_card(
+            self.conn,
+            product_id=None,
+            box_number="1",
+            bag_number="37",
+            receipt_number=None,
+            user_id=None,
+        )
+        append_workflow_event(self.conn, "BLISTER_COMPLETE", {"count_total": 100}, bag_id, station_id=1)
+        append_workflow_event(
+            self.conn,
+            "SEALING_COMPLETE",
+            {"station_id": 1, "count_total": 100, "employee_name": "Juan"},
+            bag_id,
+            station_id=1,
+        )
+        append_workflow_event(
+            self.conn,
+            "PACKAGING_SNAPSHOT",
+            {
+                "case_count": 1,
+                "loose_display_count": 0,
+                "packs_remaining": 0,
+                "cards_reopened": 0,
+                "reason": "partial_packaging",
+                "employee_name": "Packer",
+            },
+            bag_id,
+            station_id=2,
+        )
+        self.conn.commit()
+
+        status, body = try_finalize(self.conn, bag_id, station_id=2)
+        self.assertEqual(status, "reject")
+        self.assertIn("missing_packaging", body["details"]["reasons"])
 
     def test_packaging_claim_allows_second_flow_rejects_same_flow(self):
         from app.blueprints.workflow_floor import _validate_packaging_station_claim

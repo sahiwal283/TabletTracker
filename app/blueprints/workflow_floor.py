@@ -25,6 +25,7 @@ from app.services.workflow_read import (
     production_flow_for_bag,
     progress_summary,
 )
+from app.services.workflow_shortages import active_out_of_packaging_shortages
 from app.services.workflow_txn import run_with_busy_retry
 from app.services.workflow_warehouse_bridge import sync_workflow_warehouse_events
 from app.services.workflow_variety_sources import (
@@ -276,7 +277,11 @@ def _station_hold_details(
             continue
         reason = _pause_reason_for_event(et, pl)
         if reason == _HOLD_RELEASE_REASON:
+            meta = _pause_metadata(pl)
+            material_type = str(meta.get("material_type") or "").strip().lower()
             last = {"reason": _HOLD_RELEASE_REASON}
+            if material_type:
+                last["material_type"] = material_type
             continue
         # Any normal completion clears hold state for this session.
         if et in (
@@ -611,6 +616,7 @@ def _station_facts_payload(
     conn: sqlite3.Connection, workflow_bag_id: int, station_id: int
 ) -> dict:
     facts = mechanical_bag_facts(conn, workflow_bag_id)
+    out_of_packaging = active_out_of_packaging_shortages(facts["events"])
     station_claimed = _station_has_claimed_bag(conn, workflow_bag_id, station_id)
     station_needs_resume = _station_needs_resume(conn, workflow_bag_id, station_id)
     occupancy_started_at = _station_occupancy_started_at(conn, workflow_bag_id, station_id)
@@ -627,6 +633,7 @@ def _station_facts_payload(
         "resume_required": bool(station_claimed and station_needs_resume),
         "pause_details": pause_details,
         "hold_details": hold_details,
+        "out_of_packaging_shortages": out_of_packaging,
         "occupancy_started_at_ms": occupancy_started_at,
         "occupying_card_token": _assigned_card_token_for_bag(conn, workflow_bag_id),
         "bag_verification": floor_bag_verification(conn, workflow_bag_id),

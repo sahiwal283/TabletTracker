@@ -15,6 +15,7 @@ from app.services.workflow_read import (
     load_events_for_bag,
     mechanical_bag_facts,
 )
+from app.services.workflow_shortages import active_out_of_packaging_shortages
 from app.services.workflow_txn import immediate_transaction, run_with_busy_retry
 from app.services.workflow_variety_sources import resolve_source_cards
 from app.utils.db_utils import BagRepository
@@ -27,12 +28,20 @@ def evaluate_finalization(events: list, production_flow: str = "card") -> tuple[
     type_set = {e["event_type"] for e in events}
     if WC.EVENT_BAG_FINALIZED in type_set:
         return False, "already_finalized", {}
+    shortages = active_out_of_packaging_shortages(events)
+    blocking_shortages = [s for s in shortages if s.get("blocking_finalize")]
+    if blocking_shortages:
+        return (
+            False,
+            "out_of_packaging_hold",
+            {"reasons": ["out_of_packaging_hold"], "shortages": blocking_shortages},
+        )
     flow = (production_flow or "card").strip().lower()
     if flow == "bottle":
         has_handpack = WC.EVENT_BOTTLE_HANDPACK_COMPLETE in type_set
         has_cap_seal = WC.EVENT_BOTTLE_CAP_SEAL_COMPLETE in type_set
         has_sticker = WC.EVENT_BOTTLE_STICKER_COMPLETE in type_set
-        has_pack = WC.EVENT_PACKAGING_SNAPSHOT in type_set
+        has_pack = _has_final_packaging_submit(events)
         if has_handpack and has_cap_seal and has_sticker and has_pack:
             return True, "eligible", {}
         reasons = []
@@ -59,7 +68,7 @@ def evaluate_finalization(events: list, production_flow: str = "card") -> tuple[
             break
     has_blister = WC.EVENT_BLISTER_COMPLETE in type_set
     has_seal = WC.EVENT_SEALING_COMPLETE in type_set
-    has_pack = WC.EVENT_PACKAGING_SNAPSHOT in type_set
+    has_pack = _has_final_packaging_submit(events)
     blister_ok = has_blister or hand_packed
     if blister_ok and has_seal and has_pack:
         return True, "eligible", {}
@@ -107,6 +116,18 @@ def _production_flow_for_workflow_bag(conn: sqlite3.Connection, workflow_bag_id:
         if int(r.get("is_bottle_product") or 0) == 1 or int(r.get("is_variety_pack") or 0) == 1:
             return "bottle"
     return "card"
+
+
+def _has_final_packaging_submit(events: list) -> bool:
+    for e in events:
+        if e["event_type"] != WC.EVENT_PACKAGING_SNAPSHOT:
+            continue
+        payload = e.get("payload") if isinstance(e, dict) else {}
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("reason") or "").strip() == "final_submit":
+            return True
+    return False
 
 
 def _qr_card_id_for_bag_assignment(events: list) -> int | None:

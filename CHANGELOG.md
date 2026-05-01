@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.3] - 2026-05-01
+
+### Fixed
+- **Out-of-packaging closeout safety:** Sealing card shortages and packaging display-box shortages now remain machine-readable workflow states, block premature bag finalization, and keep QR cards assigned until a real final packaging submit resolves the batch.
+- **Station partial-count UX:** Packaging stations now show a clear limited-cards warning, switch finish actions to partial-count submission when sealing ran out of cards, and save those counts without closing the bag.
+- **Command Center shortage visibility:** Operations KPIs now separate `Out of Cards` and `Out of Boxes` stages so out-of-packaging WIP is visible by where the batch is stuck.
+
+---
+
 ## [4.25.2] - 2026-04-30
 
 ### Fixed

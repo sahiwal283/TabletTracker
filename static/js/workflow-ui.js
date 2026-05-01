@@ -34,6 +34,8 @@
   let packagingUiPhase = 'pick';
   /** Loaded bag flow from backend facts (`card` or `bottle`). */
   let loadedBagProductionFlow = null;
+  /** Active out-of-packaging facts for the loaded bag. */
+  let outOfPackagingShortages = [];
   let pendingProductMapProductId = null;
   const isAdminUser = !!Number(window.WF_IS_ADMIN_USER || 0);
 
@@ -48,6 +50,8 @@
   var MSG_PAUSE_RESUME_TOMORROW = 'Scan same card tomorrow to resume. Have a nice day.';
   /** Shown after out-of-packaging hold saves counts and frees station occupancy. */
   var MSG_HOLD_RELEASED = 'Bag put on hold for packaging. Station is free for next bag.';
+  var MSG_PARTIAL_PACKAGING_SAVED =
+    'Partial packaging count saved. Bag remains open for the rest of the batch.';
 
   const WF_PAGE_SESSION = (crypto.randomUUID && crypto.randomUUID()) || (Date.now() + '-' + Math.random());
   var WF_EMPLOYEE_STORAGE_KEY = 'wf_employee_name';
@@ -700,6 +704,7 @@
       document.getElementById('wf-handpack-rest'),
       document.getElementById('wf-save-seal'),
       document.getElementById('wf-pause-count'),
+      document.getElementById('wf-hold-release'),
       document.getElementById('wf-taken-delivery'),
       document.getElementById('wf-material-change-open'),
       document.getElementById('wf-material-change-submit'),
@@ -709,6 +714,7 @@
   function shownOnlyWhenBagLoaded() {
     return [
       document.getElementById('wf-loaded-bag-header'),
+      document.getElementById('wf-shortage-alert'),
       document.getElementById('wf-count-label'),
       document.getElementById('wf-count-total'),
       document.getElementById('wf-employee-name-label'),
@@ -766,6 +772,20 @@
         timerValue.setAttribute('data-start-ms', String(Number(slot.occupancy_started_at_ms) || 0));
         timerValue.textContent = '—';
         inner.appendChild(timerValue);
+
+        var slotShortages = slotFacts && Array.isArray(slotFacts.out_of_packaging_shortages)
+          ? slotFacts.out_of_packaging_shortages
+          : [];
+        if (slotShortages.some(function (s) { return String((s && s.stage) || '').toLowerCase() === 'sealing'; })) {
+          var sdt = document.createElement('dt');
+          sdt.className = 'text-amber-700 font-semibold';
+          sdt.textContent = 'Batch status';
+          inner.appendChild(sdt);
+          var sdd = document.createElement('dd');
+          sdd.className = 'text-amber-800 font-bold';
+          sdd.textContent = 'Limited cards - partial packaging only';
+          inner.appendChild(sdd);
+        }
 
         var slotRows = [
           ['Product', slotBv.product_name],
@@ -844,6 +864,53 @@
     text.textContent = boxBag ? (product + ' · ' + boxBag) : product;
     wrap.classList.remove('hidden');
   }
+  function hasOutOfPackagingShortage(stage) {
+    var want = String(stage || '').toLowerCase();
+    return outOfPackagingShortages.some(function (s) {
+      return String((s && s.stage) || '').toLowerCase() === want;
+    });
+  }
+  function primaryOutOfPackagingShortage() {
+    if (!outOfPackagingShortages.length) return null;
+    var sealing = outOfPackagingShortages.find(function (s) {
+      return String((s && s.stage) || '').toLowerCase() === 'sealing';
+    });
+    return sealing || outOfPackagingShortages[0];
+  }
+  function renderShortageAlert() {
+    var wrap = document.getElementById('wf-shortage-alert');
+    var title = document.getElementById('wf-shortage-alert-title');
+    var copy = document.getElementById('wf-shortage-alert-copy');
+    if (!wrap || !title || !copy) return;
+    var shortage = primaryOutOfPackagingShortage();
+    if (!shortage) {
+      wrap.classList.add('hidden');
+      title.textContent = '';
+      copy.textContent = '';
+      return;
+    }
+    var stage = String(shortage.stage || '').toLowerCase();
+    var material = String(shortage.material || '').replace(/_/g, ' ');
+    wrap.classList.remove('hidden');
+    if (stage === 'sealing') {
+      title.textContent = 'Limited cards: this is not the whole batch';
+      copy.textContent =
+        'Sealing ran out of ' +
+        (material || 'cards') +
+        '. Submit only the cards physically available here. This count will not finalize the bag.';
+      return;
+    }
+    if (stage === 'packaging') {
+      title.textContent = 'Packaging shortage: sealed cards are not fully packed';
+      copy.textContent =
+        'Packaging ran out of ' +
+        (material || 'display boxes') +
+        '. The bag stays open until the remaining sealed cards are packed.';
+      return;
+    }
+    title.textContent = 'Out of Packaging hold active';
+    copy.textContent = 'This bag has an unresolved packaging-material shortage and cannot finalize yet.';
+  }
   function applyStationFacts(data) {
     if (!data || !data.facts) {
       return;
@@ -853,9 +920,13 @@
     }
     stationNeedsResume = !!data.facts.resume_required;
     loadedBagProductionFlow = data.facts.production_flow || loadedBagProductionFlow;
+    outOfPackagingShortages = Array.isArray(data.facts.out_of_packaging_shortages)
+      ? data.facts.out_of_packaging_shortages
+      : [];
     occupancyPauseDetails = data.facts.pause_details || occupancyPauseDetails;
     renderBagVerification(data.facts);
     renderLoadedBagHeader(data.facts);
+    renderShortageAlert();
     renderOccupancyBanner(data.facts, data.workflow_bag_id);
   }
   function setBagLoadedUi(loaded) {
@@ -974,7 +1045,9 @@
     occupancyGateForcedAction = null;
     packagingUiPhase = 'pick';
     loadedBagProductionFlow = null;
+    outOfPackagingShortages = [];
     renderBagVerification(null);
+    renderShortageAlert();
     setScanSuccessVisible(false);
     clearAllActionCooldowns();
     setBagLoadedUi(false);
@@ -1368,6 +1441,16 @@
       if (occupancyGateIntentEndRun && pauseBtn) pauseBtn.classList.add('hidden');
     } else if (kind === 'packaging') {
       var intentPan = document.getElementById('wf-packaging-intent');
+      var limitedCardsMode = hasOutOfPackagingShortage('sealing');
+      var packagingHoldMode = hasOutOfPackagingShortage('packaging');
+      var intentEndBtn = document.getElementById('wf-intent-end');
+      var gateEndBtn = document.getElementById('wf-gate-end');
+      if (intentEndBtn) {
+        intentEndBtn.textContent = limitedCardsMode ? 'Submit partial count' : 'End run · finish bag';
+      }
+      if (gateEndBtn) {
+        gateEndBtn.textContent = limitedCardsMode ? 'Submit partial count' : 'End run';
+      }
       hidePackagingStationExtra();
       ['wf-taken-displays-label', 'wf-taken-displays-help', 'wf-taken-displays'].forEach(function (id) {
         var el = document.getElementById(id);
@@ -1410,8 +1493,9 @@
         if (takenBtn) takenBtn.classList.add('hidden');
         if (hint) {
           hint.classList.remove('hidden');
-          hint.textContent =
-            'Pick one step above. You will only see the fields and buttons for that step.';
+          hint.textContent = limitedCardsMode
+            ? 'This bag has limited cards available. Choose Submit partial count to save only what is physically here; the bag will stay open.'
+            : 'Pick one step above. You will only see the fields and buttons for that step.';
         }
         return;
       }
@@ -1457,13 +1541,17 @@
       if (packagingUiPhase === 'end') {
         occupancyGateIntentEndRun = true;
         saveBtn.classList.remove('hidden');
+        saveBtn.textContent = limitedCardsMode ? 'Submit partial packaging count' : 'Submit';
         pauseBtn.classList.add('hidden');
         if (holdBtn) holdBtn.classList.add('hidden');
         if (takenBtn) takenBtn.classList.add('hidden');
         if (hint) {
           hint.classList.remove('hidden');
-          hint.textContent =
-            'End run: enter cases, displays not in a full case, and remaining loose cards or bottles, then tap Submit to finish this bag.';
+          hint.textContent = limitedCardsMode
+            ? 'Limited cards: enter the cases/displays made from the cards available here. This saves a partial count and keeps the bag open.'
+            : packagingHoldMode
+              ? 'Packaging shortage was previously recorded. If the remaining boxes are now packed, enter final counts and submit to finish this bag.'
+              : 'End run: enter cases, displays not in a full case, and remaining loose cards or bottles, then tap Submit to finish this bag.';
         }
       } else if (packagingUiPhase === 'pause') {
         occupancyGateIntentEndRun = false;
@@ -1914,6 +2002,8 @@
       occupancyVerifyOpen = false;
       occupancyGateIntentEndRun = false;
       loadedBagProductionFlow = null;
+      outOfPackagingShortages = [];
+      renderShortageAlert();
       stopOccupancyTimer();
       hidePausedStationUi();
       lastOccStartMs = 0;
@@ -1932,6 +2022,21 @@
       })
       .filter(Boolean);
     expectedOccupantCardToken = occ.card_token ? String(occ.card_token).trim() : null;
+    outOfPackagingShortages = [];
+    if (packagingOccupancySlots.length) {
+      packagingOccupancySlots.forEach(function (slot) {
+        var facts = slot && slot.facts ? slot.facts : null;
+        var shortages = facts && Array.isArray(facts.out_of_packaging_shortages)
+          ? facts.out_of_packaging_shortages
+          : [];
+        shortages.forEach(function (s) {
+          outOfPackagingShortages.push(s);
+        });
+      });
+    } else if (occ.facts && Array.isArray(occ.facts.out_of_packaging_shortages)) {
+      outOfPackagingShortages = occ.facts.out_of_packaging_shortages;
+    }
+    renderShortageAlert();
     lastOccStartMs = Number(occ.occupancy_started_at_ms) || 0;
     pausedScreenStartMs = Number(occ.paused_at_ms) || 0;
     if (occ.facts) {
@@ -2249,6 +2354,7 @@
         cards_reopened: selectedCardsReopenedCount(),
         reason: 'out_of_packaging',
         employee_name: requiredEmployeeName(),
+        metadata: { paused: true, reason: 'out_of_packaging', material_type: 'display_boxes' },
       });
       clearCountField();
       clearEmployeeNameField();
@@ -2268,7 +2374,7 @@
         station_id: window.WF_STATION_ID || 1,
         count_total: countTotal,
         employee_name: requiredEmployeeName(),
-        metadata: { paused: true, reason: 'out_of_packaging' },
+        metadata: { paused: true, reason: 'out_of_packaging', material_type: 'cards' },
       });
       clearCountField();
       clearEmployeeNameField();
@@ -2347,14 +2453,32 @@
   async function submitPackagingAndFinalize() {
     ensureLoadedBag();
     assertActionCooldown('submit');
+    var isLimitedCardsMode = hasOutOfPackagingShortage('sealing');
     await emitEvent('PACKAGING_SNAPSHOT', {
       case_count: selectedPackagingCaseCount(),
       display_count: optionalNonNegativeInt('wf-loose-displays', 'Displays not in a full case'),
       packs_remaining: optionalNonNegativeInt('wf-packs-remaining', 'Single cards / bottles remaining'),
       cards_reopened: selectedCardsReopenedCount(),
-      reason: 'final_submit',
+      reason: isLimitedCardsMode ? 'partial_packaging' : 'final_submit',
       employee_name: requiredEmployeeName(),
+      metadata: isLimitedCardsMode
+        ? { upstream_shortage_stage: 'sealing', upstream_shortage_material: 'cards' }
+        : {},
     });
+    if (isLimitedCardsMode) {
+      clearCountField();
+      clearEmployeeNameField();
+      clearPackagingSnapshotFields();
+      var partialInput = productInput();
+      if (partialInput) partialInput.value = '';
+      resetLoadedBagState(false);
+      configureStationActions();
+      refreshStationOccupancy().catch(function () {});
+      startCooldownAfterSuccess('submit');
+      statusLine(MSG_PARTIAL_PACKAGING_SAVED + MSG_SCAN_NEXT_CARD, 'success');
+      fullscreenSubmitOk('Partial packaging count saved.');
+      return;
+    }
     const stationToken = document.getElementById('wf-station-token').value;
     const cardToken = productInput() ? String(productInput().value || '').trim() : '';
     await postJson('/workflow/floor/api/finalize', {

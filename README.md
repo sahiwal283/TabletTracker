@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.2** (final display KPI excludes pause snapshots)
+Current: **v4.25.3** (out-of-packaging closeout safety)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

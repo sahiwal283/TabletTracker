@@ -988,6 +988,7 @@ def build_metrics_inputs_bundle(
             "occupancyStartedAtMs": int(live_occ) if live_occ is not None else None,
             "pausedAtMs": int(paused) if paused is not None else None,
             "workflowBagId": int(wf_bag) if wf_bag is not None else None,
+            "outOfPackagingShortages": m.get("out_of_packaging_shortages") or [],
             "tabletsToday": tablets_today,
             "displaysToday": displays_today,
             "manualEntrySignal": False,

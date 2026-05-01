@@ -752,6 +752,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
             "product_name": None,
             "receipt_number": None,
             "bag_name": None,
+            "out_of_packaging_shortages": [],
         }
     for st in stations:
         sid = int(st["id"])
@@ -780,6 +781,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
             "flavor": bd.get("product_name"),
             "receipt_number": bd.get("receipt_number"),
             "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
+            "out_of_packaging_shortages": (occ.get("facts") or {}).get("out_of_packaging_shortages") or [],
         }
 
     displays_today = _displays_finalize_sum_range(conn, start_ms, end_ms)
@@ -1025,6 +1027,7 @@ def build_ops_tv_snapshot(conn: sqlite3.Connection, date_iso: str | None = None)
                 "status": vis,
                 "product": str(product)[:80],
                 "bag_id": live.get("workflow_bag_id"),
+                "out_of_packaging_shortages": live.get("out_of_packaging_shortages") or [],
                 "occupancy_started_at_ms": live.get("occupancy_started_at"),
                 "paused_at_ms": live.get("paused_at_ms"),
                 "output_today": out_today,
@@ -1879,6 +1882,7 @@ def workflow_qr_management():
                     "product_name": None,
                     "receipt_number": None,
                     "bag_name": None,
+                    "out_of_packaging_shortages": [],
                 }
             # Match floor API: latest BAG_CLAIMED/STATION_RESUMED *at this station*, not the bag's latest claim globally.
             for st in stations:
@@ -1908,6 +1912,7 @@ def workflow_qr_management():
                     "flavor": bd.get("product_name"),
                     "receipt_number": bd.get("receipt_number"),
                     "bag_name": _workflow_inventory_bag_name(conn, bd.get("inventory_bag_id")),
+                    "out_of_packaging_shortages": (occ.get("facts") or {}).get("out_of_packaging_shortages") or [],
                 }
             bag_station_for_card_label = {}
             for st in stations:

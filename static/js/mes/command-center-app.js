@@ -476,6 +476,17 @@
     }
     var bagLabel = notIntegrated ? "N/A" : ((m.workflowBagId != null || m.currentBagId != null) ? (m.currentBagLabel || ("BAG-" + (m.workflowBagId != null ? m.workflowBagId : m.currentBagId))) : "No activity today");
     var isPackaging = String(m.stationKind || "").toLowerCase() === "packaging";
+    var shortages = Array.isArray(m.outOfPackagingShortages) ? m.outOfPackagingShortages : [];
+    var shortage = shortages.find(function (s) {
+      return String((s && s.stage) || "").toLowerCase() === "sealing";
+    }) || shortages[0];
+    var shortageText = "";
+    if (shortage) {
+      var stg = String(shortage.stage || "").toLowerCase();
+      shortageText = stg === "sealing"
+        ? "OUT OF CARDS · BLISTERED / NOT FULLY SEALED"
+        : "OUT OF BOXES · SEALED / NOT FULLY PACKED";
+    }
     var serverOut = isPackaging ? m.displaysToday : m.tabletsToday;
     var unitsTodayVal = serverOut != null && serverOut !== undefined ? serverOut : m.completedUnits;
     var histUh = asNum(m.rateHistUh);
@@ -487,6 +498,7 @@
         <div><dt>SKU</dt><dd>${m.sku || "N/A"}</dd></div>
       </dl></div>
       <div className="machine-grid-data">
+        ${shortageText ? html`<div><span>Out of Packaging</span><b>${shortageText}</b></div>` : null}
         <div><span>Start Time</span><b>${notIntegrated ? "N/A" : (startAnchor ? fmtTime(startAnchor) : "N/A")}</b></div>
         <div><span>Elapsed Time</span><b>${notIntegrated ? "N/A" : (startAnchor ? durationClock(startAnchor) : "N/A")}</b></div>
         <div><span>Counter</span><b>${counter}</b></div>
@@ -1037,6 +1049,7 @@
         machineRole: liveRow.machineRole || metrics.machineRole || d.machineRole,
         cardsPerTurn: liveRow.cardsPerTurn != null ? liveRow.cardsPerTurn : metrics.cardsPerTurn,
         occupancyStatus: liveRow.status || null,
+        outOfPackagingShortages: liveRow.outOfPackagingShortages || metrics.outOfPackagingShortages || [],
       });
       var status = d.stationId == null ? "NOT_INTEGRATED" : resolveIntegrationBadge(liveRow, d.stationId, events, {
         dayStartMs: inp.shiftConfig && inp.shiftConfig.dayStartMs,
