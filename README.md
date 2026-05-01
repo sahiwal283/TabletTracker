@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.4** (out-of-packaging final-submit guard)
+Current: **v4.25.5** (packaging segment KPI case context)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

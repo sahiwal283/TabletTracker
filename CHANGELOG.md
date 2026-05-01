@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.5] - 2026-05-01
+
+### Fixed
+- **Command Center packaging KPI semantics:** Packaging pause, partial, out-of-packaging, and final-submit snapshots are again counted as output segments so pause/resume work is not dropped from daily production.
+- **Final display clarity:** The main display KPI now includes the summed case count and configured displays-per-case in its note, making product configuration mismatches visible when a display total does not match a 20-per-case mental conversion.
+
+---
+
 ## [4.25.4] - 2026-05-01
 
 ### Fixed

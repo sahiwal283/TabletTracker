@@ -1420,9 +1420,16 @@
     var targetThroughput = asNum(inp.shiftConfig && inp.shiftConfig.targetThroughputPerHour);
     var dueTimeValue = timeInputValue(inp.shiftConfig && inp.shiftConfig.productionDueMs);
     var finalDisplaysValue = kpiBy.units ? asNum(kpiBy.units.value) : null;
-    var finalDisplayNote = dailyDisplayTarget != null && finalDisplaysValue != null
-      ? fmtNumber(finalDisplaysValue) + " / " + fmtNumber(dailyDisplayTarget) + " target"
-      : "Packaging final submit";
+    var finalCasesValue = kpiBy.units ? asNum(kpiBy.units.caseCount) : null;
+    var finalDpcValues = kpiBy.units && Array.isArray(kpiBy.units.displaysPerCaseValues)
+      ? kpiBy.units.displaysPerCaseValues.filter(function (v) { return asNum(v) != null && asNum(v) > 0; })
+      : [];
+    var finalCaseNote = finalCasesValue != null && finalCasesValue > 0
+      ? fmtNumber(finalCasesValue) + " cases" + (finalDpcValues.length === 1 ? " @ " + fmtNumber(finalDpcValues[0]) + "/case" : (finalDpcValues.length > 1 ? " mixed case sizes" : ""))
+      : null;
+    var finalDisplayNote = finalDisplaysValue != null
+      ? (finalCaseNote ? finalCaseNote + " / " : "") + fmtNumber(finalDisplaysValue) + (dailyDisplayTarget != null ? " / " + fmtNumber(dailyDisplayTarget) + " target" : "")
+      : "Packaging count segments";
     var packagingSummaryRows = [
       ["Final displays", kpiBy.units ? fmtNumber(kpiBy.units.value) : "0"],
       ["Ripped cards", kpiBy.rework ? (typeof kpiBy.rework.value === "number" ? fmtNumber(kpiBy.rework.value) : kpiBy.rework.value) : "No reject data"],

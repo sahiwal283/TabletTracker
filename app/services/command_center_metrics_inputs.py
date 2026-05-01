@@ -32,20 +32,18 @@ _STATION_OUTPUT_EVENTS = {
 }
 
 # PACKAGING_SNAPSHOT reasons that carry operator-entered counts for ops TV / station rollups.
-WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS: tuple[str, ...] = ("final_submit", "paused_end_of_day")
+WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS: tuple[str, ...] = (
+    "final_submit",
+    "paused_end_of_day",
+    "partial_packaging",
+    "out_of_packaging",
+)
 _OPS_PKG_REASONS_LOWER = {r.lower() for r in WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS}
-WORKFLOW_FINAL_PACKAGING_SNAPSHOT_REASONS: tuple[str, ...] = ("final_submit",)
-_FINAL_PKG_REASONS_LOWER = {r.lower() for r in WORKFLOW_FINAL_PACKAGING_SNAPSHOT_REASONS}
 
 
 def ops_packaging_snapshot_reasons_sql_in() -> str:
-    """Fragment for SQL IN (...): 'final_submit','paused_end_of_day'"""
+    """Fragment for SQL IN (...): packaging reasons with operator-entered output counts."""
     return ", ".join(f"'{r}'" for r in WORKFLOW_OPS_PACKAGING_SNAPSHOT_REASONS)
-
-
-def final_packaging_snapshot_reasons_sql_in() -> str:
-    """Fragment for finalized packaging SQL IN (...): 'final_submit'"""
-    return ", ".join(f"'{r}'" for r in WORKFLOW_FINAL_PACKAGING_SNAPSHOT_REASONS)
 
 
 def sql_packaging_equiv_displays(
@@ -467,7 +465,7 @@ def gather_output_pace_averages(
     day_start_ms: int,
     now_ms: int,
 ) -> dict[str, float | int | None]:
-    """Final-display pace from final packaging snapshots only."""
+    """Final-display pace from packaging snapshots that carry ops counts (final submit + pauses)."""
     window_start = day_start_ms - (7 * 24 * 60 * 60_000)
     window_end = day_start_ms + (24 * 60 * 60_000)
     daily: dict[int, float] = {i: 0.0 for i in range(-7, 1)}
@@ -492,7 +490,7 @@ def gather_output_pace_averages(
     bag_ids_pace: set[int] = set()
     for r in rows:
         payload = _payload_from_raw(r["payload"])
-        if str(payload.get("reason") or "").lower() not in _FINAL_PKG_REASONS_LOWER:
+        if str(payload.get("reason") or "").lower() not in _OPS_PKG_REASONS_LOWER:
             continue
         bid = r["bag_id"]
         try:
@@ -535,7 +533,7 @@ def gather_output_pace_averages(
         except (TypeError, ValueError):
             continue
         payload = _payload_from_raw(r["payload"])
-        if str(payload.get("reason") or "").lower() not in _FINAL_PKG_REASONS_LOWER:
+        if str(payload.get("reason") or "").lower() not in _OPS_PKG_REASONS_LOWER:
             continue
         bid = r["bag_id"]
         try:

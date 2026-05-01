@@ -41,12 +41,12 @@
     return t === "PACKAGING_SNAPSHOT" && String((ev && ev.reason) || "").toLowerCase() === "final_submit";
   }
 
-  /** final_submit or operator pause snapshot (carries case/loose counts for Command Center). */
+  /** Packaging snapshots that represent operator-entered output segments for Command Center. */
   function isOpsPackagingOutputSnapshot(ev) {
     var t = String((ev && ev.eventType) || "").toUpperCase();
     if (t !== "PACKAGING_SNAPSHOT") return false;
     var r = String((ev && ev.reason) || "").toLowerCase();
-    return r === "final_submit" || r === "paused_end_of_day";
+    return r === "final_submit" || r === "paused_end_of_day" || r === "partial_packaging" || r === "out_of_packaging";
   }
 
   function displayCount(ev) {
@@ -57,7 +57,7 @@
     return n != null && n >= 0 ? n : 0;
   }
 
-  /** Total displays for PACKAGING_SNAPSHOT final_submit: cases × displays_per_case + loose (bag.product). */
+  /** Total displays for a packaging count segment: cases × displays_per_case + loose (bag.product). */
   function finalSubmitDisplayTotal(ev, bagsById) {
     var bagKey = eventBagId(ev);
     var bag = bagKey != null ? (bagsById || {})[String(bagKey)] : null;
@@ -402,15 +402,26 @@
     var completeTotal = 0;
     var onTimeTotal = 0;
     var finalizedBagSet = {};
+    var displayCaseTotal = 0;
+    var displayCaseDpcValues = {};
     todays.forEach(function (e) {
       var bid = eventBagId(e);
       if (bid != null) bagSet[String(bid)] = true;
       if ((String(e.eventType || "").toUpperCase() === "BAG_FINALIZED" || isFinalPackagingSnapshot(e)) && bid != null) {
         finalizedBagSet[String(bid)] = true;
       }
-      if (isFinalPackagingSnapshot(e)) {
+      if (isOpsPackagingOutputSnapshot(e)) {
         var dc = finalSubmitDisplayTotal(e, bagsById);
         displays += dc;
+        if (e && e.packagingCaseBreakdown) {
+          var cases = asNum(e.caseCount);
+          if (cases != null && cases >= 0) displayCaseTotal += cases;
+          var b = bid != null ? (bagsById[String(bid)] || {}) : {};
+          var dpc =
+            asNum(b.displaysPerCase != null ? b.displaysPerCase : b.displays_per_case) ||
+            asNum(e.productDisplaysPerCase != null ? e.productDisplaysPerCase : e.product_displays_per_case);
+          if (dpc != null && dpc > 0) displayCaseDpcValues[String(dpc)] = true;
+        }
         if (dc > 0 && bid != null) {
           var bi = bagsById[String(bid)] || {};
           flavorsWithDisplays[String(bi.sku || bi.productLabel || bid)] = true;
@@ -469,7 +480,7 @@
     return {
       kpis: [
         { id: "bags", value: Object.keys(finalizedBagSet).length, displayLabel: "Completed Bags", formulaNote: "Distinct bags with final packaging/BAG_FINALIZED today", sparkline: Object.keys(finalizedBagSet).length ? [0, Object.keys(finalizedBagSet).length] : [] },
-        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT final_submit: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [] },
+        { id: "units", value: displays, displayLabel: "Final Displays", formulaNote: "PACKAGING_SNAPSHOT count segments: case_count × displays_per_case + loose", sparkline: displays ? [0, displays] : [], caseCount: displayCaseTotal, displaysPerCaseValues: Object.keys(displayCaseDpcValues).map(function (v) { return Number(v); }).filter(function (v) { return Number.isFinite(v); }).sort(function (a, b) { return a - b; }) },
         { id: "cycles", value: Object.keys(flavorsWithDisplays).length, displayLabel: "Flavors Produced", formulaNote: "Flavor/display breakdown shown below" },
         { id: "avg_cycle", value: avgCycle != null ? avgCycle.toFixed(1) + " min" : "Insufficient data", displayLabel: "Avg Cycle Time" },
         { id: "oee", value: oeeAvg != null ? Math.min(100, oeeAvg).toFixed(1) + "%" : "Insufficient data", displayLabel: "OEE" },
