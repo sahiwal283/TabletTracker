@@ -96,13 +96,15 @@ class TestOpsTvDashboard(unittest.TestCase):
         self.assertIn('id: "card_displays"', metrics)
         self.assertIn('id: "bottle_displays"', metrics)
         self.assertIn("isBottleFlowBag", metrics)
+        self.assertIn("productBottlesPerDisplay", metrics)
         self.assertIn("displaysPerCaseValues", metrics)
+        self.assertIn("Products Produced", metrics)
 
         app_source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")
         self.assertIn("CARD DISPLAYS PRODUCED", app_source)
         self.assertIn("BOTTLE DISPLAYS PRODUCED", app_source)
-        self.assertIn('" cases"', app_source)
-        self.assertIn('"/case"', app_source)
+        self.assertIn("PRODUCTS PRODUCED (DAY)", app_source)
+        self.assertIn("hideNote=${true}", app_source)
 
     def test_unintegrated_machine_shows_not_integrated_and_na(self):
         source = Path("static/js/mes/command-center-app.js").read_text(encoding="utf-8")

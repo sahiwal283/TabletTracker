@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.25.7] - 2026-05-01
+
+### Fixed
+- **Command Center KPI cleanup:** Removed helper notes from card, bottle, and product count cards so the top row only shows the headline numbers.
+- **Bottle display split accuracy:** Bottle/variety runs are now classified with bottle product config fields as well as boolean flags, preventing bottle output from falling into card display totals when a flag is missing.
+- **Product count label:** Renamed the former flavors KPI to products because it counts distinct product/SKU labels, not true tablet flavors.
+
+---
+
 ## [4.25.6] - 2026-05-01
 
 ### Fixed

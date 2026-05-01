@@ -111,7 +111,7 @@ alembic downgrade -1
 
 ## 📊 Version
 
-Current: **v4.25.6** (card and bottle display KPIs split)
+Current: **v4.25.7** (Command Center KPI cleanup)
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.
 

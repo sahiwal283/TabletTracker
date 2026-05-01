@@ -357,7 +357,7 @@
       ${editing ? html`<form className="kpi-target-form" onSubmit=${function (e) { e.preventDefault(); props.onSave && props.onSave(e); }}>
         <label>${props.editLabel || "Target"}<input name="target" type=${props.editType || "number"} min="0" step=${props.editStep || "1"} defaultValue=${props.editValue || ""} /></label>
         <div><button type="submit">Save</button><button type="button" onClick=${props.onEdit}>Cancel</button></div>
-      </form>` : html`<div><span>${props.label}</span><strong className=${props.tone ? "kpi-" + props.tone : ""}>${props.value}</strong><em>${props.note || "Insufficient data"}</em></div>
+      </form>` : html`<div><span>${props.label}</span><strong className=${props.tone ? "kpi-" + props.tone : ""}>${props.value}</strong>${props.hideNote ? null : html`<em>${props.note || "Insufficient data"}</em>`}</div>
       <div className="occ-kpi-icon">${miniIcon(props.icon)}</div>`}
     </article>`;
   }
@@ -1419,21 +1419,6 @@
     var dailyDisplayTarget = asNum(inp.shiftConfig && inp.shiftConfig.dailyDisplayTarget);
     var targetThroughput = asNum(inp.shiftConfig && inp.shiftConfig.targetThroughputPerHour);
     var dueTimeValue = timeInputValue(inp.shiftConfig && inp.shiftConfig.productionDueMs);
-    function displayKpiNote(kpi, includeTarget) {
-      if (!kpi) return "Packaging count segments";
-      var val = asNum(kpi.value);
-      var cases = asNum(kpi.caseCount);
-      var dpcs = Array.isArray(kpi.displaysPerCaseValues)
-        ? kpi.displaysPerCaseValues.filter(function (v) { return asNum(v) != null && asNum(v) > 0; })
-        : [];
-      var caseNote = cases != null && cases > 0
-        ? fmtNumber(cases) + " cases" + (dpcs.length === 1 ? " @ " + fmtNumber(dpcs[0]) + "/case" : (dpcs.length > 1 ? " mixed case sizes" : ""))
-        : null;
-      if (val == null) return caseNote || "Packaging count segments";
-      return (caseNote ? caseNote + " / " : "") + fmtNumber(val) + (includeTarget && dailyDisplayTarget != null ? " / " + fmtNumber(dailyDisplayTarget) + " target" : "");
-    }
-    var cardDisplayNote = displayKpiNote(kpiBy.card_displays, true);
-    var bottleDisplayNote = displayKpiNote(kpiBy.bottle_displays, false);
     var packagingSummaryRows = [
       ["Card displays", kpiBy.card_displays ? fmtNumber(kpiBy.card_displays.value) : "0"],
       ["Bottle displays", kpiBy.bottle_displays ? fmtNumber(kpiBy.bottle_displays.value) : "0"],
@@ -1633,9 +1618,9 @@
         ${activeTab === "overview" ? html`
         <section className="occ-kpis">
           <${KpiCard} label="COMPLETED BAGS (DAY)" value=${kpiBy.bags ? fmtNumber(kpiBy.bags.value) : "0"} note="Bag to final only" icon="bag" />
-          <${KpiCard} label="CARD DISPLAYS PRODUCED" value=${kpiBy.card_displays ? fmtNumber(kpiBy.card_displays.value) : "0"} note=${cardDisplayNote} icon="bars" editable=${true} editing=${targetEditing === "daily"} editLabel="Daily card display target" editValue=${dailyDisplayTarget != null ? String(dailyDisplayTarget) : ""} editStep="1" onEdit=${function () { toggleTargetEditor("daily"); }} onSave=${function (e) { saveOpsTarget("daily", e); }} />
-          <${KpiCard} label="BOTTLE DISPLAYS PRODUCED" value=${kpiBy.bottle_displays ? fmtNumber(kpiBy.bottle_displays.value) : "0"} note=${bottleDisplayNote} icon="bars" />
-          <${KpiCard} label="FLAVORS PRODUCED (DAY)" value=${kpiBy.cycles ? fmtNumber(kpiBy.cycles.value) : "0"} note="Displays by flavor below" icon="cycle" />
+          <${KpiCard} label="CARD DISPLAYS PRODUCED" value=${kpiBy.card_displays ? fmtNumber(kpiBy.card_displays.value) : "0"} hideNote=${true} icon="bars" editable=${true} editing=${targetEditing === "daily"} editLabel="Daily card display target" editValue=${dailyDisplayTarget != null ? String(dailyDisplayTarget) : ""} editStep="1" onEdit=${function () { toggleTargetEditor("daily"); }} onSave=${function (e) { saveOpsTarget("daily", e); }} />
+          <${KpiCard} label="BOTTLE DISPLAYS PRODUCED" value=${kpiBy.bottle_displays ? fmtNumber(kpiBy.bottle_displays.value) : "0"} hideNote=${true} icon="bars" />
+          <${KpiCard} label="PRODUCTS PRODUCED (DAY)" value=${kpiBy.cycles ? fmtNumber(kpiBy.cycles.value) : "0"} hideNote=${true} icon="cycle" />
           <${KpiCard} label="AVERAGE CYCLE TIME (ALL)" value=${kpiBy.avg_cycle ? kpiBy.avg_cycle.value : "Insufficient data"} note=${kpiBy.avg_cycle && kpiBy.avg_cycle.value !== "Insufficient data" ? "From completed operations" : "Insufficient data"} icon="clock" tone="amber" />
           <${KpiCard} label="OEE (OVERALL)" value=${kpiBy.oee ? kpiBy.oee.value : "Insufficient data"} note=${oeeTargetNote} icon="gauge" tone="green" editable=${true} editing=${targetEditing === "throughput"} editLabel="Target output/hour" editValue=${targetThroughput != null ? String(targetThroughput) : ""} editStep="0.01" onEdit=${function () { toggleTargetEditor("throughput"); }} onSave=${function (e) { saveOpsTarget("throughput", e); }} />
           <${KpiCard} label="ON TIME COMPLETION" value=${kpiBy.on_time ? kpiBy.on_time.value : "No target set"} note=${inp.shiftConfig && inp.shiftConfig.productionDueMs ? "Due time configured" : "No target set"} icon="target" tone="red" editable=${true} editing=${targetEditing === "due"} editLabel="Daily due time" editType="time" editValue=${dueTimeValue} onEdit=${function () { toggleTargetEditor("due"); }} onSave=${function (e) { saveOpsTarget("due", e); }} />

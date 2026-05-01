@@ -309,6 +309,8 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                    COALESCE(NULLIF(trim(e.full_name), ''), NULLIF(trim(e.username), '')) AS op_label,
                    we.payload AS payload,
                    COALESCE(pd.displays_per_case, 0) AS product_displays_per_case,
+                   COALESCE(pd.bottles_per_display, 0) AS product_bottles_per_display,
+                   COALESCE(pd.tablets_per_bottle, 0) AS product_tablets_per_bottle,
                    COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
                    COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
             FROM workflow_events we
@@ -355,6 +357,8 @@ def gather_workflow_event_rows(conn: sqlite3.Connection, start_ms: int, end_ms: 
                     "caseCount": nums["case_count"],
                     "looseDisplayCount": loose_display_num,
                     "productDisplaysPerCase": prod_dpc,
+                    "productBottlesPerDisplay": int(row.get("product_bottles_per_display") or 0),
+                    "productTabletsPerBottle": int(row.get("product_tablets_per_bottle") or 0),
                     "isBottleProduct": int(row.get("is_bottle_product") or 0) == 1,
                     "isVarietyPack": int(row.get("is_variety_pack") or 0) == 1,
                     "packagingCaseBreakdown": packaging_case_breakdown,
@@ -382,6 +386,8 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
                    substr(upper(trim(replace(coalesce(pd.product_name,''),' ','-'))),1,48) AS sku,
                    NULL AS qty_received,
                    COALESCE(pd.displays_per_case, 0) AS displays_per_case,
+                   COALESCE(pd.bottles_per_display, 0) AS bottles_per_display,
+                   COALESCE(pd.tablets_per_bottle, 0) AS tablets_per_bottle,
                    COALESCE(pd.is_bottle_product, 0) AS is_bottle_product,
                    COALESCE(pd.is_variety_pack, 0) AS is_variety_pack
             FROM workflow_bags wb
@@ -406,6 +412,8 @@ def gather_bags_for_trace(conn: sqlite3.Connection, bag_ids: list[int]) -> list[
                     "qtyReceived": rr.get("qty_received"),
                     "productLabel": str(rr.get("sku") or "—"),
                     "displaysPerCase": dpc,
+                    "bottlesPerDisplay": int(rr.get("bottles_per_display") or 0),
+                    "tabletsPerBottle": int(rr.get("tablets_per_bottle") or 0),
                     "isBottleProduct": int(rr.get("is_bottle_product") or 0) == 1,
                     "isVarietyPack": int(rr.get("is_variety_pack") or 0) == 1,
                 }
